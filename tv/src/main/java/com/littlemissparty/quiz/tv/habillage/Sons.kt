@@ -8,6 +8,8 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import kotlin.math.abs
 
@@ -32,13 +34,14 @@ object Sons {
     private const val CRAYON_SORTIE_MS = 200L
     /** Versions d'un même son long au plus (gs_tension_2 … gs_tension_5). */
     private const val MAX_VARIANTES = 5
-    /** Musique calée sur la partie : écart toléré avant de la recaler, et temps laissé au lecteur pour finir un recalage. */
-    private const val CALAGE_ECART_MS = 150
+    /**
+     * Musique calée sur la partie : écart toléré avant de la recaler en pleine lecture, et temps laissé au lecteur pour
+     * finir un recalage. Large exprès (cedric, 24/10) : chaque recalage s'entend, et la musique dure exactement la mèche.
+     */
+    private const val CALAGE_ECART_MS = 1_000
     private const val CALAGE_ATTENTE_MS = 400L
     /** Veille des boucles : une boucle qui devrait s'entendre et ne joue plus est relancée (cedric, 23 octobre). */
     private const val VEILLE_MS = 1_000L
-    /** Incidents du son envoyés dans les rapports de la box, au plus, par lancement de l'appli. */
-    private const val MAX_INCIDENTS = 20
     /** Délai avant de rendre les lecteurs d'une boucle libérée : Android a fini de relancer celui qui prenait le relais. */
     private const val LIBERATION_MS = 2_000L
 
@@ -50,7 +53,12 @@ object Sons {
     private val fonduCrayon = Any()
     private val veille = Any()
     private var veilleLancee = false
-    private var incidents = 0
+    /** Les incidents du son, une fois chacun, leurs répétitions résumées (voir [Incidents]). */
+    private val incidents = Incidents { texte -> runCatching { rapporteur?.invoke(texte) } }
+    /** Quand refaire un lecteur en erreur (voir [Reprises]) ; ceux qui attendent déjà le leur. */
+    private val reprises = Reprises()
+    private val enReparation: MutableSet<MediaPlayer> =
+        Collections.synchronizedSet(Collections.newSetFromMap(IdentityHashMap<MediaPlayer, Boolean>()))
 
     /**
      * Où envoyer un incident du son (boucle arrêtée toute seule, relais raté, lecteur en erreur) : les rapports de la
@@ -71,7 +79,7 @@ object Sons {
     private val recalages = mutableMapOf<Son, Long>()
     /** Numéro du dernier lancement de chaque son long : un fondu de sortie ne coupe jamais un son relancé entre-temps. */
     private val lancements = mutableMapOf<Son, Int>()
-    private val lits = mutableMapOf<Lit, Boucle>()
+    private val lits = mutableMapOf<Lit, LitSonore>()
     /** Fichier de chaque lecteur : un lecteur endormi ([endormir]) se recharge depuis lui. */
     private val fichiers = WeakHashMap<MediaPlayer, String>()
     private var appli: Context? = null
@@ -96,7 +104,7 @@ object Sons {
 
     /**
      * Début (SystemClock.elapsedRealtime) du tour en cours de la boucle d'accueil du Game Show, 0 quand elle ne joue
-     * pas : la vidéo du robot qui dort repart de sa première image à chaque tour de la musique.
+     * pas. La vidéo du robot qui dort ne s'y cale plus (cedric, 24/10 : elle tourne seule, sans saccade).
      */
     @Volatile var tourAccueil: Long = 0L
         private set
@@ -162,6 +170,12 @@ object Sons {
             essayer("veille") {
                 // En arrière-plan, rien ne joue : un relais lancé par Android à l'instant de la pause relancerait sa boucle.
                 if (enArriere) lits.values.forEach { if (it.isPlaying) it.pause() }
+                // Boucle en flux dont la sortie audio a lâché : refaite de zéro.
+                lits.filterValues { it.enPanne }.forEach { (l, b) ->
+                    incident("Boucle ${l.name} (${l.fichierPour(Look.gs)}) : sortie audio perdue, refaite")
+                    lits.remove(l)
+                    b.liberer(h, 0)
+                }
                 if (!enArriere) lits.forEach { (l, b) ->
                     if (volumes.getValue(l) > 0.01f && !b.isPlaying) {
                         incident("Boucle ${l.name} (${l.fichierPour(Look.gs)}) arrêtée toute seule, ambiance $ambiance : relancée")
@@ -192,12 +206,10 @@ object Sons {
         }
     }
 
-    /** Un incident du son : dans le journal de la box, et dans ses rapports (les premiers seulement). */
+    /** Un incident du son : dans le journal de la box, et dans ses rapports (ses répétitions groupées). */
     internal fun incident(texte: String) {
         Log.w(TAG, texte)
-        if (incidents >= MAX_INCIDENTS) return
-        incidents++
-        runCatching { rapporteur?.invoke(texte) }
+        if (incidents.noter(texte, SystemClock.uptimeMillis())) h.postDelayed({ incidents.fermer(texte) }, incidents.fenetreMs)
     }
 
     private fun enchainer(etapes: ArrayDeque<() -> Unit>) {
@@ -267,7 +279,8 @@ object Sons {
 
     /**
      * Musique calée sur une horloge de la partie (la mèche de « Ça va exploser ! ») : elle doit être à [positionMs]
-     * maintenant. Elle ne se recale que si elle s'en écarte de plus de [CALAGE_ECART_MS], pour ne pas hoqueter.
+     * maintenant. Elle part au bon endroit (au départ et à chaque reprise), puis joue librement : elle ne se recale en
+     * pleine lecture que si elle s'en écarte de plus de [CALAGE_ECART_MS], pour ne jamais hoqueter.
      * [joue] faux (pause de la partie, bombe qui explose, entre deux bombes) la fige là où elle est. À rappeler souvent :
      * un changement d'écran qui coupe les sons longs ne la fait taire qu'un instant.
      */
@@ -284,11 +297,15 @@ object Sons {
                 mp.setVolume(1f, 1f)
                 val maintenant = SystemClock.uptimeMillis()
                 val enRecalage = maintenant - (recalages[s] ?: Long.MIN_VALUE / 2) < CALAGE_ATTENTE_MS
-                if (!enRecalage && abs(mp.currentPosition - positionMs) > CALAGE_ECART_MS) {
+                if (!mp.isPlaying) {
+                    // Départ ou reprise : le saut se fait pendant le silence, il ne s'entend pas.
+                    mp.seekTo(positionMs, MediaPlayer.SEEK_CLOSEST)
+                    recalages[s] = maintenant
+                    mp.start()
+                } else if (!enRecalage && abs(mp.currentPosition - positionMs) > CALAGE_ECART_MS) {
                     mp.seekTo(positionMs, MediaPlayer.SEEK_CLOSEST)
                     recalages[s] = maintenant
                 }
-                if (!mp.isPlaying) mp.start()
             }
         }
     }
@@ -468,20 +485,27 @@ object Sons {
     }
 
     /** Recharge une boucle libérée (ou pas encore chargée) au moment où une ambiance en a besoin. */
-    private fun rechargerLit(l: Lit): Boucle? {
+    private fun rechargerLit(l: Lit): LitSonore? {
         val c = appli ?: return null
         chargerLit(c, l)
         return lits[l]
     }
 
     /** Remet une boucle en route, calée sur le tempo commun ; la boucle d'accueil (sa propre longueur) repart de son début. */
-    private fun reveiller(b: Boucle?) {
+    private fun reveiller(b: LitSonore?) {
         if (b == null || b.isPlaying) return
         b.demarrer(if (b.periodeMs != null) 0 else Math.floorMod(SystemClock.elapsedRealtime() - departDesLits, BOUCLE_MS).toInt())
     }
 
     /** [surTour] : appelé au début de chaque tour (instant SystemClock.elapsedRealtime), avec 0 quand elle s'arrête. */
-    private fun boucle(context: Context, nom: String, surTour: ((Long) -> Unit)? = null): Boucle? {
+    private fun boucle(context: Context, nom: String, surTour: ((Long) -> Unit)? = null): LitSonore? {
+        // Fichier en WAV (les fonds du Game Show) : un flux continu, sans relais entre deux lecteurs.
+        val res = id(context, nom) ?: return null
+        try {
+            BouclePcm.ouvrir(context, res, surTour, BOUCLE_MS) { incident("Boucle « $nom » : $it") }?.let { return it }
+        } catch (e: Exception) {
+            incident("Boucle « $nom » : flux impossible (${e.message}), lue par deux lecteurs")
+        }
         val a = lecteur(context, nom, boucle = false) ?: return null
         val b = try { lecteur(context, nom, boucle = false) } catch (e: Exception) { null }
         // Les fonds de 16 s se calent sur le tempo commun ; une boucle d'une autre longueur, sur la sienne.
@@ -501,10 +525,19 @@ object Sons {
         return neuf.apply {
             isLooping = boucle
             fichiers[this] = nom
-            // Un lecteur en erreur (serveur audio de la box relancé…) resterait muet toute la partie : on le refait.
+            // Un lecteur en erreur (serveur audio de la box relancé…) resterait muet toute la partie : on le refait,
+            // une fois (ses erreurs suivantes attendent la même réparation), et de plus en plus tard (voir [Reprises]).
             setOnErrorListener { mp, quoi, extra ->
-                incident("Lecteur « $nom » en erreur ($quoi, $extra), reconstruit")
-                h.post { reconstruire(context, nom, boucle, mp) }
+                if (!enReparation.add(mp)) {
+                    incident("Lecteur « $nom » en erreur ($quoi, $extra), déjà en réparation")
+                    return@setOnErrorListener true
+                }
+                val delai = reprises.delai(nom, SystemClock.uptimeMillis())
+                incident("Lecteur « $nom » en erreur ($quoi, $extra), refait dans $delai ms")
+                h.postDelayed({
+                    enReparation.remove(mp)
+                    reconstruire(context, nom, boucle, mp)
+                }, delai)
                 true
             }
             // Un son long arrivé au bout rend sa sortie audio (les boucles remplacent ce relais par le leur).
@@ -542,6 +575,10 @@ object Sons {
 
     private fun reconstruire(context: Context, nom: String, boucle: Boolean, ancien: MediaPlayer) {
         essayer("reconstruire") { ancien.release() }
+        // Réparation prévue plus tard : entre-temps, le son a pu être lâché (changement de design) ; rien à refaire.
+        val utilise = longs.values.any { it === ancien } || variantes.values.any { v -> v.any { it === ancien } } ||
+            crayon === ancien || lits.values.any { it.possede(ancien) }
+        if (!utilise) return
         val neuf = try { lecteur(context, nom, boucle) } catch (e: Exception) { null } ?: return
         Son.entries.find { longs[it] === ancien }?.let { longs[it] = neuf }
         for (s in variantes.keys.toList()) variantes[s] = variantes.getValue(s).map { if (it === ancien) neuf else it }
@@ -622,11 +659,10 @@ object Sons {
 private class Boucle(
     private val a: MediaPlayer,
     private val b: MediaPlayer?,
-    /** Longueur propre de la boucle quand elle n'est pas un fond de 16 s ; null : le tempo commun. */
-    val periodeMs: Long? = null,
+    override val periodeMs: Long? = null,
     private val surTour: ((Long) -> Unit)? = null,
     private val signaler: (String) -> Unit = {},
-) {
+) : LitSonore {
     private var courant = a
     private var libere = false
 
@@ -675,14 +711,14 @@ private class Boucle(
         return if (!courant.isPlaying && autre?.isPlaying == true) autre else courant
     }
 
-    val isPlaying: Boolean get() = a.isPlaying || b?.isPlaying == true
+    override val isPlaying: Boolean get() = a.isPlaying || b?.isPlaying == true
 
-    fun setVolume(v: Float) {
+    override fun setVolume(v: Float) {
         a.setVolume(v, v)
         b?.setVolume(v, v)
     }
 
-    fun pause() {
+    override fun pause() {
         surTour?.invoke(0L)
         val mp = joueur()
         if (!mp.isPlaying) return
@@ -696,7 +732,7 @@ private class Boucle(
         }
     }
 
-    fun demarrer(ms: Int) {
+    override fun demarrer(ms: Int) {
         val mp = joueur()
         courant = mp
         mp.seekTo(ms)
@@ -704,14 +740,14 @@ private class Boucle(
         surTour?.invoke(SystemClock.elapsedRealtime() - ms)
     }
 
-    fun possede(mp: MediaPlayer) = mp === a || mp === b
+    override fun possede(mp: MediaPlayer) = mp === a || mp === b
 
     /**
      * Coupe le relais tout de suite, rend les deux lecteurs [apresMs] plus tard sur [h]. Quand le premier finit, Android
      * relance le second sur un fil à lui ; rendu à cet instant, ce second lecteur faisait planter toute l'appli (essai
      * sur émulateur du 23 octobre). Muets entre-temps, ils ne s'entendent plus.
      */
-    fun liberer(h: Handler, apresMs: Long) {
+    override fun liberer(h: Handler, apresMs: Long) {
         libere = true
         surTour?.invoke(0L)
         listOfNotNull(a, b).forEach { mp ->

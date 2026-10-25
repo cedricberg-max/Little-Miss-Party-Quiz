@@ -31,6 +31,8 @@ body {
 .logo.small { font-size: 40px; }
 .hint { opacity: .85; font-size: 18px; margin: 0; }
 .hint.error { color: #FFD166; font-weight: 700; opacity: 1; }
+/* Numéro de la tablette qui attend, le même que sur la régie de l'animatrice. */
+.tablet-num { font-weight: 900; font-size: clamp(40px, 12vw, 84px); letter-spacing: 2px; margin: 4px 0; }
 .welcome { margin: 0; font-size: 22px; font-weight: 800; color: var(--gold); }
 label, .label { font-weight: 700; font-size: 18px; margin: 8px 0 0; }
 
@@ -215,10 +217,10 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 @media (orientation: landscape) and (min-width: 600px) {
   #app { padding-left: max(24px, env(safe-area-inset-left)); padding-right: max(24px, env(safe-area-inset-right)); }
 
-  /* Rejoindre : le logo à gauche, le nom et la couleur à droite. */
-  #screen-join.active { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-content: safe center; justify-items: center; column-gap: 32px; row-gap: 10px; }
-  #screen-join.active > * { grid-column: 2; }
-  #screen-join.active > .logo { grid-column: 1; grid-row: 1 / span 9; align-self: center; }
+  /* Avant la régie : le logo à gauche, la consigne et le bouton de la régie à droite. */
+  #screen-gate.active { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-content: safe center; justify-items: center; column-gap: 32px; row-gap: 10px; }
+  #screen-gate.active > * { grid-column: 2; }
+  #screen-gate.active > .logo { grid-column: 1; grid-row: 1 / span 9; align-self: center; }
 
   /* Buzzer : l'équipe et la consigne à gauche, le gros bouton à droite. */
   #screen-play.active { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto auto 1fr; align-items: center; justify-items: center; column-gap: 40px; row-gap: 14px; }

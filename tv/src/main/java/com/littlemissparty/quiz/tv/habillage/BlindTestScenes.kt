@@ -55,6 +55,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import com.littlemissparty.quiz.engine.LigneParole
 import kotlinx.coroutines.delay
 
@@ -84,10 +86,13 @@ internal fun horloge(cle: Any?): () -> Float {
     return { (maintenant.longValue - depart).toFloat() }
 }
 
-/** Fond de scène : un panneau aux coins arrondis, comme les autres cartes du plateau, qui borne les rayons. */
+/**
+ * Fond de scène. Classique : un panneau aux coins arrondis qui borne les rayons. Game Show : aucun cadre sur le plateau
+ * (cedric, 24 octobre), les rayons s'éteignent d'eux-mêmes dans la fumée.
+ */
 @Composable
 private fun Scene(fond: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize().clip(RoundedCornerShape(36.dp)).background(Color.White.copy(alpha = 0.05f))) { fond() }
+    Box(Modifier.fillMaxSize().then(if (Look.gs) Modifier.panneauJeu() else Modifier.clip(RoundedCornerShape(36.dp)).background(Color.White.copy(alpha = 0.05f)))) { fond() }
 }
 
 /**
@@ -153,6 +158,24 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
 @Composable
 fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
     val ms = horloge(equipe)
+    if (Look.gs) {
+        // Game Show (proposition D) : lasers qui convergent, anneau à la couleur de l'équipe, « STOP ! » en glitch.
+        Echelle(LARGEUR, HAUTEUR, modifier) {
+            AlerteBuzz(ms, couleur, { 1f }, Modifier.fillMaxSize())
+            // Lu d'un seul bloc (lecteur d'écran, tests) : la pastille et la ligne disent « X a buzzé ! ».
+            Column(
+                Modifier.align(Alignment.Center).clearAndSetSemantics { contentDescription = "$equipe a buzzé ! On attend sa réponse…" },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                StopGlitch(ms, 120.sp)
+                Spacer(Modifier.height(14.dp))
+                PastilleNom(equipe, couleur, 84f, 640.dp, Modifier.apparition(180, equipe))
+                Spacer(Modifier.height(22.dp))
+                LigneBuzz("A BUZZÉ · ON ÉCOUTE SA RÉPONSE", 22.sp, Modifier.apparition(420, equipe))
+            }
+        }
+        return
+    }
     val anim = rememberInfiniteTransition(label = "attente")
     val souffle by anim.animateFloat(0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "attente")
     Echelle(LARGEUR, HAUTEUR, modifier) { Box(
@@ -334,7 +357,8 @@ fun BlindRevelation(
         // Le moment le plus festif : toute la salle chante le refrain jusqu'au « Titre suivant ». Sous la platine et le
         // titre (bande libre du bas de la scène), jamais par-dessus.
         if (chantons) {
-            Text(
+            if (Look.gs) ToutLeMondeChante(40.sp, Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp).apparition(2_200, cle))
+            else Text(
                 "🎤 Tous ensemble, on chante !", color = Neon.Or, fontSize = 40.sp, fontWeight = FontWeight.Black, maxLines = 1,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp).apparition(2_200, cle),
             )

@@ -32,6 +32,7 @@ import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.BlindBilan
+import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import com.littlemissparty.quiz.tv.habillage.BlindBuzz
 import com.littlemissparty.quiz.tv.habillage.BlindDouble
 import com.littlemissparty.quiz.tv.habillage.BlindIntro
@@ -160,7 +161,7 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
     val gagnant = state.teams.find { (state.awards[it.uid]?.points ?: 0) > 0 }
     val revele = state.phase == Phase.REVEAL || state.phase == Phase.SCORES
     Column(
-        modifier.clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.08f)).padding(24.dp),
+        modifier.panneauJeu(0.08f).padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

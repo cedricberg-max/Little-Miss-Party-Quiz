@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -24,6 +25,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.littlemissparty.quiz.tv.R
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
@@ -81,11 +84,17 @@ fun DecorGameShow(chaud: Boolean, dore: Boolean = false, accueil: Boolean = fals
                 else -> {}
             }
         }
+        // Tant que la vidéo n'a pas sa première image : jamais l'ancien décor dessiné entre deux vidéos (cedric, 24/10 :
+        // « quelques frames de l'ancien décor » entre la fin du lancement et l'intro du Quiz). Sous une intro, du noir
+        // (le lancement finit au noir, les intros recouvrent tout) ; ailleurs, l'image fixe du plateau 3D.
         if (!videoPrete) {
-            if (photo != null && ((fige && !sansVideo) || video != 0)) {
-                Image(photo, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
-            } else {
-                DecorDessine(temps::longValue, paillettes)
+            when {
+                photo != null && ((fige && !sansVideo) || video != 0) ->
+                    Image(photo, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
+                sansVideo -> Box(Modifier.fillMaxSize().background(Color.Black))
+                accueil -> Image(painterResource(R.drawable.gs_accueil_poster), contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
+                Look.fond3d -> Image(painterResource(R.drawable.gs_fond_poster), contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
+                else -> DecorDessine(temps::longValue, paillettes)
             }
         }
         if (paillettes > 0.01f) {

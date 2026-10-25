@@ -200,8 +200,18 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
         g.rounds.forEach { start ->
             val copie = Game(quiz, g.events)
             val manche = g.roundOf(start).map { quiz.questions[it].id }
-            val r = copie.execute(Command.Goto("secours", copie.state.lastSeq, start, manche.first()), now, teams)
+            var r = copie.execute(Command.Goto("secours", copie.state.lastSeq, start, manche.first()), now, teams)
             assertEquals(CommandStatus.APPLIED, r.status, "secours vers ${manche.first()} refusé en ${g.state.phase} ${g.state.qid} : ${r.reason}")
+            // Jeu quitté en cours de route : bilan des scores (pause levée, rien de perdu), puis « Suivant » y saute.
+            if (r.event is GameLeft) {
+                assertEquals(Phase.SCORES, copie.state.phase)
+                assertFalse(copie.state.paused, "le secours lève la pause")
+                assertNull(copie.state.mime?.team)
+                assertNull(copie.state.buzz?.team)
+                assertEquals(sansZero(g.state.scores()), sansZero(copie.state.scores()), "bilan avant ${manche.first()} : aucun point perdu")
+                r = copie.execute(Command.Next("secours-suivant", copie.state.lastSeq), now + 500, teams)
+                assertEquals(CommandStatus.APPLIED, r.status, "« Suivant » après le bilan refusé : ${r.reason}")
+            }
             val saut = assertIs<Jumped>(r.event)
             assertEquals(start, copie.state.index)
             assertEquals(Phase.QUESTION, copie.state.phase)
@@ -277,7 +287,16 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
     fun pause() = ok { i, s -> Command.Pause(i, s) }
     fun resume() = ok { i, s -> Command.Resume(i, s) }
     fun end() = ok { i, s -> Command.End(i, s) }
-    fun goto(index: Int) = ok { i, s -> Command.Goto(i, s, index, quiz.questions[index].id) } as Jumped
+    /** Changement de jeu par la régie : un jeu quitté en cours passe par le bilan des scores, puis « suivant » y saute. */
+    fun goto(index: Int): Jumped = when (val e = ok { i, s -> Command.Goto(i, s, index, quiz.questions[index].id) }) {
+        is Jumped -> e
+        is GameLeft -> {
+            assertEquals(Phase.SCORES, state.phase, "bilan des scores avant ${e.qid}")
+            assertEquals(index, game.leaveTarget)
+            next() as Jumped
+        }
+        else -> throw AssertionError("changement de jeu inattendu : ${e::class.simpleName}")
+    }
     fun mimeStart(team: String) = ok { i, s -> Command.MimeStart(i, s, team) }
     fun found() = ok { i, s -> Command.MimeFound(i, s) }
     fun pass() = ok { i, s -> Command.MimePass(i, s) }
@@ -901,6 +920,9 @@ class PrestationsCompletesTest {
         val seq = b.state.lastSeq
         assertEquals(CommandStatus.APPLIED, b.send(Command.Goto("tel1", seq, 2, "n1")).status)
         assertEquals(CommandStatus.STALE, b.send(Command.Goto("tel2", seq, 2, "n1")).status)
+        // Jeu quitté en cours : bilan des scores, puis « suivant » ouvre le jeu choisi.
+        assertEquals(Phase.SCORES, b.state.phase)
+        b.next()
         assertEquals("n1", b.state.qid)
         // Programme modifié entre-temps : le saut est refusé, la partie ne bouge pas.
         assertEquals("stale_program", b.send(Command.Goto("vieux", b.state.lastSeq, 3, "n1")).reason)

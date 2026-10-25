@@ -154,6 +154,28 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show, la super finale garde la musique de la manche, sans blanc`() {
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true))
+        d.observer(q1.copy(gameShow = true))
+        d.observer(q2.copy(gameShow = true))
+        val bascule = d.observer(q2.copy(index = 8, superFinale = true, gameShow = true))
+        assertTrue(Son.BT_DOUBLE in bascule.sons())
+        assertEquals(listOf(Ambiance.DECISIVE), bascule.filterIsInstance<Ordre.Musique>().map { it.ambiance })
+    }
+
+    @Test
+    fun `Game Show, Qui suis-je sur la musique des mimes, en retrait, silence quand une equipe a buzze`() {
+        val d = DirecteurSonore()
+        val qui = q2.copy(jeuBuzz = true, quiSuis = true, gameShow = true)
+        d.observer(salon.copy(gameShow = true))
+        assertEquals(Ambiance.MIMES_ENTRE, d.observer(qui).musique())
+        assertEquals(Ambiance.SILENCE, d.observer(qui.copy(buzzEquipe = 0)).musique())
+        // Look Classique : rien ne change.
+        assertEquals(Ambiance.SUSPENSE, DirecteurSonore().apply { observer(salon) }.observer(qui.copy(gameShow = false)).musique())
+    }
+
+    @Test
     fun `un tic par reponse recue, rien si rien ne change`() {
         val d = DirecteurSonore()
         d.observer(q2)
@@ -474,7 +496,7 @@ class DirecteurSonoreTest {
         // Raté : « pouet » gentil et la musique revient.
         val rate = d.observer(image.copy(ratees = 1))
         assertEquals(Ordre.Couper, rate.first())
-        assertEquals(listOf(Son.VF_FAUX), rate.sons())
+        assertEquals(listOf(Son.RATE), rate.sons())
         assertEquals(Ambiance.SUSPENSE, rate.musique())
         // La montée dramatique repart là où le buzz l'avait figée, comme la photo.
         assertTrue(rate.contains(Ordre.Reprendre(Son.FLOU_MONTEE, Tempo.FLOU_REPRISE)))
@@ -534,7 +556,7 @@ class DirecteurSonoreTest {
         assertEquals(Ambiance.SILENCE, buzz.musique())
         // Les deux changements arrivent d'un coup (raté de l'équipe 3, buzz de l'équipe 1) : pouet puis buzz.
         val coup = d.observer(image.copy(ratees = 2, buzzEquipe = 1))
-        assertEquals(listOf(Son.VF_FAUX, Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), coup.sons())
+        assertEquals(listOf(Son.RATE, Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), coup.sons())
     }
 
     @Test
@@ -582,7 +604,7 @@ class DirecteurSonoreTest {
         val buzz = d.observer(bt.copy(urgent = true, buzzEquipe = 1))
         assertEquals(listOf(Son.BT_SCRATCH, Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), buzz.sons())
         val rate = d.observer(bt.copy(urgent = true, ratees = 1))
-        assertEquals(listOf(Son.VF_FAUX), rate.sons())
+        assertEquals(listOf(Son.RATE), rate.sons())
         assertEquals(Ambiance.SILENCE, rate.musique())
         val revele = d.observer(bt.copy(ecran = Ecran.REVELATION, ratees = 1, gagnants = 1))
         assertFalse(revele.any { it is Ordre.Musique && it.ambiance == Ambiance.FETE })
@@ -613,7 +635,7 @@ class DirecteurSonoreTest {
         // Mauvaise réponse : petit « pouet », le silence continue ; puis Sarah relance la chanson.
         val rate = d.observer(bt.copy(ratees = 1))
         assertTrue(Ordre.Couper in rate)
-        assertEquals(listOf(Son.VF_FAUX), rate.sons())
+        assertEquals(listOf(Son.RATE), rate.sons())
         assertEquals(Ambiance.SILENCE, rate.musique())
         assertEquals(listOf(Son.BT_DIAMANT), d.observer(bt.copy(ratees = 1, blindLecture = true)).sons())
         // Révélation avec un gagnant : fanfare du blind test, tampon et points ; raccourcie par Sarah, tout se tait.
@@ -726,7 +748,7 @@ class DirecteurSonoreTest {
         assertEquals(0.8f, Ambiance.BILAN.volume(Lit.BILAN, gs = true), 0f)
         assertEquals(0f, Ambiance.BILAN.volume(Lit.COMPLET, gs = true), 0f)
         // Super finale : en Classique, l'express un peu plus bas ; en Game Show, la musique de la manche et la nappe.
-        assertEquals(0.4f, Ambiance.DECISIVE.volume(Lit.EXPRESS), 0f)
+        assertEquals(0.6f, Ambiance.DECISIVE.volume(Lit.EXPRESS), 0f)
         assertEquals(0f, Ambiance.DECISIVE.volume(Lit.TENSION), 0f)
         assertEquals(Ambiance.QUESTION.volume(Lit.LEGER, gs = true), Ambiance.DECISIVE.volume(Lit.LEGER, gs = true), 0f)
         assertTrue(Ambiance.DECISIVE.volume(Lit.TENSION, gs = true) > 0f)
@@ -783,7 +805,7 @@ class DirecteurSonoreTest {
     fun `chaque son existe dans les ressources de l'appli`() {
         // Les tests JVM d'Android tournent depuis le dossier du module tv/.
         val manquants = (Son.entries.flatMap { listOfNotNull(it.fichier, it.gs) } + Lit.entries.flatMap { listOfNotNull(it.fichier, it.gs) })
-            .filterNot { java.io.File("src/main/res/raw/$it.ogg").isFile }
+            .filterNot { n -> listOf("ogg", "wav").any { java.io.File("src/main/res/raw/$n.$it").isFile } }
         assertTrue("Sons manquants : $manquants", manquants.isEmpty())
     }
 

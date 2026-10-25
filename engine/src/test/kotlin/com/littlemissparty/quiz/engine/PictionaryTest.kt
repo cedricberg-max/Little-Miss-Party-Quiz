@@ -196,12 +196,19 @@ class PictionaryTest {
         g.mimeFound(t0 + 30_000)
         g.turn("rose", t0 + 40_000)
         val withPicto = g.state.scores()
-        // Le jeu fait un flop : la régie saute au jeu suivant en plein tour.
+        // Le jeu fait un flop : la régie saute au jeu suivant en plein tour. Bilan des scores d'abord, puis « suivant ».
         assertEquals(CommandStatus.APPLIED, g.cmd(Command.Goto("g1", g.state.lastSeq, 2, "q2"), t0 + 50_000).status)
+        assertEquals(Phase.SCORES, g.state.phase)
+        assertNull(g.state.mime?.team, "le tour en cours s'arrête")
+        assertEquals(withPicto, g.state.scores())
+        assertEquals(CommandStatus.APPLIED, g.cmd(Command.Next("g1b", g.state.lastSeq), t0 + 52_000).status)
         assertEquals("q2", g.state.qid)
         assertEquals(withPicto, g.state.scores())
-        // Rejouer le Pictionary : ses points sont retirés, puis rejoués.
+        // Rejouer le Pictionary depuis la finale en cours : bilan, puis ses points sont retirés et rejoués.
         assertEquals(CommandStatus.APPLIED, g.cmd(Command.Goto("g2", g.state.lastSeq, 1, "p1"), t0 + 60_000).status)
+        assertEquals(Phase.SCORES, g.state.phase)
+        assertEquals(CommandStatus.APPLIED, g.cmd(Command.Next("g2b", g.state.lastSeq), t0 + 62_000).status)
+        assertEquals("p1", g.state.qid)
         assertEquals((withPicto["bleu"] ?: 0) - Scoring.PICTO, g.state.scores()["bleu"] ?: 0)
         assertNull(g.state.mime?.secret)
         assertEquals(emptyList(), g.state.mime?.turns)

@@ -23,7 +23,7 @@ class PartieCompleteTest : TestTv() {
 
         val total = quiz.questions.size
         var minimum = 0L
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         quiz.questions.forEachIndexed { i, q ->
             ecran.voit("Quiz · question ${i + 1} / $total")
             attendreQuestion(licornes, code, i)
@@ -36,7 +36,7 @@ class PartieCompleteTest : TestTv() {
             if (i == 0) ecran.capture("question-fermee")
             ecran.ok("Révéler la réponse")
             ecran.voit("Voir les scores")
-            if (i == 0) ecran.capture("revelation")
+            if (i == 0) ecran.capture("revelation", attente = Ecran.APRES_REVELATION)
 
             val factor = if (q.double) 2 else 1
             minimum += Scoring.BASE * factor

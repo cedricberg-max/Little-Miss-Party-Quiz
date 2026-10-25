@@ -61,6 +61,12 @@ data class Revealed(
 data class ScoresShown(override val seq: Int, override val at: Long) : GameEvent
 
 /**
+ * La régie quitte le jeu en cours pour un autre jeu (cedric, 24/10) : bilan des scores d'abord, comme à la fin
+ * normale d'un jeu, puis « suivant » saute au jeu [qid] (première question du jeu choisi).
+ */
+data class GameLeft(override val seq: Int, override val at: Long, val qid: String) : GameEvent
+
+/**
  * Dernières questions du quiz à points multipliés : l'animatrice choisit, juste avant la première, le
  * multiplicateur de toute la série qui commence à la question [start] (×2 si elle ne touche à rien).
  */

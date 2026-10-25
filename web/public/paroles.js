@@ -40,7 +40,8 @@ export function lireLrc(texte) {
   return out.sort((a, b) => a.t - b.t);
 }
 
-const cle = (x) => `${x ?? ""}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+/** Clé de comparaison d'un texte : lettres et chiffres, sans accents ni majuscules. */
+export const cle = (x) => `${x ?? ""}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 
 /**
  * Moment du refrain d'après les paroles (secondes), ou null : la première fois qu'arrive le passage le plus répété de
@@ -146,4 +147,81 @@ export function associerParoles(fichiers) {
     return { musique: f, lrc: p };
   });
   return { paires, seuls: [...lrc.values()] };
+}
+
+/**
+ * Mauvaises réponses du Quiz musical (cedric, 24/10) : des mots du refrain qui pourraient passer pour le titre, à côté
+ * du vrai titre, pour semer le doute. Elles sont prises dans les phrases chantées pendant les [LEURRES_FENETRE_SEC]
+ * premières secondes du refrain réglé pour le hook (tout l'extrait du refrain s'il en faut plus).
+ */
+export const LEURRES_FENETRE_SEC = 30;
+/** Longueur maximale d'une mauvaise réponse (elle tient sur une carte de la TV et un bouton de pupitre). */
+export const LEURRE_MAX = 40;
+
+// Petits mots qui ne finissent jamais un titre plausible (« Je veux de », « Dans la »), en français et en anglais.
+const PAS_EN_FIN = new Set(("a à au aux de des du en et l la le les un une ou je j tu il elle on nous vous ils elles me m te t se s ce c "
+  + "ça qu que qui ne n pour par sur dans avec sans mais mon ma mes ton ta tes son sa ses leur nos vos "
+  + "the an and or of to in on at for with from my your his her our their i you he she we they it is am are was be so but get got all dont cant wont im").split(" "));
+// Ni le début d'un titre : une phrase coupée au milieu.
+const PAS_EN_DEBUT = new Set(["et", "ou", "mais", "que", "qu", "and", "or", "but", "that"]);
+// Bruits chantés : jamais une mauvaise réponse à eux seuls.
+const BRUITS = new Set("oh ooh oooh ah aah eh hey yeah yeh ouh ouais la na da di du doo ba uh hmm mmm whoa wow yo ha hou".split(" "));
+
+/**
+ * Propositions de mauvaises réponses pour la chanson [titre], d'après ses paroles du refrain [paroles] (forme courte de
+ * la TV, voir parolesDuRefrain) : la meilleure d'abord. Les bouts de phrase répétés dans le refrain passent devant (on
+ * les retient comme un titre), puis les phrases entières et les bouts de 2 ou 3 mots. Jamais le titre lui-même ni une
+ * phrase qui le contient, jamais deux propositions dont l'une contient l'autre. Vide sans paroles.
+ */
+export function propositionsDeTitre(paroles, titre) {
+  const lignes = `${paroles ?? ""}`.split("\n").map((l) => l.split("|")).filter((p) => p.length >= 2 && p[1].trim())
+    .map((p) => ({ ms: Number(p[0]), text: p[1] }));
+  const dansLeRefrain = lignes.filter((l) => l.ms < LEURRES_FENETRE_SEC * 1000);
+  const propositions = proposer(dansLeRefrain, titre);
+  return propositions.length >= 3 || dansLeRefrain.length === lignes.length ? propositions : proposer(lignes, titre);
+}
+
+function proposer(lignes, titre) {
+  // Le titre sans ses précisions : « Toxic (Radio Edit) » se compare comme « Toxic ».
+  const titreCle = cle(`${titre ?? ""}`.replace(/\s*[([].*$/, "")) || cle(titre);
+  const candidats = new Map();
+  let rang = 0;
+  for (const l of lignes) {
+    for (const morceau of l.text.split(/[,;:!?.()«»"“”…]+|\s[-–—]\s/)) {
+      const mots = morceau.split(/\s+/).map((m) => m.replace(/^['’\-]+|['’\-]+$/g, "")).filter((m) => cle(m));
+      for (let debut = 0; debut < mots.length; debut += 1) {
+        // Jusqu'à 5 mots, 6 pour une phrase entière.
+        for (let n = 1; n <= 6 && debut + n <= mots.length; n += 1) {
+          const bout = mots.slice(debut, debut + n);
+          const cles = bout.map((m) => cle(m));
+          const entier = n === mots.length;
+          if (n === 6 && !entier) continue;
+          // Un mot seul : un vrai mot d'au moins 4 lettres.
+          if (n === 1 && (cles[0].length < 4 || PAS_EN_FIN.has(cles[0]) || BRUITS.has(cles[0]))) continue;
+          if (PAS_EN_DEBUT.has(cles[0]) || PAS_EN_FIN.has(cles[n - 1]) || cles.every((c) => BRUITS.has(c))) continue;
+          if (!cles.some((c) => c.length >= 3 && !PAS_EN_FIN.has(c) && !BRUITS.has(c))) continue;
+          const texte = bout.join(" ");
+          const k = cles.join("");
+          if (texte.length > LEURRE_MAX || !k || k === titreCle || (titreCle.length >= 3 && k.includes(titreCle))) continue;
+          const c = candidats.get(k) ?? { texte, k, fois: 0, rang: rang++, bonus: 0 };
+          c.fois += 1;
+          c.bonus = Math.max(c.bonus, (n === 2 || n === 3 ? 5 : n === 4 ? 3 : n >= 5 ? 0 : 1) + (entier ? 6 : 0) + (debut === 0 ? 2 : 0));
+          candidats.set(k, c);
+        }
+      }
+    }
+  }
+  const classes = [...candidats.values()].sort((a, b) => (b.fois * 6 + b.bonus) - (a.fois * 6 + a.bonus) || a.rang - b.rang);
+  const gardes = [];
+  let dansLeTitre = false;
+  for (const c of classes) {
+    if (gardes.some((g) => g.k.includes(c.k) || c.k.includes(g.k))) continue;
+    // Un seul bout du titre (« Libérée » pour « Libérée, délivrée ») : le doute, pas la devinette.
+    const partDuTitre = titreCle.includes(c.k);
+    if (partDuTitre && dansLeTitre) continue;
+    dansLeTitre ||= partDuTitre;
+    gardes.push(c);
+    if (gardes.length >= 20) break;
+  }
+  return gardes.map((c) => c.texte.charAt(0).toLocaleUpperCase("fr") + c.texte.slice(1));
 }

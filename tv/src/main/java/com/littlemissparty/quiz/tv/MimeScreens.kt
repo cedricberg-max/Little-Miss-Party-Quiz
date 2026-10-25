@@ -1,5 +1,8 @@
 package com.littlemissparty.quiz.tv
 
+import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.logoNeonJeu
+import androidx.compose.ui.res.painterResource
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -44,11 +47,15 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -96,8 +103,9 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
                 if (team != null) MimeCountdown(state)
             }
             Spacer(Modifier.height(8.dp))
-            if (team != null) Turn(state, m, team) else BetweenTurns(state, m, Modifier.weight(1f))
-            if (team != null) Spacer(Modifier.weight(1f))
+            // Le bandeau des équipes est mesuré d'abord : ses boutons gardent toujours leur hauteur (cedric, 24/10 :
+            // « Image suivante » rogné sous une carte avec photo et mot sur deux lignes) ; la carte prend le reste.
+            if (team != null) Turn(state, m, team, Modifier.weight(1f)) else BetweenTurns(state, m, Modifier.weight(1f))
             Spacer(Modifier.height(12.dp))
             // De 1 à 8 équipes : les pastilles passent au-dessus des boutons quand elles ne tiennent plus à côté.
             BandeauEquipes(
@@ -118,17 +126,39 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
 
 /** Tour en cours : « Au tour des Licornes ! », la carte en très grand et le compteur de mimes trouvés. */
 @Composable
-private fun Turn(state: UiState.Playing, m: MimeUi, team: Team) {
+private fun Turn(state: UiState.Playing, m: MimeUi, team: Team, modifier: Modifier = Modifier) {
     val color = team.color.toColor()
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            "Au tour de ${team.name} !", color = color, fontSize = 28.sp, fontWeight = FontWeight.Black,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            MimeCardView(m, color, state.images)
-            FoundCounter(m.found)
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        Column(Modifier.reduitSiTropHaut(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "Au tour de ${team.name} !", color = color, fontSize = 28.sp, fontWeight = FontWeight.Black,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                MimeCardView(m, color, state.images)
+                FoundCounter(m.found)
+            }
+        }
+    }
+}
+
+/**
+ * Hauteur qui manque (beaucoup d'équipes, photo et mot sur deux lignes) : le contenu rapetisse en entier, depuis le
+ * haut, au lieu d'être rogné. Sans clip : les animations de la carte peuvent toujours déborder.
+ */
+private fun Modifier.reduitSiTropHaut() = layout { mesurable, contraintes ->
+    val p = mesurable.measure(contraintes.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+    if (!contraintes.hasBoundedHeight || p.height <= contraintes.maxHeight) {
+        layout(p.width, p.height) { p.place(0, 0) }
+    } else {
+        val echelle = contraintes.maxHeight.toFloat() / p.height
+        layout(p.width, contraintes.maxHeight) {
+            p.placeWithLayer(0, 0) {
+                scaleX = echelle
+                scaleY = echelle
+                transformOrigin = TransformOrigin(0.5f, 0f)
+            }
         }
     }
 }
@@ -293,6 +323,9 @@ private fun MimeCardFace(card: MimeCard, color: Color, octets: ByteArray?, modif
     }
 }
 
+/** Place du compteur à droite de la carte : assez pour « 88 » en 96 sp et « trouvés ». */
+private val COMPTEUR_LARGEUR = 200.dp
+
 /** Compteur du tour : il rebondit et lâche un « +1 » doré à chaque mime trouvé. */
 @Composable
 private fun FoundCounter(found: Int) {
@@ -305,10 +338,20 @@ private fun FoundCounter(found: Int) {
         bump.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
     }
     LaunchedEffect(found) { if (found > 0) flyer.animateTo(0f, tween(900)) }
-    Box(contentAlignment = Alignment.Center) {
+    // Largeur fixe et interligne serré (cedric 24/10, photo : chiffre très au-dessus de « trouvés », bloc collé à la
+    // carte) : le chiffre et son mot restent un seul bloc centré, quelle que soit la largeur du nombre.
+    Box(Modifier.width(COMPTEUR_LARGEUR), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$found", color = Neon.Or, fontSize = 96.sp, fontWeight = FontWeight.Black, modifier = Modifier.scale(bump.value))
-            Text(if (found > 1) "trouvés" else "trouvé", color = Palette.InkSoft, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "$found", color = Neon.Or, fontSize = 96.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+                style = TextStyle(lineHeight = 96.sp, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)),
+                modifier = Modifier.scale(bump.value),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                if (found > 1) "trouvés" else "trouvé", color = Palette.InkSoft, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center, maxLines = 1, softWrap = false,
+            )
         }
         Text(
             "+1", color = Neon.Or, fontSize = 44.sp, fontWeight = FontWeight.Black,
@@ -327,7 +370,10 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
     Box(modifier.fillMaxWidth()) {
         if (last != null && last.found > 0) Gerbe(cle = m.turns.size, actif = apres(bilan, m.turns.size))
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("🎭", fontSize = 90.sp, lineHeight = 96.sp, modifier = Modifier.apparition(bilan, m.turns.size))
+            // Game Show : le logo néon des mimes (planche du 24/10) à la place de l'émoji.
+            val logo = if (Look.gs) logoNeonJeu("mimes") else null
+            if (logo != null) Image(painterResource(logo), contentDescription = null, modifier = Modifier.size(132.dp).apparition(bilan, m.turns.size))
+            else Text("🎭", fontSize = 90.sp, lineHeight = 96.sp, modifier = Modifier.apparition(bilan, m.turns.size))
             if (last != null && lastTeam != null) {
                 Text(
                     if (last.found > 0) "Bravo ${lastTeam.name} !" else "Bien essayé ${lastTeam.name} !",

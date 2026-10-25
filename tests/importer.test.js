@@ -436,30 +436,37 @@ describe("prestation de test (cedric, 24/10)", async () => {
         [TEST_PRESTATION]: { origin: "test", rounds: [{ type: "mimes", equipes: [[{ word: "Chat", banque: "chat" }]] }] },
         "-Nautre": { origin: "test", rounds: [] },
         ines: { origin: "admin", rounds: [{ type: "quiz", quizId: "animaux" }] },
-        // Une copie de démo que Sarah garde : son quiz reste.
-        tom: { copieDe: "test-lea-9-ans", rounds: [{ type: "quiz", quizId: "test-lea-9-ans" }] },
+        // Une copie de démo que Sarah garde (renommée pour une vraie fête) : son quiz reste.
+        tom: { title: "Anniversaire de Tom", copieDe: "test-lea-9-ans", rounds: [{ type: "quiz", quizId: "test-lea-9-ans" }] },
+        // Une copie de démo restée telle quelle : c'est un test, elle part (cedric, 24/10 : tout purger).
+        copie: { title: "Copie de ANNIVERSAIRE TEST – Léa, 9 ans", copieDe: "test-lea-9-ans", rounds: [{ type: "quiz", quizId: "test-lea-tous-les-jeux-quiz" }] },
       },
-      manches: { a: { showId: "test-lea-9-ans" }, b: { showId: TEST_PRESTATION }, c: { showId: "ines" } },
+      // [d] : une manche de la bibliothèque bâtie sur un quiz de test ; [e] : une vraie manche.
+      manches: { a: { showId: "test-lea-9-ans" }, b: { showId: TEST_PRESTATION }, c: { showId: "ines" },
+        d: { round: { type: "quiz", quizId: "test-vieux" } }, e: { round: { type: "quiz", quizId: "animaux" } } },
       quizzes: {
         animaux: { title: "Animaux", questions: [{ imageId: h("d") }] },
         "test-lea-9-ans": { title: "TEST", questions: [] },
+        "test-lea-tous-les-jeux-quiz": { title: "TEST – Quiz classique de Léa", questions: [] },
         "test-lea-tous-les-jeux-zoom": { title: "TEST", questions: [{ imageId: h("a") }, { imageId: h("d") }, { imageId: h("e") }] },
+        // Toute la rubrique « 🧪 Questions de test », même un quiz d'une version plus ancienne encore.
+        "test-vieux": { title: "TEST – Quiz illustré des petits", questions: [] },
       },
-      mimes: { "test-lea-tous-les-jeux-mimes": { title: "TEST", cards: [{ imageId: h("f") }] } },
+      mimes: { "test-lea-tous-les-jeux-mimes": { title: "TEST", cards: [{ imageId: h("f") }] }, "test-vieux-mimes": { title: "TEST", cards: [] } },
       playlists: { "test-lea-tous-les-jeux-comptines": { title: "TEST", tracks: [{ audioId: h("b") }, { audioId: h("9") }] } },
       songs: { s: { title: "Chanson", audioId: h("9") } },
       // Rangée par Sarah dans « Mes images ».
       medias: { [h("e")]: { name: "Fusée" } },
     };
     const plan = demosAEffacer(lib);
-    assert.deepEqual(plan.shows, ["test-lea-tous-les-jeux", "test-lea-9-ans", TEST_PRESTATION, "-Nautre"]);
-    assert.deepEqual(plan.manches, ["a", "b"]);
-    assert.deepEqual(plan.quizzes, ["test-lea-tous-les-jeux-zoom"], "le quiz de la copie de Tom reste");
-    assert.deepEqual(plan.mimes, ["test-lea-tous-les-jeux-mimes"]);
+    assert.deepEqual(plan.shows, ["test-lea-tous-les-jeux", "test-lea-9-ans", TEST_PRESTATION, "-Nautre", "copie"]);
+    assert.deepEqual(plan.manches, ["a", "b", "d"]);
+    assert.deepEqual(plan.quizzes.sort(), ["test-lea-tous-les-jeux-quiz", "test-lea-tous-les-jeux-zoom", "test-vieux"].sort(), "le quiz de la copie de Tom reste");
+    assert.deepEqual(plan.mimes.sort(), ["test-lea-tous-les-jeux-mimes", "test-vieux-mimes"].sort());
     assert.deepEqual(plan.playlists, ["test-lea-tous-les-jeux-comptines"]);
     // Les photos dessinées et la comptine partent ; celle du quiz de Sarah, la rangée et l'extrait d'une chanson restent.
     assert.deepEqual(plan.medias.sort(), [h("a"), h("f"), h("b")].sort());
-    assert.equal(nbDemos(plan), 4 + 2 + 1 + 1 + 1 + 3);
+    assert.equal(nbDemos(plan), 5 + 3 + 3 + 2 + 1 + 3);
     // Rien à effacer.
     assert.equal(nbDemos(demosAEffacer({ shows: { ines: lib.shows.ines }, quizzes: { animaux: lib.quizzes.animaux } })), 0);
     assert.equal(nbDemos(demosAEffacer()), 0);
@@ -777,6 +784,33 @@ describe("statues musicales", () => {
     ], "au choix : toutes les playlists, chaque chanson une fois");
     assert.equal(isStatuesList(playlists.blind), false);
     assert.deepEqual(roundSongs({ songs: [B] }, playlists).map((t) => t.title), ["Tourner"]);
+  });
+
+  test("vos chansons de la bibliothèque des sons (cedric, 24/10) : la TV joue leur refrain, l'une après l'autre ; une manche d'avant ne change pas", async () => {
+    const { chansonsStatues, sonsDesStatues } = await import("../web/public/show.js");
+    const M = await import("../web/public/manches.js");
+    const hex = (c) => c.repeat(16);
+    const songs = {
+      a: { title: "Libérée", audioId: hex("a"), refrainId: hex("b") },
+      c: { title: "Sous l'océan", audioId: hex("c") },
+      r: { title: "Retirée", audioId: hex("d"), refrainId: hex("e"), retiree: true },
+    };
+    const round = { type: "statues", duration: 60, chansons: ["c", "a", "a", "r", "zz", 3], songs: [hex("f")] };
+    assert.deepEqual(chansonsStatues(round), ["c", "a", "r", "zz"]);
+    assert.deepEqual(chansonsStatues({ type: "blind", chansons: ["a"] }), []);
+    // Le refrain s'il est réglé, sinon l'extrait du début ; une chanson supprimée ou inconnue est sautée.
+    assert.deepEqual(sonsDesStatues(round, {}, songs), [hex("c"), hex("b")]);
+    const { snapshot } = buildSnapshot("s", { childName: "Léa", age: 7, rounds: [round] }, {}, {}, Math.random, {}, {}, {}, songs);
+    assert.deepEqual(snapshot.quiz.questions[0].audioIds, [hex("c"), hex("b")]);
+    assert.deepEqual(soundIds(snapshot.quiz.questions), [hex("c"), hex("b")]);
+    // Plus aucune chanson jouable : les extraits cochés avant, sinon la musique de la fête.
+    const playlists = { p: { title: "P", tracks: [{ title: "F", audioId: hex("f") }] } };
+    assert.deepEqual(sonsDesStatues({ ...round, chansons: ["r"] }, playlists, songs), [hex("f")]);
+    assert.deepEqual(sonsDesStatues({ type: "statues", chansons: ["r"] }, playlists, songs), []);
+    // Enregistrées : vos chansons, à la place des extraits cochés avant.
+    assert.deepEqual(M.cleanRound(round, playlists), { type: "statues", duration: 60, chansons: ["c", "a", "r", "zz"] });
+    assert.deepEqual(M.cleanRound({ type: "statues", duration: 60, songs: [hex("f")] }, playlists), { type: "statues", duration: 60, songs: [hex("f")] });
+    assert.equal(M.mancheSummary({ type: "statues", duration: 60, chansons: ["a", "c"] }, {}), "60 s · 2 chansons");
   });
 });
 
@@ -3227,5 +3261,72 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
     assert.equal(rounds[2].playlistId, "ancienne", "préparé à l'ancienne : à part, joué tel quel");
     // Un blind test vide avant un autre laisse la place.
     assert.deepEqual(M.fusionnerBlind([{ type: "blind", seriesBlind: [] }, { type: "blind", seriesBlind: [{ id: "de", origine: "de", chansons: ["a"] }] }].map(M.versSeriesBlind)).rounds.map((r) => chansonsDe(r)), [["a"]]);
+  });
+
+  test("Quiz musical (cedric, 24/10) : les 3 mauvaises réponses sont des mots du refrain, modifiables dans la prestation", async () => {
+    const { propositionsDeTitre, cle, LEURRE_MAX, LEURRES_FENETRE_SEC } = await import("../web/public/paroles.js");
+    const { leurresDeChanson, leurresDeLaManche } = await import("../web/public/show.js");
+    const M = await import("../web/public/manches.js");
+    const refrain = (lignes) => lignes.map(([s, t]) => `${s * 1000}|${t}`).join("\n");
+    const titre = "Libérée, délivrée";
+    const libere = refrain([[0, "Libérée, délivrée"], [3, "Je ne mentirai plus jamais"], [7, "Libérée, délivrée"], [10, "C'est décidé, je m'en vais"],
+      [14, "J'ai laissé mon enfance en été"], [18, "Perdue dans l'hiver"], [LEURRES_FENETRE_SEC + 2, "Le froid est pour moi le prix de la liberté"]]);
+    const p = propositionsDeTitre(libere, titre);
+    assert.ok(p.length >= 3);
+    // Jamais le titre, ni une phrase qui le contient ; une majuscule, et pas trop long pour une carte de la TV.
+    assert.ok(p.every((x) => cle(x) !== cle(titre) && !cle(x).includes(cle(titre)) && x.length <= LEURRE_MAX && x[0] === x[0].toUpperCase()), p.join(" / "));
+    // Pris dans les 30 premières secondes du refrain réglé pour le hook.
+    assert.ok(!p.some((x) => /froid|liberté/i.test(x)), p.join(" / "));
+    assert.ok(p.includes("C'est décidé") && p.includes("Perdue dans l'hiver") && p.includes("Je ne mentirai plus jamais"), p.join(" / "));
+    // Jamais deux propositions dont l'une contient l'autre, et un seul bout du titre (« Libérée »).
+    for (const a of p) for (const b of p) if (a !== b) assert.ok(!cle(a).includes(cle(b)), `${a} / ${b}`);
+    assert.ok(p.filter((x) => cle(titre).includes(cle(x))).length <= 1);
+    // Bruits chantés et petits mots de liaison : jamais seuls, jamais à la fin.
+    const bruits = propositionsDeTitre(refrain([[0, "Oh oh oh, na na na"], [2, "Je danse dans la rue"]]), "Danse");
+    assert.ok(!bruits.some((x) => /^(oh|na)\b/i.test(x) || /\b(dans|la|le|de)$/i.test(x)), bruits.join(" / "));
+    assert.ok(bruits.includes("Dans la rue"));
+    // Un refrain qui ne dit que le titre : tout l'extrait du refrain sert.
+    assert.ok(propositionsDeTitre(refrain([[0, "Around the world, around the world"], [40, "Paris est magique"]]), "Around the World").includes("Paris est magique"));
+    assert.deepEqual(propositionsDeTitre("", "X"), []);
+    assert.deepEqual(propositionsDeTitre(undefined, "X"), []);
+
+    // Le hook doit être réglé : sans refrain, pas de leurres tirés des paroles.
+    const ID = (n) => `${n}123456789abcdef`;
+    const songs = {
+      a: { title: titre, audioId: ID(1), refrainId: ID(2), paroles: libere },
+      b: { title: "Hakuna Matata", audioId: ID(3), paroles: refrain([[0, "Quel chant fantastique"]]) },
+      c: { title: "Sous l'océan", audioId: ID(4) },
+      d: { title: "Ce rêve bleu", audioId: ID(5) },
+      e: { title: "Je voudrais déjà être roi", audioId: ID(6) },
+    };
+    assert.deepEqual(leurresDeChanson(songs.a), p.slice(0, 3));
+    assert.deepEqual(leurresDeChanson(songs.b), []);
+    // Rangées dans la prestation : une case vidée, un doublon ou le titre lui-même laissent la place à un autre titre.
+    assert.deepEqual(leurresDeChanson(songs.a, ["Il fait froid", "", "il fait froid !"]), ["Il fait froid"]);
+    assert.deepEqual(leurresDeChanson(songs.a, ["Libérée délivrée", "Reine des neiges", "Elsa"]), ["Reine des neiges", "Elsa"]);
+
+    const round = (leurres) => ({ type: "musical", seriesBlind: [{ id: "c1", origine: "choix", chansons: ["a", "b"] }], ...(leurres ? { leurres } : {}) });
+    const jouer = (r) => buildSnapshot("x", { childName: "Zoé", age: 8, teams: 2, rounds: [r] }, {}, {}, Math.random, {}, {}, {}, songs).snapshot.quiz.questions;
+    const [qa, qb] = jouer(round());
+    // Le vrai titre et ses 3 leurres du refrain, mélangés ; sans paroles réglées, d'autres titres comme avant.
+    assert.deepEqual([...qa.choices].sort(), [titre, ...p.slice(0, 3)].sort());
+    assert.equal(qa.choices[qa.correct], titre);
+    assert.equal(qb.choices.length, 4);
+    assert.equal(qb.choices[qb.correct], "Hakuna Matata");
+    assert.ok(qb.choices.every((x) => Object.values(songs).some((s) => s.title === x)), "d'autres titres de la bibliothèque");
+    // Modifiés dans la prestation : ceux-là ; une case vide prend un autre titre.
+    const [qa2] = jouer(round({ a: ["Il fait froid", "", "Reine des neiges"] }));
+    assert.equal(qa2.choices.length, 4);
+    assert.ok(qa2.choices.includes("Il fait froid") && qa2.choices.includes("Reine des neiges") && qa2.choices.includes(titre));
+    assert.ok(qa2.choices.some((x) => ["Hakuna Matata", "Sous l'océan", "Ce rêve bleu", "Je voudrais déjà être roi"].includes(x)));
+
+    // Enregistrés avec la manche, 3 cases par chanson encore dans la manche ; pas pour un blind test.
+    const propre = M.cleanRound(round({ a: ["  Il fait froid ", "", "x".repeat(60)], zz: ["Partie", "", ""] }));
+    assert.deepEqual(propre.leurres, { a: ["Il fait froid", "", "x".repeat(LEURRE_MAX)] });
+    assert.equal(M.cleanRound(round()).leurres, undefined);
+    assert.deepEqual(leurresDeLaManche({ ...round({ a: ["A"] }), type: "blind" }), {});
+    // Deux Quiz musicaux qui se suivent n'en font qu'un : leurs leurres suivent leurs chansons.
+    const deux = M.fusionnerBlind([round({ a: ["A", "B", "C"] }), { type: "musical", seriesBlind: [{ id: "c2", origine: "choix", chansons: ["d"] }], leurres: { d: ["D", "E", "F"] } }].map(M.versSeriesBlind));
+    assert.deepEqual(M.cleanRound(deux.rounds[0]).leurres, { a: ["A", "B", "C"], d: ["D", "E", "F"] });
   });
 });

@@ -67,6 +67,15 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .request button.suggested { border-color: var(--ok); }
 .regie .request button.new { background: var(--ok); color: #1a0b2e; border-color: var(--ok); }
 .regie .request button.link { background: transparent; border-color: transparent; color: var(--ink-soft); text-decoration: underline; }
+/* Nouvelle équipe en attente : l'animatrice tape le nom et choisit la couleur du bracelet (cedric, 24/10). */
+.regie .request .tablet-tag { background: var(--ok); color: #1a0b2e; border-radius: 8px; padding: 2px 8px; font-size: 13px; font-weight: 900; }
+.regie .request .req-name { width: 100%; box-sizing: border-box; min-height: 44px; margin: 0 0 8px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--trait); background: var(--night); color: var(--ink); font-size: 17px; font-weight: 700; }
+.regie .request .req-colors { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.regie .request .req-colors button { border: 2px solid var(--c); background: color-mix(in srgb, var(--c) 22%, var(--panel)); }
+.regie .request .req-colors button.selected { background: var(--c); color: #1a0b2e; box-shadow: 0 0 0 2px var(--ink); }
+.regie .request .req-colors button.taken { opacity: .35; text-decoration: line-through; }
+.regie .request .req-replace { margin-top: 8px; align-items: center; font-size: 13px; color: var(--ink-soft); }
+.regie .request .req-replace button { min-height: 34px; font-size: 13px; }
 .regie #c-pause.resume { background: #ffd27a; color: #1a0b2e; border-color: #ffd27a; font-weight: 900; }
 .regie .question { margin: 0; font-size: 17px; font-weight: 700; }
 .regie .answer {
@@ -275,6 +284,26 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .statues-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .regie .statues-team { min-height: 88px; font-size: 22px; font-weight: 800; }
 .regie .flou .flou-bonus[hidden] { display: none; }
+.regie .verdict { display: flex; flex-direction: column; gap: 10px; }
+/* Au buzz (cedric, 24/10) : le verdict passe juste au-dessus de Pause et du bouton principal, collé en bas de l'écran.
+   Une fine bande à la couleur de l'équipe (nom de la couleur, équipe, mot ou réponse attendue), puis « Bonne réponse »
+   et « Mauvaise réponse » côte à côte : tout tient dans l'écran, sans faire défiler. */
+.regie .actions .verdict { gap: 6px; }
+.regie .actions .verdict .mime-info { font-size: 15px; line-height: 1.25; }
+.regie .actions .verdict .mime-info.buzz-couleur { padding: 6px 10px; border-radius: 10px; font-size: 15px; font-weight: 800; }
+.regie .actions .verdict .mime-info .buzz-nom-couleur { display: inline; margin-right: 8px; font-size: 19px; letter-spacing: 1px; }
+.regie .mime-info .buzz-reponse { display: block; margin-top: 2px; }
+/* « Réponse attendue : » en petit, la réponse elle-même en gros : 3 lignes au plus sur un téléphone de 360 px, même avec
+   une police large (4 lignes et 105 px avec DejaVu Sans, la police des tests en ligne). */
+.regie .actions .verdict .mime-info .buzz-reponse { font-size: 12px; }
+.regie .actions .verdict .mime-info .buzz-reponse b { font-size: 20px; font-weight: 900; line-height: 1.15; }
+.regie .actions .verdict .flou-judge { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.regie .actions .verdict .flou-judge[hidden] { display: none; }
+.regie .actions .verdict .mime-found { min-height: 84px; padding: 4px 6px; border-radius: 18px; font-size: 22px; line-height: 1.05; box-shadow: 0 6px 0 #4f9f22; }
+.regie .actions .verdict .mime-found small { font-size: 14px; }
+.regie .actions .verdict .flou-ko { min-height: 84px; padding: 4px 6px; font-size: 19px; }
+/* Blind test : « Bon titre » et « Titre + artiste » côte à côte, « Mauvaise réponse » sur toute la largeur dessous. */
+.regie .actions .verdict .flou-judge:has(.flou-bonus:not([hidden])) .mauvaise { grid-column: 1 / -1; min-height: 56px; }
 
 /* Jeu en cours, jeu suivant et secours */
 /* Le jeu en cours sur sa ligne, les boutons (＋ Jeu, 🔁 Rejouer, ⏭ Changer de jeu…) dessous : rien d'écrasé sur un petit téléphone. */

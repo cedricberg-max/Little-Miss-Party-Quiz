@@ -143,6 +143,18 @@ internal fun PlatineNeonGs(joue: Boolean, manquant: Boolean, modifier: Modifier 
             },
         ) {
             Canvas(Modifier.fillMaxSize()) { dessinerTraits(calques().derriere) }
+            val placeVideo = Modifier.fillMaxHeight().fillMaxWidth(PlatineNeon.VIDEO_L / PlatineNeon.LARGEUR)
+            // Tant que la vidéo du disque n'a pas sa première image (box chargée : quelques secondes), le disque en image
+            // fixe, sa première image : la platine apparaît d'un bloc, jamais le bras seul (cedric, 24/10).
+            if (!pret) {
+                val fixe = remember {
+                    val id = context.resources.getIdentifier("gs_bt_disque_poster", "drawable", context.packageName)
+                    if (id == 0) null else runCatching { ImageBitmap.imageResource(context.resources, id) }.getOrNull()
+                }
+                if (fixe != null) {
+                    Canvas(placeVideo) { drawImage(fixe, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt())) }
+                }
+            }
             AndroidView(
                 factory = {
                     LecteurAlpha(it, disque, surDebut = { pret = true }, surEchec = { echec = true }, boucle = true).also { l ->
@@ -154,7 +166,7 @@ internal fun PlatineNeonGs(joue: Boolean, manquant: Boolean, modifier: Modifier 
                     lecteur[0] = null
                     it.liberer()
                 },
-                modifier = Modifier.fillMaxHeight().fillMaxWidth(PlatineNeon.VIDEO_L / PlatineNeon.LARGEUR)
+                modifier = placeVideo
                     .clearAndSetSemantics {}.graphicsLayer { alpha = if (pret) 1f else 0f },
             )
             Canvas(Modifier.fillMaxSize()) {

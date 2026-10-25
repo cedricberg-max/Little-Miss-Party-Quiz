@@ -34,12 +34,27 @@ data class Release(
             return r
         }
 
-        /** 200 Mo : au-delà, ce n'est pas notre APK (8 Mo aujourd'hui). */
-        const val MAX_APK_BYTES = 200L * 1024 * 1024
+        /**
+         * 2 Go, le plus gros fichier que l'hébergement Firebase et GitHub acceptent. Jusqu'à la 0.1.569 la
+         * limite était 200 Mo : l'appli de 274 Mo était refusée et la box disait « serveur injoignable ».
+         */
+        const val MAX_APK_BYTES = 2L * 1024 * 1024 * 1024
     }
 
     fun isNewerThan(installedVersionCode: Long) = versionCode > installedVersionCode
+
+    /**
+     * Place libre qu'il faut sur la box : le fichier téléchargé, puis la copie qu'Android en fait pendant
+     * l'installation, plus une marge. L'ancienne version n'est effacée qu'une fois la nouvelle installée.
+     */
+    fun spaceNeeded(spareBytes: Long = UPDATE_SPARE_BYTES) = 2 * size + spareBytes
 }
+
+/** Marge gardée libre en plus des deux copies de l'APK pendant une mise à jour. */
+const val UPDATE_SPARE_BYTES = 20L * 1024 * 1024
+
+/** Une description `latest.json` lue mais refusée : la box le dit, au lieu de parler de connexion. */
+class InvalidReleaseException(message: String, cause: Throwable) : Exception(message, cause)
 
 /**
  * Version que la box propose d'elle-même à l'animatrice, ou null. Après « Plus tard », la même version

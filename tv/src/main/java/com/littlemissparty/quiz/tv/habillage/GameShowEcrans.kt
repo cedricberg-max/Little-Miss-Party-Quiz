@@ -1,5 +1,7 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -146,7 +148,11 @@ fun PresentationJeuGameShow(titre: String, famille: String, modifier: Modifier =
                             }
                         },
                 )
-                Text(
+                val logo = logoNeonJeu(famille)
+                if (logo != null) Image(
+                    painterResource(logo), contentDescription = null,
+                    modifier = Modifier.size(150.dp).graphicsLayer { translationY = (flotte - 0.5f) * 14.dp.toPx() },
+                ) else Text(
                     embleme.emoji,
                     modifier = Modifier.graphicsLayer { translationY = (flotte - 0.5f) * 14.dp.toPx() },
                     style = TextStyle(fontSize = 92.sp, textAlign = TextAlign.Center),

@@ -1,7 +1,7 @@
 import {
   ref, get, set, update, push, onValue, serverTimestamp, query, limitToFirst,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
-import { CHOICE_LETTERS, TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
+import { BRACELET_COLORS, CHOICE_LETTERS, TEAM_COLORS, TEAM_COLOR_NAMES, numeroTablette } from "./theme.js";
 import { writeProof } from "./proof.js";
 import { parPertinence } from "./recherche.js";
 import { passwordCandidates } from "./secret.js";
@@ -244,6 +244,12 @@ function control() {
   // Blind test : la box dit, extrait par extrait, s'il est dans son cache (ok), en chargement ou manquant.
   listen(`games/${code}/media`, (s) => { live.media = s.val() ?? {}; render(); });
   listen(`games/${code}/joinRequests`, (s) => { live.requests = s.val() ?? {}; render(); });
+  // Couleurs des bracelets choisies dans la prestation (Régie PC), publiées par la TV : ce sont elles qu'on propose.
+  listen(`games/${code}/public/teamColors`, (s) => {
+    const planned = Object.values(s.val() ?? {}).filter((c) => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c));
+    live.plannedColors = planned.length ? planned : null;
+    render();
+  });
   // Notes de Sarah pour l'animatrice, préparées dans l'administration avec la prestation.
   listen(`games/${code}/show/notes`, (s) => {
     const notes = typeof s.val() === "string" ? s.val().trim() : "";
@@ -314,9 +320,11 @@ function nextLabel(st, teamCount) {
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
     case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : "Classement final 🏆") : "Voir les scores";
     case "scores": {
+      const { next, questions } = gamesOf(st);
+      // Bilan d'un jeu quitté en cours de route (cedric, 24/10) : « suivant » ouvre le jeu choisi.
+      if (st.leaveTo != null && next) return `Jeu suivant : ${gameName(next, questions)} ▶`;
       if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
       // Fin d'un jeu : on annonce le jeu qui commence, jamais une simple « question suivante ».
-      const { next, questions } = gamesOf(st);
       if (next && next.start === (st.index ?? 0) + 1) return `Jeu suivant : ${gameName(next, questions)} ▶`;
       // Mimes, une manche par équipe : la suivante est celle d'une autre couleur.
       const suivante = questions[(st.index ?? 0) + 1];
@@ -573,58 +581,156 @@ function renderHold(st, teams) {
   box.textContent = parts.join(" ");
 }
 
+/** Nom et couleur en cours de choix pour chaque tablette en attente : gardés quand la liste se redessine. */
+const brouillons = {};
+
+const memeCouleur = (a, b) => a?.toUpperCase() === b?.toUpperCase();
+const nomCouleur = (c) => TEAM_COLOR_NAMES[TEAM_COLORS.findIndex((t) => memeCouleur(t, c))] ?? "";
+
 /**
- * Appareil arrivé en cours de partie (tablette déchargée, téléphone de secours…) : l'animatrice choisit
- * d'en faire une nouvelle équipe ou de lui confier une équipe existante, qui garde ses points.
- * Les équipes du même nom ou hors ligne sont proposées en premier.
+ * Couleurs proposées pour une nouvelle équipe (cedric, 22/10) : celles de la prestation, choisies dans la Régie PC
+ * pour les bracelets, ou à défaut les 4 des bracelets ; une de plus seulement quand toutes celles-là sont prises.
+ */
+function couleursProposees(prises) {
+  const offered = [...(live.plannedColors ?? TEAM_COLORS.slice(0, BRACELET_COLORS))];
+  for (const c of TEAM_COLORS) {
+    if (offered.every((o) => prises.has(o.toUpperCase())) && !offered.some((o) => memeCouleur(o, c))) offered.push(c);
+  }
+  return offered;
+}
+
+/**
+ * Tablettes qui attendent (cedric, 24/10) : la tablette ne tape ni ne choisit rien. L'animatrice donne ici le nom et
+ * la couleur d'une nouvelle équipe et l'accepte, ou confie la tablette à une équipe existante, ou l'ignore.
  */
 function renderRequests(st, teams) {
   const box = $("c-requests");
   const requests = Object.entries(live.requests).sort((a, b) => (a[1].at ?? 0) - (b[1].at ?? 0));
   const online = (id) => live.presence[id]?.online === true;
-  const key = JSON.stringify([requests, teams.map(([id, t]) => [id, t.name, online(id)]), [...admitting]]);
+  for (const d of Object.keys(brouillons)) if (!live.requests[d]) delete brouillons[d];
+  const key = JSON.stringify([requests, teams.map(([id, t]) => [id, t.name, t.color, online(id)]), [...admitting], live.plannedColors, st.phase === "ended"]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
+  // Nom en cours de frappe : la liste redessinée garde le clavier ouvert au même endroit.
+  const actif = document.activeElement?.closest?.("#c-requests .request")?.dataset.device;
+  const curseur = actif ? document.activeElement.selectionStart : null;
   box.innerHTML = "";
   box.hidden = !requests.length;
+  const prises = new Set(teams.map(([, t]) => t.color?.toUpperCase()).filter(Boolean));
   requests.forEach(([device, r]) => {
     const item = document.createElement("div");
     item.className = "request";
     item.dataset.device = device;
-    const title = document.createElement("p");
-    const swatch = document.createElement("span");
-    swatch.className = "swatch";
-    swatch.style.background = r.color;
     const target = r.replace && live.teams[r.replace] ? r.replace : null;
-    title.append(swatch, target ? `Une nouvelle tablette veut reprendre « ${live.teams[target].name} »` : `« ${r.name} » demande à entrer`);
+    const busy = admitting.has(device) || st.phase === "ended";
     const choices = document.createElement("div");
     choices.className = "choices";
-    const same = (t, id) => (target ? id === target : t.name?.trim().toLowerCase() === r.name?.trim().toLowerCase());
-    const ordered = [...teams].sort(([ia, a], [ib, b]) => (same(b, ib) - same(a, ia)) || (online(ia) - online(ib)));
-    const busy = admitting.has(device) || st.phase === "ended";
-    ordered.forEach(([id, t]) => {
-      const b = document.createElement("button");
-      b.dataset.team = id;
-      b.classList.toggle("suggested", same(t, id));
-      b.textContent = `Remplace « ${t.name} »${online(id) ? "" : " (hors ligne)"}`;
-      b.disabled = busy;
-      b.onclick = () => replaceDevice(device, id);
-      choices.appendChild(b);
-    });
-    const add = document.createElement("button");
-    add.className = "new";
-    add.textContent = "Nouvelle équipe";
-    add.disabled = busy;
-    add.onclick = () => admit(device, "admit", {}, `« ${r.name} » entre dans la partie.`);
     const ignore = document.createElement("button");
     ignore.className = "link";
     ignore.textContent = "Ignorer";
     ignore.disabled = busy;
-    ignore.onclick = () => set(ref(db, `games/${code}/joinRequests/${device}`), null).catch((e) => console.error(e));
-    choices.append(add, ignore);
-    item.append(title, choices);
+    ignore.onclick = () => { delete brouillons[device]; set(ref(db, `games/${code}/joinRequests/${device}`), null).catch((e) => console.error(e)); };
+    const remplacer = (id, t) => {
+      const b = document.createElement("button");
+      b.dataset.team = id;
+      b.textContent = `Remplace « ${t.name} »${online(id) ? "" : " (hors ligne)"}`;
+      b.disabled = busy;
+      b.onclick = () => replaceDevice(device, id);
+      return b;
+    };
+    if (target) {
+      // « Reconnecter une tablette » : la tablette a touché le nom de son équipe, l'animatrice confirme.
+      const title = document.createElement("p");
+      const swatch = document.createElement("span");
+      swatch.className = "swatch";
+      swatch.style.background = live.teams[target].color;
+      title.append(swatch, `Une nouvelle tablette veut reprendre « ${live.teams[target].name} »`);
+      const autres = teams.filter(([id]) => id !== target).sort(([ia], [ib]) => online(ia) - online(ib));
+      choices.append(remplacer(target, live.teams[target]), ...autres.map(([id, t]) => remplacer(id, t)), ignore);
+      choices.firstChild.classList.add("suggested");
+      item.append(title, choices);
+      box.appendChild(item);
+      return;
+    }
+    const proposees = couleursProposees(prises);
+    const autresChoix = new Set(Object.entries(brouillons).filter(([d]) => d !== device).map(([, b]) => b.color?.toUpperCase()));
+    const brouillon = brouillons[device] ??= {
+      // Anciennes tablettes : elles envoyaient encore un nom et une couleur.
+      name: typeof r.name === "string" ? r.name : "",
+      color: proposees.find((c) => memeCouleur(c, r.color) && !prises.has(c.toUpperCase()))
+        ?? proposees.find((c) => !prises.has(c.toUpperCase()) && !autresChoix.has(c.toUpperCase()))
+        ?? proposees.find((c) => !prises.has(c.toUpperCase())) ?? TEAM_COLORS[0],
+    };
+    // Couleur prise entre-temps par une autre équipe : la première encore libre.
+    if (prises.has(brouillon.color?.toUpperCase())) brouillon.color = proposees.find((c) => !prises.has(c.toUpperCase())) ?? brouillon.color;
+    const title = document.createElement("p");
+    const tag = document.createElement("span");
+    tag.className = "tablet-tag";
+    tag.textContent = `Tablette ${numeroTablette(device)}`;
+    title.append(tag, "Nouvelle équipe en attente");
+    const nom = document.createElement("input");
+    nom.className = "req-name";
+    nom.type = "text";
+    nom.maxLength = 20;
+    nom.placeholder = "Nom de l'équipe";
+    nom.autocomplete = "off";
+    nom.setAttribute("autocapitalize", "words");
+    nom.setAttribute("enterkeyhint", "done");
+    nom.spellcheck = false;
+    nom.value = brouillon.name;
+    nom.disabled = busy;
+    nom.oninput = () => { brouillon.name = nom.value; };
+    const couleurs = document.createElement("div");
+    couleurs.className = "req-colors";
+    for (const c of proposees) {
+      const b = document.createElement("button");
+      const prise = prises.has(c.toUpperCase());
+      b.dataset.color = c;
+      b.style.setProperty("--c", c);
+      b.textContent = nomCouleur(c);
+      b.disabled = busy || prise;
+      b.classList.toggle("taken", prise);
+      b.classList.toggle("selected", memeCouleur(c, brouillon.color));
+      b.setAttribute("aria-label", prise ? `${nomCouleur(c)} (déjà prise)` : nomCouleur(c));
+      b.onclick = () => {
+        brouillon.color = c;
+        couleurs.querySelectorAll("button").forEach((x) => x.classList.toggle("selected", x === b));
+      };
+      couleurs.appendChild(b);
+    }
+    const accepter = document.createElement("button");
+    accepter.className = "new";
+    accepter.textContent = "✓ Accepter";
+    accepter.disabled = busy;
+    accepter.onclick = async () => {
+      const name = brouillon.name.trim();
+      if (!name) {
+        toast("Tapez d'abord le nom de l'équipe.");
+        return nom.focus();
+      }
+      if (await admit(device, "admit", { name, color: brouillon.color }, `« ${name} » entre dans la partie.`)) delete brouillons[device];
+    };
+    nom.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); accepter.click(); } };
+    choices.append(accepter, ignore);
+    item.append(title, nom, couleurs, choices);
+    // Tablette qui remplace une équipe (plantée, rechargée sur un autre appareil) : un choix de plus, plus discret.
+    if (teams.length) {
+      const reprise = document.createElement("div");
+      reprise.className = "choices req-replace";
+      const label = document.createElement("span");
+      label.textContent = "Ou cette tablette remplace :";
+      reprise.append(label, ...[...teams].sort(([ia], [ib]) => online(ia) - online(ib)).map(([id, t]) => remplacer(id, t)));
+      item.appendChild(reprise);
+    }
     box.appendChild(item);
   });
+  if (actif) {
+    const champ = box.querySelector(`.request[data-device="${CSS.escape(actif)}"] .req-name`);
+    if (champ && !champ.disabled) {
+      champ.focus();
+      if (curseur != null) champ.setSelectionRange(curseur, curseur);
+    }
+  }
 }
 
 async function replaceDevice(device, team) {
@@ -1129,6 +1235,7 @@ function renderBlind(st, teams) {
   const on = blindMode(st) && ["question", "reveal", "scores"].includes(st.phase);
   $("blind").hidden = !on;
   document.querySelector(".regie .control").classList.toggle("blind-mode", on);
+  verdictEnBas("blind-verdict", on && st.phase === "question" && !!st.buzz?.team);
   if (!on) return;
   const b = st.blind;
   const name = (id) => live.teams[id]?.name ?? "Équipe";
@@ -1172,7 +1279,8 @@ function renderBlind(st, teams) {
   } else {
     info = `Musique en cours… En attente d'un buzz.${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
   }
-  $("blind-info").textContent = info;
+  if (st.phase === "question" && buzzer) texteBuzz($("blind-info"), name(buzzer), expected);
+  else $("blind-info").textContent = info;
   couleurBuzz($("blind-info"), st.phase !== "scores" && st.phase !== "reveal" ? buzzer : null);
   $("blind-judge").hidden = !(st.phase === "question" && buzzer);
   $("blind-ok").disabled = busy;
@@ -1221,7 +1329,8 @@ $("blind-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { a
 $("blind-ko").onclick = () => send("buzz_ko", {}, { advance: true });
 $("blind-unblock").onclick = () => send("blind_unblock", {}, { advance: true });
 $("blind-reveal").onclick = async () => {
-  if (await demander({ title: "Révéler ce morceau sans points ?", text: "La TV montre le titre et l'artiste. Aucune équipe ne marque.", ok: "Révéler sans points" })) send("blind_reveal", {}, { advance: true });
+  // Personne n'a trouvé (cedric, 24/10) : sans attendre la fin de l'extrait, la TV passe à la révélation et au refrain.
+  if (await demander({ title: "Passer à la révélation ?", text: "La TV montre le titre et l'artiste, et tout le monde chante le refrain. Aucune équipe ne marque.", ok: "🎤 On chante ensemble" })) send("blind_reveal", {}, { advance: true });
 };
 $("blind-skip").onclick = async () => {
   if (await demander({ title: "Passer ce morceau ?", text: "Il n'est pas révélé et ne rapporte aucun point.", ok: "Passer le morceau" })) send("blind_skip", {}, { advance: true });
@@ -1247,10 +1356,35 @@ function couleurBuzz(el, teamId) {
   }
 }
 
+/** Qui a buzzé, puis la réponse attendue sur sa propre ligne, en gros : Sarah voit tout d'un coup d'œil (cedric, 24/10). */
+function texteBuzz(el, equipe, attendu) {
+  const reponse = document.createElement("span");
+  reponse.className = "buzz-reponse";
+  const mot = document.createElement("b");
+  mot.textContent = attendu;
+  reponse.append("Réponse attendue : ", mot);
+  el.replaceChildren(`${equipe} a buzzé ! `, reponse);
+}
+
+/**
+ * Au buzz (cedric, 24/10) : la couleur et le nom de l'équipe, la réponse attendue et les boutons du verdict passent
+ * juste au-dessus des commandes du bas, qui restent toujours à l'écran : Sarah juge sans faire défiler, même avec le
+ * bandeau des tablettes déconnectées. Le bloc revient à sa place après le verdict.
+ */
+function verdictEnBas(id, on) {
+  const el = $(id);
+  const bas = document.querySelector(".regie .actions");
+  el.place ??= { parent: el.parentNode, avant: el.nextSibling };
+  if (on && el.parentNode !== bas) bas.prepend(el);
+  else if (!on && el.parentNode === bas) el.place.parent.insertBefore(el, el.place.avant);
+  el.classList.toggle("en-bas", on);
+}
+
 /** Jeux au buzzer : qui a buzzé, la réponse attendue, et les deux boutons du verdict. */
 function renderFlou(st) {
   const on = st.phase === "question" && BUZZ_KINDS.includes(st.kind) && !blindMode(st);
   $("flou").hidden = !on;
+  verdictEnBas("flou-verdict", on && !!st.buzz?.team);
   if (!on) return;
   const b = st.buzz ?? {};
   const name = (id) => live.teams[id]?.name ?? "Équipe";
@@ -1261,9 +1395,8 @@ function renderFlou(st) {
     : blind ? `« ${answer} »${q?.artist ? ` (bonus : ${q.artist})` : ""}` : answer;
   const tried = (b.blocked ?? []).filter((id) => live.teams[id]).map(name);
   const memo = st.kind === "disparu" && st.buzzOpen !== true && !b.team && !st.paused;
-  $("flou-info").textContent = b.team
-    ? `${name(b.team)} a buzzé ! Réponse attendue : ${expected || "voir la fiche"}`
-    : memo ? `Les enfants mémorisent les objets… Celui qui va disparaître : ${answer}.`
+  if (b.team) texteBuzz($("flou-info"), name(b.team), expected || "voir la fiche");
+  else $("flou-info").textContent = memo ? `Les enfants mémorisent les objets… Celui qui va disparaître : ${answer}.`
     : `En attente d'un buzz…${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
   couleurBuzz($("flou-info"), b.team);
   $("flou-judge").hidden = !b.team;
@@ -1473,9 +1606,14 @@ function gamesOf(st) {
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
   const current = st.phase === "ended" ? null : rounds.find((r) => r.start <= index && index <= r.end) ?? null;
   // Après la fin de la partie, un jeu ajouté au programme est encore « à venir » : la partie peut reprendre avec lui.
-  const next = rounds.find((r) => r.start > index) ?? null;
+  // Bilan d'un jeu quitté en cours de route : la suite est le jeu choisi par la régie.
+  const next = (st.phase === "scores" && st.leaveTo != null ? rounds.find((r) => r.start === st.leaveTo) : null)
+    ?? rounds.find((r) => r.start > index) ?? null;
   return { questions, rounds, index, current, next };
 }
+
+/** Le jeu en cours a commencé (ni présentation, ni classement) : le quitter passe par le bilan des scores sur la TV. */
+const jeuEnCours = (st) => ["question", "closed", "reveal"].includes(st.phase);
 
 /** Jeu déjà commencé (ou joué) : y aller, c'est le recommencer. */
 const played = (r, st, index) => r.start <= index && st.phase !== "lobby";
@@ -1594,12 +1732,14 @@ function renderRescue(st) {
 
 /** Saut vers le début du jeu [r], après confirmation adaptée (aller plus loin, ou recommencer). */
 async function jumpTo(r, st) {
-  const { questions, index } = gamesOf(st);
+  const { questions, index, current } = gamesOf(st);
   const name = gameName(r, questions);
   const replay = played(r, st, index);
+  // Quitter le jeu en cours pour un autre (cedric, 24/10) : la TV montre d'abord le bilan des scores.
+  const bilan = jeuEnCours(st) && r !== current;
   const ok = await demander(replay
-    ? { title: `Recommencer « ${name} » ?`, text: "Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.", ok: "Recommencer ce jeu", alert: true }
-    : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés. Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
+    ? { title: `Recommencer « ${name} » ?`, text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores." : ""}`, ok: "Recommencer ce jeu", alert: true }
+    : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés.${bilan ? ` La TV montre le bilan des scores, puis « ${name} » quand vous appuyez sur « Jeu suivant ».` : ""} Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
   if (!ok) return;
   // Photos et extraits du jeu recopiés dans la partie s'ils y manquent (copies effacées après la fête, partie reprise
   // sur une autre box) : jamais bloquant, une copie déjà là n'est pas refaite.
@@ -1609,7 +1749,7 @@ async function jumpTo(r, st) {
   const status = await send("goto", { index: r.start, qid: questions[r.start].id }, { advance: true });
   if (status?.status === "applied") {
     rescueOpen = false;
-    toast(replay ? `« ${name} » recommence.` : `C'est parti pour « ${name} » !`);
+    toast(bilan ? `Bilan des scores sur la TV, puis « ${name} ».` : replay ? `« ${name} » recommence.` : `C'est parti pour « ${name} » !`);
     render();
   }
 }
@@ -2555,8 +2695,9 @@ async function addPicked(where) {
   const lancer = now ? async () => {
     const start = program.findIndex((q) => q.id === added[0]?.id);
     if (start < 0) return;
+    const bilan = jeuEnCours(live.state ?? {});
     const status = await send("goto", { index: start, qid: added[0].id }, { advance: true });
-    if (status?.status === "applied") toast(`C'est reparti pour « ${title} » !`);
+    if (status?.status === "applied") toast(bilan ? `Bilan des scores sur la TV, puis « ${title} ».` : `C'est reparti pour « ${title} » !`);
   } : null;
   sendProgram(program, now ? `« ${title} » arrive sur la TV…` : `« ${title} » est ajouté ${place}.`, true, () => { keep?.(); lancer?.(); });
 }
@@ -2977,6 +3118,7 @@ const STATUS_MESSAGES = {
   countdown: "La partie reprend (3, 2, 1) : attendez la fin du décompte.",
   bad_factor: "Valeur de points inconnue.",
   not_ended: "La partie n'est pas encore terminée : appuyez d'abord longtemps sur « Terminer ».",
+  no_name: "Tapez d'abord le nom de l'équipe.",
 };
 
 function toast(message) {
