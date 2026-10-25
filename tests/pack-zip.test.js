@@ -224,4 +224,31 @@ describe("rangement des packs : famille et niveau (cedric, 25/10)", () => {
     assert.equal(trouver("kdh-q01-revelation.jpg", packs[0].dossier).chemin, "kdh/facile/kdh-q01-revelation.jpg");
     assert.equal(trouver("kdh-q01-revelation.jpg", packs[1].dossier).chemin, "kdh/moyen/kdh-q01-revelation.jpg");
   });
+
+  test("ZIP global (cedric, 25/10) : un dossier par pack, Quiz, Quiz illustré, Vrai ou Faux, Qui suis-je ? et séries de photos ensemble", () => {
+    const quiz = (niveau, extra = {}) => JSON.stringify({ title: "K-pop Demon Hunters", famille: "Musique", niveau, ...extra,
+      questions: [{ text: `Qui chante ? (${niveau})`, choices: ["Rumi", "Mira", "Zoey", "Jinu"], correct: 0, image: "kdh-q01-revelation.jpg" }] });
+    const fichiers = [
+      fichier("kdh/quiz-facile/pack.json", quiz("Facile")), fichier("kdh/quiz-facile/kdh-q01-revelation.jpg"),
+      fichier("kdh/vraifaux-moyen/pack.json", JSON.stringify({ title: "K-pop Demon Hunters", famille: "Musique", niveau: "Moyen", questions: [{ text: "Rumi chante.", choices: ["Vrai", "Faux"], correct: 0 }] })),
+      fichier("kdh/quisuis-difficile/pack.json", JSON.stringify({ serie: "K-pop Demon Hunters", famille: "Musique", niveau: "Difficile", personnages: [{ reponse: "Jinu", indices: ["Je suis un démon", "Je chante"] }] })),
+      fichier("kdh/zoom-facile/pack.json", JSON.stringify({ title: "K-pop Demon Hunters", famille: "Musique", niveau: "Facile" })),
+      fichier("kdh/zoom-facile/rumi.jpg"), fichier("kdh/zoom-facile/mira.jpg"),
+      fichier("kdh/zoom-moyen/pack.json", JSON.stringify({ title: "K-pop Demon Hunters", famille: "Musique", niveau: "Moyen" })),
+      fichier("kdh/zoom-moyen/rumi.jpg"), fichier("kdh/zoom-moyen/derby.jpg"), fichier("kdh/zoom-moyen/jinu.jpg"),
+      fichier("kdh/liste.txt"),
+    ];
+    const { packs, erreurs, laisses } = analyserPack(fichiers, { nomZip: "kdh.zip" });
+    assert.deepEqual(erreurs, []);
+    assert.deepEqual(packs.map((p) => [p.epreuve, p.titre, p.niveau, p.dossier]).sort((a, b) => `${a[3]}`.localeCompare(`${b[3]}`)), [
+      ["quiz", "K-pop Demon Hunters", "Facile", "kdh/quiz-facile"],
+      ["quisuis", "K-pop Demon Hunters", "Difficile", undefined],
+      ["vraifaux", "K-pop Demon Hunters", "Moyen", "kdh/vraifaux-moyen"],
+      ["photos", "K-pop Demon Hunters", "Facile", "kdh/zoom-facile"],
+      ["photos", "K-pop Demon Hunters", "Moyen", "kdh/zoom-moyen"],
+    ].sort((a, b) => `${a[3]}`.localeCompare(`${b[3]}`)));
+    const zooms = packs.filter((p) => p.epreuve === "photos");
+    assert.deepEqual(zooms.map((p) => p.questions.map((q) => q.choices[q.correct])), [["Mira", "Rumi"], ["Derby", "Jinu", "Rumi"]]);
+    assert.deepEqual(laisses, ["liste.txt"], "toutes les images servent, rien d'autre n'est laissé");
+  });
 });

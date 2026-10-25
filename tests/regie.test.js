@@ -8862,12 +8862,18 @@ describe("bibliothèque de quiz et prestations", () => {
       questions: [{ text: `Question ${niveau} ?`, choices, correct: 0 }] });
     await page.setInputFiles("#pack-file", zip("harry-potter.zip", [
       ["harry-potter/pack-facile.json", hp("Facile", 5, 8)], ["harry-potter/pack-moyen.json", hp("Moyen", 9, 11)], ["harry-potter/pack-difficile.json", hp("Difficile", 12, 15, ["Vrai", "Faux"])],
+      // ZIP global : une série de photos dans son dossier, avec sa fiche.
+      ["harry-potter/zoom-facile/pack.json", JSON.stringify({ title: "Harry Potter", famille: "Films et séries", niveau: "Facile" })],
+      ["harry-potter/zoom-facile/hedwige.jpg", png([255, 255, 255])], ["harry-potter/zoom-facile/poudlard.jpg", png([60, 60, 90])],
     ]));
-    await fenetre.locator(".pack-apercu-pack h3").nth(2).waitFor();
-    assert.equal(await fenetre.locator(".pack-apercu-pack h3").evaluateAll((els) => els.map((e) => e.textContent).join(" | ")), "Harry Potter | Harry Potter | Harry Potter");
-    assert.equal(await repondreFenetre(page), "Importer ces 3 packs ?");
+    await fenetre.locator(".pack-apercu-pack h3").nth(3).waitFor();
+    assert.equal(await fenetre.locator(".pack-apercu-pack h3").evaluateAll((els) => els.map((e) => e.textContent).join(" | ")), "Harry Potter | Harry Potter | Harry Potter | Harry Potter");
+    assert.match(await fenetre.innerText(), /Zoom mystère \/ Image floue · 2 photos/);
+    assert.equal(await repondreFenetre(page), "Importer ces 4 packs ?");
     await page.locator("#pack-status", { hasText: "✓ Importé" }).waitFor();
-    const hps = Object.values(await library("quizzes")).filter((q) => q.title.startsWith("Harry Potter"));
+    const hps = Object.values(await library("quizzes")).filter((q) => q.title.startsWith("Harry Potter") && q.kind !== "images");
+    const zoomHp = Object.values(await library("quizzes")).find((q) => q.title === "Harry Potter" && q.kind === "images");
+    assert.deepEqual([zoomHp.niveau, zoomHp.questions.map((q) => q.choices[q.correct]).join(", ")], ["Facile", "Hedwige, Poudlard"]);
     assert.deepEqual(hps.map((q) => [q.title, q.famille, q.niveau]).sort((a, b) => a[2].localeCompare(b[2])),
       [["Harry Potter", "Films et séries", "Difficile"], ["Harry Potter", "Films et séries", "Facile"], ["Harry Potter", "Films et séries", "Moyen"]]);
     await page.locator('.q-famille[data-famille="Films et séries"] .q-plier h2', { hasText: "🎬 Films et séries (3)" }).waitFor();

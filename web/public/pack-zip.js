@@ -125,24 +125,39 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
   // Fiche seule (pack.json d'une série de photos, cedric 25/10) : un nom, une famille, un niveau, sans questions.
   const lues = donnees.map((f) => ({ f, data: lireJson(f.texte) }));
   const fiches = lues.filter(({ data }) => estFicheSeule(data));
-  const fiche = fiches[0]?.data ?? null;
   const avecContenu = lues.filter((x) => !fiches.includes(x));
+  const servies = new Set();
 
-  // Pas de données : une série de photos (Zoom mystère, Image floue), la réponse dans le nom de chaque photo.
-  if (!avecContenu.length) {
-    if (!images.length) return { packs, erreurs: ["Ce ZIP ne contient ni données de pack ni photos. Vérifiez que vous avez choisi le bon fichier."], laisses };
-    if (images.length > MAX_PHOTOS_SERIE) {
-      return { packs, erreurs: [`Ce ZIP contient ${images.length} photos : ${MAX_PHOTOS_SERIE} au plus par série. Faites deux ZIP.`], laisses };
+  // Série de photos (Zoom mystère, Image floue) : la réponse dans le nom de chaque photo. Sans aucune donnée, toutes
+  // les photos du ZIP ; dans un ZIP global (cedric, 25/10), chaque dossier qui a sa fiche pack.json, avec ses photos.
+  const serieDePhotos = (photos, fiche, dossier) => {
+    if (photos.length > MAX_PHOTOS_SERIE) {
+      erreurs.push(`${fiche?.title ? `« ${fiche.title} » : ` : "Ce ZIP contient "}${photos.length} photos : ${MAX_PHOTOS_SERIE} au plus par série. Faites deux séries.`);
+      return;
     }
-    const triees = [...images].sort((a, b) => a.nom.localeCompare(b.nom, "fr", { numeric: true }));
+    const triees = [...photos].sort((a, b) => a.nom.localeCompare(b.nom, "fr", { numeric: true }));
+    triees.forEach((f) => servies.add(f.chemin));
     const questions = photoQuestions(triees.map((f) => f.nom)).map((q, i) => ({ ...q, photo: triees[i].nom }));
     const titre = [fiche?.title, fiche?.titre, fiche?.nom].find((v) => typeof v === "string" && v.trim())?.trim();
-    packs.push({ epreuve: "photos", titre: titre || nomDuDossier(fichiers, nomZip) || "Mes photos", theme: "", ageMin: null, ageMax: null, ...etiquettesDu(fiche), questions, manquantes: [], aCorriger: [], ignorees: [] });
-    return { packs, erreurs, laisses };
+    const nomDossier = dossier ? dossier.split("/").pop().replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim() : "";
+    packs.push({
+      epreuve: "photos", titre: titre || (avecContenu.length || fiches.length > 1 ? nomDossier : nomDuDossier(fichiers, nomZip)) || "Mes photos", theme: "",
+      ageMin: null, ageMax: null, ...etiquettesDu(fiche), dossier, questions, manquantes: [], aCorriger: [], ignorees: [],
+    });
+  };
+  if (!avecContenu.length && fiches.length <= 1) {
+    if (!images.length) return { packs, erreurs: ["Ce ZIP ne contient ni données de pack ni photos. Vérifiez que vous avez choisi le bon fichier."], laisses };
+    serieDePhotos(images, fiches[0]?.data ?? null, fiches[0] ? dossierDe(fiches[0].f.chemin) : null);
+    return { packs: erreurs.length ? [] : packs, erreurs, laisses };
+  }
+  for (const { f, data } of fiches) {
+    const dossier = dossierDe(f.chemin);
+    const photos = images.filter((x) => dossierDe(x.chemin) === dossier);
+    if (photos.length) serieDePhotos(photos, data, dossier);
+    else laisses.push(f.nom);
   }
 
   const trouver = chercheurImages(images);
-  const servies = new Set();
   for (const { f, data } of avecContenu) {
     if (data === undefined) {
       erreurs.push(`Les données du pack (« ${f.nom} ») sont mal écrites : il manque sans doute une virgule, un guillemet ou une accolade. Faites-les réécrire, puis refaites le ZIP.`);
