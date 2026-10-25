@@ -7933,11 +7933,18 @@ const estPackOuSerie = (quiz) => quiz?.pack === true || quiz?.source === "json" 
  * quiz normal ? ») : reconnu à l'import, et c'est ce jeu-là seulement qui le propose dans une prestation.
  */
 function jeuDuPack(quiz) {
+  const epreuve = epreuveDuQuiz(quiz);
+  return epreuve === "vraifaux" ? "✅ Vrai ou Faux express" : epreuve === "quiz" ? QUIZ_KINDS.classique : QUIZ_KINDS[quizKind(quiz)];
+}
+
+/** L'épreuve d'un quiz enregistré, comme à l'import d'un pack : quiz, illustre, vraifaux ou photos. */
+function epreuveDuQuiz(quiz) {
   const kind = quizKind(quiz);
-  if (kind !== "classique") return QUIZ_KINDS[kind];
+  if (kind === "photo") return "illustre";
+  if (kind === "images") return "photos";
   const qs = (quiz.questions ?? []).filter((q) => q && q.kind !== "number");
   const vraiFaux = (q) => (q.choices ?? []).map((c) => `${c}`.trim().toLowerCase()).join("/") === "vrai/faux";
-  return qs.length && qs.every(vraiFaux) ? "✅ Vrai ou Faux express" : QUIZ_KINDS.classique;
+  return qs.length && qs.every(vraiFaux) ? "vraifaux" : "quiz";
 }
 
 /** Pastille de couleur d'un niveau (vert Facile, bleu Moyen, violet Difficile). */
@@ -8183,7 +8190,7 @@ async function importerPackZip(zip, statut = "pack-status") {
       if (p.epreuve === "photos") {
         const gardees = [];
         for (const q of p.questions) {
-          const id = await preparer(q.photo, "photo");
+          const id = await preparer(q.photo, "photo", p.dossier);
           if (id) gardees.push({ ...q, imageId: id });
           else p.ignorees.push(`« ${q.photo} » : photo illisible, elle n'est pas importée (essayez un JPEG).`);
         }
@@ -8218,16 +8225,17 @@ async function importerPackZip(zip, statut = "pack-status") {
 
   // Noms déjà pris : le pack s'ajoute à côté, l'ancien ne change pas. Un même nom à un autre niveau n'est pas un
   // doublon (cedric, 25/10 : « Harry Potter » en Facile, Moyen et Difficile dans un seul ZIP).
-  const cleNom = (titre, niveau) => `${`${titre ?? ""}`.trim().toLowerCase()}|${niveau ?? ""}`;
-  const pris = new Set(Object.values(quizzes ?? {}).map((q) => cleNom(q?.title, niveauDuQuiz(q))));
+  // Ni pour un autre jeu (le Quiz et le Zoom « Harry Potter » d'un ZIP global).
+  const cleNom = (titre, niveau, epreuve) => `${`${titre ?? ""}`.trim().toLowerCase()}|${niveau ?? ""}|${epreuve}`;
+  const pris = new Set(Object.values(quizzes ?? {}).filter(Boolean).map((q) => cleNom(q.title, niveauDuQuiz(q), epreuveDuQuiz(q))));
   for (const p of packs) {
     if (p.epreuve === "quisuis") continue;
     const base = p.titre.slice(0, 110);
     let titre = base;
-    for (let k = 2; pris.has(cleNom(titre, p.niveau)); k++) titre = `${base} (${k})`;
+    for (let k = 2; pris.has(cleNom(titre, p.niveau, p.epreuve)); k++) titre = `${base} (${k})`;
     if (titre !== base) p.renomme = base;
     p.titre = titre;
-    pris.add(cleNom(titre, p.niveau));
+    pris.add(cleNom(titre, p.niveau, p.epreuve));
   }
   // Qui suis-je ? : un personnage déjà dans le jeu reste tel quel.
   const jeuQui = CONTENT_GAMES.quisuis;
