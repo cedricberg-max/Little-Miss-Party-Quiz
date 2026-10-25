@@ -86,8 +86,11 @@ internal fun AlerteBuzz(ms: () -> Float, couleur: Color, fondu: () -> Float, mod
         drawCircle(couleur.copy(alpha = 0.85f * f * apparition), ra, c, style = Stroke(4.dp.toPx()))
         drawCircle(Color.White.copy(alpha = 0.55f * f * apparition), ra, c, style = Stroke(1.2.dp.toPx()))
         drawCircle(couleur.copy(alpha = (0.45f - 0.3f * pouls) * f * apparition), r * (1.24f + 0.06f * pouls), c, style = Stroke(2.dp.toPx()))
-        // Flash blanc du claquement.
-        if (t < 220f) drawCircle(Color.White.copy(alpha = 0.35f * f * (1f - t / 220f)), r * 2.2f, c)
+        // Flash blanc du claquement : une lueur qui se fond dans le noir, sans bord (pas un disque plat).
+        if (t < 220f) {
+            val a = 0.45f * f * (1f - t / 220f)
+            drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = a), Color.White.copy(alpha = a * 0.35f), Color.Transparent), c, r * 2.4f), r * 2.4f, c)
+        }
     }
 }
 
