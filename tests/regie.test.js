@@ -5723,7 +5723,8 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.ok(hasard.every((x) => /^(K-pop|Mario)/.test(x)), "l'âge du dé d'abord");
 
     // 2. L'âge de la première ligne vaut pour chaque dé ; le thème principal : la moitié sur K-pop, le reste ailleurs
-    //    (Grands : le pack Difficile d'abord). Le même dé avec le même thème refait sa série.
+    //    (Grands : le pack Difficile d'abord). Un nouveau clic ajoute 6 autres questions au « complet » (cedric, 25/10),
+    //    jamais une déjà là.
     await round.locator("select.quiz-age").selectOption("GRANDS");
     assert.deepEqual(await ages(), ["GRANDS", "GRANDS", "GRANDS", "GRANDS"]);
     await round.locator(".packs-theme").fill("kpop");
@@ -5735,8 +5736,11 @@ describe("bibliothèque de quiz et prestations", () => {
     const theme = (await textes()).filter((x) => !hasard.includes(x));
     assert.deepEqual([theme.filter((x) => x.startsWith("K-pop")).length, theme.filter((x) => x.startsWith("Pokémon")).length], [3, 3]);
     await round.locator(".packs-de-theme").click();
-    await waitFor(async () => JSON.stringify((await textes()).filter((x) => !hasard.includes(x))) !== JSON.stringify(theme), "série refaite");
-    assert.equal(await total.textContent(), "Total : 12 questions", "le dé refait sa série, il n'en ajoute pas");
+    await total.filter({ hasText: "Total : 18 questions" }).waitFor();
+    const theme2 = (await textes()).filter((x) => !hasard.includes(x) && !theme.includes(x));
+    assert.equal(theme2.length, 6, "6 de plus, aucune déjà là");
+    assert.equal(theme2.filter((x) => x.startsWith("K-pop")).length, 3);
+    assert.equal(new Set(await textes()).size, 18, "jamais deux fois la même");
 
     // 3. Thème à 100 % (le thème du pack compte), son âge changé : seulement pour lui.
     await round.locator("select.de-age-recherche").selectOption("PETITS");
@@ -5746,7 +5750,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator("select.de-nombre-recherche").selectOption("5");
     const avant = await textes();
     await round.locator(".packs-de-recherche").click();
-    await total.filter({ hasText: "Total : 17 questions" }).waitFor();
+    await total.filter({ hasText: "Total : 23 questions" }).waitFor();
     const mario = (await textes()).filter((x) => !avant.includes(x));
     assert.equal(mario.length, 5);
     assert.ok(mario.every((x) => x.startsWith("Mario")));
@@ -5755,13 +5759,13 @@ describe("bibliothèque de quiz et prestations", () => {
     // 4. Les questions libres de droit : son âge (celui de la première ligne) et son nombre.
     await round.locator("select.de-nombre-banque").selectOption("4");
     await round.locator(".banque-ligne .tirage-de").click();
-    await total.filter({ hasText: "Total : 21 questions" }).waitFor();
+    await total.filter({ hasText: "Total : 27 questions" }).waitFor();
 
     // ✕ dans le « Quiz complet » : deux dés à sa place, en tête de la liste ; la question retirée ne revient jamais.
     await complet.locator(".quiz-complet-liste li", { hasText: mario[0] }).locator(".tirage-retirer").click();
     const caseVide = complet.locator(".quiz-complet-liste .packs-case");
     await caseVide.waitFor();
-    assert.equal(await total.textContent(), "Total : 20 questions");
+    assert.equal(await total.textContent(), "Total : 26 questions");
     assert.match(await round.locator(".round-head > .quiz-compteur").textContent(), / · 1 à tirer$/);
     assert.equal(await caseVide.locator(".packs-case-theme").inputValue(), "jeux video", "le petit champ part du thème de la série");
     await caseVide.scrollIntoViewIfNeeded();
@@ -5775,9 +5779,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await libre.locator(".tirage-retirer").click();
     await complet.locator(".quiz-complet-liste li.vide .tirage-de").click();
     await complet.locator(".quiz-complet-liste li.vide").waitFor({ state: "detached" });
-    assert.equal(await total.textContent(), "Total : 21 questions");
+    assert.equal(await total.textContent(), "Total : 27 questions");
 
-    // Enregistrée : chaque dé sa série (reprise, la TV la joue comme les autres) qui garde son dé, son mot et son âge ;
+    // Enregistrée : chaque clic sa série (reprise, la TV la joue comme les autres) qui garde son dé, son mot et son âge ;
     // l'âge de la première ligne aussi.
     await aVenir(page);
     await page.click("#show-save");
@@ -5787,6 +5791,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.pioche ?? x.profil, x.questions.length]), [
       ["de", "GRANDS", 4],
       ["reprise", { mode: "hasard", profil: "PETITS" }, 6],
+      ["reprise", { mode: "theme", terme: "K-pop Demon Hunters", profil: "GRANDS" }, 6],
       ["reprise", { mode: "theme", terme: "K-pop Demon Hunters", profil: "GRANDS" }, 6],
       ["reprise", { mode: "recherche", terme: "jeux video", profil: "PETITS" }, 5]]);
     assert.ok(manche.seriesQuiz.slice(1).every((x) => x.questions.every((q) => q.choices.length === 4 && Number.isInteger(q.correct))));
@@ -6094,8 +6099,9 @@ describe("bibliothèque de quiz et prestations", () => {
     const qs = snapshot.quiz.questions;
     assert.equal(qs.length, 10);
     assert.deepEqual([...new Set(qs.map((q) => q.round))], ["Quiz illustré"]);
-    assert.deepEqual(qs.slice(0, 8).map((q) => q.choiceBanque?.length), Array(8).fill(4));
-    assert.deepEqual(qs.slice(8).map((q) => [...q.choiceImages].sort()), [ids, ids]);
+    // Dans l'ordre des clics (cedric, 25/10 : chaque 🎲 à la suite) : Luna, mon pack, puis le 🎲 du tout prêt.
+    assert.deepEqual([...qs.slice(0, 2), ...qs.slice(4)].map((q) => q.choiceBanque?.length), Array(8).fill(4));
+    assert.deepEqual(qs.slice(2, 4).map((q) => [...q.choiceImages].sort()), [ids, ids]);
     assert.deepEqual(qs.map((q) => !!q.finale), [...Array(7).fill(false), true, true, true]);
     assert.ok(!qs.some((q) => /bougies/.test(q.text)));
     // Lancée par la régie : chaque réponse a son image copiée dans la partie (photo libre, émoji dessiné, ou la sienne).
@@ -6344,17 +6350,17 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await lignesCompletes.locator(".tirage-texte").allTextContents(), ["Tigre", "Mamie Jo", "Panda", "Lion"]);
     assert.equal(await lignesCompletes.locator("img.tirage-photo").count(), 4);
 
-    // Le 🎲 des photos libres dans le même jeu : jamais une photo déjà choisie ; sa série passe en tête.
+    // Le 🎲 des photos libres dans le même jeu : jamais une photo déjà choisie ; ses photos à la suite (cedric, 25/10).
     const ligne = round.locator(".banque-ligne .tirage-ligne");
     await ligne.locator(".de-nombre-banque").selectOption("6");
     await ligne.locator(".tirage-de").click();
     await compteur.filter({ hasText: "10 photos" }).waitFor();
-    const tirees = (await lignesCompletes.locator("img.tirage-photo").evaluateAll((xs) => xs.slice(0, 6).map((x) => x.getAttribute("src"))))
+    const tirees = (await lignesCompletes.locator("img.tirage-photo").evaluateAll((xs) => xs.slice(4, 10).map((x) => x.getAttribute("src"))))
       .map((src) => decodeURIComponent(src.match(/^banque\/(.+)\.jpg$/)[1]));
     assert.equal(tirees.length, 6);
     assert.ok(!tirees.includes("panda"), "le 🎲 ne reprend pas une photo de la composition");
     const [cle] = tirees;
-    const nomTiree = (await lignesCompletes.locator(".tirage-texte").first().textContent()).trim();
+    const nomTiree = (await lignesCompletes.locator(".tirage-texte").nth(4).textContent()).trim();
 
     // Rouverte : celles déjà dans la composition ne se recochent pas ; celle du 🎲 est en rouge, mais possible.
     await round.locator(".vos-images-titre").click();
@@ -6574,13 +6580,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator('.quiz-rappel-item[data-show="malo"]').click();
     await compteur.filter({ hasText: "2 personnages" }).waitFor();
     assert.equal(await total.textContent(), "Total : 2 personnages");
-    // 🎲 « Thème à 100 % » dans mes packs : « Disney », 2 personnages ; le même dé avec le même mot refait sa série.
+    // 🎲 « Thème à 100 % » dans mes packs : « Disney », 2 personnages ; un nouveau clic n'en trouve plus d'autre (jamais deux fois).
     await round.locator(".packs-recherche").fill("Disney");
     await round.locator("select.de-nombre-recherche").selectOption("2");
     await round.locator(".packs-de-recherche").click();
     await compteur.filter({ hasText: "4 personnages" }).waitFor();
     await round.locator(".packs-de-recherche").click();
-    await page.waitForTimeout(300);
+    await page.locator("#annonce", { hasText: "Aucun personnage libre ne se rapporte à « Disney » dans vos packs." }).waitFor();
     assert.equal(await compteur.textContent(), "4 personnages");
 
     // Le 🎲 des personnages du jeu : 3, aucun de ceux déjà là ni de mes séries ; jamais une image téléversée.
@@ -6589,16 +6595,17 @@ describe("bibliothèque de quiz et prestations", () => {
     await compteur.filter({ hasText: "7 personnages" }).waitFor();
     assert.equal(await total.textContent(), "Total : 7 personnages");
 
-    // « Qui suis-je ? complet » : le 🎲 d'abord, puis les séries ajoutées ; la petite image, les indices ; ✕, ↓ et 🔀.
+    // « Qui suis-je ? complet » : dans l'ordre des clics, chaque 🎲 à la suite (cedric, 25/10) ; la petite image, les
+    // indices ; ✕, ↓ et 🔀.
     const complet = round.locator(".quiz-complet");
     assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Qui suis-je ? complet : 7 personnages, dans l'ordre de passage");
     await complet.locator(".quiz-complet-voir").click();
     const ordre = () => complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
     const debut = await ordre();
-    const tires = debut.slice(0, 3);
+    const tires = debut.slice(4);
     for (const cle of ["le pirate", "la fée", "elsa", "simba"]) assert.ok(!tires.includes(cle), cle);
-    assert.deepEqual(debut.slice(3, 5), ["le pirate", "la fée"]);
-    assert.deepEqual(debut.slice(5).sort(), ["elsa", "simba"]);
+    assert.deepEqual(debut.slice(0, 2), ["le pirate", "la fée"]);
+    assert.deepEqual(debut.slice(2, 4).sort(), ["elsa", "simba"]);
     assert.equal(await complet.locator(".quiz-complet-q img.tirage-mini").count(), 1, "seule Elsa a une image (la sienne), jamais au 🎲");
     await waitFor(async () => (await complet.locator('[data-mot="elsa"] img.tirage-mini').getAttribute("src")) === PNG, "la petite image d'Elsa");
     assert.equal(await complet.locator('[data-mot="simba"] .tirage-mini.emoji').textContent(), "🦁");
@@ -6979,7 +6986,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator('.quiz-rappel-item[data-show="luna"]', { hasText: "2 affirmations" }).click();
     await total.filter({ hasText: "Total : 4 affirmations" }).waitFor();
 
-    // Le 🎲 du tout prêt : 8 affirmations du niveau Moyen, 4 vraies et 4 fausses, en tête.
+    // Le 🎲 du tout prêt : 8 affirmations du niveau Moyen, 4 vraies et 4 fausses, à la suite.
     await ligne.locator(".de-nombre-banque").selectOption("8");
     await ligne.locator(".tirage-de").click();
     await total.filter({ hasText: "Total : 12 affirmations" }).waitFor();
@@ -6988,15 +6995,15 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Vrai ou Faux complet : 12 affirmations, dans l'ordre de passage");
     await complet.locator(".quiz-complet-voir").click();
     const lignes = complet.locator(".quiz-complet-q");
-    const textes = async () => (await lignes.locator(".tirage-texte").allTextContents()).slice(0, 8);
+    const textes = async () => (await lignes.locator(".tirage-texte").allTextContents()).slice(4, 12);
     const premier = await textes();
     assert.equal(premier.length, 8);
     for (const t of premier) assert.ok(moyennes.has(t), `niveau Moyen : ${t}`);
-    const vfs = (await lignes.locator(".tirage-vf").allTextContents()).slice(0, 8);
+    const vfs = (await lignes.locator(".tirage-vf").allTextContents()).slice(4, 12);
     assert.deepEqual([vfs.filter((x) => x === "✓ Vrai").length, vfs.filter((x) => x === "✗ Faux").length], [4, 4]);
     for (const [k, t] of premier.entries()) assert.equal(vfs[k], moyennes.get(t).vrai ? "✓ Vrai" : "✗ Faux");
-    // ✕ sur une affirmation du tout prêt : son 🎲 reste en tête du « complet » et en tire une autre.
-    await lignes.nth(0).locator(".tirage-retirer").click();
+    // ✕ sur une affirmation du tout prêt : son 🎲 reste à sa place dans le « complet » et en tire une autre.
+    await lignes.nth(4).locator(".tirage-retirer").click();
     await complet.locator("li.vide", { hasText: "Affirmation à tirer" }).waitFor();
     assert.equal(await compteur.textContent(), "11 affirmations, dont 3 en Super Finale · 1 à tirer");
     await complet.locator("li.vide .tirage-de").click();
@@ -7046,10 +7053,10 @@ describe("bibliothèque de quiz et prestations", () => {
     // le second (10 affirmations) a la sienne.
     const { snapshot } = buildSnapshot("zoe", zoe, { animaux: ANIMAUX, sciences: SCIENCES });
     const qs = snapshot.quiz.questions.filter((q) => q.round === "Vrai ou Faux express");
-    assert.deepEqual(qs.slice(0, 11).map((q) => q.text), [...second, "Le Soleil est une étoile", "Le Soleil est une étoile", "Les poissons volent"]);
+    assert.deepEqual(qs.slice(0, 11).map((q) => q.text), ["Le Soleil est une étoile", "Le Soleil est une étoile", "Les poissons volent", ...second]);
     assert.ok(qs.every((q) => q.kind === "express"));
     assert.deepEqual(qs.map((q) => q.double), [...Array(8).fill(false), true, true, true, ...Array(7).fill(false), true, true, true]);
-    assert.deepEqual(qs.slice(0, 8).map((q) => q.choices[q.correct]), second.map((t) => (moyennes.get(t).vrai ? "Vrai" : "Faux")));
+    assert.deepEqual(qs.slice(3, 11).map((q) => q.choices[q.correct]), second.map((t) => (moyennes.get(t).vrai ? "Vrai" : "Faux")));
     assert.equal(qs.length, 21);
   });
 
@@ -8165,7 +8172,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await complet.waitFor();
     assert.equal(await compteur.textContent(), "2 questions, dont 2 en Super Finale, plus la question des bougies");
     assert.equal(await round.locator(".quiz-total").textContent(), "Total : 2 questions");
-    // Puis le dé des questions libres : ses questions viennent en premier.
+    // Puis le dé des questions libres : ses questions viennent à la suite (cedric, 25/10).
     await ligne.locator(".tirage-profil").selectOption("GRANDS");
     await ligne.locator(".tirage-nombre").selectOption("10");
     await ligne.locator(".tirage-de").click();
@@ -8197,19 +8204,23 @@ describe("bibliothèque de quiz et prestations", () => {
     // Le Quiz de Tom : ✕ par question, pas de 🎲.
     await lignesComplet.filter({ has: page.locator(".tirage-texte", { hasText: /^Combien de pattes a une araignée \?$/ }) }).locator(".tirage-retirer").click();
     assert.equal(await complet.locator(".quiz-complet-liste li.vide").count(), 0);
-    // Moins de questions au dé : il refait sa série.
+    // Un nouveau clic sur le dé : 8 questions de plus, à la suite, aucune déjà là (cedric, 25/10 : il ne refait plus sa série).
+    const avantClic = await lignesComplet.locator(".tirage-texte").allTextContents();
     await ligne.locator(".tirage-nombre").selectOption("8");
     await ligne.locator(".tirage-de").click();
-    await round.locator(".quiz-total", { hasText: "Total : 9 questions" }).waitFor();
+    await round.locator(".quiz-total", { hasText: "Total : 19 questions" }).waitFor();
+    const apresClic = (await lignesComplet.locator(".tirage-texte").allTextContents()).filter((t) => !t.startsWith("🎂"));
+    assert.deepEqual(apresClic.slice(0, avantClic.filter((t) => !t.startsWith("🎂")).length), avantClic.filter((t) => !t.startsWith("🎂")), "les questions d'avant ne bougent pas");
+    assert.equal(new Set(apresClic).size, 19, "jamais deux fois la même");
     // Lina en plus : à la fin.
     await cherche.fill("lina");
     await ajouts.locator('.quiz-rappel-item[data-show="lina"]').click();
-    await round.locator(".quiz-total", { hasText: "Total : 11 questions" }).waitFor();
-    assert.equal(await compteur.textContent(), "11 questions, dont 3 en Super Finale, plus la question des bougies");
+    await round.locator(".quiz-total", { hasText: "Total : 21 questions" }).waitFor();
+    assert.equal(await compteur.textContent(), "21 questions, dont 3 en Super Finale, plus la question des bougies");
     // Super Finale : les 2 dernières, ×3.
     await finale.locator("select.finale").selectOption("2");
     await finale.locator(".finale-facteur").selectOption("3");
-    assert.equal(await compteur.textContent(), "11 questions, dont 2 en Super Finale, plus la question des bougies");
+    assert.equal(await compteur.textContent(), "21 questions, dont 2 en Super Finale, plus la question des bougies");
     await capture(page, "quiz-manche-series");
     if (process.env.CAPTURES) {
       await page.setViewportSize({ width: 1440, height: 900 });
@@ -8224,7 +8235,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(zoe.rounds.length, 1);
     const [manche] = zoe.rounds;
     assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.titre ?? null, x.questions.length]),
-      [["de", null, 8], ["reprise", "Anniversaire de Tom (1 mars 2026)", 1], ["reprise", "Anniversaire de Lina (12 sept. 2026)", 2]]);
+      [["de", null, 18], ["reprise", "Anniversaire de Tom (1 mars 2026)", 1], ["reprise", "Anniversaire de Lina (12 sept. 2026)", 2]]);
     assert.equal(manche.finale, 2);
     assert.equal(manche.facteur, 3);
     assert.equal(manche.tirees, undefined);
@@ -8237,9 +8248,9 @@ describe("bibliothèque de quiz et prestations", () => {
     const { snapshot } = buildSnapshot("zoe", zoe, { animaux: ANIMAUX });
     const qs = snapshot.quiz.questions;
     assert.equal(new Set(qs.map((q) => q.round)).size, 1, "Un seul jeu");
-    assert.equal(qs.length, 1 + 8 + 2 + 1);
-    assert.equal(qs[0].text, de.questions[0].text);
-    assert.equal(qs[8].text, "Roi de la jungle ?");
+    assert.equal(qs.length, 1 + 18 + 1 + 2);
+    assert.equal(qs[0].text, "Roi de la jungle ?");
+    assert.deepEqual(qs.slice(1, 19).map((q) => q.text), de.questions.map((q) => q.text), "les questions du dé à la suite, dans l'ordre des clics");
     assert.equal(qs.at(-3).text, "Le Juste Chiffre : combien de bougies sur le gâteau de Zoé cette année ?");
     assert.deepEqual(qs.slice(-2).map((q) => q.text), tirees.map((q) => q.text));
     assert.deepEqual(qs.slice(-2).map((q) => q.finale), [true, true]);
@@ -8248,7 +8259,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#show-edit-crumb");
     await page.locator(".show-card", { hasText: "Zoé" }).first().click();
     await deplierJeux(page);
-    await round.locator(".quiz-total", { hasText: "Total : 11 questions" }).waitFor();
+    await round.locator(".quiz-total", { hasText: "Total : 21 questions" }).waitFor();
     assert.equal(await round.locator(".quiz-series").count(), 0);
     await page.context().close();
   });
@@ -8332,7 +8343,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(qs, melange.map(sansSigne));
     const finaleTv = snapshot.quiz.questions.filter((q) => q.finale).map((q) => q.text);
     assert.deepEqual(finaleTv, qs.filter((t) => !/bougies/.test(t)).slice(-3));
-    // Rouverte : le même ordre ; un nouveau tirage au 🎲 passe en tête, l'ordre rangé suit.
+    // Rouverte : le même ordre ; un nouveau tirage au 🎲 vient à la suite (cedric, 25/10), l'ordre rangé d'abord.
     await page.click("#show-edit-crumb");
     await page.locator(".show-card", { hasText: "Zoé" }).first().click();
     await deplierJeux(page);
@@ -8343,7 +8354,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await waitFor(async () => (await ordre()).length === 13, "série du dé");
     const tout = await ordre();
     assert.equal(tout.length, 13);
-    assert.deepEqual(tout.slice(8), melange);
+    assert.deepEqual(tout.slice(0, 5), melange);
     // ✕ sur les bougies : la case se décoche ; recochée, la question revient juste avant la Super Finale.
     const caseBougies = round.locator(".quiz-bougies input");
     await complet.locator(".quiz-complet-bougies .tirage-retirer").click();

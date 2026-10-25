@@ -2287,8 +2287,8 @@ function seriesBibliotheque(type) {
 /**
  * Qui suis-je ? (cedric, 25/10 : la carte du Quiz) : l'âge (d'office pour chaque 🎲) et le total ; trois 🎲 dans mes
  * packs (les personnages de mes séries : tout au hasard, un thème pour moitié, un thème à 100 %) et un dans les
- * personnages du jeu, chacun avec son âge et son nombre (1 à 15) ; chaque dé ajoute sa série (le même dé avec le même
- * mot la refait). Un personnage retiré laisse ses dés dans le « complet ».
+ * personnages du jeu, chacun avec son âge et son nombre (1 à 15) ; chaque clic ajoute ses personnages à la suite du
+ * « complet », jamais un déjà là. Un personnage retiré laisse ses dés dans le « complet ».
  */
 function desPersonnages(r, { piocherBanque, cles, ranger, changer }) {
   const type = r.type;
@@ -2310,27 +2310,28 @@ function desPersonnages(r, { piocherBanque, cles, ranger, changer }) {
     if (!catalogue.length) { annonce(AUCUN_PACK.quisuis); return; }
     const k = nombreDu(mode);
     const profil = ageDuDe(r, mode);
-    const avant = r.seriesMots.find((x) => x.pioche?.mode === mode && (mode === "hasard" || cleTheme(x.pioche.terme ?? "") === cleTheme(terme)));
-    const mots = piocherDansLesPacks(catalogue, Math.min(k, MAX_MOTS - cles(avant).size), { mode, terme, niveau: niveauDesPacks(NIVEAU_DU_PROFIL[profil]), exclus: sans(avant) }).map(versMot).filter(Boolean);
+    // Chaque clic ajoute ses personnages à la suite du « complet » (cedric, 25/10), jamais un déjà là.
+    if (cles().size >= MAX_MOTS) { annonce(`Déjà ${MAX_MOTS} personnages : c'est le maximum.`); return; }
+    const mots = piocherDansLesPacks(catalogue, Math.min(k, MAX_MOTS - cles().size), { mode, terme, niveau: niveauDesPacks(NIVEAU_DU_PROFIL[profil]), exclus: sans(null) }).map(versMot).filter(Boolean);
     if (!mots.length) { annonce(mode === "hasard" ? "Plus aucun personnage libre dans vos packs." : `Aucun personnage libre ne se rapporte à « ${terme} » dans vos packs.`); return; }
     if (mots.length < k) annonce(`Seulement ${plural(mots.length, "personnage libre", "personnages libres")}${mode === "recherche" ? ` sur « ${terme} »` : ""} : les voici.`);
-    let x = avant;
-    if (!x) { x = { id: nouvelId("pk"), origine: "biblio" }; r.seriesMots.push(x); }
-    x.pioche = { mode, ...(mode === "hasard" ? {} : { terme }), profil };
+    const x = { id: nouvelId("pk"), origine: "biblio", pioche: { mode, ...(mode === "hasard" ? {} : { terme }), profil } };
     x.titre = `Mes packs : ${sortePioche(x.pioche)}`;
     x.mots = mots;
+    aLaSuite(r, () => r.seriesMots.push(x));
     ranger();
     changer();
   };
   const banque = () => {
     const de = r.seriesMots.find((x) => x.origine === "de") ?? null;
-    motsRetires.delete(r);
-    const mots = piocherBanque(Math.min(nombreDu("banque"), MAX_MOTS - cles(de).size), cles(de), ageDuDe(r, "banque"));
+    // Chaque clic ajoute ses personnages (cedric, 25/10), jamais un déjà là ni retiré.
+    if (cles().size >= MAX_MOTS) { annonce(`Déjà ${MAX_MOTS} personnages : c'est le maximum.`); return; }
+    const mots = piocherBanque(Math.min(nombreDu("banque"), MAX_MOTS - cles().size), sans(null), ageDuDe(r, "banque"));
     if (!mots.length) { annonce("Plus aucun personnage libre à tirer : ajoutez-en dans la page du jeu."); return; }
     const serie = de ?? { id: "de", origine: "de", mots: [] };
     if (!de) r.seriesMots.unshift(serie);
-    serie.mots = mots;
-    r.count = mots.length;
+    aLaSuite(r, () => { serie.mots = [...(serie.mots ?? []), ...mots]; });
+    r.count = serie.mots.length;
     ranger();
     changer();
   };
@@ -3295,10 +3296,11 @@ function piocherIllustre(r, n, famille) {
 
 /** Tire [n] questions du Quiz illustré tout prêt pour la série du dé (cedric, 23/10) ; les autres séries ne bougent pas. */
 function tirerQuestionsIllustre(r, n, famille) {
-  poserTirage(r, piocherIllustre(r, n, famille));
+  const ajoutees = ajouterAuTirage(r, piocherIllustre(r, n, famille));
   const de = serieDuDe(r);
   if (de) { if (famille) de.famille = famille; else delete de.famille; }
   r.famille = famille;
+  return ajoutees;
 }
 
 /**
@@ -3336,10 +3338,11 @@ function piocherPhotos(r, n, famille) {
 
 /** Tire [n] photos pour la série du dé du Zoom mystère ou de l'Image floue ; les autres séries ne bougent pas. */
 function tirerPhotos(r, n, famille) {
-  poserTirage(r, piocherPhotos(r, n, famille));
+  const ajoutees = ajouterAuTirage(r, piocherPhotos(r, n, famille));
   const de = serieDuDe(r);
   if (de) { if (famille) de.famille = famille; else delete de.famille; }
   r.famille = famille;
+  return ajoutees;
 }
 
 /** Une affirmation du Vrai ou Faux tout prêt telle qu'elle est gardée dans la manche. */
@@ -3356,12 +3359,49 @@ function piocherAffirmations(r, n, profil) {
 
 /** Tire [n] affirmations pour la série du dé du Vrai ou Faux express ; les autres séries ne bougent pas. */
 function tirerAffirmationsVF(r, n, profil) {
-  poserTirage(r, piocherAffirmations(r, n, profil), profil);
+  const ajoutees = ajouterAuTirage(r, piocherAffirmations(r, n, profil), profil);
   r.profil = profil;
+  return ajoutees;
 }
 
 /** « Vrai » ou « Faux » : la bonne réponse d'une affirmation, en petit à côté d'elle. */
 const reponseVF = (q) => h("span", { class: `tirage-vf ${q.correct === 0 ? "vrai" : "faux"}`, text: q.correct === 0 ? "✓ Vrai" : "✗ Faux", title: "La bonne réponse" });
+
+/**
+ * Ce qu'un clic de 🎲 tire ([ajouter], qui rend ce qu'il rend) passe à la fin de l'ordre de passage (cedric, 25/10 :
+ * « une ligne de dé vient compléter l'assemblage de toutes les questions »), même dans une série déjà en tête ; la
+ * question des bougies garde sa place.
+ */
+function aLaSuite(r, ajouter) {
+  const mots = estJeuDeMots(r.type);
+  const ordre = () => {
+    if (mots) return motsDuJeu(r).map((x) => x.cle);
+    const cles = questionsDuQuiz(r, quizzes).map((x) => x.cle);
+    const b = placeDesBougies(r, quizzes);
+    if (b != null) cles.splice(b, 0, CLE_BOUGIES);
+    return cles;
+  };
+  const avant = ordre();
+  const rendu = ajouter();
+  const deja = new Set(avant);
+  const nouvelles = ordre().filter((c) => !deja.has(c));
+  if (avant.length && nouvelles.length) {
+    if (mots) r.ordreMots = [...avant, ...nouvelles];
+    else r.ordreQuiz = [...avant, ...nouvelles];
+  }
+  return rendu;
+}
+
+/**
+ * Ajoute [cases] à la suite de la série du dé (cedric, 25/10 : chaque clic complète le « complet », il ne refait plus
+ * sa série) ; rend le nombre ajouté.
+ */
+function ajouterAuTirage(r, cases, profil) {
+  if (!cases.length) return 0;
+  const de = serieDuDe(r);
+  poserTirage(r, [...(de?.questions ?? []).filter(Boolean), ...cases], profil);
+  return cases.length;
+}
 
 /** Met [cases] dans la série du dé (créée à la fin des séries s'il n'y en a pas) ; aucune : la série part. */
 function poserTirage(r, cases, profil) {
@@ -3382,8 +3422,9 @@ function tirerQuestionsQuiz(r, n, profil) {
   const { qcm, chiffres } = piocherQuiz(r, { qcm: n - nb, chiffres: nb, profil });
   const liste = [...qcm];
   chiffres.forEach((q, k) => liste.splice(Math.min(liste.length, Math.round(((k + 1) * n) / (chiffres.length + 1)) - 1), 0, q));
-  poserTirage(r, liste, profil);
+  const ajoutees = ajouterAuTirage(r, liste, profil);
   r.profil = profil;
+  return ajoutees;
 }
 
 
@@ -3507,8 +3548,8 @@ function ligneAgeQuiz(r, changer, total = questionsDesSeries(r, quizzes).length,
 }
 
 /**
- * Les dés du Quiz (cedric, 25/10), une ligne chacun, avec son âge et son nombre de questions (1 à 15) ; chacun ajoute
- * sa série (le même dé, avec le même mot, refait la sienne) :
+ * Les dés du Quiz (cedric, 25/10), une ligne chacun, avec son âge et son nombre de questions (1 à 15) ; chaque clic
+ * ajoute ses questions à la suite du « complet », jamais une déjà là (il ne refait plus sa série) :
  * 1. tout au hasard dans mes packs ; 2. un thème principal pour moitié, le reste au hasard dans les autres packs ;
  * 3. un thème à 100 % (thème, personnage…) ; 4. tout au hasard dans les questions libres de droit (Quiz classique tout
  * prêt, Juste Chiffre compris). Jamais une question déjà dans la prestation ni retirée.
@@ -3521,13 +3562,6 @@ function lignesDesQuiz(r, changer) {
   const parTheme = photos || jeu === "illustre";
   const defaut = photos ? RANDOM_COUNT[jeu] ?? TIRAGE_DEFAUT : TIRAGE_DEFAUT;
   const nombreDu = (de) => (NOMBRES_DE_QUIZ.includes(reglageDuDe(r, de).n) ? reglageDuDe(r, de).n : Math.min(defaut, 15));
-  const memeSerie = (mode, terme) => seriesPioche(r).find((x) => x.pioche.mode === mode && (mode === "hasard" || cleTheme(x.pioche.terme ?? "") === cleTheme(terme)));
-  // Sans la série que le dé refait : ses questions peuvent revenir, jamais celles retirées.
-  const exclusSans = (serie) => {
-    const toutes = seriesDe(r);
-    r.seriesQuiz = toutes.filter((x) => x !== serie);
-    try { return prisesDuJeu(r); } finally { r.seriesQuiz = toutes; }
-  };
   const nombreDe = (de) => {
     const n = nombreDu(de);
     return h("select", { class: `tirage-nombre de-nombre de-nombre-${de}`, "aria-label": `Nombre de ${unite}s de ce 🎲`, onchange: (e) => { reglageDuDe(r, de).n = Number(e.target.value); } },
@@ -3547,22 +3581,21 @@ function lignesDesQuiz(r, changer) {
     if (!catalogue.length) { annonce(AUCUN_PACK[jeu] ?? AUCUN_PACK.quiz); return; }
     const k = nombreDu(mode);
     const profil = ageDuDe(r, mode);
-    const avant = memeSerie(mode, terme);
-    const trouvees = piocherDansLesPacks(catalogue, k, { mode, terme, niveau: niveauDesPacks(NIVEAU_DU_PROFIL[profil]), exclus: exclusSans(avant) });
+    // Chaque clic ajoute ses questions à la suite du « complet » (cedric, 25/10), jamais une déjà là ni retirée.
+    const trouvees = piocherDansLesPacks(catalogue, k, { mode, terme, niveau: niveauDesPacks(NIVEAU_DU_PROFIL[profil]), exclus: prisesDuJeu(r) });
     if (!trouvees.length) { annonce(mode === "hasard" ? `Plus aucune ${unite} libre dans vos packs.` : `Aucune ${unite} libre ne se rapporte à « ${terme} » dans vos packs.`); return; }
     if (trouvees.length < k) annonce(`Seulement ${plural(trouvees.length, `${unite} libre`, `${unite}s libres`)}${mode === "recherche" ? ` sur « ${terme} »` : ""} : les voici.`);
-    let x = avant;
-    if (!x) { x = { id: nouvelId("pk"), origine: "reprise" }; seriesDe(r).push(x); }
-    x.pioche = { mode, ...(mode === "hasard" ? {} : { terme }), profil };
+    const x = { id: nouvelId("pk"), origine: "reprise", pioche: { mode, ...(mode === "hasard" ? {} : { terme }), profil } };
     x.titre = `Mes packs : ${sortePioche(x.pioche)}`;
     x.questions = trouvees.map((y) => versQuestionDePack(y, Math.random, jeu));
+    aLaSuite(r, () => seriesDe(r).push(x));
     changer();
   };
   // Le mot tapé reste dans son champ quand la carte se redessine.
   const theme = champThemePacks({ classe: "packs-theme", placeholder: "Thème principal pour moitié, le reste au hasard", label: "Thème principal : la moitié des questions, le reste au hasard dans mes packs",
-    valeur: reglageDuDe(r, "theme").terme ?? "", catalogue, exclus: exclusSans(null), entree: () => piocher("theme", theme.champ) });
+    valeur: reglageDuDe(r, "theme").terme ?? "", catalogue, exclus: prisesDuJeu(r), entree: () => piocher("theme", theme.champ) });
   const cherche = champThemePacks({ classe: "packs-recherche", placeholder: "Thème à 100 % (ou un personnage) dans mes packs", label: "Thème à 100 % : toutes les questions sur ce thème",
-    valeur: reglageDuDe(r, "recherche").terme ?? "", catalogue, exclus: exclusSans(null), entree: () => piocher("recherche", cherche.champ) });
+    valeur: reglageDuDe(r, "recherche").terme ?? "", catalogue, exclus: prisesDuJeu(r), entree: () => piocher("recherche", cherche.champ) });
   theme.champ.addEventListener("input", () => { reglageDuDe(r, "theme").terme = theme.champ.value; });
   cherche.champ.addEventListener("input", () => { reglageDuDe(r, "recherche").terme = cherche.champ.value; });
   const de = (mode, titre, champ = null) => h("button", { type: "button", class: `btn packs-de packs-de-${mode}`, text: "🎲", "aria-label": titre, title: titre, onclick: () => piocher(mode, champ) });
@@ -3571,11 +3604,13 @@ function lignesDesQuiz(r, changer) {
     const n = nombreDu("banque");
     // L'âge de ce dé ne vaut que pour lui : celui de la première ligne ne bouge pas.
     const age = r.profil;
-    if (photos) tirerPhotos(r, n, familleBanque());
-    else if (jeu === "illustre") tirerQuestionsIllustre(r, n, familleBanque());
-    else if (jeu === "express") tirerAffirmationsVF(r, n, ageDuDe(r, "banque"));
-    else tirerQuestionsQuiz(r, n, ageDuDe(r, "banque"));
+    const ajoutees = aLaSuite(r, () => (photos ? tirerPhotos(r, n, familleBanque())
+      : jeu === "illustre" ? tirerQuestionsIllustre(r, n, familleBanque())
+        : jeu === "express" ? tirerAffirmationsVF(r, n, ageDuDe(r, "banque"))
+          : tirerQuestionsQuiz(r, n, ageDuDe(r, "banque"))));
     if (age === undefined) delete r.profil; else r.profil = age;
+    if (!ajoutees) annonce(`Plus aucune ${unite} libre à tirer ici.`);
+    else if (ajoutees < n) annonce(`Seulement ${plural(ajoutees, `${unite} libre`, `${unite}s libres`)} : les voici.`);
   };
   const [texteBanque, titreBanque] = BANQUE_DU_JEU[photos ? "photos" : jeu] ?? BANQUE_DU_JEU.quiz;
   return [
