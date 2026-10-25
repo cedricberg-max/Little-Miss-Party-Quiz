@@ -9,6 +9,7 @@ import { BANQUE, questionBanque, avecPhoto, disparuPhotos, imageLibre } from "./
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { trackFromSong } from "./sons.js";
 import { propositionsDeTitre, cle, LEURRE_MAX } from "./paroles.js";
+import { lireFamille, lireNiveau } from "./rangement.js";
 
 /**
  * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
@@ -287,6 +288,9 @@ export const CONTENT_GAMES = {
         answer: x.answer.trim().slice(0, 60), emoji: typeof x.emoji === "string" ? x.emoji.trim().slice(0, 16) : "", clues, level: 1,
         ...(typeof x.serie === "string" && x.serie.trim() ? { serie: x.serie.trim().slice(0, 30) } : {}),
         ...(/^[0-9a-f]{16}$/.test(x.imageId ?? "") ? { imageId: x.imageId } : {}),
+        // Famille et niveau de son pack (cedric, 25/10), gardés pour ranger ses séries.
+        ...(lireFamille(x.famille) ? { famille: lireFamille(x.famille) } : {}),
+        ...(lireNiveau(x.niveau) ? { niveau: lireNiveau(x.niveau) } : {}),
       };
     },
   },

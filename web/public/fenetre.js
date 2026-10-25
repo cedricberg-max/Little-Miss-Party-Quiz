@@ -21,7 +21,7 @@ const paragraphes = (message) => `${message ?? ""}`.split(/\n[ \t]*\n/).map((p) 
  * Ouvre une fenêtre et attend la réponse : { ok, texte }. [annuler] : texte du second bouton (aucun s'il est nul) ;
  * [texte] : valeur de départ d'un champ à remplir (aucun champ s'il est nul).
  */
-function ouvrir(message, { ok, annuler = null, danger = false, texte = null, maxlength = null, premier = null, contenu = null }) {
+function ouvrir(message, { ok, annuler = null, danger = false, texte = null, maxlength = null, premier = null, contenu = null, valider = null }) {
   const tour = file.then(() => new Promise((resolve) => {
     const lignes = paragraphes(message);
     const champ = texte === null ? null : el("input", { type: "text", className: "fenetre-texte", value: texte, autocomplete: "off" });
@@ -37,11 +37,15 @@ function ouvrir(message, { ok, annuler = null, danger = false, texte = null, max
     // Un bouton de plus, en premier (« Enregistrer » avant de quitter un écran, cedric 24/10).
     const boutonPremier = premier ? el("button", { type: "button", className: "btn", textContent: premier }) : null;
     if (boutonPremier) boutonPremier.dataset.fenetrePremier = "";
+    // Ce qui manque encore quand [valider] refuse OK (une famille à choisir…) : dit ici, la fenêtre reste ouverte.
+    const manque = valider ? el("p", { className: "fenetre-manque", role: "alert" }) : null;
+    if (manque) manque.hidden = true;
     const d = el("dialog", { className: "fenetre", tabIndex: -1 },
       el("div", { className: "fenetre-message", id: "fenetre-message" },
         ...lignes.map((p, i) => el("p", { className: i === 0 ? "fenetre-titre" : "", textContent: p }))),
       contenu,
       champ,
+      manque,
       el("div", { className: "fenetre-boutons" }, boutonPremier, boutonOk, boutonAnnuler));
     d.dataset.fenetre = "";
     if (contenu) d.classList.add("fenetre-large");
@@ -50,7 +54,11 @@ function ouvrir(message, { ok, annuler = null, danger = false, texte = null, max
 
     let oui = false;
     const fermer = (reponse) => { oui = reponse; d.close(); };
-    boutonOk.onclick = () => fermer(true);
+    boutonOk.onclick = () => {
+      const refus = valider?.();
+      if (typeof refus === "string" && refus) { manque.textContent = refus; manque.hidden = false; return; }
+      fermer(true);
+    };
     if (boutonPremier) boutonPremier.onclick = () => fermer("premier");
     if (boutonAnnuler) boutonAnnuler.onclick = () => fermer(false);
     // Entrée dans le champ : comme OK.
@@ -94,8 +102,9 @@ export async function demanderTexte(message, valeur = "", { ok = "OK", annuler =
 
 /**
  * Fenêtre avec un contenu à regarder avant de choisir (aperçu d'un pack, cedric 25/10) : [contenu] (un élément) sous le
- * message. Vrai si on choisit [ok] ; sans [annuler], un simple bouton pour fermer.
+ * message. Vrai si on choisit [ok] ; sans [annuler], un simple bouton pour fermer. [valider] : appelé à OK, un texte
+ * (ce qui manque) garde la fenêtre ouverte et l'affiche.
  */
-export async function apercu(message, contenu, { ok = "OK", annuler = "Annuler", danger = false } = {}) {
-  return (await ouvrir(message, { ok, annuler, danger, contenu })).ok === true;
+export async function apercu(message, contenu, { ok = "OK", annuler = "Annuler", danger = false, valider = null } = {}) {
+  return (await ouvrir(message, { ok, annuler, danger, contenu, valider })).ok === true;
 }

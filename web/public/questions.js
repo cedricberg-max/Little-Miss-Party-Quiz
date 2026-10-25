@@ -17,9 +17,10 @@ import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./ban
 import { libelleNiveau } from "./banque-chiffres.js";
 import { AFFIRMATIONS, THEMES_VRAI_FAUX } from "./banque-vrai-faux.js";
 import { quizKind } from "./show.js";
+import { etiquettes, familleDuQuiz, niveauDuQuiz } from "./rangement.js";
 
 export const GROUPES_QUESTIONS = {
-  classiques: "📝 Quiz classique tout prêt", illustrees: "🖼️ Quiz illustré tout prêt", vraifaux: "✅ Vrai ou Faux tout prêt", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs par thème",
+  classiques: "📝 Quiz classique tout prêt", illustrees: "🖼️ Quiz illustré tout prêt", vraifaux: "✅ Vrai ou Faux tout prêt", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs",
   photos: "🔍 Mes séries de photos", tests: "🧪 Questions de test",
 };
 export const JUSTE_CHIFFRE = "🔢 Juste Chiffre";
@@ -154,7 +155,7 @@ function enCartes(quizzes, groupe, garde) {
       const kind = quizKind(quiz);
       const questions = questionsDe(quiz).map((q, i) => fiche(q, kind, { groupe, cle: `${id}/${i}`, quizId: id, index: i }));
       return {
-        id, title: quiz.title ?? "", theme: quiz.theme ?? "", kind, source: quiz.source, updatedAt: quiz.updatedAt ?? 0,
+        id, title: quiz.title ?? "", theme: quiz.theme ?? "", famille: familleDuQuiz(quiz), niveau: niveauDuQuiz(quiz), kind, source: quiz.source, updatedAt: quiz.updatedAt ?? 0,
         total: questions.length, validees: questions.filter((q) => q.validee).length, sansIllustration: questions.filter((q) => !q.ok).length, questions,
       };
     })
@@ -249,7 +250,8 @@ export function lirePacks(texte) {
       if (sans && n != null) return { text: q.text, choices: [], correct: n, kind: "number", duration: q.duration, double: q.double, marks: 0, ...(illus ? { image: illus } : {}) };
       return { ...q, ...(illus ? { image: illus } : {}) };
     });
-    return { title: lu.title, theme: lu.theme, ageMin: lu.ageMin, ageMax: lu.ageMax, questions };
+    // Ses deux étiquettes (cedric, 25/10) : écrites sur le pack, ou une fois pour tous en haut du fichier.
+    return { title: lu.title, theme: lu.theme, ageMin: lu.ageMin, ageMax: lu.ageMax, ...etiquettes(p, Array.isArray(data) ? null : data), questions };
   }).filter((p) => p.questions.length);
   return packs.length ? { packs } : { erreur: "Aucune question trouvée dans ce fichier." };
 }

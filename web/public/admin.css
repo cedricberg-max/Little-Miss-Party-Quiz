@@ -1162,3 +1162,31 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
   .blind-chanson .blind-paroles + .blind-ecouter, .sons-playlist-chanson .blind-paroles + .tirage-retirer { margin-left: auto; }
   .blind-liste, .blind-complet-liste, .sons-playlist-liste { padding: 4px 0; }
 }
+
+/* Rangement des packs (cedric, 25/10) : une ligne par famille, une pastille par niveau (vert, bleu, violet). */
+.pastille-niveau { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; vertical-align: middle; background: var(--soft); }
+.pastille-niveau[data-niveau="Facile"] { background: #22a35a; }
+.pastille-niveau[data-niveau="Moyen"] { background: #2f7fd8; }
+.pastille-niveau[data-niveau="Difficile"] { background: #8a4fd8; }
+.chip .pastille-niveau { margin-right: 2px; }
+.q-familles { display: flex; flex-direction: column; gap: 10px; max-width: 1000px; }
+.q-famille { gap: 8px; }
+.q-famille .q-plier h2 { flex: 1; }
+.q-famille.vide .q-plier { opacity: .55; cursor: default; }
+.q-famille.vide .q-plier:hover { border-color: var(--line); }
+.famille-resume { display: flex; gap: 10px; color: var(--soft); font-weight: 700; font-size: 15px; }
+.famille-niveau { display: inline-flex; align-items: center; gap: 4px; }
+.q-famille > .cards { margin-left: 38px; }
+.item .pack-niveau { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; }
+.item .pack-niveau[data-niveau="Facile"] { color: #1d8a4c; }
+.item .pack-niveau[data-niveau="Moyen"] { color: #2468b8; }
+.item .pack-niveau[data-niveau="Difficile"] { color: #7442bd; }
+.item .pack-niveau.sans { color: var(--warn); font-weight: 700; }
+.pack-etiquettes { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.pack-etiquettes .row { gap: 12px; }
+.pack-etiquette { display: flex; flex-direction: column; gap: 4px; font-weight: 700; font-size: 15px; flex: 1 1 200px; }
+.fenetre-manque { margin: 0; color: var(--bad); font-weight: 700; }
+@media (max-width: 600px) {
+  .q-famille > .cards { margin-left: 0; }
+  .famille-resume { display: none; }
+}
