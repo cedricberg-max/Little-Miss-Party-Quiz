@@ -44,6 +44,8 @@ object Sons {
     private const val VEILLE_MS = 1_000L
     /** Délai avant de rendre les lecteurs d'une boucle libérée : Android a fini de relancer celui qui prenait le relais. */
     private const val LIBERATION_MS = 2_000L
+    /** Temps laissé à un son long pour démarrer avant de le noter muet (cedric, 25 octobre : sons qui ne partaient pas). */
+    private const val DEMARRAGE_MS = 500L
 
     private val fil = HandlerThread("habillage-son").apply { start() }
     private val h = Handler(fil.looper)
@@ -79,6 +81,8 @@ object Sons {
     private val recalages = mutableMapOf<Son, Long>()
     /** Numéro du dernier lancement de chaque son long : un fondu de sortie ne coupe jamais un son relancé entre-temps. */
     private val lancements = mutableMapOf<Son, Int>()
+    /** Nombre d'arrêts demandés de chaque son long : un son arrêté juste après son lancement n'est pas « resté muet ». */
+    private val arrets = mutableMapOf<Son, Int>()
     private val lits = mutableMapOf<Lit, LitSonore>()
     /** Fichier de chaque lecteur : un lecteur endormi ([endormir]) se recharge depuis lui. */
     private val fichiers = WeakHashMap<MediaPlayer, String>()
@@ -351,16 +355,56 @@ object Sons {
                 derniereVariante[s] = i
                 longs[s] = v[i]
             }
-            val mp = longs[s] ?: return
-            lancements[s] = (lancements[s] ?: 0) + 1
+            val mp = longs[s] ?: return absent(s)
+            val lancement = (lancements[s] ?: 0) + 1
+            lancements[s] = lancement
             if (mp.isPlaying) mp.pause()
             mp.setVolume(1f, 1f)
             mp.seekTo(0)
-            mp.start()
+            try {
+                mp.start()
+            } catch (e: IllegalStateException) {
+                // Lecteur dans un mauvais état (souvent : en erreur, en attente de sa réparation) : ce son-là reste muet.
+                incident("Son ${s.name} pas joué : lecteur hors service")
+                return
+            }
             if (s == Son.GENERIQUE) departGenerique = SystemClock.uptimeMillis()
+            // Un son qui ne part pas sans erreur restait invisible : vérifié un instant plus tard (sauf relancé, arrêté,
+            // coupé, ou déjà fini parce que très court).
+            val arret = arrets[s] ?: 0
+            val tresCourt = runCatching { mp.duration in 1..(2 * DEMARRAGE_MS).toInt() }.getOrDefault(true)
+            if (!tresCourt) h.postAtTime({
+                essayer("demarrage") {
+                    if (!enArriere && lancements[s] == lancement && (arrets[s] ?: 0) == arret && longs[s] === mp &&
+                        !mp.isPlaying && mp.currentPosition <= 0
+                    ) {
+                        incident("Son ${s.name} resté muet au lancement")
+                    }
+                }
+            }, prevus, SystemClock.uptimeMillis() + DEMARRAGE_MS)
         } else {
-            val id = courts[s] ?: return
-            pool?.play(id, 1f, 1f, 1, 0, 1f)
+            val id = courts[s] ?: return absent(s)
+            // 0 : la box a refusé le son (plus de voie libre, ou son pas encore chargé).
+            if (pool?.play(id, 1f, 1f, 1, 0, 1f) == 0) incident("Son court ${s.name} refusé par la box")
+        }
+    }
+
+    /** Son demandé mais jamais chargé, alors que son fichier existe : il ne s'entendra pas de la soirée. */
+    private fun absent(s: Son) {
+        val app = appli ?: return
+        if (chargementFini && idSon(app, s) != null) incident("Son ${s.name} absent (pas chargé) : pas joué")
+    }
+
+    /** Ce qui joue en ce moment, pour le bilan de santé de la box : boucles, sons longs, rapports du son déjà envoyés. */
+    fun etat(rendre: (boucles: Int, sonsLongs: Int, incidents: Int) -> Unit) {
+        h.post {
+            var boucles = 0
+            var sonsLongs = 0
+            essayer("etat") {
+                boucles = lits.values.count { it.isPlaying }
+                sonsLongs = longs.values.count { it.isPlaying }
+            }
+            rendre(boucles, sonsLongs, incidents.nombre)
         }
     }
 
@@ -418,6 +462,7 @@ object Sons {
     }
 
     private fun eteindre(s: Son) {
+        arrets[s] = (arrets[s] ?: 0) + 1
         val mp = longs[s] ?: return
         if (!mp.isPlaying) return
         val lancement = lancements[s]

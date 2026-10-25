@@ -45,6 +45,9 @@ internal class Incidents(
     private val rafales = mutableMapOf<String, Rafale>()
     private var envoyes = 0
 
+    /** Rapports du son déjà envoyés pendant ce lancement (le bilan de santé de la box les compte). */
+    val nombre: Int @Synchronized get() = envoyes
+
     /**
      * Note l'incident [texte]. Vrai quand il ouvre une rafale : appeler [fermer] pour ce texte [fenetreMs] plus tard.
      */

@@ -1685,7 +1685,59 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         CrashReporter.upload(getApplication<Application>(), db)
         // Incidents du son (boucle qui s'arrête toute seule, lecteur en erreur) : dans les rapports de la box.
         com.littlemissparty.quiz.tv.habillage.Sons.rapporteur = { texte -> CrashReporter.report(db, "son", texte) }
+        suivreSante(db)
         return db
+    }
+
+    private var sante: Job? = null
+    @Volatile private var internet = false
+
+    /** Bilan de santé de la box dans ses rapports pendant la soirée (voir [SanteBox]) ; un seul suivi par lancement. */
+    private fun suivreSante(db: FirebaseDatabase) {
+        if (sante != null) return
+        db.getReference(".info/connected").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                internet = snapshot.getValue(Boolean::class.java) == true
+            }
+            override fun onCancelled(error: DatabaseError) = Unit
+        })
+        val depart = SystemClock.elapsedRealtime()
+        sante = viewModelScope.launch {
+            delay(SanteBox.PREMIER_MS)
+            repeat(SanteBox.MAX_PAR_LANCEMENT) {
+                runCatching { envoyerSante(db, SystemClock.elapsedRealtime() - depart) }
+                    .onFailure { Log.w(TAG, "Bilan de santé non envoyé", it) }
+                delay(SanteBox.CADENCE_MS)
+            }
+        }
+    }
+
+    private fun envoyerSante(db: FirebaseDatabase, depuisMs: Long) {
+        val app = getApplication<Application>()
+        val memoire = android.app.ActivityManager.MemoryInfo()
+        (app.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).getMemoryInfo(memoire)
+        val rt = Runtime.getRuntime()
+        val mo = 1024L * 1024
+        val partie = _state.value as? UiState.Playing
+        com.littlemissparty.quiz.tv.habillage.Sons.etat { boucles, sonsLongs, incidents ->
+            val bilan = SanteBox(
+                ramLibreMo = memoire.availMem / mo,
+                ramTotaleMo = memoire.totalMem / mo,
+                ramBasse = memoire.lowMemory,
+                appliMo = (rt.totalMemory() - rt.freeMemory()) / mo,
+                appliMaxMo = rt.maxMemory() / mo,
+                disqueLibreMo = app.filesDir.usableSpace / mo,
+                boucles = boucles,
+                sonsLongs = sonsLongs,
+                incidentsSon = incidents,
+                internet = internet,
+                ecran = partie?.let { p -> p.phase.code + if (p.paused) " en pause" else "" } ?: _state.value::class.simpleName.orEmpty(),
+                tablettes = partie?.let { p -> p.teams.count { it.uid in p.online } } ?: 0,
+                equipes = partie?.teams?.size ?: 0,
+                depuisMs = depuisMs,
+            )
+            CrashReporter.report(db, "sante", bilan.ligne())
+        }
     }
 
     private suspend fun createGame(db: FirebaseDatabase, uid: String): String {
