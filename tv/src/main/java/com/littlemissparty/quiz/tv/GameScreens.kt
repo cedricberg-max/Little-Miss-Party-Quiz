@@ -133,9 +133,10 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             // Statues : le panneau porte déjà l'étiquette « STATUES MUSICALES », le titre en double lui volerait sa place.
             // Chante le mot en Game Show : le mot est déjà sur l'enseigne néon, en double il lui volerait sa hauteur.
             if (!q.isBlind && !q.isStatues && !(Look.gs && q.isChante)) {
-                // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène).
-                val panneau = planchesQuiz3d()?.takeIf { !q.isBuzz }
-                if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index), festif = q.isMusical)
+                // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène). Qui a
+                // disparu ? y a droit aussi, lettres de couleur comme « Quel est ce titre ? » (cedric, 25/10 au soir).
+                val panneau = planchesQuiz3d()?.takeIf { !q.isBuzz || q.isDisparu }
+                if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index), festif = q.isMusical || q.isDisparu)
                 else if (Look.gs && q.isMusical && q.text.length <= 24) MotsNeon(q.text, 40.sp, Modifier.apparition(0, state.index))
                 else Text(
                     q.text,
