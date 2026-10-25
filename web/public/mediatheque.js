@@ -167,8 +167,19 @@ export function imagesDesPacks(quizzes = {}) {
   return out;
 }
 
+/**
+ * Catégorie de la fiche d'une image de pack nommée à l'import (cedric, 25/10 : « Yoshi », « Toad »… dans le thème
+ * Mario) : « 📦 » puis son thème, la fiche n'ayant pas d'autre place pour lui (même une image qu'aucun pack ne cite).
+ */
+const PREFIXE_PACK = "📦 ";
+export const catDePack = (theme) => `${PREFIXE_PACK}${`${theme ?? ""}`.trim() || "Sans thème"}`.slice(0, FICHE.cat);
+/** Le thème écrit dans la catégorie d'une fiche d'image de pack, sinon null. */
+export const themeDeFiche = (fiche) => (typeof fiche?.cat === "string" && fiche.cat.startsWith(PREFIXE_PACK) ? fiche.cat.slice(PREFIXE_PACK.length) : null);
+/** Une fiche rangée dans « Images des packs » (avec ou sans son thème). */
+export const estFicheDePack = (fiche) => fiche?.cat === PACKS || themeDeFiche(fiche) != null;
+
 /** Une image est une image de pack si sa fiche est rangée dans « Images des packs », ou si un pack s'en sert sans qu'elle l'ait rangée ailleurs. */
-const estImagePack = (id, fiche, packs) => fiche?.cat === PACKS || (!fiche?.cat && packs.has(id));
+const estImagePack = (id, fiche, packs) => estFicheDePack(fiche) || (!fiche?.cat && packs.has(id));
 
 /**
  * Les images des packs, par thème de pack puis par nom (pas les pochettes) ; une fiche donne son nom, ses mots-clés et
@@ -177,12 +188,15 @@ const estImagePack = (id, fiche, packs) => fiche?.cat === PACKS || (!fiche?.cat 
 export function mesImagesDePacks(medias = {}, packs = new Map(), utilisees = new Map(), pochettes = new Map()) {
   const out = [];
   const ids = new Set([...Object.keys(medias), ...packs.keys()]);
+  // Un thème trop long pour la catégorie de la fiche (coupé) : celui d'un pack qui commence pareil.
+  const themes = [...new Set([...packs.values()].map((p) => p.theme))];
+  const themeDe = (f) => { const t = themeDeFiche(f); return t == null ? null : themes.find((x) => catDePack(x) === f.cat) ?? t; };
   for (const id of ids) {
     const f = medias[id];
     if (!IMAGE_ID.test(id) || estPochette(id, f, pochettes) || !estImagePack(id, f, packs)) continue;
     const p = packs.get(id);
     out.push({
-      groupe: "packs", id, nom: f?.name ?? p?.nom ?? "Image", cat: p?.theme ?? "Sans thème", tags: f ? motsCles(f.tags) : p ? motsCles(p.pack) : [],
+      groupe: "packs", id, nom: f?.name ?? p?.nom ?? "Image", cat: p?.theme ?? themeDe(f) ?? "Sans thème", tags: f ? motsCles(f.tags) : p ? motsCles(p.pack) : [],
       retiree: f?.hidden === true, ou: utilisees.get(id)?.ou ?? [], fiche: !!f,
     });
   }

@@ -2395,6 +2395,29 @@ describe("bibliothèque d'images de la Régie PC (émojis, photos libres, ses im
     assert.deepEqual(Object.keys(B.GROUPES_IMAGES), ["packs", "emojis", "photos", "miennes", "pochettes"], "les images des packs d'abord (cedric, 25/10)");
   });
 
+  test("images nommées à l'import (cedric, 25/10) : leur nom, leur thème même sans pack qui les cite, et le nom se cherche", () => {
+    const [CITEE, LIBRE, LONGUE] = ["c1c1c1c1c1c1c1c1", "c2c2c2c2c2c2c2c2", "c3c3c3c3c3c3c3c3"];
+    const theme = "Super Mario Bros et tous leurs amis du royaume";
+    const quizzes = { m: { title: "Zoom Mario", theme: "Mario", source: "photos", pack: true, kind: "images", questions: [{ text: "?", choices: ["Yoshi"], correct: 0, imageId: CITEE }] },
+      l: { title: "Long", theme, source: "json", pack: true, questions: [{ text: "?", choices: ["A", "B"], correct: 0, imageId: "c4c4c4c4c4c4c4c4" }] } };
+    assert.equal(B.catDePack("Mario"), "📦 Mario");
+    assert.ok(B.catDePack(theme).length <= 40, "catégorie à la limite de la base");
+    assert.equal(B.themeDeFiche({ cat: "📦 Mario" }), "Mario");
+    assert.equal(B.themeDeFiche({ cat: B.PACKS }), null);
+    const medias = {
+      [CITEE]: { name: "Yoshi sur son kart", cat: B.catDePack("Mario"), createdAt: 1 },
+      [LIBRE]: { name: "Toad", cat: B.catDePack("Mario"), createdAt: 2 },
+      [LONGUE]: { name: "Luigi", cat: B.catDePack(theme), createdAt: 3 },
+    };
+    const packs = B.imagesDesPacks(quizzes);
+    const u = B.imagesUtilisees({ quizzes });
+    assert.deepEqual(B.mesImages(medias, u, new Map(), packs), [], "aucune dans « Mes images »");
+    const dePacks = B.mesImagesDePacks(medias, packs, u, new Map());
+    assert.deepEqual(dePacks.filter((x) => x.id !== "c4c4c4c4c4c4c4c4").map((x) => [x.id, x.cat, x.nom]).sort(), [
+      [CITEE, "Mario", "Yoshi sur son kart"], [LIBRE, "Mario", "Toad"], [LONGUE, theme, "Luigi"]].sort(), "un thème coupé retrouve celui de son pack");
+    assert.ok(B.correspond(dePacks.find((x) => x.id === LIBRE), "toad"));
+  });
+
   test("la recherche : chaque mot dans le nom, la catégorie ou les mots-clés, sans accents ni majuscules", () => {
     const elsa = { nom: "Elsa", cat: "Dessins animés", tags: ["princesse", "Reine des neiges"], ou: [] };
     assert.ok(B.correspond(elsa, ""));

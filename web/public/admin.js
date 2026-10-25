@@ -55,7 +55,7 @@ import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
 import {
-  GROUPES_IMAGES, A_RANGER, POCHETTES, PACKS, imagesDesPacks, mesImagesDePacks, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, pochettesUtilisees, mesPochettes, nomPochette,
+  GROUPES_IMAGES, A_RANGER, POCHETTES, PACKS, catDePack, themeDeFiche, estFicheDePack, imagesDesPacks, mesImagesDePacks, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, pochettesUtilisees, mesPochettes, nomPochette,
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
@@ -8107,6 +8107,11 @@ async function renommerTheme(nom, cartes) {
   if (tape == null || !tape.trim() || tape.trim() === nom) return;
   const cible = themeExistant(tape, themesExistants().filter((t) => t !== nom));
   const ecritures = Object.fromEntries(cartes.flatMap((c) => [[`library/quizzes/${c.id}/theme`, cible], [`library/quizzes/${c.id}/updatedAt`, serverTimestamp()]]));
+  // Ses images nommées à l'import (même celles qu'aucun pack ne cite) suivent le thème.
+  for (const [id, f] of Object.entries(medias ?? {})) {
+    const t = themeDeFiche(f);
+    if (t != null && (f.cat === catDePack(nom) || cleTheme(t) === cleTheme(nom))) Object.assign(ecritures, { [`library/medias/${id}/cat`]: catDePack(cible), [`library/medias/${id}/updatedAt`]: serverTimestamp() });
+  }
   try {
     await update(ref(db), ecritures);
     qThemesOuverts.add(cleTheme(cible));
@@ -8344,6 +8349,10 @@ async function importerPackZip(zip, statut = "pack-status") {
   // Images préparées en mémoire (réduites comme partout ailleurs), rangées seulement après confirmation.
   const aRanger = new Map();
   const prets = new Map();
+  // Images nommées par "images" (cedric, 25/10) : par chemin dans le ZIP, puis par image préparée (citée ou non).
+  const nomDuChemin = new Map(analyse.nommees.map((x) => [x.chemin, x]));
+  const nommes = new Map();
+  const preparees = new Set();
   let n = 0;
   const horsFormat = new Map();
   // Une image hors format : notée sur son pack, à sa place (question, réponse).
@@ -8374,6 +8383,8 @@ async function importerPackZip(zip, statut = "pack-status") {
       aRanger.set(id, data);
       imageCache[id] = data;
       if (alerte) horsFormat.set(id, alerte);
+      if (nomDuChemin.has(f.chemin) && !nommes.has(id)) nommes.set(id, nomDuChemin.get(f.chemin));
+      preparees.add(f.chemin);
     } catch (err) {
       console.error(err);
     }
@@ -8422,12 +8433,15 @@ async function importerPackZip(zip, statut = "pack-status") {
       }
       p.manquantes.sort((a, b) => a.q - b.q || (a.case ?? -1) - (b.case ?? -1));
     }
+    // Les images nommées qu'aucune question ne cite : importées aussi, en photo (pour « ⭐ Composer avec vos images »).
+    for (const x of analyse.nommees) if (!preparees.has(x.chemin)) await preparer(x.fichier, "photo");
   } finally {
     status(statut, "");
   }
   const vides = analyse.packs.filter((p) => (p.epreuve === "quisuis" ? !p.personnages.length : !p.questions.length));
-  if (vides.length === analyse.packs.length) {
-    return avertir(`Ce pack ne peut pas être importé.\n\n${analyse.packs.flatMap((p) => p.ignorees).join("\n") || "Aucune image n'a pu être lue."}\n\nRien n'a été enregistré.`);
+  if (vides.length === analyse.packs.length && !nommes.size) {
+    const absents = analyse.nomsAbsents.length ? `Les images nommées ne sont pas dans le ZIP (${analyse.nomsAbsents.slice(0, 5).join(", ")}${analyse.nomsAbsents.length > 5 ? "…" : ""}) : ajoutez-y le dossier d'images.` : "";
+    return avertir(`Ce pack ne peut pas être importé.\n\n${[...analyse.packs.flatMap((p) => p.ignorees), absents].filter(Boolean).join("\n") || "Aucune image n'a pu être lue."}\n\nRien n'a été enregistré.`);
   }
   const packs = analyse.packs.filter((p) => !vides.includes(p));
 
@@ -8462,9 +8476,13 @@ async function importerPackZip(zip, statut = "pack-status") {
     ...apercus,
     analyse.laisses.length ? h("p", { class: "hint small", text: `Laissé${analyse.laisses.length > 1 ? "s" : ""} de côté : ${analyse.laisses.join(", ")}.` }) : null,
     // Le dossier d'images téléchargé à côté des packs (cedric, 25/10) : seules les images citées sont téléversées.
-    analyse.imagesInutiles ? h("p", { class: "hint small pack-images-inutiles", text: `${plural(analyse.imagesInutiles, "image du ZIP ne sert", "images du ZIP ne servent")} à aucun pack : ${analyse.imagesInutiles > 1 ? "elles ne sont pas téléversées" : "elle n'est pas téléversée"}.` }) : null);
-  if (!aEnregistrer.length) return apercu("Rien de nouveau dans ce pack.", contenu, { ok: "Fermer", annuler: null });
-  const titre = aEnregistrer.length > 1 ? `Importer ces ${aEnregistrer.length} packs ?` : `Importer « ${aEnregistrer[0].titre} » ?`;
+    // Les images nommées (cedric, 25/10) : rangées sous leur nom, citées ou non, pour les retrouver en tapant.
+    nommes.size ? h("p", { class: "hint small pack-images-nommees", text: `🖼 ${plural(nommes.size, "image nommée", "images nommées")} (${[...nommes.values()].slice(0, 4).map((x) => x.nom).join(", ")}${nommes.size > 4 ? "…" : ""}) : ${nommes.size > 1 ? "rangées" : "rangée"} sous ce nom dans Bibliothèque › Images › 📦 Images des packs, au thème du pack. Il suffit de taper le nom pour la retrouver.` }) : null,
+    analyse.nomsAbsents.length ? h("p", { class: "hint small pack-noms-absents", text: `${plural(analyse.nomsAbsents.length, "image nommée absente", "images nommées absentes")} du ZIP : ${analyse.nomsAbsents.slice(0, 5).join(", ")}${analyse.nomsAbsents.length > 5 ? "…" : ""}.` }) : null,
+    analyse.imagesInutiles ? h("p", { class: "hint small pack-images-inutiles", text: `${plural(analyse.imagesInutiles, "image du ZIP ne sert", "images du ZIP ne servent")} à aucun pack${analyse.nommees.length || analyse.nomsAbsents.length ? (analyse.imagesInutiles > 1 ? " et n'ont pas de nom" : " et n'a pas de nom") : ""} : ${analyse.imagesInutiles > 1 ? "elles ne sont pas téléversées" : "elle n'est pas téléversée"}.` }) : null);
+  if (!aEnregistrer.length && !nommes.size) return apercu("Rien de nouveau dans ce pack.", contenu, { ok: "Fermer", annuler: null });
+  const titre = !aEnregistrer.length ? `Ranger ${nommes.size > 1 ? `ces ${nommes.size} images` : "cette image"} ?`
+    : aEnregistrer.length > 1 ? `Importer ces ${aEnregistrer.length} packs ?` : `Importer « ${aEnregistrer[0].titre} » ?`;
   // Le niveau est obligatoire (cedric, 25/10) : s'il manque au pack, il se choisit dans l'aperçu ; le thème a toujours
   // une valeur (celle du pack, sinon son nom).
   const valider = () => {
@@ -8472,7 +8490,19 @@ async function importerPackZip(zip, statut = "pack-status") {
     const sans = aEnregistrer.filter((p) => !p.niveau);
     return sans.length ? `Choisissez le niveau de ${sans.length > 1 ? "chaque pack" : `« ${sans[0].titre} »`} avant d'enregistrer.` : null;
   };
-  if (!(await apercu(titre, contenu, { ok: aEnregistrer.length > 1 ? "Enregistrer les packs" : "Enregistrer le pack", valider }))) return status(statut, "Import annulé : rien n'a été enregistré.");
+  const ok = !aEnregistrer.length ? "Enregistrer les images" : aEnregistrer.length > 1 ? "Enregistrer les packs" : "Enregistrer le pack";
+  if (!(await apercu(titre, contenu, { ok, valider }))) return status(statut, "Import annulé : rien n'a été enregistré.");
+
+  // Le thème de chaque image nommée : celui du pack qui la cite, sinon le sien (suivant le thème choisi dans l'aperçu
+  // pour les packs du même thème, écrit comme un thème déjà là), sinon celui du premier pack.
+  const existantsApres = themesExistants();
+  const themeNomme = (id, x) => {
+    const cite = aEnregistrer.find((p) => p.epreuve !== "quisuis" && p.questions.some((q) => q.imageId === id || (q.choiceImages ?? []).includes(id)));
+    if (cite) return cite.theme;
+    const meme = x.theme && aEnregistrer.find((p) => p.epreuve !== "quisuis" && cleTheme(p.themePropose ?? p.theme) === cleTheme(x.theme));
+    if (meme) return meme.theme;
+    return x.theme ? themeExistant(x.theme, existantsApres) : aEnregistrer.find((p) => p.theme)?.theme ?? "Sans thème";
+  };
 
   // Enregistrement : les images d'abord (invisibles tant qu'aucun pack ne les nomme), les packs ensuite.
   status(statut, "Enregistrement…", true);
@@ -8505,6 +8535,13 @@ async function importerPackZip(zip, statut = "pack-status") {
         updatedAt: serverTimestamp(),
       };
     }
+    // Les fiches des images nommées ; une image déjà rangée dans « Mes images » ou les pochettes garde la sienne.
+    for (const [id, x] of nommes) {
+      const avant = medias[id];
+      if (avant && !estFicheDePack(avant)) continue;
+      const fiche = ficheImage({ nom: x.nom, cat: catDePack(themeNomme(id, x)), tags: avant?.tags ?? "", retiree: avant?.hidden === true }, avant);
+      if (fiche) ecritures[`library/medias/${id}`] = { ...fiche, updatedAt: serverTimestamp() };
+    }
     // Un seul envoi : tous les packs, ou aucun.
     await update(ref(db), ecritures);
   } catch (err) {
@@ -8513,6 +8550,7 @@ async function importerPackZip(zip, statut = "pack-status") {
   }
   const bilan = aEnregistrer.map((p) => (p.epreuve === "quisuis" ? `${plural(p.personnages.length, "personnage ajouté", "personnages ajoutés")} à Qui suis-je ?`
     : `« ${p.titre} » : ${plural(p.questions.length, p.epreuve === "photos" ? "photo" : "question")}`));
+  if (nommes.size) bilan.push(`${plural(nommes.size, "image nommée", "images nommées")} dans les images des packs`);
   const manquantes = aEnregistrer.reduce((t, p) => t + p.manquantes.length, 0);
   if (builtinType === "quisuis") renderBuiltin();
   if (faits.length) {
@@ -8887,7 +8925,7 @@ function ficheMedia(x, toutes, liste = [x], i = 0) {
   // Image d'un pack : rangée par thème du pack, sa fiche garde la catégorie réservée (sinon elle passerait dans ses images).
   const dePack = x.groupe === "packs";
   const enregistrer = async (champs, message) => {
-    const f = ficheImage({ nom: x.nom, cat: dePack ? PACKS : x.cat, tags: x.tags, retiree: x.retiree, ...champs }, medias[x.id]);
+    const f = ficheImage({ nom: x.nom, cat: dePack ? (estFicheDePack(medias[x.id]) ? medias[x.id].cat : PACKS) : x.cat, tags: x.tags, retiree: x.retiree, ...champs }, medias[x.id]);
     if (!f) return status("media-note", "Donnez un nom à l'image.");
     fichesEnregistrement++;
     try {

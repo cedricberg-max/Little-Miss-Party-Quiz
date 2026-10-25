@@ -102,6 +102,14 @@ const estFicheSeule = (x) => !!x && typeof x === "object" && !Array.isArray(x)
   && !["questions", "personnages", "characters", "items", "series", "packs"].some((k) => k in x)
   && ["title", "titre", "nom", "famille", "niveau"].some((k) => k in x);
 
+/** Une entrée de "images" qui donne un nom (`{ fichier, nom }`), pas une photo à deviner (elle aurait sa réponse). */
+const estNomDImage = (e) => !!e && typeof e === "object" && !texteDe(e.reponse, e["réponse"], e.answer)
+  && !!texteDe(e.fichier, e.file, e.image, e.photo) && !!texteDe(e.nom, e.name);
+/** "images" donne des noms d'images (cedric, 25/10) : une liste dont aucune entrée n'est une photo à deviner. */
+const estListeDeNoms = (liste) => Array.isArray(liste) && liste.length > 0 && liste.every((e) => estNomDImage(e) || !e || typeof e !== "object");
+/** Ce qui fait d'un fichier de données un pack (ou une série) : sans rien de cela, il ne fait que nommer des images. */
+const CLES_CONTENU = ["packs", "questions", "personnages", "characters", "items", "series", "photos"];
+
 /**
  * Les deux étiquettes d'un pack (cedric, 25/10) : `{ famille, niveau, niveauDeduit }`. Sans niveau écrit, celui de ses
  * âges (niveauDeduit vrai) ; null quand rien ne le dit : l'aperçu d'import le demande alors.
@@ -122,7 +130,9 @@ export const ouQuestion = (i, k = null) => `Question ${i + 1}${k == null ? "" : 
  *   chaque question gardant ses noms d'images attendus (revealFile, imageFiles) ou, en série de photos, `photo` ;
  * - erreurs : ce qui empêche de lire le pack (rien ne sera enregistré) ;
  * - laisses : fichiers laissés de côté (liste.txt de relecture…) ;
- * - imagesInutiles : le nombre d'images du ZIP qui ne servent à aucun pack (jamais téléversées).
+ * - imagesInutiles : le nombre d'images du ZIP qui ne servent à aucun pack ni ne sont nommées (jamais téléversées) ;
+ * - nommees : les images nommées par "images" et trouvées dans le ZIP, `{ fichier, chemin, nom, theme }` ;
+ * - nomsAbsents : les fichiers nommés par "images" mais absents du ZIP.
  */
 export function analyserPack(fichiers, { nomZip = "" } = {}) {
   const images = fichiers.filter((f) => estImage(f.nom));
@@ -136,8 +146,21 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
   // Un seul fichier pour tout un thème (cedric, 25/10 : packs.json = { theme, packs: [ … ] }) : chaque pack de la
   // liste est lu comme s'il était seul dans son fichier (Quiz, Quiz illustré, Vrai / Faux, Qui suis-je ?, série de
   // photos), avec le thème et le niveau du haut du fichier s'il n'a pas les siens.
+  //
+  // Noms des images (cedric, 25/10 : « que l'IA les renomme toutes, pour que je tape directement Yoshi, Toad… ») :
+  // "images": [{ fichier, nom }] au haut de packs.json, ou seul avec son thème (noms-images.json = { theme, images }).
+  // Chaque image listée arrive dans la bibliothèque sous ce nom, citée par une question ou non.
+  const listes = [];
   const lues = donnees.flatMap((f) => {
-    const data = lireJson(f.texte);
+    let data = lireJson(f.texte);
+    if (data && typeof data === "object" && !Array.isArray(data) && estListeDeNoms(data.images)) {
+      const { images: liste, ...reste } = data;
+      const theme = texteDe(data.theme, data["thème"], Array.isArray(data.packs) ? texteDe(...data.packs.map((x) => x?.theme ?? x?.["thème"])) : null);
+      listes.push({ liste, theme });
+      if (!CLES_CONTENU.some((k) => k in reste)) return [];
+      data = reste;
+      f = { ...f, texte: JSON.stringify(reste) };
+    }
     if (!Array.isArray(data?.packs) || !data.packs.some((x) => x && typeof x === "object")) return [{ f, data }];
     const haut = Object.fromEntries(["theme", "thème", "niveau", "famille"].filter((k) => typeof data[k] === "string" && data[k].trim()).map((k) => [k, data[k]]));
     return data.packs.filter((x) => x && typeof x === "object" && !Array.isArray(x)).map((x) => {
@@ -197,12 +220,37 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
       ageMin: null, ageMax: null, ...etiquettesDu(fiche), dossier, questions, manquantes: [], aCorriger: [], ignorees,
     });
   };
+  // Les images nommées trouvées dans le ZIP : un nom unique par thème (« Yoshi », « Yoshi 2 »), une image une seule fois.
+  const nommees = [];
+  const nomsAbsents = [];
+  const chemins = new Set();
+  const pris = new Set();
+  for (const { liste, theme } of listes) {
+    for (const e of liste) {
+      if (!estNomDImage(e)) continue;
+      const fichier = texteDe(e.fichier, e.file, e.image, e.photo);
+      const base = texteDe(e.nom, e.name).replace(/\s+/g, " ").slice(0, 80);
+      const leTheme = texteDe(e.theme, e["thème"], theme)?.slice(0, 80) ?? null;
+      const f = trouver(fichier, null);
+      if (!f) { nomsAbsents.push(fichier); continue; }
+      if (chemins.has(f.chemin)) continue;
+      chemins.add(f.chemin);
+      servies.add(f.chemin);
+      const cle = (n) => `${`${leTheme ?? ""}`.toLowerCase()}\u0000${n.toLowerCase()}`;
+      let nom = base;
+      for (let k = 2; pris.has(cle(nom)); k++) nom = `${base.slice(0, 76)} ${k}`;
+      pris.add(cle(nom));
+      nommees.push({ fichier, chemin: f.chemin, nom, theme: leTheme });
+    }
+  }
   const fin = () => {
     const inutiles = images.filter((f) => !servies.has(f.chemin)).length;
-    return { packs: erreurs.length ? [] : packs, erreurs, laisses, imagesInutiles: inutiles };
+    return { packs: erreurs.length ? [] : packs, erreurs, laisses, imagesInutiles: inutiles, nommees, nomsAbsents };
   };
+  // Un ZIP qui ne fait que nommer ses images : rien d'autre à lire.
+  if (!lues.length && listes.length) return fin();
   if (!avecContenu.length && fiches.length <= 1 && !photosListees(fiches[0]?.data)) {
-    if (!images.length) return { packs, erreurs: ["Ce ZIP ne contient ni données de pack ni photos. Vérifiez que vous avez choisi le bon fichier."], laisses, imagesInutiles: 0 };
+    if (!images.length) return { packs, erreurs: ["Ce ZIP ne contient ni données de pack ni photos. Vérifiez que vous avez choisi le bon fichier."], laisses, imagesInutiles: 0, nommees, nomsAbsents };
     serieDePhotos(images, fiches[0]?.data ?? null, fiches[0] ? dossierDe(fiches[0].f.chemin) : null);
     return fin();
   }

@@ -9253,6 +9253,59 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Import : les images nommées par l'IA (cedric, 25/10 : « Yoshi, Toad… ») arrivent sous leur nom dans le thème, citées ou non, et se retrouvent en tapant", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.locator("#pack-import:not([hidden])").waitFor();
+    const PACKS = { theme: "Mario", niveau: "Facile",
+      images: [{ fichier: "IMG_001.png", nom: "Yoshi sur son kart" }, { fichier: "IMG_002.png", nom: "Toad" }, { fichier: "IMG_003.png", nom: "Peach" }, { fichier: "absente.png", nom: "Wario" }],
+      packs: [{ title: "Zoom Mario", photos: [{ image: "IMG_001.png", reponse: "Yoshi" }] }] };
+    const images = [["IMG_001.png", [40, 200, 60]], ["IMG_002.png", [220, 40, 40]], ["IMG_003.png", [250, 150, 200]], ["IMG_004.png", [20, 20, 20]]];
+    await page.setInputFiles("#pack-file", { name: "mario.zip", mimeType: "application/zip",
+      buffer: Buffer.from(faireZip([["mario/packs.json", JSON.stringify(PACKS)], ...images.map(([n, c]) => [`mario/images/${n}`, png(c)])])) });
+    const fenetre = page.locator("dialog[data-fenetre][open]");
+    await fenetre.locator(".pack-images-nommees").waitFor();
+    assert.match(await fenetre.locator(".pack-images-nommees").textContent(), /^🖼 3 images nommées \(Yoshi sur son kart, Toad, Peach\) : rangées sous ce nom/);
+    assert.equal(await fenetre.locator(".pack-noms-absents").textContent(), "1 image nommée absente du ZIP : absente.png.");
+    assert.equal(await fenetre.locator(".pack-images-inutiles").textContent(), "1 image du ZIP ne sert à aucun pack et n'a pas de nom : elle n'est pas téléversée.");
+    assert.equal(await repondreFenetre(page), "Importer « Zoom Mario » ?");
+    await page.locator("#pack-status", { hasText: "✓ Importé : « Zoom Mario » : 1 photo ; 3 images nommées dans les images des packs." }).waitFor();
+    // Téléversées : la photo citée et les deux nommées, jamais IMG_004 ; chacune sa fiche, son nom, son thème.
+    const [zoom] = Object.values(await library("quizzes"));
+    const medias = await library("medias");
+    assert.equal(Object.keys(await library("images")).length, 3);
+    assert.deepEqual(Object.values(medias).map((f) => [f.name, f.cat]).sort(), [["Peach", "📦 Mario"], ["Toad", "📦 Mario"], ["Yoshi sur son kart", "📦 Mario"]]);
+    assert.equal(medias[zoom.questions[0].imageId].name, "Yoshi sur son kart", "l'image citée prend aussi son nom");
+    assert.equal(zoom.questions[0].choices[0], "Yoshi", "la réponse du jeu ne change pas");
+
+    // Un fichier qui ne fait que nommer (noms-images.json) : rangé dans le thème déjà là, écrit comme lui.
+    await page.setInputFiles("#pack-file", { name: "noms.zip", mimeType: "application/zip",
+      buffer: Buffer.from(faireZip([["noms-images.json", JSON.stringify({ theme: "mario", images: [{ fichier: "img_004.PNG", nom: "Bowser" }] })], ["images/IMG_004.png", png([20, 20, 20])]])) });
+    assert.equal(await repondreFenetre(page), "Ranger cette image ?");
+    await page.locator("#pack-status", { hasText: "✓ Importé : 1 image nommée dans les images des packs." }).waitFor();
+
+    // Bibliothèque › Images : les 4 dans « Mario », et on tape le nom pour la retrouver.
+    await page.click('#library-tabs [data-lib-tab="images"]');
+    await page.locator('#media-groups [data-groupe="packs"]', { hasText: "📦 Images des packs (4)" }).waitFor();
+    await page.click('#media-groups [data-groupe="packs"]');
+    assert.deepEqual(await page.locator("#media-list h3.content-series").allInnerTexts(), ["Mario · 4"]);
+    await page.fill("#media-search", "toad");
+    await page.locator("#media-list h3.content-series", { hasText: "Mario · 1" }).waitFor();
+    assert.deepEqual(await page.locator("#media-list .media-card input.media-name").evaluateAll((xs) => xs.map((x) => x.value)), ["Toad"]);
+    await page.fill("#media-search", "");
+
+    // ✎ Renommer le thème : ses images, même celles qu'aucun pack ne cite, le suivent.
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.click('#q-groups [data-groupe="photos"]');
+    await page.locator('.q-theme[data-theme="Mario"] .theme-renommer').click();
+    await repondreFenetre(page, { texte: "Super Mario" });
+    await page.locator('.q-theme[data-theme="Super Mario"]').waitFor();
+    await waitFor(async () => Object.values(await library("medias")).every((f) => f.cat === "📦 Super Mario"), "les fiches suivent le thème");
+    await page.context().close();
+  });
+
   test("Import d'un pack en un seul ZIP (cedric, 25/10) : Quiz illustré avec une image absente (simple alerte), série de photos sans données, tout modifiable et gardé", async () => {
     const page = await admin();
     await page.click("#nav button[data-screen=library]");
