@@ -604,7 +604,8 @@ class RegieTest : TestTv() {
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "c1" && it.child("buzzOpen").value == true } }
         assertTrue(licornes.buzzer(code))
         ecran.voit("À vous de chanter !")
-        ecran.capture("chante-le-mot-buzz")
+        // Capturé une fois l'alerte posée (STOP ! et le nom), pas pendant le flash du claquement.
+        ecran.capture("chante-le-mot-buzz", attente = 700)
         assertEquals("applied", regie.commande(code, "buzz_ok"))
         ecran.voit("Bravo Licornes, quelle voix !")
         assertEquals("applied", regie.commande(code, "next"))
