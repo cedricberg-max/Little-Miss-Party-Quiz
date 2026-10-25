@@ -56,7 +56,7 @@ describe("lecture d'un ZIP", () => {
 
   test("un ZIP qui contient des ZIP (ChatGPT, 25/10) : chacun ouvert comme un dossier, sur un seul niveau, limites pour le tout", async () => {
     const quiz = (niveau) => JSON.stringify({ title: "K-pop", famille: "Musique", niveau, questions: [{ text: `Question ${niveau} ?`, choices: ["Oui", "Non"], correct: 0 }] });
-    const zoom = faireZip([["kpop-zoom/pack.json", JSON.stringify({ title: "K-pop", famille: "Musique", niveau: "Facile" })], ["kpop-zoom/rumi.jpg", "x"], ["kpop-zoom/mira.jpg", "y"]]);
+    const zoom = faireZip([["kpop-zoom/pack.json", JSON.stringify({ title: "K-pop zoom", theme: "K-pop", niveau: "Facile" })], ["kpop-zoom/rumi.jpg", "x"], ["kpop-zoom/mira.jpg", "y"]]);
     const fond = faireZip([["a.zip", "z"]]);
     const zip = faireZip([
       ["kpop/quiz-facile.zip", faireZip([["pack.json", quiz("Facile")]])], ["kpop/quiz-moyen.zip", faireZip([["pack.json", quiz("Moyen")]])],
@@ -71,6 +71,7 @@ describe("lecture d'un ZIP", () => {
     assert.deepEqual(erreurs, []);
     assert.deepEqual(packs.map((p) => [p.epreuve, p.niveau, p.questions.length]).sort(), [["photos", "Facile", 2], ["quiz", "Facile", 1], ["quiz", "Moyen", 1]]);
     assert.deepEqual(laisses.sort(), ["a.zip", "lisez-moi.txt"], "un ZIP dans un ZIP intérieur n'est pas ouvert");
+    assert.equal(packs.find((p) => p.epreuve === "photos").theme, "K-pop", "le thème de la fiche pack.json d'une série de photos est lu");
     // Les limites comptent tous les fichiers, intérieurs compris ; un ZIP intérieur abîmé est nommé.
     await assert.rejects(() => lireZipEtSesZip(zip, { zip: 1e9, fichiers: 4, fichier: 1e9, total: 1e9 }), /plus de 4 fichiers/);
     await assert.rejects(() => lireZipEtSesZip(faireZip([["casse.zip", "pas un zip"]])), /Dans « casse\.zip » : Ce fichier n'est pas un ZIP lisible/);
