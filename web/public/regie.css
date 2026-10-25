@@ -531,3 +531,5 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .tuiles:not(.serree) .tuile .t-score { grid-row: 2; grid-column: 1; font-size: 34px; }
 .regie .tuiles:not(.serree) .tuile .t-etat { grid-row: 3; grid-column: 1; }
 .regie .tuiles .t-astuce { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--ink-soft); text-align: center; }
+.regie .suite-tv { display: flex; flex-direction: column; gap: 10px; }
+.regie .suite-tv .btn { display: grid; place-items: center; text-decoration: none; }

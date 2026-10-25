@@ -459,8 +459,13 @@ function control() {
     watchAnswers();
     watchPumps();
     // En arrivant dans le salon d'attente, la première chose à faire est de charger la prestation.
-    if (first && !tabChosen && live.state?.phase === "lobby") switchTab("show");
+    if (first && !tabChosen && live.state?.phase === "lobby") {
+      switchTab("show");
+      // Arrivée en suivant la TV (« Fin de la fête ») : la liste des prestations s'ouvre d'elle-même.
+      if (COCKPIT && arriveeEnSuivant()) ouvrirPlus();
+    }
     first = false;
+    suivreLaTV(live.state);
     render();
   });
   listen(`games/${code}/teams`, (s) => { live.teams = s.val() ?? {}; render(); });
@@ -484,6 +489,45 @@ function control() {
     $("c-notes").hidden = !notes;
     $("c-notes-text").textContent = notes;
   });
+}
+
+/**
+ * « 🏁 Fin de la fête » ou nouvelle partie lancée sur la TV (cedric, 25/10 : « il faut que ça suive tout seul ») :
+ * la box laisse sur l'ancienne partie l'adresse de la nouvelle (state/suite) et y a déjà relié ce téléphone. La régie
+ * passe seule à la nouvelle partie, sans QR ni mot de passe, la liste des prestations ouverte. Si la box n'a pas pu
+ * relier ce téléphone, la régie le dit et propose d'y aller avec le mot de passe.
+ */
+let suiteVue = null;
+async function suivreLaTV(st) {
+  const suite = typeof st?.suite === "string" ? st.suite.toUpperCase() : null;
+  if (!st?.leftAt || !suite || !/^[A-Z0-9]{5}$/.test(suite) || suite === code || suiteVue === suite) return;
+  suiteVue = suite;
+  const partie = code;
+  const relie = await hasAccess({ db, uid }, suite).catch(() => false);
+  if (code !== partie) return;
+  const adresse = new URL(location.href);
+  adresse.searchParams.set("g", suite);
+  if (relie) {
+    adresse.searchParams.set("suivie", "1");
+    adresse.searchParams.delete("regie");
+    toast("La TV a ouvert une nouvelle partie : la régie la suit…");
+    setTimeout(() => location.replace(adresse.href), 600);
+    return;
+  }
+  adresse.searchParams.set("regie", "1");
+  adresse.searchParams.delete("suivie");
+  const lien = Object.assign(document.createElement("a"), { className: "btn main", href: adresse.href, textContent: "Aller à la nouvelle partie" });
+  $("c-suite").replaceChildren("La TV a ouvert une nouvelle partie. Ce téléphone n'a pas pu la suivre seul : touchez ci-dessous, puis tapez le mot de passe.", lien);
+  $("c-suite").hidden = false;
+}
+
+/** Page ouverte en suivant la TV : une seule fois (un rechargement ne rouvre pas la liste). */
+function arriveeEnSuivant() {
+  const adresse = new URL(location.href);
+  if (adresse.searchParams.get("suivie") !== "1") return false;
+  adresse.searchParams.delete("suivie");
+  history.replaceState(null, "", adresse.href);
+  return true;
 }
 
 function watchAnswers() {
@@ -1930,10 +1974,13 @@ const isDemo = () => live.plan?.id === "demo";
  */
 function renderDemo(st) {
   const box = $("c-demo");
-  box.hidden = !isDemo();
+  // TV déjà partie vers une nouvelle partie : la régie la suit, plus rien à expliquer ici.
+  box.hidden = !isDemo() || !!st.leftAt;
   if (box.hidden) return;
   box.textContent = st.phase === "lobby"
     ? "Aucune prestation chargée : la TV jouera son quiz de démonstration. Choisissez la prestation dans l'onglet « Prestation » avant de lancer la fête."
+    : st.phase === "ended"
+    ? "La TV a joué son quiz de démonstration. Pour jouer une prestation : « 🏁 Fin de la fête », puis choisissez-la dans la liste qui s'ouvre."
     : "La TV joue son quiz de démonstration, pas une prestation. Pour jouer une prestation : sur la TV, touche Retour → « Terminer et lancer une nouvelle partie », puis choisissez-la dans l'onglet « Prestation » de la régie.";
 }
 
@@ -3081,11 +3128,37 @@ async function readShows() {
   return { list, launches };
 }
 
+/**
+ * Dernière liste des prestations vue sur ce téléphone, affichée tout de suite pendant la relecture (cedric, 25/10 :
+ * après un nouveau scan, l'anniversaire test mettait du temps à réapparaître). Sans risque : une prestation touchée
+ * est toujours relue à l'instant du lancement.
+ */
+const CLE_LISTE = "lmp-regie-prestations";
+function listeGardee() {
+  try {
+    const liste = JSON.parse(localStorage.getItem(CLE_LISTE) ?? "null");
+    return Array.isArray(liste) ? liste : null;
+  } catch {
+    return null;
+  }
+}
+function garderListe(list) {
+  const resume = (x) => ({
+    id: x.id, run: x.run, problems: x.problems ?? [],
+    show: { title: x.show.title, childName: x.show.childName, copieDe: x.show.copieDe, age: x.show.age, date: x.show.date },
+    jeux: x.snapshot?.rounds.length ?? null,
+    questions: x.snapshot?.quiz.questions.filter((q) => q.kind !== "mime" && q.kind !== "pictionary").length ?? 0,
+  });
+  try { localStorage.setItem(CLE_LISTE, JSON.stringify(list.map(resume))); } catch { /* navigation privée : rien de gardé */ }
+}
+
 async function fetchShows() {
-  shows = { loading: true };
+  const gardee = shows?.list ?? listeGardee();
+  shows = gardee ? { list: gardee, loading: true } : { loading: true };
   render();
   try {
     shows = { list: (await readShows()).list };
+    garderListe(shows.list);
   } catch (e) {
     console.error(e);
     shows = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -3108,7 +3181,9 @@ function renderShows(st) {
   box.dataset.key = key;
   box.innerHTML = "";
   const hint = (text) => { const p = document.createElement("p"); p.className = "hint"; p.textContent = text; box.appendChild(p); };
-  if (shows.loading) return hint("Chargement des prestations…");
+  if (shows.loading && !shows.list) return hint("⏳ Chargement des prestations…");
+  // Liste gardée de la dernière fois : visible tout de suite, la relecture se voit en haut.
+  if (shows.loading) hint("⏳ Mise à jour de la liste…");
   if (shows.denied) return hint("Pour charger une prestation, entrez dans la régie avec le mot de passe (pas avec le code de la TV).");
   if (shows.error || !shows.list) return hint("Impossible de lire les prestations. Vérifiez la connexion.");
   if (wrongShow) {
@@ -3121,7 +3196,7 @@ function renderShows(st) {
     box.appendChild(keep);
   }
   if (!shows.list.length) hint("Aucune prestation à venir. Sarah les prépare dans l'administration (statut « À venir »).");
-  shows.list.forEach(({ id, show, snapshot, problems, run }) => {
+  shows.list.forEach(({ id, show, snapshot, problems, run, jeux, questions }) => {
     const item = document.createElement("button");
     item.className = "show-item";
     item.dataset.show = id;
@@ -3131,9 +3206,10 @@ function renderShows(st) {
     const date = show.date ? new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : "";
     meta.textContent = [show.childName, show.age ? `${show.age} ans` : "", date].filter(Boolean).join(" · ");
     const detail = document.createElement("span");
-    const asked = snapshot?.quiz.questions.filter((x) => x.kind !== "mime" && x.kind !== "pictionary").length ?? 0;
-    detail.textContent = snapshot
-      ? `${snapshot.rounds.length} jeu${snapshot.rounds.length > 1 ? "x" : ""}${asked ? ` · ${asked} questions` : ""}`
+    const asked = snapshot ? snapshot.quiz.questions.filter((x) => x.kind !== "mime" && x.kind !== "pictionary").length : questions ?? 0;
+    const nbJeux = snapshot ? snapshot.rounds.length : jeux;
+    detail.textContent = nbJeux != null
+      ? `${nbJeux} jeu${nbJeux > 1 ? "x" : ""}${asked ? ` · ${asked} questions` : ""}`
       : problems[problems.length - 1];
     // Où en est la prestation : préparée, sur cette TV, sur une autre box, interrompue, terminée.
     const where = document.createElement("span");
@@ -3144,14 +3220,14 @@ function renderShows(st) {
     item.dataset.run = run.etat;
     item.append(title, meta, where, detail);
     // Un jeu qui ne peut pas être préparé ne disparaît jamais en silence : la régie le dit avant le lancement.
-    if (snapshot && problems.length) {
+    if (nbJeux != null && problems.length) {
       const warn = document.createElement("span");
       warn.className = "show-warn";
       warn.textContent = `⚠ ${problems.join(" ")}`;
       item.append(warn);
     }
     if (loadingShow === id) detail.textContent = "Chargement sur la TV…";
-    item.disabled = !snapshot || !!loadingShow;
+    item.disabled = nbJeux == null || !!loadingShow;
     item.onclick = () => loadShow(id);
     box.appendChild(item);
   });

@@ -125,7 +125,7 @@ function questionState(seq, index = 0) {
  * [host] : la box qui pilote (une box de secours après « Changer de box »), qui reprend la partie à l'état
  * [from] ; les commandes [seen], restées sans réponse avant le changement de box, ne sont jamais rejouées.
  */
-function startBox({ silent = false, held = false, host = HOST, from = null, seen = [] } = {}) {
+function startBox({ silent = false, held = false, host = HOST, from = null, seen = [], suite = null, copieRegie = true } = {}) {
   /** Verdict imposé à la prochaine modification du programme (pour vérifier ce qu'affiche la régie). */
   let refuseProgram = null;
   const db = env.authenticatedContext(host).database();
@@ -214,6 +214,15 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
         else if (cmd.type === "end") state = { ...state, seq, phase: "ended" };
         // « 🏁 Fin de la fête » : comme la box, seulement une fois la partie terminée ; la partie quittée est marquée.
         else if (cmd.type === "newgame" && state.phase !== "ended") status = { status: "refused", reason: "not_ended" };
+        else if (cmd.type === "newgame" && suite) {
+          // Comme la box (newGame) : la nouvelle partie, puis la régie déjà reliée, puis l'adresse sur l'ancienne.
+          const regie = (await get(ref(db, `games/${CODE}/regie`))).val() ?? {};
+          await set(ref(db, `games/${suite}`), { hostUid: host, state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true } });
+          if (copieRegie) {
+            for (const [u, r] of Object.entries(regie)) await set(ref(db, `games/${suite}/regie/${u}`), { pairedAt: serverTimestamp(), via: r?.via ?? "password" });
+          }
+          state = { ...state, leftAt: Date.now(), suite };
+        }
         else if (cmd.type === "newgame") state = { ...state, leftAt: Date.now() };
         else state = { ...state, seq };
         if (status.status === "applied") status.seq = seq;
@@ -2141,6 +2150,51 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("« 🏁 Fin de la fête » : la régie suit la TV toute seule dans la nouvelle partie, sans QR ni mot de passe, la liste des prestations ouverte (cedric, 25/10)", async () => {
+    box = startBox({ suite: "SUIT3" });
+    await addTeam("rose", "Les Roses");
+    const page = await openRegie(await contexteSansChoix({ viewport: { width: 390, height: 844 } }));
+    await pair(page);
+    await inRegie(page);
+    await box.set({ phase: "ended", index: QUESTIONS.length - 1, seq: (await read("state")).seq + 1 });
+    await page.click("#c-fin");
+    await respond(page);
+    // La TV a ouvert SUIT3 : la régie y passe seule, déjà reliée, au salon d'attente.
+    await page.waitForURL(/[?&]g=SUIT3/, { timeout: 10000 });
+    await inRegie(page);
+    await page.locator("#c-next", { hasText: "En attente des équipes" }).waitFor();
+    assert.equal(await page.locator("#regie-login").isHidden(), true, "pas de mot de passe à retaper");
+    // La liste des prestations s'ouvre d'elle-même, le bouton principal reste visible dessous.
+    await page.locator("#plus:not([hidden]) #panel-show:not([hidden])").waitFor();
+    assert.equal(await page.locator("#c-next").isVisible(), true);
+    await capture(page, "fin-de-la-fete-suit-la-tv", { pleinePage: false });
+    // Un rechargement ne rouvre pas la liste : on reste simplement sur la nouvelle partie.
+    assert.doesNotMatch(page.url(), /suivie=/);
+    await page.reload();
+    await inRegie(page);
+    assert.match(page.url(), /[?&]g=SUIT3/);
+    await page.context().close();
+  });
+
+  test("« 🏁 Fin de la fête » : si la box n'a pas pu relier le téléphone à la nouvelle partie, la régie le dit et y emmène avec le mot de passe", async () => {
+    box = startBox({ suite: "SUIT4", copieRegie: false });
+    await addTeam("rose", "Les Roses");
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await box.set({ phase: "ended", index: QUESTIONS.length - 1, seq: (await read("state")).seq + 1 });
+    await page.click("#c-fin");
+    await respond(page);
+    const suite = page.locator("#c-suite:not([hidden])", { hasText: "La TV a ouvert une nouvelle partie" });
+    await suite.waitFor();
+    assert.match(page.url(), /[?&]g=REGI2/, "la régie ne part pas seule");
+    assert.match(await suite.locator("a").getAttribute("href"), /[?&]g=SUIT4.*regie=1|regie=1.*[?&]g=SUIT4/);
+    await suite.locator("a").click();
+    await page.waitForURL(/[?&]g=SUIT4/);
+    await page.locator("#regie-login:not([hidden])").waitFor();
+    await page.context().close();
+  });
+
   test("après un rechargement, le téléphone reste relié sans ressaisir le code", async () => {
     box = startBox();
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -2332,6 +2386,31 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
       });
     });
   }
+
+  test("la liste des prestations est gardée sur le téléphone : affichée tout de suite au retour, puis mise à jour (cedric, 25/10)", async () => {
+    box = startBox();
+    await seedShows({ lea: prestation("Léa", isoDay()) });
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await item(regie, "Léa").locator(".show-run", { hasText: "Préparée" }).waitFor();
+    const gardee = await regie.evaluate(() => JSON.parse(localStorage.getItem("lmp-regie-prestations")));
+    assert.deepEqual(gardee.map((x) => [x.id, x.show.childName, x.jeux > 0]), [["lea", "Léa", true]]);
+    // Rechargée (nouveau scan, page quittée) : la liste gardée d'abord, puis la vraie, qui a changé entre-temps.
+    await seedShows({ lea: prestation("Léa", isoDay()), zoe: prestation("Zoé", isoDay()) });
+    await regie.reload();
+    await inRegie(regie);
+    await item(regie, "Léa").waitFor();
+    await item(regie, "Zoé").waitFor();
+    await regie.locator("#panel-show .hint", { hasText: "Mise à jour" }).waitFor({ state: "detached" });
+    assert.deepEqual((await regie.evaluate(() => JSON.parse(localStorage.getItem("lmp-regie-prestations")))).map((x) => x.id).sort(), ["lea", "zoe"]);
+    // Toucher une prestation la relit toujours à l'instant du lancement.
+    await item(regie, "Zoé").click();
+    await regie.locator("#ask:not([hidden])").waitFor();
+    assert.equal(await regie.textContent("#ask-title"), "Lancer l'anniversaire de Zoé ?");
+    await regie.click("#ask-cancel");
+    await regie.context().close();
+  });
 
   test("lancer : la fenêtre du téléphone dit prénom, âge et date ; « Annuler » n'envoie rien ; au salon, une autre prestation remplace la première", async () => {
     box = startBox();
