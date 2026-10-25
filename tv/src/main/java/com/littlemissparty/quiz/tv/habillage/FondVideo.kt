@@ -2,6 +2,7 @@ package com.littlemissparty.quiz.tv.habillage
 
 import android.content.Context
 import android.graphics.SurfaceTexture
+import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.SystemClock
 import android.util.Log
@@ -136,6 +137,8 @@ internal class LecteurFond(
     private val departMs: Int = 0,
     private val repriseMs: Int? = null,
     private val attenteMs: () -> Int = { 0 },
+    /** [volume] > 0 : appelé une fois la vidéo prête, vrai si la box a une piste son à lire (grande intro). */
+    private val surSon: (Boolean) -> Unit = {},
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     private var lecteur: MediaPlayer? = null
     private var surface: Surface? = null
@@ -163,6 +166,10 @@ internal class LecteurFond(
         try {
             val s = Surface(st).also { surface = it }
             lecteur = MediaPlayer().apply {
+                // Vidéo qui a du son : sur la même sortie que les sons du jeu (même volume de la TV).
+                if (volume > 0f) setAudioAttributes(
+                    AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build(),
+                )
                 context.resources.openRawResourceFd(resId).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
                 setSurface(s)
                 isLooping = boucle && repriseMs == null
@@ -191,6 +198,7 @@ internal class LecteurFond(
                 }
                 setOnPreparedListener { mp ->
                     if (fini) return@setOnPreparedListener
+                    if (volume > 0f) surSon(runCatching { mp.trackInfo.any { it.trackType == MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_AUDIO } }.getOrDefault(true))
                     if (departMs > 0) runCatching { mp.seekTo(departMs.toLong(), MediaPlayer.SEEK_CLOSEST) }
                     val lancer = Runnable {
                         if (fini || lecteur !== mp) return@Runnable

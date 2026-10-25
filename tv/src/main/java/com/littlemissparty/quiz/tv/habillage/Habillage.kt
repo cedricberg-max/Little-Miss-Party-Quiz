@@ -55,6 +55,14 @@ object Habillage {
     val equipesAnnoncees = mutableSetOf<String>()
     /** Parties dont la box a montré l'accueil : la grande intro du Game Show attend que Sarah lance la fête. */
     val introsAttendues = mutableSetOf<String>()
+
+    /**
+     * La fête vient d'être lancée et la grande intro va passer : vrai dès la toute première image de la présentation du
+     * premier jeu, avant même que l'intro ne démarre. Le rideau « C'EST PARTI ! » et son jingle n'ont pas le temps de
+     * passer devant (cedric, 25/10 : « Lancer la fête » coupe directement sur le réveil du robot, sans transition).
+     */
+    fun lancementEnVue(s: UiState.Playing): Boolean =
+        lancementEnVue(Look.gs, s.phase, s.intro, s.paused, s.code in introsAttendues)
     /** La grande intro du lancement passe à l'écran (avec son propre son) : la bande-son se tait, le robot aussi. */
     val introLancement = mutableStateOf(false)
     /** L'intro vidéo d'un jeu passe sur l'écran de présentation : le décor ne lit pas son propre fond vidéo. */
@@ -90,7 +98,7 @@ fun HabillageTv(state: UiState) {
     val statue = statueFigee(state as? UiState.Playing)
     // Qui a disparu ? : l'étape affichée par le plateau (mémoriser, tour de magie, chercher, réponse), de 1 à 4.
     val disparu = (state as? UiState.Playing)?.let { s -> s.question?.takeIf { it.isDisparu }?.let { etapeDisparu(it, s).ordinal + 1 } } ?: 0
-    val lancement = Habillage.introLancement.value
+    val lancement = Habillage.introLancement.value || (state as? UiState.Playing)?.let(Habillage::lancementEnVue) == true
     val instant = remember(state, urgent, indices, statue, disparu, decompte, lancement) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte, presentation = (state as? UiState.Playing)?.intro == true, lancement = lancement) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
     // Dernières questions du quiz à points multipliés : le plateau passe au doré, de la question à sa révélation.
@@ -99,6 +107,10 @@ fun HabillageTv(state: UiState) {
     val salon = (state as? UiState.Playing)?.phase == Phase.LOBBY
     DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || Habillage.introJeu.value || Habillage.finVideo.value)
 }
+
+/** Voir [Habillage.lancementEnVue] : la présentation du premier jeu, lancée depuis l'accueil de cette box, en Game Show. */
+internal fun lancementEnVue(gameShow: Boolean, phase: Phase, presentation: Boolean, enPause: Boolean, introAttendue: Boolean) =
+    gameShow && introAttendue && phase == Phase.QUESTION && presentation && !enPause
 
 /**
  * [presentation] : la TV montre l'écran de présentation du jeu (avant sa première question, en attendant que

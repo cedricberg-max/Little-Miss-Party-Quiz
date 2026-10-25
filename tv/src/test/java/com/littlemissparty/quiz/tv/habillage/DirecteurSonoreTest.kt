@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import com.littlemissparty.quiz.engine.Phase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -88,6 +89,23 @@ class DirecteurSonoreTest {
         assertTrue(d.observer(presentation).isEmpty())
         // Sarah lance l'épreuve : le jingle de manche, comme d'habitude.
         assertTrue(Son.MANCHE in d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true)).sons())
+    }
+
+    @Test
+    fun `Game Show, la fete lancee depuis l'accueil compte comme intro des la premiere image, sans jingle de rideau`() {
+        // Cedric, 25/10 : un écran noir et le jingle du rideau passaient avant le réveil du robot. Dès la première image de
+        // la présentation, l'intro est « en vue » : la bande-son se tait au lieu de jouer la transition.
+        assertTrue(lancementEnVue(gameShow = true, phase = Phase.QUESTION, presentation = true, enPause = false, introAttendue = true))
+        assertFalse(lancementEnVue(gameShow = false, phase = Phase.QUESTION, presentation = true, enPause = false, introAttendue = true))
+        assertFalse(lancementEnVue(gameShow = true, phase = Phase.QUESTION, presentation = true, enPause = false, introAttendue = false))
+        assertFalse(lancementEnVue(gameShow = true, phase = Phase.QUESTION, presentation = false, enPause = false, introAttendue = true))
+        assertFalse(lancementEnVue(gameShow = true, phase = Phase.QUESTION, presentation = true, enPause = true, introAttendue = true))
+        assertFalse(lancementEnVue(gameShow = true, phase = Phase.LOBBY, presentation = false, enPause = false, introAttendue = true))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        val premiere = d.observer(Instant(Ecran.PRESENTATION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true, lancement = true))
+        assertFalse(Son.TRANSITION in premiere.sons())
+        assertEquals(Ambiance.SILENCE, premiere.musique())
     }
 
     @Test
