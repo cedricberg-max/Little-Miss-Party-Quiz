@@ -747,7 +747,8 @@ class RegieTest : TestTv() {
         // les deux équipes félicitées, et le refrain avec ses paroles.
         assertEquals("applied", regie.commande(code, "next"))
         ouverte("m1")
-        // « Quel est ce titre ? », un néon de couleur par mot (proposition T1, 25/10), une fois les mots allumés.
+        // « Quel est ce titre ? », un néon de couleur par mot (proposition T1, 25/10), une fois l'intro passée et les mots allumés.
+        ecran.voit("Quel est ce titre ?")
         ecran.capture("quiz-musical-question", attente = 900)
         assertTrue(licornes.repondre(code, "m1", 1))
         assertTrue(dragons.repondre(code, "m1", 1))

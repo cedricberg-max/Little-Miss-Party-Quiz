@@ -127,7 +127,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             Spacer(Modifier.height(12.dp))
             // Blind test : pas de question écrite (« Quel est ce titre ? »), la scène prend la place.
             // Statues : le panneau porte déjà l'étiquette « STATUES MUSICALES », le titre en double lui volerait sa place.
-            if (!q.isBlind && !q.isStatues) {
+            // Chante le mot en Game Show : le mot est déjà sur l'enseigne néon, en double il lui volerait sa hauteur.
+            if (!q.isBlind && !q.isStatues && !(Look.gs && q.isChante)) {
                 // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène).
                 val panneau = planchesQuiz3d()?.takeIf { !q.isBuzz }
                 if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index), festif = q.isMusical)

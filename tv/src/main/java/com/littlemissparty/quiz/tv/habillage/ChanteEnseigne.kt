@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -54,6 +55,13 @@ import kotlin.math.sin
 
 private const val ENSEIGNE_TAILLE_MAX = 130f
 private const val ENSEIGNE_TAILLE_MIN = 36f
+private const val ENSEIGNE_TITRE = "UNE CHANSON AVEC LE MOT"
+
+/** Le titre au-dessus du tube, à l'échelle [e] (1 = taille pleine). */
+private fun styleTitreEnseigne(e: Float) = TextStyle(
+    fontFamily = PoliceGsChiffres, fontSize = 22.sp * e, letterSpacing = 8.sp * e, color = Color(0xFFFFE0C2),
+    shadow = Shadow(GS.Orange.copy(alpha = 0.95f), Offset.Zero, 18f * e),
+)
 
 /** Hauteurs de repos des barres de l'égaliseur (fraction de sa hauteur), de gauche à droite. */
 private val BARRES = floatArrayOf(0.25f, 0.58f, 0.92f, 0.5f, 0.79f, 0.33f, 1f, 0.67f, 0.42f, 0.83f, 0.54f, 0.29f, 0.75f, 0.46f)
@@ -80,13 +88,17 @@ internal fun ChanteEnseigne(mot: String, cle: Any?, modifier: Modifier = Modifie
         val tubeL = minOf(maxWidth * 0.82f, maxHeight * 2.9f)
         val tubeH = minOf(tubeL * 0.3f, maxHeight * 0.46f)
         val micro = tubeH * 0.72f
+        // Le titre tient toujours sur la largeur du tube, jamais coupé : il rapetisse quand la place manque.
+        val mesure = rememberTextMeasurer()
+        val largeurTube = with(LocalDensity.current) { tubeL.toPx() }
+        val echelleTitre = remember(largeurTube) {
+            val large = mesure.measure(ENSEIGNE_TITRE, styleTitreEnseigne(1f), softWrap = false, maxLines = 1).size.width
+            (largeurTube / large.coerceAtLeast(1)).coerceAtMost(1f)
+        }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Text(
-                "UNE CHANSON AVEC LE MOT", maxLines = 1, softWrap = false, modifier = Modifier.apparition(150, cle),
-                style = TextStyle(
-                    fontFamily = PoliceGsChiffres, fontSize = 22.sp, letterSpacing = 8.sp, color = Color(0xFFFFE0C2),
-                    shadow = Shadow(GS.Orange.copy(alpha = 0.95f), Offset.Zero, 18f),
-                ),
+                ENSEIGNE_TITRE, maxLines = 1, softWrap = false, modifier = Modifier.apparition(150, cle),
+                style = styleTitreEnseigne(echelleTitre),
             )
             Spacer(Modifier.height(tubeH * 0.16f))
             Row(
