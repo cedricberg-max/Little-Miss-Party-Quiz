@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
         CrashReporter.install(applicationContext)
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        Fluidite.demarrer()
         // Design choisi dans le menu Retour (The Game Show sur le plateau 3D par défaut, Classique en secours), gardé sur la box.
         val reglages = getSharedPreferences(PREFS_DESIGN, MODE_PRIVATE)
         Look.design = Design.depuis(reglages.getString(CLE_DESIGN, null))

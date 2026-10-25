@@ -1767,6 +1767,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 depuisMs = depuisMs,
             )
             CrashReporter.report(db, "sante", bilan.ligne())
+            // Fluidité des 5 dernières minutes : où la box a accroché (cedric, 25/10 : la Mi Box comme référence).
+            Fluidite.releve()?.let { CrashReporter.report(db, "fluidite", it) }
         }
     }
 

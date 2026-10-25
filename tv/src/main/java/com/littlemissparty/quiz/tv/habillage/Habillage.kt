@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.habillage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -88,7 +89,10 @@ fun HabillageTv(state: UiState) {
         val observateur = LifecycleEventObserver { _, e ->
             when (e) {
                 Lifecycle.Event.ON_STOP -> Sons.suspendre()
-                Lifecycle.Event.ON_START -> Sons.reprendre()
+                Lifecycle.Event.ON_START -> {
+                    com.littlemissparty.quiz.tv.Fluidite.oublierDerniere()
+                    Sons.reprendre()
+                }
                 else -> {}
             }
         }
@@ -104,11 +108,27 @@ fun HabillageTv(state: UiState) {
     val lancement = Habillage.introLancement.value || (state as? UiState.Playing)?.let(Habillage::lancementEnVue) == true
     val instant = remember(state, urgent, indices, statue, disparu, decompte, lancement) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte, presentation = (state as? UiState.Playing)?.intro == true, lancement = lancement) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
+    // Mesure de la fluidité : l'écran en cours, pour savoir où la box accroche (rapports de la box).
+    SideEffect { com.littlemissparty.quiz.tv.Fluidite.ecran = etiquetteFluidite(state) }
     // Dernières questions du quiz à points multipliés : le plateau passe au doré, de la question à sa révélation.
     val dore = (state as? UiState.Playing)?.let { it.question?.double == true && it.phase in listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL) } == true
     // Accueil du Game Show : le robot qui dort, sous Get Lucky ; pendant la grande intro, aucune autre vidéo.
     val salon = (state as? UiState.Playing)?.phase == Phase.LOBBY
     DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || Habillage.introJeu.value || Habillage.finVideo.value)
+}
+
+/** « question zoom », « presentation gonfleur », « scores », « accueil »… : l'écran, tel que le compte la fluidité. */
+internal fun etiquetteFluidite(state: UiState): String {
+    val s = state as? UiState.Playing ?: return state::class.simpleName.orEmpty().lowercase()
+    if (s.phase == Phase.LOBBY) return "accueil"
+    if (Habillage.introLancement.value) return "intro lancement"
+    val jeu = s.question?.let { " " + familleJeu(it) }.orEmpty()
+    return when {
+        s.paused -> "pause"
+        s.intro && s.phase == Phase.QUESTION -> "presentation$jeu"
+        s.phase == Phase.SCORES || s.phase == Phase.ENDED -> s.phase.code
+        else -> s.phase.code + jeu
+    }
 }
 
 /** Voir [Habillage.lancementEnVue] : la présentation du premier jeu, lancée depuis l'accueil de cette box, en Game Show. */
