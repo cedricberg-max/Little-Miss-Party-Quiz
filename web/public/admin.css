@@ -658,7 +658,7 @@ button.song-moments:hover { background: var(--good-pale); }
 .banque-galerie img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; background: var(--bg-2); }
 .banque-galerie figcaption { font-size: 13px; color: var(--soft); text-align: center; }
 
-/* Bibliothèque : images en quatre groupes (émojis, photos libres, les siennes, pochettes), fiches de ses images. */
+/* Bibliothèque : images en cinq groupes (émojis, photos libres, les siennes, celles des packs, pochettes), fiches de ses images. */
 .media-group { margin: 18px 0 6px; }
 .media-group .title-row { justify-content: flex-start; margin-bottom: 8px; }
 .media-group h2 { margin: 0; }
