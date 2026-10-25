@@ -10,12 +10,14 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.storage.StorageManager
 import android.provider.Settings
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.littlemissparty.quiz.engine.ApkFacts
 import com.littlemissparty.quiz.engine.ApkProblem
+import com.littlemissparty.quiz.engine.InvalidReleaseException
 import com.littlemissparty.quiz.engine.Release
 import com.littlemissparty.quiz.engine.releaseToOffer
 import com.littlemissparty.quiz.engine.verifyApk
@@ -164,6 +166,9 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: InvalidReleaseException) {
+                Log.w(TAG, "Version annoncée refusée", e)
+                UpdateUi.Failed("La version annoncée sur le serveur est refusée par la box (${e.message}). Installez-la à la main.", null)
             } catch (e: Exception) {
                 Log.w(TAG, "Recherche de mise à jour", e)
                 UpdateUi.Failed("Impossible de joindre le serveur des mises à jour. Vérifiez la connexion Internet de la box.", null)
@@ -195,8 +200,14 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
                 // Un téléchargement annulé doit avoir fini d'écrire avant qu'un autre reprenne le même fichier.
                 previous?.cancelAndJoin()
                 dir.mkdirs()
-                if (dir.usableSpace < r.size + SPARE_BYTES) {
-                    _ui.value = UpdateUi.Failed("Pas assez de place libre sur la box pour télécharger la mise à jour.", r)
+                // Un téléchargement repris occupe déjà sa part de la place nécessaire.
+                val (needed, free) = withContext(Dispatchers.IO) { r.spaceNeeded() - alreadyDownloaded(r) to freeBytes() }
+                if (free < needed) {
+                    _ui.value = UpdateUi.Failed(
+                        "Pas assez de place libre sur la box : il faut ${mo(needed)} Mo, il reste ${mo(free)} Mo. " +
+                            "Videz le cache des médias (menu Retour) puis réessayez.",
+                        r,
+                    )
                     return@launch
                 }
                 fetchApk(r)
@@ -292,13 +303,27 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun fetchRelease(): Release = withContext(Dispatchers.IO) {
         val conn = connect(URL(manifestUrl()))
-        try {
+        val json = try {
             check(conn.responseCode == 200) { "HTTP ${conn.responseCode}" }
-            Release.parse(conn.inputStream.bufferedReader().use { it.readText() })
+            conn.inputStream.bufferedReader().use { it.readText() }
         } finally {
             conn.disconnect()
         }
+        try {
+            Release.parse(json)
+        } catch (e: Exception) {
+            throw InvalidReleaseException(e.message ?: "description illisible", e)
+        }
     }
+
+    /**
+     * Place qu'Android peut donner à l'appli sur le stockage des mises à jour : il garde lui-même une réserve
+     * (quelques centaines de Mo sur une Mi Box) et sait vider les caches des applis pour en faire.
+     */
+    private fun freeBytes(): Long = runCatching {
+        val sm = getApplication<Application>().getSystemService(StorageManager::class.java)
+        sm.getAllocatableBytes(sm.getUuidForPath(dir))
+    }.getOrElse { dir.usableSpace }
 
     private fun apkUrl(r: Release): URL {
         val url = URL(URL(manifestUrl()), r.url)
@@ -307,6 +332,9 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun apkFile(r: Release) = File(dir, "lmp-tv-${r.versionCode}.apk")
+
+    private fun alreadyDownloaded(r: Release): Long =
+        apkFile(r).takeIf { it.exists() }?.length() ?: File(dir, "${apkFile(r).name}.part").length()
 
     /** Télécharge l'APK en reprenant un fichier partiel, avec la progression à l'écran. */
     private suspend fun fetchApk(r: Release) = withContext(Dispatchers.IO) {
@@ -387,7 +415,7 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
         private const val AUTO_CHECK_DELAY_MS = 20_000L
         /** Box allumée toute la journée : nouvelle recherche toutes les 30 minutes (un petit fichier). */
         private const val RECHECK_MS = 30L * 60 * 1000
-        private const val SPARE_BYTES = 20L * 1024 * 1024
+        private fun mo(bytes: Long) = (bytes + 999_999) / 1_000_000
 
         fun problemMessage(p: ApkProblem) = when (p) {
             ApkProblem.CORRUPTED -> "Le fichier reçu est incomplet ou abîmé. Réessayez le téléchargement."

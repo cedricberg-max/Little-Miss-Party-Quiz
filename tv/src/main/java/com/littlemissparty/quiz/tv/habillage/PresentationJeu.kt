@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import com.littlemissparty.quiz.tv.R
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -39,6 +40,31 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+
+/**
+ * Game Show : le logo du jeu en tube néon (planche du 24/10, cedric : plus d'émoji), dessiné à l'avance avec son halo
+ * sur fond transparent (res/drawable-nodpi/gs_logo_*.webp). null : le jeu garde son émoji.
+ */
+fun logoNeonJeu(famille: String): Int? = when (famille.lowercase()) {
+    "quiz" -> R.drawable.gs_logo_quiz
+    "illustre" -> R.drawable.gs_logo_illustre
+    "mimes", "mime" -> R.drawable.gs_logo_mimes
+    "blind", "blindtest" -> R.drawable.gs_logo_blind
+    "musical", "quizmusical" -> R.drawable.gs_logo_musical
+    "express", "vraifaux" -> R.drawable.gs_logo_express
+    "juste", "number", "justechiffre" -> R.drawable.gs_logo_juste
+    "zoom" -> R.drawable.gs_logo_zoom
+    "flou" -> R.drawable.gs_logo_flou
+    "chante" -> R.drawable.gs_logo_chante
+    "quisuis" -> R.drawable.gs_logo_quisuis
+    "disparu" -> R.drawable.gs_logo_disparu
+    "statues" -> R.drawable.gs_logo_statues
+    "pictionary" -> R.drawable.gs_logo_pictionary
+    "bombe", "coffres", "bombecachee" -> R.drawable.gs_logo_coffres
+    "gonfleur", "ballons" -> R.drawable.gs_logo_gonfleur
+    "patate", "patatechaude" -> R.drawable.gs_logo_patate
+    else -> null
+}
 
 /** Emblème d'un jeu sur l'écran de présentation : emoji (rendu sur Android 9) et couleur du halo. */
 class EmblemeJeu(val emoji: String, val couleur: Color)

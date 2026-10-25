@@ -150,8 +150,11 @@ class DirecteurSonore {
                     // Les dernières questions du quiz passent à points ×2 : un éclat « points doublés », une seule fois.
                     // Ce n'est pas un nouveau jeu : ni rideau ni jingle de manche.
                     o += Ordre.Jouer(Son.BT_DOUBLE)
-                    o += Ordre.Musique(Ambiance.SILENCE)
-                    o += Ordre.Musique(musique, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
+                    // Game Show : la musique de la manche ne s'arrête pas, la nappe de tension la rejoint (cedric, 23/10).
+                    if (!i.gameShow) {
+                        o += Ordre.Musique(Ambiance.SILENCE)
+                        o += Ordre.Musique(musique, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
+                    } else o += Ordre.Musique(musique)
                 } else if (i.premiere) {
                     o += Ordre.Jouer(Son.MANCHE)
                     o += Ordre.Jouer(Son.IMPACT)
@@ -369,8 +372,8 @@ class DirecteurSonore {
         // Annule d'abord tout ce qui était prévu (musique qui revenait après un raté, suspense, montée de l'image) :
         // un deuxième buzz juste après un raté ne doit jamais entendre la musique repartir sous sa réponse.
         if (nouveauBuzz || repart) o += Ordre.Couper
-        // Jamais moqueur : un petit « pouet » gentil quand une équipe s'est trompée.
-        if ((nouveauBuzz || repart) && i.ratees > p.ratees) o += Ordre.Jouer(Son.VF_FAUX)
+        // Jamais moqueur : un petit « pouet » gentil quand une équipe s'est trompée (Game Show : son à lui, cedric 24/10).
+        if ((nouveauBuzz || repart) && i.ratees > p.ratees) o += Ordre.Jouer(Son.RATE)
         if (nouveauBuzz && i.blind) {
             // Blind test : le disque freine, « BWAP » de cuivres, la note de l'équipe, puis un vrai silence pour la laisser
             // répondre (cedric, 24 octobre : plus de musique d'attente).
@@ -408,6 +411,8 @@ class DirecteurSonore {
             i.patate && i.ecran != Ecran.REVELATION -> Ambiance.SILENCE
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
+            // Game Show : Qui suis-je ? est un jeu qui bouge, sur la musique des mimes (cedric, 23/10), en retrait sous les indices.
+            i.quiSuis && i.gameShow && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.MIMES_ENTRE
             i.jeuBuzz && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
             // Zoom mystère : musique en retrait sous la montée, comme l'Image floue.
             i.zoom && i.ecran == Ecran.QUESTION -> Ambiance.SUSPENSE
@@ -479,6 +484,7 @@ data class Instant(
     val patate: Boolean = false,
     val flou: Boolean = false,
     val chante: Boolean = false,
+    val quiSuis: Boolean = false,
     val indices: Int = 0,
     val buzzEquipe: Int = -1,
     val ratees: Int = 0,
@@ -539,7 +545,7 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
     FIN(null, "gs_bed_fin"),
     /**
      * Game Show : la boucle du début de Get Lucky sous l'accueil (48 temps, 24,8 s, tempo d'origine : elle a sa propre
-     * longueur, la vidéo du robot qui dort se cale sur chacun de ses tours).
+     * longueur ; la vidéo du robot qui dort tourne seule, à côté).
      */
     ACCUEIL(null, "gs_accueil"),
     ;
@@ -564,32 +570,36 @@ enum class Ambiance(
     SALON(complete = 0.55f, gameShow = mapOf(Lit.ACCUEIL to 0.49f)),
     /** Relais du générique : la musique du salon entre presque aussi fort que lui, avant de redescendre. */
     SALON_ARRIVEE(complete = 0.85f, gameShow = mapOf(Lit.ACCUEIL to 0.49f)),
-    QUESTION(legere = 0.6f),
-    SUSPENSE(legere = 0.25f),
-    /** Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus. */
-    PRESENTATION(complete = 0.3f),
+    /** Plan de volumes du 25 octobre : la musique des questions remonte, le creux du suspense n'est plus que de 4 dB. */
+    QUESTION(legere = 0.7f),
+    SUSPENSE(legere = 0.45f),
+    /**
+     * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
+     * trop éteint (cedric, 24/10).
+     */
+    PRESENTATION(complete = 0.5f),
     FETE(complete = 0.8f),
     /** Tour de mimes : rythmique latine qui entraîne, sans couvrir les cris de ceux qui devinent. */
-    MIMES(mimes = 0.6f),
+    MIMES(mimes = 0.7f),
     /** Entre deux tours de mimes : la même musique, plus bas, pendant qu'on choisit l'équipe suivante. */
-    MIMES_ENTRE(mimes = 0.35f),
+    MIMES_ENTRE(mimes = 0.45f),
     /** Pause : musique lounge feutrée, qui tient aussi longtemps qu'il faut. */
     INTERMEDE(pause = 0.5f),
     /** Vrai ou Faux express : course contre la montre, sur toute la série. */
-    EXPRESS(express = 0.5f),
+    EXPRESS(express = 0.75f),
     /**
      * Dernières questions du quiz à points multipliés : la rythmique nerveuse de l'express, un peu plus bas. Game Show :
      * la musique de la manche continue, avec la nappe de tension par-dessus (cedric, 23 octobre).
      */
-    DECISIVE(express = 0.4f, gameShow = mapOf(Lit.LEGER to 0.6f, Lit.TENSION to 0.5f)),
+    DECISIVE(express = 0.6f, gameShow = mapOf(Lit.LEGER to 0.7f, Lit.TENSION to 0.55f)),
     /** Bilan des scores entre deux jeux : la musique de fête ; Game Show : le riff d'Aerodynamic. */
     BILAN(complete = 0.8f, gameShow = mapOf(Lit.BILAN to 0.8f)),
     /** Écran de fin, après le podium du Game Show : le dernier groove d'Aerodynamic ; Classique : la musique de fête. */
     AU_REVOIR(complete = 0.8f, gameShow = mapOf(Lit.FIN to 0.75f)),
     /** Qui a disparu ? : boîte à musique et harpe pendant qu'on mémorise les objets. */
-    MEMOIRE(magie = 0.55f),
+    MEMOIRE(magie = 0.6f),
     /** Qui a disparu ? : le tour de magie, la boîte à musique s'efface sous l'« abracadabra ». */
-    ENVOUTEMENT(magie = 0.18f);
+    ENVOUTEMENT(magie = 0.25f);
 
     /** Volume d'une boucle dans cette ambiance ; [gs] : design « The Game Show ». */
     fun volume(l: Lit, gs: Boolean = false): Float {
@@ -647,6 +657,11 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     CHIFFRE_PILE("lmp_chiffre_pile", true),
     VF_VRAI("lmp_vf_vrai"),
     VF_FAUX("lmp_vf_faux"),
+    /**
+     * Mauvaise réponse aux jeux au buzzer : le « pouet » du Vrai ou Faux en Classique ; en Game Show un son à lui
+     * (cedric, 24/10 : l'ancien « dégueulasse »), sans toucher le « Faux » de la révélation du Vrai ou Faux.
+     */
+    RATE("lmp_vf_faux", gs = "gs_rate"),
     ZOOM_OUVERTURE("lmp_zoom_ouverture"),
     ZOOM_REVELE("lmp_zoom_revele", true),
     FLOU_MONTEE("lmp_flou_montee", true),

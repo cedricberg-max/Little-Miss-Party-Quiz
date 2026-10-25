@@ -1,6 +1,6 @@
 /**
- * « ← Retour » et « Annuler les modifications » dans les écrans d'édition de la Régie PC, en haut et en bas de l'écran
- * (cedric, 21/10). Retour mène à la page précédente, comme la flèche du navigateur ; Annuler revient au dernier
+ * « ← Retour » et « Annuler les modifications » dans les écrans d'édition de la Régie PC, dans la barre du bas qui suit
+ * l'écran (cedric, 21/10, 24/10 et 25/10 ; les écrans sans modification gardent « ← Retour » en haut et en bas). Retour mène à la page précédente, comme la flèche du navigateur ; Annuler revient au dernier
  * enregistrement (ou à l'ouverture de l'écran). Chaque écran garde aussi ses états successifs (en mémoire, rien n'est
  * écrit) : Ctrl+Z revient à l'état d'avant la dernière action. Annuler est lui-même une action : un Ctrl+Z juste après
  * rend les modifications. Enregistrer fixe le nouveau point de départ.
@@ -70,8 +70,8 @@ function rassembler(ecran, bas) {
 
 /**
  * Historique d'un écran. [capturer] renvoie l'état modifiable de l'écran, [restaurer] le remet et redessine l'écran,
- * [precedent] ouvre la page précédente. Deux barres (Retour, Annuler) sont ajoutées en haut et en bas de [ecran] ;
- * celle du bas reste toujours visible en bas de la fenêtre (voir rassembler).
+ * [precedent] ouvre la page précédente. Une barre (Annuler, Retour) est ajoutée en bas de [ecran] ; elle reste toujours
+ * visible en bas de la fenêtre (voir rassembler).
  * [enregistreSeul] : écran enregistré à chaque touche, jamais de modification en attente.
  * Les clics, choix et saisies dans l'écran sont notés tout seuls ; [noter] sert après une action qui finit plus tard.
  */
@@ -80,19 +80,17 @@ export function historique({ ecran, capturer, restaurer, precedent, enregistreSe
   let depart = null;
   /** Ouvert avec un contenu jamais enregistré (quiz importé…) : le quitter le perdrait. */
   let nouveau = false;
-  const barres = ["haut", "bas"].map((place) => {
-    const barre = document.createElement("div");
-    barre.className = `retour-barre ${place}`;
-    const retour = bouton("← Retour", "Revenir à la page précédente", "retour-page", () => precedent());
-    const annuler = bouton("Annuler les modifications", "Revenir au dernier enregistrement", "retour-tout", () => h.annuler());
-    // En bas : Enregistrer · Annuler les modifications · ← Retour, de gauche à droite ; quitter la page en dernier
-    // (cedric, 24/10).
-    barre.append(...(place === "bas" ? [annuler, retour] : [retour, annuler]));
-    return barre;
-  });
-  placer(ecran, barres);
-  rassembler(ecran, barres[1]);
-  const annulers = barres.map((b) => b.querySelector(".retour-tout"));
+  // Une seule barre, en bas, qui suit l'écran : Enregistrer · Annuler les modifications · ← Retour, de gauche à droite ;
+  // quitter la page en dernier (cedric, 24/10). Plus de barre en haut des pages de modification (cedric, 25/10).
+  const barre = document.createElement("div");
+  barre.className = "retour-barre bas";
+  barre.append(
+    bouton("Annuler les modifications", "Revenir au dernier enregistrement", "retour-tout", () => h.annuler()),
+    bouton("← Retour", "Revenir à la page précédente", "retour-page", () => precedent()),
+  );
+  ecran.append(barre);
+  rassembler(ecran, barre);
+  const annulers = [barre.querySelector(".retour-tout")];
 
   const maj = () => {
     const rien = !depart || empreinte(pile[pile.length - 1]) === empreinte(depart);

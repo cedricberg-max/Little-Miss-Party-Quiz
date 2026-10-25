@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.test
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.platform.ViewRootForTest
@@ -29,6 +30,7 @@ import com.google.firebase.database.ValueEventListener
 import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
 import com.littlemissparty.quiz.tv.GameViewModel
+import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.MainActivity
 import com.littlemissparty.quiz.tv.habillage.Look
 import java.io.ByteArrayOutputStream
@@ -42,6 +44,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
+import org.json.JSONObject
 
 const val TAG = "TestsTV"
 
@@ -297,6 +300,21 @@ class Ecran(private val nomTest: () -> String) {
 
     fun touche(code: Int) = device.pressKeyCode(code)
 
+    /**
+     * Montre « Lancer la fête ! » à la télécommande, sélectionné : au salon du Game Show l'écran reste neutre et le
+     * bouton est dans le menu Retour ; en Classique il est sur l'écran.
+     */
+    fun montrerLancement() {
+        if (Look.gs && !affiche("Lancer la fête !")) touche(KeyEvent.KEYCODE_BACK)
+        voit("Lancer la fête !")
+        focusSur("Lancer la fête !")
+    }
+
+    fun lancerLaFete() {
+        montrerLancement()
+        device.pressDPadCenter()
+    }
+
     /** Textes visibles à l'écran, écrits dans le journal quand un test échoue. */
     fun textes(): String = (
         device.findObjects(By.textStartsWith("")).mapNotNull { runCatching { it.text }.getOrNull() } +
@@ -321,13 +339,24 @@ class Ecran(private val nomTest: () -> String) {
             noeuds.joinToString("\n") + "\n" + compose
     }
 
-    fun capture(nom: String) {
+    /**
+     * Capture de l'écran. [attente] : laisse d'abord finir une animation ; une révélation se joue en 3 s (mauvaises
+     * réponses éteintes, bonne en vert, points), capturée trop tôt elle ressemble encore à la question.
+     */
+    fun capture(nom: String, attente: Long = 0) {
+        if (attente > 0) SystemClock.sleep(attente)
         val fichier = "$DOSSIER_CAPTURES/${nomTest()}-%02d-$nom.png".format(++numero)
         Log.i(TAG, "Capture $fichier")
         device.executeShellCommand("screencap -p $fichier")
     }
 
     companion object {
+        /** Une révélation entière : tampons et points compris. */
+        val APRES_REVELATION = Tempo.REVELATION_POINTS + 1_000L
+
+        /** Le rideau « C'est parti ! » d'un nouveau jeu, posé quelques secondes sur la première question. */
+        val APRES_RIDEAU = Tempo.TRANSITION_RIDEAU + 500L
+
         /** Récupéré par le workflow après les tests (adb pull). */
         const val DOSSIER_CAPTURES = "/data/local/tmp/lmp-captures"
     }
@@ -360,17 +389,24 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         })
     }
 
+    /**
+     * Entrée d'une équipe (cedric, 24/10) : comme la page web, la tablette ne fait que demander, sans nom ni couleur ;
+     * l'animatrice l'accepte sur sa régie avec [nom] et [couleur], et la box l'inscrit. Ici l'inscription est écrite
+     * telle que la box l'écrit (accès « owner » de l'émulateur, quelle que soit la box de la fête) ; le vrai chemin
+     * régie → box est vérifié par RegieTest.entreeDesEquipesParLaRegie.
+     */
     fun rejoindre(code: String, nom: String, couleur: String) {
-        bloquer {
-            // Comme le pupitre : l'équipe et sa couleur réservée dans la même écriture.
-            base.getReference("games/$code").updateChildren(
-                mapOf(
-                    "teams/$uid" to mapOf("name" to nom, "color" to couleur, "joinedAt" to ServerValue.TIMESTAMP),
-                    "colors/${couleur.removePrefix("#").uppercase()}" to uid,
-                ),
-            ).await()
-        }
+        demanderAEntrer(code)
+        val equipe = JSONObject().put("name", nom).put("color", couleur).put("joinedAt", JSONObject().put(".sv", "timestamp"))
+        Proprietaire.envoyer("PUT", "games/$code/teams/$uid", equipe.toString())
+        Proprietaire.envoyer("PUT", "games/$code/colors/${couleur.removePrefix("#").uppercase()}", JSONObject.quote(uid))
+        Proprietaire.envoyer("DELETE", "games/$code/joinRequests/$uid")
         signalerPresence(code)
+    }
+
+    /** Comme la page web une fois la régie ouverte : la demande d'entrée, sans nom ni couleur. */
+    fun demanderAEntrer(code: String) {
+        bloquer { base.getReference("games/$code/joinRequests/$uid").setValue(mapOf("at" to ServerValue.TIMESTAMP)).await() }
     }
 
     /** Comme la page web : « hors ligne » écrit par le serveur dès que la connexion tombe. */

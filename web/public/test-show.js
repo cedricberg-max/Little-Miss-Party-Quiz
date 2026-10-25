@@ -26,6 +26,11 @@ export const ANCIENNES_DEMOS = {
 
 const MEDIA = /^[0-9a-f]{16}$/;
 
+/** Clé d'un contenu de test (« 🧪 Questions de test » de la Bibliothèque) : elle commence par « test- ». */
+const DE_TEST = (id) => `${id ?? ""}`.startsWith("test-");
+/** Titre d'une prestation de test, copies comprises (« Copie de ANNIVERSAIRE TEST – … ») : cedric, 24/10, tout purger. */
+const TITRE_DE_TEST = /ANNIVERSAIRE TEST/i;
+
 /** Identifiants d'images et de sons (16 chiffres hexadécimaux) cités n'importe où dans [x]. */
 function mediasCites(x, out = new Set()) {
   if (typeof x === "string") { if (MEDIA.test(x)) out.add(x); } else if (x && typeof x === "object") for (const v of Object.values(x)) mediasCites(v, out);
@@ -33,20 +38,24 @@ function mediasCites(x, out = new Set()) {
 }
 
 /**
- * Ce que le bouton efface (rien d'autre n'est touché) : les prestations de test (origine « test », ou clés des
- * anciennes démos) et les manches gardées pour elles ; les quiz, mimes et playlists des anciennes démos, sauf s'ils
- * servent encore dans une autre prestation ou manche ; leurs photos dessinées et comptines, seulement quand plus rien
- * ne s'en sert, et jamais une image rangée par Sarah (avec sa fiche dans « Mes images »).
+ * Ce que le bouton efface (rien d'autre n'est touché) : les prestations de test (origine « test », clé « test-… »,
+ * titre « ANNIVERSAIRE TEST », copies comprises) et les manches gardées pour elles ou bâties sur un contenu de test ;
+ * les quiz, mimes et playlists de test (anciennes démos, clés « test-… » : toute la rubrique « 🧪 Questions de test »),
+ * sauf s'ils servent encore dans une autre prestation ou manche ; leurs photos dessinées et comptines, seulement quand
+ * plus rien ne s'en sert, et jamais une image rangée par Sarah (avec sa fiche dans « Mes images »). La fenêtre du
+ * bouton liste tout avant d'effacer.
  * Rend { shows, manches, quizzes, mimes, playlists, medias } : des listes de clés ; [medias] : identifiants d'images
  * et de sons, effacés dans les deux (l'un des deux effacements ne trouve rien).
  */
 export function demosAEffacer({ shows = {}, manches = {}, quizzes = {}, mimes = {}, playlists = {}, songs = {}, contents = {}, medias = {} } = {}) {
-  const showIds = Object.keys(shows).filter((id) => shows[id] && (shows[id].origin === "test" || ANCIENNES_DEMOS.shows.includes(id) || id === TEST_PRESTATION));
-  const manchesIds = Object.keys(manches).filter((id) => manches[id] && showIds.includes(manches[id].showId));
+  const showIds = Object.keys(shows).filter((id) => shows[id] && (shows[id].origin === "test" || ANCIENNES_DEMOS.shows.includes(id)
+    || id === TEST_PRESTATION || DE_TEST(id) || TITRE_DE_TEST.test(shows[id].title ?? "")));
+  const manchesIds = Object.keys(manches).filter((id) => manches[id] && (showIds.includes(manches[id].showId) || DE_TEST(id)
+    || /"test-/.test(JSON.stringify(manches[id].round ?? null))));
   const restent = (lib, sans) => Object.entries(lib).filter(([id, x]) => x && !sans.includes(id)).map(([, x]) => x);
   // Ce qui reste des prestations et des manches : un contenu de démo qui y sert encore est gardé.
   const encore = JSON.stringify([restent(shows, showIds), restent(manches, manchesIds)]);
-  const pris = (lib, ids) => ids.filter((id) => lib[id] && !encore.includes(`"${id}"`));
+  const pris = (lib, anciens) => [...new Set([...anciens, ...Object.keys(lib).filter(DE_TEST)])].filter((id) => lib[id] && !encore.includes(`"${id}"`));
   const out = {
     shows: showIds, manches: manchesIds,
     quizzes: pris(quizzes, ANCIENNES_DEMOS.quizzes), mimes: pris(mimes, ANCIENNES_DEMOS.mimes), playlists: pris(playlists, ANCIENNES_DEMOS.playlists),

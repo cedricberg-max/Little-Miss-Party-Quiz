@@ -95,7 +95,7 @@ fun HabillageTv(state: UiState) {
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
     // Dernières questions du quiz à points multipliés : le plateau passe au doré, de la question à sa révélation.
     val dore = (state as? UiState.Playing)?.let { it.question?.double == true && it.phase in listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL) } == true
-    // Accueil du Game Show : le robot qui dort, calé sur Get Lucky ; pendant la grande intro, aucune autre vidéo.
+    // Accueil du Game Show : le robot qui dort, sous Get Lucky ; pendant la grande intro, aucune autre vidéo.
     val salon = (state as? UiState.Playing)?.phase == Phase.LOBBY
     DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || Habillage.introJeu.value || Habillage.finVideo.value)
 }
@@ -148,6 +148,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         jeuBuzz = s.question?.isBuzz == true,
         flou = s.question?.isFlou == true,
         chante = s.question?.isChante == true,
+        quiSuis = s.question?.isQuiSuis == true,
         buzzEquipe = s.teams.indexOfFirst { it.uid == s.buzzTeam },
         ratees = s.buzzBlocked.size,
         indices = indices,

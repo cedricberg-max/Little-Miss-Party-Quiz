@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.test
 import android.util.Base64
 import android.view.KeyEvent
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.littlemissparty.quiz.tv.habillage.Look
 import java.io.File
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -103,6 +104,6 @@ class CacheMediasBoxTest : TestTv() {
         ecran.ok("Fermer")
         ecran.neVoitPas("Vider le cache des médias")
         ecran.voit("Scannez pour jouer")
-        ecran.voit(code)
+        if (!Look.gs) ecran.voit(code)
     }
 }

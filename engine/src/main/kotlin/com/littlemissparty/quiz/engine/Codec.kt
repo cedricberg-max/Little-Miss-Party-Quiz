@@ -27,6 +27,7 @@ object Codec {
                 },
             )
             is ScoresShown -> mapOf("type" to "scores")
+            is GameLeft -> mapOf("type" to "leave", "qid" to e.qid)
             is FactorChosen -> mapOf("type" to "factor", "start" to e.start, "factor" to e.factor)
             is DoorOpened -> mapOf("type" to "door", "qid" to e.qid)
             is DoorSet -> mapOf("type" to "doorset", "qid" to e.qid, "door" to e.door, "value" to e.value)
@@ -85,6 +86,7 @@ object Codec {
                 },
             )
             "scores" -> ScoresShown(seq, at)
+            "leave" -> GameLeft(seq, at, m["qid"] as String)
             "factor" -> FactorChosen(seq, at, m.num("start").toInt(), m.num("factor").toInt())
             "door" -> DoorOpened(seq, at, m["qid"] as String)
             "doorset" -> DoorSet(seq, at, m["qid"] as String, m.num("door").toInt(), m.num("value").toInt())
@@ -203,6 +205,8 @@ object Codec {
         if (s.phase == Phase.ENDED) s.endedAt?.let { out["endedAt"] = it }
         // Un point a déjà été donné : la régie ne propose plus « Mauvaise prestation ? » (la box la refuserait).
         if (s.scored) out["scored"] = true
+        // Bilan d'un jeu quitté en cours de route : la régie annonce le jeu choisi (première question).
+        game.leaveTarget?.let { out["leaveTo"] = it }
         // Dernières questions du quiz : la régie propose le multiplicateur juste avant la première.
         game.factorChoice()?.let { start -> out["factorChoice"] = mapOf("start" to start, "factor" to (s.factors[start] ?: FACTORS.first())) }
         if (q != null && s.intro) {
@@ -246,8 +250,8 @@ object Codec {
             s.buzz?.let {
                 val rebuzz = game.rebuzzAt()
                 out["buzz"] = mapOf("team" to it.team, "blocked" to it.blocked, "rebuzzAt" to rebuzz)
-                // Même liste en table : les règles de la base refusent le buzz d'une équipe déjà bloquée. Au blind test,
-                // l'heure (serveur) à partir de laquelle elle peut rebuzzer sur le même morceau.
+                // Même liste en table : les règles de la base refusent le buzz d'une équipe déjà bloquée avant l'heure
+                // (serveur) à partir de laquelle elle peut rebuzzer sur la même question.
                 out["buzzBlocked"] = it.blocked.associateWith { rebuzz ?: true }.ifEmpty { null }
             }
         }

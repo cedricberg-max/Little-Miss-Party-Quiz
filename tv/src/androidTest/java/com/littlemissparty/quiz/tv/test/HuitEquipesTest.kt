@@ -25,19 +25,20 @@ class HuitEquipesTest : TestTv() {
         ecran.voit("8 équipes : la partie est complète")
         noms.forEach { ecran.voit(it) }
         ecran.capture("salon-8-equipes")
-        // Le plus important : « Lancer la fête ! » n'est jamais poussé hors de l'écran par la liste des équipes.
+        // Le plus important : « Lancer la fête ! » (sur l'écran, ou dans le menu Retour du Game Show) reste entier.
+        ecran.montrerLancement()
         ecran.entierementVisible("Lancer la fête !")
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
 
         val q = attendreQuestion(equipes[0], code, 0)
         ecran.entierementVisible("Arrêter le chrono")
-        ecran.capture("question-8-equipes")
+        ecran.capture("question-8-equipes", attente = Ecran.APRES_RIDEAU)
         equipes.forEachIndexed { i, e -> e.repondre(code, q.id, if (i % 2 == 0) q.correct else mauvaiseReponse(q)) }
         ecran.voit("Toutes les équipes ont répondu")
         ecran.entierementVisible("Révéler la réponse")
         ecran.ok("Révéler la réponse")
         ecran.entierementVisible("Voir les scores")
-        ecran.capture("revelation-8-equipes")
+        ecran.capture("revelation-8-equipes", attente = Ecran.APRES_REVELATION)
         ecran.ok("Voir les scores")
         ecran.voit(titreClassement())
         noms.forEach { ecran.voit(it) }

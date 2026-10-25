@@ -288,6 +288,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var commandsListener: Pair<DatabaseReference, ChildEventListener>? = null
     private val handledCommands = mutableSetOf<String>()
     private var regieUids: Set<String> = emptySet()
+    /** Dernière valeur de `regieActive` écrite pour la partie (null : rien d'écrit encore). */
+    private var regieActivePubliee: Boolean? = null
     private val judging = mutableSetOf<String>()
     private var pinFailures = 0
     private var pinLockedUntil = 0L
@@ -1067,7 +1069,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 portes = q?.takeIf { it.isPortes && s.phase != Phase.LOBBY }?.let { PortesUi(g.doorOrder(), s.doorsOpened, g.doorsOf(it)) },
                 coffres = g.chestRound.takeIf { s.phase != Phase.LOBBY },
                 lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
-                isLast = g.isLastQuestion,
+                isLast = g.isLastQuestion && g.leaveTarget == null,
                 nextGame = g.nextGameTitle(),
                 etape = g.gameStep()?.label,
                 intro = s.intro,
@@ -1109,24 +1111,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // puis écoute l'envoi de la tablette de l'équipe qui tient la bombe.
         if (g.needsPotato() && teams().size >= 2) act { it.lightPotato(teams().map { t -> t.uid }, serverNow()) }
         watchPotato(Codec.potatoKey(g)?.takeIf { !s.paused })
-        val blocked = s.buzz?.blocked.orEmpty()
-        val teamIds = teams().map { it.uid }
-        // Blind test : rien ne se ferme seul, la relance réautorise tout le monde.
-        if (s.phase == Phase.QUESTION && !s.paused && !s.buzzHeld && q?.isBlind != true && teamIds.isNotEmpty() && blocked.containsAll(teamIds)) {
-            act { it.takeIf { g -> g.state.phase == Phase.QUESTION && g.state.buzz?.blocked.orEmpty().containsAll(teamIds) }?.close(serverNow()) }
-        }
+        // Jeux au buzzer : la question ne se ferme plus quand toutes les équipes se sont trompées, elles rebuzzent 3 s après
+        // le verdict (cedric, 25/10, règle 2) ; le chrono, ou l'animatrice, la termine.
         // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
-        // première) : la révélation, ou le Zoom mystère, ne l'attend jamais.
-        listOfNotNull(q?.imageId.takeIf { s.phase != Phase.LOBBY }, g.quiz.questions.getOrNull(s.index + 1)?.imageId).forEach(::prefetchImage)
+        // première) : la révélation, ou le Zoom mystère, ne l'attend jamais. Bilan d'un jeu quitté : le jeu choisi.
+        val suivante = g.quiz.questions.getOrNull(g.leaveTarget ?: (s.index + 1))
+        listOfNotNull(q?.imageId.takeIf { s.phase != Phase.LOBBY }, suivante?.imageId).forEach(::prefetchImage)
         // Réponses en images : celles de la question en cours et de la suivante (lisibles aussi par les pupitres).
-        listOfNotNull(q, g.quiz.questions.getOrNull(s.index + 1)).flatMap { it.choiceImages }.filterNotNull()
+        listOfNotNull(q, suivante).flatMap { it.choiceImages }.filterNotNull()
             .forEach { prefetchImage(it, "choiceImages") }
         // Pictionary : photos des mots proposés (rangées avec les réponses en images), prêtes pour la révélation.
         (g.offerCards + listOfNotNull(g.lastCard)).mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages") }
         // Mimes et Qui a disparu ? en photos : la carte montrée et les deux suivantes ; toute la grille de la
         // question en cours et de la suivante.
         val cartesMime = s.mime?.deck.orEmpty().take(3).mapNotNull { q?.cards?.getOrNull(it) }
-        val grilles = listOfNotNull(q, g.quiz.questions.getOrNull(s.index + 1)).filter { it.isDisparu }.flatMap { it.cards }
+        val grilles = listOfNotNull(q, suivante).filter { it.isDisparu }.flatMap { it.cards }
         (cartesMime + grilles).mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages") }
         // Photos : toutes celles du programme gardées sur la box, pour une fête qui continue sans Internet.
         savePhotos(g)
@@ -1558,7 +1557,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (type == ADMIT || type == REPLACE) {
             val device = snap.child("device").getValue(String::class.java)
             val team = snap.child("team").getValue(String::class.java)
-            viewModelScope.launch { actions.withLock { admitDevice(id, replace = type == REPLACE, device = device, team = team) } }
+            // Nom et couleur de la nouvelle équipe : choisis par l'animatrice sur la régie (cedric, 24/10).
+            val nom = snap.child("name").getValue(String::class.java)
+            val couleur = snap.child("color").getValue(String::class.java)
+            viewModelScope.launch {
+                actions.withLock { admitDevice(id, replace = type == REPLACE, device = device, team = team, nom = nom, couleur = couleur) }
+            }
             return
         }
         // « 🏁 Fin de la fête » sur la régie (cedric, 23/10) : seulement une fois la partie terminée (écran « Merci
@@ -1603,20 +1607,32 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Appareil arrivé en cours de partie, accepté par la régie : nouvelle équipe, ou remplaçant d'une équipe
-     * existante, qui garde son nom, sa couleur et ses points (ils sont rangés sous l'identifiant de l'équipe).
-     * Les règles Firebase n'acceptent plus rien de l'ancien appareil. La demande est effacée dans la même écriture.
-     * [id] : commande de la régie, qui reçoit la réponse ; null quand l'animatrice confirme à la télécommande.
+     * Tablette acceptée par la régie, dès le salon d'attente comme en cours de partie (cedric, 24/10 : la tablette
+     * ne tape ni ne choisit rien) : nouvelle équipe, avec le nom et la couleur que l'animatrice a choisis ([nom],
+     * [couleur]), ou remplaçant d'une équipe existante, qui garde son nom, sa couleur et ses points (ils sont rangés
+     * sous l'identifiant de l'équipe). Les règles Firebase n'acceptent plus rien de l'ancien appareil. La demande est
+     * effacée dans la même écriture. [id] : commande de la régie, qui reçoit la réponse ; null quand l'animatrice
+     * confirme à la télécommande.
      */
-    private suspend fun admitDevice(id: String?, replace: Boolean, device: String?, team: String?): String? {
+    private suspend fun admitDevice(
+        id: String?,
+        replace: Boolean,
+        device: String?,
+        team: String?,
+        nom: String? = null,
+        couleur: String? = null,
+    ): String? {
         val ref = gameRef ?: return "gone"
         val request = device?.let { runCatching { ref.child("joinRequests/$it").readOnce() }.getOrNull() }?.takeIf { it.exists() }
         val teams = teams()
+        // Anciennes tablettes : le nom et la couleur venaient de la demande.
+        val name = (nom ?: request?.child("name")?.getValue(String::class.java))?.trim()?.take(MAX_TEAM_NAME)
         val reason = when {
             device == null || request == null -> "gone"
             teams.any { it.uid == device || it.device == device } -> "busy"
             !replace && teams.size >= MAX_TEAMS -> "full"
             replace && teams.none { it.uid == team } -> "unknown_team"
+            !replace && name.isNullOrEmpty() -> "no_name"
             else -> null
         }
         val updates = mutableMapOf<String, Any?>()
@@ -1630,9 +1646,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 updates["teams/$team/device"] = device
             } else {
                 // Jamais deux équipes de la même couleur : la couleur demandée si elle est libre, sinon une autre.
-                val color = freeColor(request.child("color").getValue(String::class.java), teams.map { it.color })
+                val color = freeColor(couleur ?: request.child("color").getValue(String::class.java), teams.map { it.color })
                 updates["teams/$device"] = mapOf(
-                    "name" to request.child("name").getValue(String::class.java),
+                    "name" to name,
                     "color" to color,
                     "joinedAt" to ServerValue.TIMESTAMP,
                 )
@@ -1665,7 +1681,59 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         CrashReporter.upload(getApplication<Application>(), db)
         // Incidents du son (boucle qui s'arrête toute seule, lecteur en erreur) : dans les rapports de la box.
         com.littlemissparty.quiz.tv.habillage.Sons.rapporteur = { texte -> CrashReporter.report(db, "son", texte) }
+        suivreSante(db)
         return db
+    }
+
+    private var sante: Job? = null
+    @Volatile private var internet = false
+
+    /** Bilan de santé de la box dans ses rapports pendant la soirée (voir [SanteBox]) ; un seul suivi par lancement. */
+    private fun suivreSante(db: FirebaseDatabase) {
+        if (sante != null) return
+        db.getReference(".info/connected").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                internet = snapshot.getValue(Boolean::class.java) == true
+            }
+            override fun onCancelled(error: DatabaseError) = Unit
+        })
+        val depart = SystemClock.elapsedRealtime()
+        sante = viewModelScope.launch {
+            delay(SanteBox.PREMIER_MS)
+            repeat(SanteBox.MAX_PAR_LANCEMENT) {
+                runCatching { envoyerSante(db, SystemClock.elapsedRealtime() - depart) }
+                    .onFailure { Log.w(TAG, "Bilan de santé non envoyé", it) }
+                delay(SanteBox.CADENCE_MS)
+            }
+        }
+    }
+
+    private fun envoyerSante(db: FirebaseDatabase, depuisMs: Long) {
+        val app = getApplication<Application>()
+        val memoire = android.app.ActivityManager.MemoryInfo()
+        (app.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).getMemoryInfo(memoire)
+        val rt = Runtime.getRuntime()
+        val mo = 1024L * 1024
+        val partie = _state.value as? UiState.Playing
+        com.littlemissparty.quiz.tv.habillage.Sons.etat { boucles, sonsLongs, incidents ->
+            val bilan = SanteBox(
+                ramLibreMo = memoire.availMem / mo,
+                ramTotaleMo = memoire.totalMem / mo,
+                ramBasse = memoire.lowMemory,
+                appliMo = (rt.totalMemory() - rt.freeMemory()) / mo,
+                appliMaxMo = rt.maxMemory() / mo,
+                disqueLibreMo = app.filesDir.usableSpace / mo,
+                boucles = boucles,
+                sonsLongs = sonsLongs,
+                incidentsSon = incidents,
+                internet = internet,
+                ecran = partie?.let { p -> p.phase.code + if (p.paused) " en pause" else "" } ?: _state.value::class.simpleName.orEmpty(),
+                tablettes = partie?.let { p -> p.teams.count { it.uid in p.online } } ?: 0,
+                equipes = partie?.teams?.size ?: 0,
+                depuisMs = depuisMs,
+            )
+            CrashReporter.report(db, "sante", bilan.ligne())
+        }
     }
 
     private suspend fun createGame(db: FirebaseDatabase, uid: String): String {
@@ -1694,6 +1762,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun listenGame(db: FirebaseDatabase, ref: DatabaseReference) {
+        regieActivePubliee = null
         observe(db.getReference(".info/serverTimeOffset")) { snap ->
             serverOffset = (snap.value as? Number)?.toLong() ?: 0L
             offsetKnown = snap.value != null
@@ -1768,6 +1837,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val uids = snap.children.mapNotNull { it.key }.toSet()
             val added = uids - regieUids
             regieUids = uids
+            // Les tablettes n'entrent qu'une fois la régie ouverte (cedric, 24/10) : elles lisent ce drapeau, pas les régies.
+            val active = uids.isNotEmpty()
+            if (regieActivePubliee != active) {
+                regieActivePubliee = active
+                ref.child("regieActive").setValue(active).addOnFailureListener {
+                    regieActivePubliee = null
+                    Log.e(TAG, "Régie ouverte non publiée", it)
+                }
+            }
             // Une régie vient d'être reliée : on referme l'écran du QR code.
             updatePlaying { it.copy(regies = uids.size, showRegie = it.showRegie && added.isEmpty()) }
         }
@@ -2112,6 +2190,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         private var persistenceOn = false
         const val AUTO_RESUME_SECONDS = 15
         const val MAX_TEAMS = 8
+        /** Longueur maximale d'un nom d'équipe (comme les règles Firebase). */
+        const val MAX_TEAM_NAME = 20
         private const val ADMIT = "admit"
         private const val REPLACE = "replace"
         private const val NEW_GAME = "newgame"

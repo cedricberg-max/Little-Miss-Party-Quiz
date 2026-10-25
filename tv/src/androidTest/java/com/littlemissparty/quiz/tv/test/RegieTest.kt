@@ -5,6 +5,7 @@ import com.littlemissparty.quiz.engine.POTATO_BOMBS
 import com.littlemissparty.quiz.engine.POTATO_POINTS
 import com.littlemissparty.quiz.engine.PUMP_TARGET
 import com.littlemissparty.quiz.engine.Scoring
+import com.littlemissparty.quiz.tv.habillage.Look
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -66,6 +67,39 @@ class RegieTest : TestTv() {
         assertFalse("Aucune animation rejouée", ecran.affiche("BONUS !") || ecran.affiche("MALUS !"))
     }
 
+    /**
+     * Entrée des équipes (cedric, 24/10) : tant que la régie n'est pas reliée, la box dit aux tablettes d'attendre ;
+     * ensuite la tablette demande sans nom ni couleur, et l'équipe naît avec le nom et la couleur que l'animatrice a
+     * choisis sur son téléphone (une couleur déjà prise est remplacée par une libre).
+     */
+    @Test
+    fun entreeDesEquipesParLaRegie() {
+        val code = lancerBoite()
+        attendreQue("régie fermée publiée par la box") { Boite.controle.lire("games/$code/regieActive").takeIf { it == false } }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        attendreQue("régie ouverte publiée par la box") { Boite.controle.lire("games/$code/regieActive").takeIf { it == true } }
+        val licornes = pupitre("licornes").also { it.demanderAEntrer(code) }
+        assertEquals("applied", regie.commande(code, "admit", mapOf("device" to licornes.uid, "name" to "Les Licornes", "color" to VERT)))
+        attendreQue("équipe inscrite") { Boite.controle.lire("games/$code/teams/${licornes.uid}/name").takeIf { it == "Les Licornes" } }
+        assertEquals(VERT, Boite.controle.lire("games/$code/teams/${licornes.uid}/color"))
+        // Demande lisible seulement par sa tablette : lue avec l'accès « owner » de l'émulateur.
+        assertEquals("la demande est effacée", "null", Proprietaire.lire("games/$code/joinRequests/${licornes.uid}").trim())
+        ecran.voit("1 équipe(s) dans la partie")
+        // Même couleur demandée pour une deuxième équipe : la box en donne une autre, jamais deux équipes pareilles.
+        val dragons = pupitre("dragons").also { it.demanderAEntrer(code) }
+        assertEquals("applied", regie.commande(code, "admit", mapOf("device" to dragons.uid, "name" to "Les Dragons", "color" to VERT)))
+        val couleur = attendreQue("deuxième équipe") { Boite.controle.lire("games/$code/teams/${dragons.uid}/color") as? String }
+        assertTrue("couleur différente : $couleur", !couleur.equals(VERT, ignoreCase = true))
+        ecran.voit("2 équipe(s) dans la partie")
+        // Sans nom : refusée, la tablette attend toujours.
+        val chats = pupitre("chats").also { it.demanderAEntrer(code) }
+        val sansNom = regie.envoyer(code, "admit", extra = mapOf("device" to chats.uid))!!
+        assertEquals("refused", regie.verdict(code, sansNom))
+        assertEquals("no_name", regie.raison(code, sansNom))
+        assertNull(Boite.controle.lire("games/$code/teams/${chats.uid}"))
+    }
+
     @Test
     fun mauvaisMotDePasseRefuse() {
         val code = lancerBoite()
@@ -75,7 +109,8 @@ class RegieTest : TestTv() {
         assertNull("Une régie non reliée ne peut pas envoyer de commande", regie.envoyer(code, "next"))
         assertFalse("Une régie non reliée ne lit pas les bonnes réponses", regie.lireConducteur(code))
         assertFalse(ecran.affiche("Régie reliée"))
-        ecran.voit("Lancer la fête !")
+        // La TV n'a pas bougé : toujours au salon.
+        ecran.voit("1 équipe(s) dans la partie")
     }
 
     @Test
@@ -170,6 +205,41 @@ class RegieTest : TestTv() {
         ecran.capture("mimes-classement")
     }
 
+    /**
+     * Mimes à 6 équipes, mot sur deux lignes (cedric, 24/10 : « Image suivante » rogné en bas à droite) : la carte
+     * rapetisse s'il le faut, les boutons de l'animatrice et le mot restent entiers.
+     */
+    @Test
+    fun mimesBoutonsEntiersAvecBeaucoupDEquipes() {
+        val code = lancerBoite()
+        val couleurs = listOf(VERT, ROSE, "#FF6B1A", "#FFE600", "#2D7BFF", "#A64DFF")
+        val equipes = listOf("Licornes", "Dragons", "Pirates", "Fusées", "Tigres", "Étoiles").mapIndexed { i, nom ->
+            pupitre("equipe$i").also { it.rejoindre(code, nom, couleurs[i]) }
+        }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val mot = "Un hippopotame qui fait du ski"
+        val mimes = mapOf(
+            "id" to "a1m", "text" to "Animaux", "kind" to "mime", "duration" to 60, "round" to "Animaux",
+            "cards" to listOf(mapOf("word" to mot, "image" to "🦛"), mapOf("word" to "Lion", "image" to "🦁")),
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(mimes) + avant))
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Les Mimes !")
+        assertEquals("applied", regie.commande(code, "mime_start", mapOf("team" to equipes[0].uid)))
+        ecran.voit("Au tour de Licornes")
+        ecran.entierementVisible("Image suivante")
+        ecran.entierementVisible("Trouvé !")
+        ecran.entierementVisible("Arrêter le tour")
+        ecran.capture("mimes-6-equipes-tour")
+        assertEquals("applied", regie.commande(code, "mime_found"))
+        ecran.voit("Dos à l'écran !")
+        ecran.entierementVisible("Image suivante")
+        ecran.capture("mimes-6-equipes-changement")
+    }
+
     /** Le scénario du premier vrai test de cedric : un quiz, puis les mimes, puis le classement et le jeu suivant. */
     @Test
     fun quizPuisMimesPuisJeuSuivantPuisRejouer() {
@@ -220,8 +290,13 @@ class RegieTest : TestTv() {
         assertEquals(apresQuiz + Scoring.MIME, points(licornes, code, licornes.uid))
         ecran.capture("quiz-mimes-finale")
 
-        // Secours : rejouer le quiz retire ses points (pas de double compte), les mimes restent.
+        // Secours depuis la finale en cours : bilan des scores d'abord (cedric, 24/10), points intacts ; puis « Jeu
+        // suivant » rejoue le quiz, ses points retirés (pas de double compte), les mimes restent.
         assertEquals("applied", regie.commande(code, "goto", mapOf("index" to 0, "qid" to demo[0]["id"] as String)))
+        ecran.voit("Jeu suivant : Quiz")
+        ecran.capture("bilan-jeu-quitte")
+        assertEquals(apresQuiz + Scoring.MIME, points(licornes, code, licornes.uid))
+        assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Quiz · question 1 / 1")
         attendreQue("points du quiz retirés") { points(licornes, code, licornes.uid).takeIf { it == Scoring.MIME.toLong() } }
         assertTrue("La tablette peut répondre de nouveau", licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
@@ -351,13 +426,13 @@ class RegieTest : TestTv() {
         attendreQue("question en nombre ouverte") {
             licornes.etat(code).takeIf { it.child("phase").value == "question" && it.child("qid").value == "a1n" }
         }
-        ecran.capture("juste-chiffre-question")
+        ecran.capture("juste-chiffre-question", attente = Ecran.APRES_RIDEAU)
         assertTrue(licornes.repondre(code, "a1n", 200))
         assertTrue(dragons.repondre(code, "a1n", 250))
         ecran.voit("Toutes les équipes ont répondu")
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("écart 6")
-        ecran.capture("juste-chiffre-revelation")
+        ecran.capture("juste-chiffre-revelation", attente = Ecran.APRES_REVELATION)
         attendreQue("points de la plus proche") { points(licornes, code, licornes.uid).takeIf { it == Scoring.NUMBER_CLOSEST.toLong() } }
         assertEquals(0L, points(dragons, code, dragons.uid))
     }
@@ -420,7 +495,7 @@ class RegieTest : TestTv() {
         ecran.voit("Toutes les équipes ont répondu")
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("points du quiz pour la bonne réponse") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } }
-        ecran.capture("zoom-mystere-revelation")
+        ecran.capture("zoom-mystere-revelation", attente = Ecran.APRES_REVELATION)
     }
 
     @Test
@@ -453,7 +528,7 @@ class RegieTest : TestTv() {
         ecran.voit("Toutes les équipes ont répondu")
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("points du QCM pour la bonne image") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } }
-        ecran.capture("reponses-en-images-revelation")
+        ecran.capture("reponses-en-images-revelation", attente = Ecran.APRES_REVELATION)
         // Question suivante en texte : rien ne bloque, le score est gardé.
         val gagne = points(licornes, code, licornes.uid)
         attendreQue("question en texte ouverte", 30_000) {
@@ -501,7 +576,7 @@ class RegieTest : TestTv() {
         ecran.voit("C'était :")
         attendreQue("points du rebond") { points(dragons, code, dragons.uid).takeIf { it == Scoring.BUZZ_REBOUND.toLong() } }
         assertEquals(0L, points(licornes, code, licornes.uid))
-        ecran.capture("image-floue-revelation")
+        ecran.capture("image-floue-revelation", attente = Ecran.APRES_REVELATION)
     }
 
     @Test
@@ -524,12 +599,15 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(chante, quiSuis) + avant))
 
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("CHANTE LE MOT !")
+        ecran.voit(if (Look.gs) "UNE CHANSON AVEC LE MOT" else "CHANTE LE MOT !")
         ecran.voit("SOLEIL")
+        // Le mot sur son enseigne néon (proposition F, 25/10), une fois l'enseigne allumée.
+        ecran.capture("chante-le-mot", attente = 900)
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "c1" && it.child("buzzOpen").value == true } }
         assertTrue(licornes.buzzer(code))
         ecran.voit("À vous de chanter !")
-        ecran.capture("chante-le-mot-buzz")
+        // Capturé une fois l'alerte posée (STOP ! et le nom), pas pendant le flash du claquement.
+        ecran.capture("chante-le-mot-buzz", attente = 700)
         assertEquals("applied", regie.commande(code, "buzz_ok"))
         ecran.voit("Bravo Licornes, quelle voix !")
         assertEquals("applied", regie.commande(code, "next"))
@@ -612,7 +690,7 @@ class RegieTest : TestTv() {
         ecran.entierementVisible("+100")
         attendreQue("la valeur du morceau, une fois") { points(dragons, code, dragons.uid).takeIf { it == 100L } }
         assertEquals(0L, points(licornes, code, licornes.uid))
-        ecran.neVoitPas("Tous ensemble, on chante", 3_000)
+        ecran.neVoitPas(if (Look.gs) "TOUT LE MONDE CHANTE" else "Tous ensemble, on chante", 3_000)
         ecran.capture("blind-test-revelation")
         assertEquals("applied", regie.commande(code, "blind_cut"))
 
@@ -626,14 +704,15 @@ class RegieTest : TestTv() {
         ecran.entierementVisible("Personne n'a trouvé, ce n'est pas grave !")
         // Même sans gagnant, le refrain repart en boucle : « on chante tous ensemble » jusqu'au titre suivant, avec
         // les paroles du refrain au rythme de la musique (cedric, 21/10).
-        ecran.voit("TOUS ENSEMBLE, ON CHANTE !")
-        ecran.entierementVisible("TOUS ENSEMBLE, ON CHANTE !")
+        ecran.voit(chantonsTous())
+        ecran.entierementVisible(chantonsTous())
         ecran.voit("Pierrot")
         ecran.entierementVisible("Pierrot")
         ecran.capture("blind-test-refrain")
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Bilan du blind test")
-        ecran.voit("100 pts")
+        // Game Show : les tubes de verre du tableau des scores, remplis des points du blind test (cedric, 24/10).
+        ecran.voit(if (Look.gs) "BILAN DU BLIND TEST" else "Bilan du blind test")
+        ecran.voit(if (Look.gs) "Points gagnés pendant le blind test" else "100 pts")
         // Le jeu suivant (le quiz de démonstration, sans titre de manche) est annoncé.
         ecran.entierementVisible("Jeu suivant : Quiz")
         assertEquals(100L, points(dragons, code, dragons.uid))
@@ -668,6 +747,9 @@ class RegieTest : TestTv() {
         // les deux équipes félicitées, et le refrain avec ses paroles.
         assertEquals("applied", regie.commande(code, "next"))
         ouverte("m1")
+        // « Quel est ce titre ? », un néon de couleur par mot (proposition T1, 25/10), une fois l'intro passée et les mots allumés.
+        ecran.voit("Quel est ce titre ?")
+        ecran.capture("quiz-musical-question", attente = 900)
         assertTrue(licornes.repondre(code, "m1", 1))
         assertTrue(dragons.repondre(code, "m1", 1))
         ecran.voit("Toutes les équipes ont répondu")
@@ -676,12 +758,12 @@ class RegieTest : TestTv() {
         ecran.entierementVisible("Bravo Licornes et Dragons !")
         ecran.voit("Au clair de la lune")
         ecran.voit("Comptine")
-        ecran.voit("TOUS ENSEMBLE, ON CHANTE !")
-        ecran.entierementVisible("TOUS ENSEMBLE, ON CHANTE !")
+        ecran.voit(chantonsTous())
+        ecran.entierementVisible(chantonsTous())
         ecran.voit("Pierrot")
         ecran.entierementVisible("Pierrot")
         attendreQue("les points du quiz") { points(dragons, code, dragons.uid).takeIf { it >= Scoring.BASE } }
-        ecran.capture("quiz-musical-revelation")
+        ecran.capture("quiz-musical-revelation", attente = Ecran.APRES_REVELATION)
 
         // Personne ne trouve, et pas de refrain préparé : la scène sans paroles, l'extrait repart quelques secondes.
         assertEquals("applied", regie.commande(code, "next"))
@@ -694,7 +776,7 @@ class RegieTest : TestTv() {
         ecran.voit("Personne n'a trouvé, ce n'est pas grave !")
         ecran.entierementVisible("Personne n'a trouvé, ce n'est pas grave !")
         ecran.voit("Frère Jacques")
-        ecran.neVoitPas("TOUS ENSEMBLE", 2_000)
+        ecran.neVoitPas(if (Look.gs) "TOUT LE MONDE CHANTE" else "TOUS ENSEMBLE", 2_000)
         ecran.capture("quiz-musical-personne")
     }
 
@@ -711,11 +793,13 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(statues) + avant))
 
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("STATUES MUSICALES")
+        // Game Show : le nom du jeu est dans le bandeau du haut de l'écran.
+        ecran.voit(if (Look.gs) "Statues musicales" else "STATUES MUSICALES")
         ecran.voit("DANSEZ !")
         // Premier arrêt de la musique entre 6 et 10 s.
         ecran.voit("STATUE !", 20_000)
-        ecran.capture("statues-musicales-statue")
+        // « STATUE ! » claque en 0,2 s puis se fend et givre : capturé une fois posé.
+        ecran.capture("statues-musicales-statue", attente = 900)
         ecran.voit("DANSEZ !", 15_000)
         assertEquals("applied", regie.commande(code, "statues_win", mapOf("team" to dragons.uid)))
         ecran.voit("Bravo Dragons !")
@@ -1080,3 +1164,6 @@ class RegieTest : TestTv() {
         attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
     }
 }
+
+/** Le refrain que toute la salle chante, à la révélation du blind test : en néon en Game Show (proposition A, 24/10). */
+private fun chantonsTous() = if (Look.gs) "TOUT LE MONDE CHANTE !" else "TOUS ENSEMBLE, ON CHANTE !"

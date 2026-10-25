@@ -260,7 +260,8 @@ private fun DrawScope.dessineCarte(p: PlanchesQuiz3d, c: Int, j: Float, e: Float
     val y = -mg
     val w = size.width + 2 * mg
     val h = size.height + 2 * mg
-    neufParts(p.carteFond, x, y, w, h, 170, 120, s, 1f - 0.38f * e)
+    // Carte éteinte : le verre reste presque plein, le décor ne remonte pas à travers (cedric, 24 octobre).
+    neufParts(p.carteFond, x, y, w, h, 170, 120, s, 1f - 0.12f * e)
     neufParts(p.neons[c], x, y, w, h, 170, 120, s, (1f - j - e).coerceIn(0f, 1f))
     neufParts(p.juste, x, y, w, h, 170, 120, s, j)
     neufParts(p.eteinte, x, y, w, h, 170, 120, s, e)
@@ -350,7 +351,7 @@ private fun TexteReponse3d(text: String, couleur: Color, contour: Color?, modifi
  * jusqu'à tenir en entier. L'enseigne prend la hauteur du texte ; sa lueur déborde de 30 dp tout autour.
  */
 @Composable
-internal fun QuestionPanneau3d(p: PlanchesQuiz3d, texte: String, modifier: Modifier) {
+internal fun QuestionPanneau3d(p: PlanchesQuiz3d, texte: String, modifier: Modifier, festif: Boolean = false) {
     val mesure = rememberTextMeasurer()
     val k = LocalDensity.current.density / 2f
     BoxWithConstraints(
@@ -367,14 +368,19 @@ internal fun QuestionPanneau3d(p: PlanchesQuiz3d, texte: String, modifier: Modif
                 Triple(t, t * 1.125f, mesure.lignes(texte, styleBaloo3d(t), larg, 3))
             }
         }
-        LignesAPas(
+        // Quiz musical (cedric, 24/10 : « trop sage » ; proposition T1 choisie le 25/10) : un titre court, un néon de couleur par mot.
+        if (festif && lignes.size == 1) MotsNeon(texte, 40.sp, Modifier.padding(vertical = 14.dp))
+        else LignesAPas(
             texte, lignes, styleBaloo3d(taille, Color.White, Shadow(Color(0xB39678FF), Offset.Zero, 24f * k)), pas, centre = true,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = if (lignes.size == 1) 16.dp else 11.dp).offset(y = (-2).dp),
         )
     }
 }
 
-/** L'onglet « Question 4 / 10 » : plaque néon cyan, texte blanc à lueur cyan, réduit (jusqu'à 12 sp) plutôt que coupé. */
+/**
+ * L'onglet « Question 4 / 10 » : plaque néon cyan, texte blanc à lueur cyan, réduit (jusqu'à 12 sp) plutôt que coupé ;
+ * encore trop long (« Quiz musical · Comptines · question 1 / 10 »), il passe sur deux lignes, jamais de « … ».
+ */
 @Composable
 internal fun OngletQuiz3d(p: PlanchesQuiz3d, texte: String, modifier: Modifier) {
     val k = LocalDensity.current.density / 2f
@@ -389,8 +395,9 @@ internal fun OngletQuiz3d(p: PlanchesQuiz3d, texte: String, modifier: Modifier) 
             while (t > 12f && mesure.measure(texte, style(t), maxLines = 1, softWrap = false).size.width > dispo) t -= 0.5f
             t
         }
+        val tient = remember(texte, dispo, taille) { mesure.measure(texte, style(taille), maxLines = 1, softWrap = false).size.width <= dispo }
         Text(
-            texte, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, style = style(taille),
+            texte, maxLines = if (tient) 1 else 2, softWrap = !tient, style = style(taille),
             modifier = Modifier
                 .drawBehind { neufParts(p.onglet, -60f * k, -60f * k, size.width + 120f * k, size.height + 120f * k, 140, 98, k) }
                 .padding(horizontal = 22.dp, vertical = 9.dp),

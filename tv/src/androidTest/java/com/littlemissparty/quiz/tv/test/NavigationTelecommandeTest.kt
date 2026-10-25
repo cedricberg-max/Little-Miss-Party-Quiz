@@ -16,17 +16,28 @@ class NavigationTelecommandeTest : TestTv() {
     @Test
     fun salonPuisLancementAvecOk() {
         val code = lancerBoite()
-        ecran.voit(code)
+        ecran.voit("Scannez pour jouer")
         ecran.voit("En attente des équipes")
+        // Game Show : le code de la partie n'est plus sur l'accueil (cedric, 24/10), il est dans le menu Retour.
+        if (Look.gs) assertFalse("pas de code sur l'accueil", ecran.affiche(code)) else ecran.voit(code)
         assertFalse("Pas de lancement possible sans équipe", ecran.affiche("Lancer la fête !"))
         ecran.capture("salon-vide")
+        // Game Show : « Lancer la fête ! » est dans le menu Retour, qui ne le propose pas sans équipe.
+        if (Look.gs) {
+            ecran.touche(KeyEvent.KEYCODE_BACK)
+            ecran.voit("Continuer la partie")
+            ecran.voit("Code de la partie : $code")
+            assertFalse("Pas de lancement possible sans équipe", ecran.affiche("Lancer la fête !"))
+            ecran.ok("Continuer la partie")
+            ecran.neVoitPas("Continuer la partie")
+        }
 
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
         ecran.voit("Licornes")
         ecran.voit("1 équipe(s) dans la partie")
         ecran.capture("salon-une-equipe")
 
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         ecran.voit("Quiz · question 1 / ${quiz.questions.size}")
         ecran.voit(quiz.questions[0].text)
         ecran.voit("Arrêter le chrono")
@@ -38,7 +49,7 @@ class NavigationTelecommandeTest : TestTv() {
     fun pauseAvecLaToucheLecture() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         attendreQuestion(licornes, code, 0)
 
         ecran.touche(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
@@ -62,7 +73,7 @@ class NavigationTelecommandeTest : TestTv() {
     fun retourOuvreLaFenetreSansQuitter() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         attendreQuestion(licornes, code, 0)
 
         ecran.device.pressBack()
@@ -81,7 +92,7 @@ class NavigationTelecommandeTest : TestTv() {
     fun reconnecterUneTabletteGardeLEquipeEtSesPoints() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         attendreQuestion(licornes, code, 0)
 
         // Menu Retour → « Reconnecter une tablette » : QR code, puis attente de la nouvelle tablette.
@@ -108,7 +119,7 @@ class NavigationTelecommandeTest : TestTv() {
     fun nouvellePartieDepuisLaFenetreAvecLesFleches() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         attendreQuestion(licornes, code, 0)
 
         ecran.device.pressBack()
@@ -130,7 +141,8 @@ class NavigationTelecommandeTest : TestTv() {
         val nouveau = attendreQue("nouvelle partie créée", 30_000) { Boite.codeActif()?.takeIf { it != code } }
         assertNotEquals(code, nouveau)
         ecran.voit("Scannez pour jouer", 30_000)
-        ecran.voit(nouveau)
+        // Game Show : plus de code de la partie sur l'accueil (cedric, 24/10), il est dans le menu Retour.
+        if (!Look.gs) ecran.voit(nouveau)
         assertEquals("ended", licornes.etat(code).child("phase").value)
     }
 }

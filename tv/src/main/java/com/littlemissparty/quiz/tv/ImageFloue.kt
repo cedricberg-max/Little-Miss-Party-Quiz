@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.apparition
+import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import kotlinx.coroutines.delay
 
 /**
@@ -143,7 +144,7 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     val passees = state.teams.filter { it.uid in state.buzzBlocked }
     val gagnant = state.teams.find { (state.awards[it.uid]?.points ?: 0) > 0 }
     Column(
-        modifier.clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.08f)).padding(28.dp),
+        modifier.panneauJeu(0.08f).padding(28.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

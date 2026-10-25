@@ -111,7 +111,6 @@ class TroisFetesTest : TestTv() {
         assertEquals("lobby", licornes.etat(code).child("phase").value)
         assertEquals(etapeLea, regieLea.etape(code))
         assertEquals(0L, points(licornes, code, licornes.uid))
-        ecran.voit("Lancer la fête !")
         ecran.voit("2 équipe(s) dans la partie")
 
         // Léa donne un bonus aux Dragons puis lance sa fête : sa TV n'obéit qu'à sa régie.
@@ -203,7 +202,7 @@ class TroisFetesTest : TestTv() {
         ecran.voit("Dragons")
 
         // Les trois fêtes à la même question au même moment ; Léa joue à la télécommande.
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         assertEquals("applied", regieTom.commande(tom.code, "next"))
         assertEquals("applied", regieInes.commande(ines.code, "next"))
         val q = attendreQuestion(licornes, code, 0)

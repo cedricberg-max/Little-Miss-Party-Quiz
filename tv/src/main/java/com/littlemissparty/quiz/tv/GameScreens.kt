@@ -53,8 +53,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.MotsNeon
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.selonLook
 import com.littlemissparty.quiz.tv.habillage.ANNONCE_MULTIPLICATEUR_MS
@@ -125,10 +127,12 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             Spacer(Modifier.height(12.dp))
             // Blind test : pas de question écrite (« Quel est ce titre ? »), la scène prend la place.
             // Statues : le panneau porte déjà l'étiquette « STATUES MUSICALES », le titre en double lui volerait sa place.
-            if (!q.isBlind && !q.isStatues) {
+            // Chante le mot en Game Show : le mot est déjà sur l'enseigne néon, en double il lui volerait sa hauteur.
+            if (!q.isBlind && !q.isStatues && !(Look.gs && q.isChante)) {
                 // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène).
                 val panneau = planchesQuiz3d()?.takeIf { !q.isBuzz }
-                if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index))
+                if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index), festif = q.isMusical)
+                else if (Look.gs && q.isMusical && q.text.length <= 24) MotsNeon(q.text, 40.sp, Modifier.apparition(0, state.index))
                 else Text(
                     q.text,
                     color = Palette.Ink, fontSize = selonLook(34.sp, 38.sp), fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
@@ -401,6 +405,10 @@ private fun ChoiceCard(
     val image = photo?.let { remember(it) { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
     val cadre = modifier
         .rebond(juste)
+        // Fond plein sous la carte image : en s'éteignant, l'image fond dans la nuit, jamais dans les néons du décor
+        // qui passaient à travers les vignettes (cedric, 24 octobre).
+        .clip(forme)
+        .background(Neon.Nuit)
         .alpha(dim)
         .clip(forme)
         .then(
@@ -587,6 +595,15 @@ private fun Countdown(state: UiState.Playing) {
 fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
     // Fin du blind test : le bilan de ses morceaux trouvés plutôt que le classement général.
     if (state.blind != null && state.mime == null) {
+        // Game Show : les mêmes tubes de verre que le tableau des scores et le podium (cedric, 24/10), remplis des
+        // points gagnés pendant le blind test.
+        if (Look.gs) {
+            val b = state.blind ?: return
+            val lignes = state.teams.map { t ->
+                t to b.tracks.filter { it.status == BlindStatus.FOUND && it.team == t.uid }.sumOf { it.points }
+            }.sortedByDescending { it.second }
+            return ClassementGameShow(state, actions, "BILAN DU BLIND TEST", "Points gagnés pendant le blind test", lignes, emptyMap())
+        }
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             BlindBilanEcran(state, Modifier.weight(1f).fillMaxWidth())
             Row {

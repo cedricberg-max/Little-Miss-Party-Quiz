@@ -41,6 +41,9 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.CarteIndice
+import com.littlemissparty.quiz.tv.habillage.ChanteEnseigne
+import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import com.littlemissparty.quiz.tv.habillage.PoliceLmp
 import com.littlemissparty.quiz.tv.habillage.RevelationPersonnage
 import com.littlemissparty.quiz.tv.habillage.apparition
@@ -61,6 +64,8 @@ private fun Badge(text: String, modifier: Modifier = Modifier) {
  */
 @Composable
 fun ChanteBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
+    // Game Show : l'enseigne néon (proposition F, choisie le 25/10), sans badge ni notes.
+    if (Look.gs) { ChanteEnseigne(q.text.uppercase(), q.id, modifier); return }
     val danse = rememberInfiniteTransition(label = "notes")
     val haut by danse.animateFloat(
         0f, 1f,
@@ -68,7 +73,7 @@ fun ChanteBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modifi
         label = "note",
     )
     Box(
-        modifier.clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.10f)),
+        modifier.panneauJeu(),
         contentAlignment = Alignment.Center,
     ) {
         Badge("CHANTE LE MOT !", Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
@@ -124,7 +129,7 @@ fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
     val shown = if (revealed || state.phase == Phase.CLOSED) q.cards.size else q.cluesShown(q.durationMs - remaining)
     val aide = shown < q.cards.size
     Column(
-        modifier.clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.10f)).padding(horizontal = 28.dp, vertical = 16.dp),
+        modifier.panneauJeu().padding(horizontal = 28.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

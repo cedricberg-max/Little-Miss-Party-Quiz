@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,11 +51,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -224,7 +227,8 @@ internal fun SceneParoles(
         Column(Modifier.weight(1f).fillMaxHeight()) {
             Gagnant(cle, gagnant, points, double, gagnants)
             Spacer(Modifier.height(10.dp))
-            Text(
+            if (Look.gs) ToutLeMondeChante(30.sp, Modifier.apparition(900, cle))
+            else Text(
                 "🎤 TOUS ENSEMBLE, ON CHANTE !", color = Neon.OrClair, fontSize = 26.sp, fontWeight = FontWeight.Black, letterSpacing = 0.06.em,
                 maxLines = 1, softWrap = false, modifier = Modifier.apparition(900, cle),
             )
@@ -247,17 +251,33 @@ private fun Gagnant(cle: Any?, gagnant: Pair<String, Color>?, points: Int, doubl
         BravoEquipes(gagnants, 38.sp, Modifier.padding(vertical = 8.dp).apparition(500, cle))
     } else if (gagnants == null && gagnant != null && points > 0) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.apparition(500, cle)) {
-            Box(Modifier.size(88.dp).rebond(apres(500, cle), 0.08f).clip(CircleShape).background(gagnant.second), contentAlignment = Alignment.Center) {
+            // Game Show : pastille sombre cernée d'un néon à la couleur de l'équipe, chiffres néon (proposition A, 24/10).
+            val pastille = if (Look.gs) Modifier.clip(CircleShape).background(GS.Noir.copy(alpha = 0.9f)).border(4.dp, gagnant.second, CircleShape)
+            else Modifier.clip(CircleShape).background(gagnant.second)
+            Box(Modifier.size(88.dp).rebond(apres(500, cle), 0.08f).then(pastille), contentAlignment = Alignment.Center) {
                 val chiffres = "+$points".length
+                val taille = if (chiffres > 4) 24.sp else if (chiffres > 3) 30.sp else 36.sp
+                // Centré au pixel dans la pastille, sans la marge de police ni l'espace sous la ligne (cedric, 24/10).
                 Text(
-                    "+$points", color = Neon.Nuit, fontSize = if (chiffres > 4) 24.sp else if (chiffres > 3) 30.sp else 36.sp,
-                    fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+                    "+$points", color = if (Look.gs) gagnant.second else Neon.Nuit, maxLines = 1, softWrap = false,
+                    style = LocalTextStyle.current.merge(
+                        TextStyle(
+                            fontSize = taille, lineHeight = taille, fontWeight = FontWeight.Black,
+                            fontFamily = if (Look.gs) PoliceGsChiffres else null,
+                            shadow = if (Look.gs) Shadow(gagnant.second.copy(alpha = 0.9f), Offset.Zero, 18f) else null,
+                            platformStyle = PlatformTextStyle(includeFontPadding = false),
+                            lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+                        ),
+                    ),
                 )
             }
             Spacer(Modifier.width(20.dp))
             Column {
                 Text(
-                    "Bravo ${gagnant.first} !", color = gagnant.second, fontSize = 38.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black,
+                    if (Look.gs) "BRAVO ${gagnant.first.uppercase()} !" else "Bravo ${gagnant.first} !", color = gagnant.second,
+                    fontSize = 38.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black,
+                    fontFamily = if (Look.gs) PoliceGsTitre else null,
+                    style = if (Look.gs) TextStyle(shadow = Shadow(gagnant.second.copy(alpha = 0.85f), Offset.Zero, 24f)) else LocalTextStyle.current,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 Text(

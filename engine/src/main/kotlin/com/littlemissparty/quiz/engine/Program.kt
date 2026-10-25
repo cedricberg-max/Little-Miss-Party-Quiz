@@ -41,9 +41,10 @@ fun Game.withProgram(next: Quiz): Game? {
  * le même jeu ou s'il n'y a plus rien ; « Quiz » pour des questions sans titre de manche (quiz de démonstration).
  */
 fun Game.nextGameTitle(): String? {
-    val i = state.index + 1
+    // Bilan d'un jeu quitté en cours de route : le jeu choisi par la régie.
+    val i = leaveTarget ?: (state.index + 1)
     val q = quiz.questions.getOrNull(i) ?: return null
-    if (state.index >= 0 && q.roundTitle == quiz.questions[state.index].roundTitle) return null
+    if (leaveTarget == null && state.index >= 0 && q.roundTitle == quiz.questions[state.index].roundTitle) return null
     return if (q.isMime) "Mimes" else q.roundTitle ?: "Quiz"
 }
 

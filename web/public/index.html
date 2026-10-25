@@ -35,21 +35,19 @@
       <button id="retry" class="btn">Réessayer</button>
     </section>
 
-    <section id="screen-join" class="screen">
+    <!-- Entrée d'une tablette (cedric, 24/10) : rien à taper ni à choisir. Avant la régie, seulement l'accès régie. -->
+    <section id="screen-gate" class="screen">
       <div class="logo">Little Miss Party<br><span>QUIZ</span></div>
       <p id="join-welcome" class="welcome" hidden></p>
-      <label for="team-name">Nom de votre équipe</label>
-      <input id="team-name" type="text" maxlength="20" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="done" placeholder="Choisissez un nom d'équipe">
-      <p class="label">Votre couleur</p>
-      <div id="colors" class="colors"></div>
-      <p id="join-late" class="hint" hidden>La partie a commencé : l'animatrice va vous faire entrer. Vous remplacez une tablette ? Tapez le nom de votre équipe.</p>
-      <p id="join-error" class="hint error" hidden></p>
-      <button id="join" class="btn big">Rejoindre la partie</button>
+      <p class="hint">Bienvenue ! L'animatrice ouvre d'abord sa régie. Ensuite, cette tablette demandera toute seule à entrer dans la partie.</p>
+      <button id="gate-regie" class="btn big">🎛 Code de la régie</button>
     </section>
 
     <section id="screen-waiting" class="screen">
-      <div class="logo small">Demande envoyée</div>
-      <p id="waiting-text" class="hint">L'animatrice va vous faire entrer dans la partie, regardez-la !</p>
+      <div class="logo small">Tablette prête</div>
+      <p id="waiting-welcome" class="welcome" hidden></p>
+      <p id="waiting-num" class="tablet-num"></p>
+      <p id="waiting-text" class="hint">L'animatrice vous fait entrer dans la partie depuis son téléphone.</p>
     </section>
 
     <!-- « Reconnecter une tablette » (QR de la TV) : la nouvelle tablette reprend une équipe existante. -->
@@ -162,8 +160,11 @@
         <span id="c-dot" class="dot on"></span>
         <span id="c-code" class="code"></span>
         <span id="c-step" class="step"></span>
+        <!-- Régie « cockpit » (proposition du 25/10) : les tablettes coupées en petite pastille, au lieu du bandeau rouge. -->
+        <button id="c-horsligne" class="pastille-hl" type="button" hidden></button>
         <span id="c-timer" class="timer"></span>
       </header>
+      <p id="c-flash" class="flash-verdict" role="status" hidden></p>
 
       <div class="card">
         <p id="c-phase" class="phase"></p>
@@ -244,25 +245,31 @@
       <!-- Blind test : la régie lance chaque morceau, juge la réponse orale, relance, révèle ou passe. -->
       <section id="blind" class="flou blind" hidden aria-label="Blind test">
         <p id="blind-head" class="blind-head"></p>
-        <p id="blind-info" class="mime-info"></p>
-        <div id="blind-judge" class="flou-judge">
-          <button id="blind-ok" class="mime-found">BONNE RÉPONSE<small></small></button>
-          <button id="blind-ko" class="btn secondary flou-ko mauvaise">Mauvaise réponse</button>
+        <!-- Au buzz, ce bloc passe juste au-dessus des commandes du bas (verdictEnBas). -->
+        <div id="blind-verdict" class="verdict">
+          <p id="blind-info" class="mime-info"></p>
+          <div id="blind-judge" class="flou-judge">
+            <button id="blind-ok" class="mime-found">BONNE RÉPONSE<small></small></button>
+            <button id="blind-ko" class="btn secondary flou-ko mauvaise">Mauvaise réponse</button>
+          </div>
         </div>
         <div id="blind-row" class="mime-row">
           <button id="blind-unblock" class="btn secondary">Laisser rebuzzer tout de suite</button>
-          <button id="blind-reveal" class="btn secondary">Révéler sans points</button>
+          <button id="blind-reveal" class="btn">🎤 Passer à la révélation (on chante ensemble)</button>
           <button id="blind-skip" class="btn secondary">Passer le morceau</button>
           <button id="blind-cut" class="btn secondary">Raccourcir la révélation</button>
         </div>
         <ol id="blind-tracks" class="blind-tracks"></ol>
       </section>
       <section id="flou" class="flou" hidden aria-label="Image floue">
-        <p id="flou-info" class="mime-info"></p>
-        <div id="flou-judge" class="flou-judge">
-          <button id="flou-ok" class="mime-found">BONNE RÉPONSE<small></small></button>
-          <button id="flou-bonus" class="mime-found flou-bonus" hidden>TITRE + ARTISTE<small></small></button>
-          <button id="flou-ko" class="btn secondary flou-ko mauvaise">Mauvaise réponse</button>
+        <!-- Au buzz, ce bloc passe juste au-dessus des commandes du bas (verdictEnBas). -->
+        <div id="flou-verdict" class="verdict">
+          <p id="flou-info" class="mime-info"></p>
+          <div id="flou-judge" class="flou-judge">
+            <button id="flou-ok" class="mime-found">BONNE RÉPONSE<small></small></button>
+            <button id="flou-bonus" class="mime-found flou-bonus" hidden>TITRE + ARTISTE<small></small></button>
+            <button id="flou-ko" class="btn secondary flou-ko mauvaise">Mauvaise réponse</button>
+          </div>
         </div>
       </section>
 
@@ -289,6 +296,18 @@
         <button id="c-next" class="btn main"></button>
         <button id="c-fin" class="btn main fin-fete" hidden>🏁 Fin de la fête</button>
       </footer>
+    </section>
+
+    <!-- Régie « cockpit » : « ☰ Plus » rassemble tout ce qui ne sert pas à chaque question (boutons de secours,
+         équipes, conducteur, prestation, défis) ; l'écran principal ne défile plus. -->
+    <div id="plus-fond" class="plus-fond" hidden></div>
+    <section id="plus" class="plus" hidden aria-label="Plus de commandes">
+      <header class="plus-haut">
+        <b>☰ Plus</b>
+        <button id="plus-fermer" class="btn secondary" type="button">Fermer</button>
+      </header>
+      <div id="plus-grille" class="plus-grille"></div>
+      <div id="plus-onglets" class="plus-onglets"></div>
     </section>
 
     <!-- Secours : voir le jeu en cours et le suivant, passer au suivant, aller à un autre jeu ou le rejouer. -->

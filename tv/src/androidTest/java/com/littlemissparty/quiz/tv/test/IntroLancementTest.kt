@@ -76,7 +76,7 @@ class IntroLancementTest : TestTv() {
         val regie = regie()
         assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
         assertEquals("applied", regie.chargerPrestation(code, "L'anniversaire de Léa", questions, prenom = "Léa", prestation = "lea-${UUID.randomUUID().toString().take(8)}"))
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         assertTrue(introALEcran())
         ecran.ok("Lancer l'épreuve")
         introFinie()

@@ -12,6 +12,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -79,13 +80,23 @@ fun LaParole(nom: String, couleur: Color, visible: Boolean, modifier: Modifier =
 
     Box(modifier.fillMaxSize().clearAndSetSemantics {}) {
         // Voile pendant l'annonce au centre ; il s'efface quand le nom part en bandeau.
+        // Game Show : voile plein, la scène de l'alerte ne laisse rien voir du jeu dessous (captures du 25/10).
         Box(
             Modifier.fillMaxSize().graphicsLayer {
                 val ms = t.value
-                alpha = presence.value * 0.6f * (ms / PAROLE_ENTREE_MS).coerceIn(0f, 1f) * (1f - glissementParole(ms.toLong()))
-            }.background(Brush.radialGradient(listOf(couleur.copy(alpha = 0.35f), Neon.Nuit.copy(alpha = 0.92f)))),
+                alpha = presence.value * (if (Look.gs) 0.97f else 0.6f) * (ms / PAROLE_ENTREE_MS).coerceIn(0f, 1f) * (1f - glissementParole(ms.toLong()))
+            }.background(
+                if (Look.gs) Brush.radialGradient(listOf(lerpVers(GS.Noir, couleur, 0.22f), GS.Noir))
+                else Brush.radialGradient(listOf(couleur.copy(alpha = 0.35f), Neon.Nuit.copy(alpha = 0.92f))),
+            ),
         )
         Echelle(960.dp, 540.dp) {
+            if (Look.gs) {
+                // Game Show (proposition D) : lasers, anneau et « STOP ! » au centre ; tout s'éteint quand le nom part en bandeau.
+                val scene = { presence.value * (1f - glissementParole(t.value.toLong())) }
+                AlerteBuzz({ t.value }, couleur, scene, Modifier.fillMaxSize(), rayon = 0.3f)
+                StopGlitch({ t.value }, 92.sp, Modifier.align(Alignment.Center).offset(y = (-150).dp), fondu = scene)
+            } else
             // Éclat de lumière dans la couleur de l'équipe, à l'arrivée.
             Box(
                 Modifier.fillMaxSize().drawBehind {
@@ -124,7 +135,9 @@ fun LaParole(nom: String, couleur: Color, visible: Boolean, modifier: Modifier =
                     .drawBehind {
                         // Anneau qui bat tant que l'équipe a la parole.
                         val c = Offset(size.width / 2, size.height / 2)
-                        drawCircle(couleur.copy(alpha = 0.35f * (1f - pouls)), size.height * (0.6f + 0.35f * pouls), c, style = Stroke(6f))
+                        // Game Show : au centre, c'est l'anneau de la scène qui bat ; celui-ci n'apparaît qu'en bandeau.
+                        val bandeau = if (Look.gs) glissementParole(t.value.toLong()) else 1f
+                        drawCircle(couleur.copy(alpha = 0.35f * (1f - pouls) * bandeau), size.height * (0.6f + 0.35f * pouls), c, style = Stroke(6f))
                     }
                     .background(
                         Brush.verticalGradient(listOf(Neon.FondHaut.copy(alpha = 0.97f), Neon.FondBas.copy(alpha = 0.97f))),
@@ -135,7 +148,7 @@ fun LaParole(nom: String, couleur: Color, visible: Boolean, modifier: Modifier =
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    "🎤  LA PAROLE EST À",
+                    if (Look.gs) "LA PAROLE EST À" else "🎤  LA PAROLE EST À",
                     style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp),
                 )
                 NomUneLigne(nom.ifBlank { "Équipe" }, couleur, 96f, 780.dp)

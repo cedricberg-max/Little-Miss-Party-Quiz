@@ -424,7 +424,6 @@ body.essai::before {
 /* En haut de l'écran, sous le fil d'Ariane : les mêmes boutons, à portée sans descendre. */
 .retour-barre.haut { justify-content: flex-start; flex-wrap: wrap; margin: 0 0 14px; }
 /* « Enregistrer » du haut de la fiche d'une prestation, à droite, loin d'« Annuler les modifications ». */
-.retour-barre.haut #show-save-haut { margin-left: auto; }
 .retour-barre.haut .btn { box-shadow: none; }
 
 /* Copie que l'on vient de faire (Dupliquer) : en tête de sa liste, mise en avant un moment. */
@@ -659,7 +658,7 @@ button.song-moments:hover { background: var(--good-pale); }
 .banque-galerie img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; background: var(--bg-2); }
 .banque-galerie figcaption { font-size: 13px; color: var(--soft); text-align: center; }
 
-/* Bibliothèque : images en quatre groupes (émojis, photos libres, les siennes, pochettes), fiches de ses images. */
+/* Bibliothèque : images en cinq groupes (émojis, photos libres, les siennes, celles des packs, pochettes), fiches de ses images. */
 .media-group { margin: 18px 0 6px; }
 .media-group .title-row { justify-content: flex-start; margin-bottom: 8px; }
 .media-group h2 { margin: 0; }
@@ -765,6 +764,25 @@ button.media-tile:hover { border-color: var(--violet); }
   font: inherit; box-shadow: 0 20px 60px rgba(40, 20, 60, .35);
 }
 .fenetre[open] { display: flex; flex-direction: column; gap: 18px; }
+/* Fenêtre avec un contenu (aperçu d'un pack, modifier un personnage) : plus large. */
+.fenetre.fenetre-large { width: min(92vw, 720px); max-width: min(92vw, 720px); }
+.pack-apercu { display: flex; flex-direction: column; gap: 14px; }
+.pack-apercu-pack { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; }
+.pack-apercu-pack h3 { margin: 0; }
+.pack-apercu-infos { margin: 0; }
+.pack-apercu-vignettes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pack-apercu-vignettes img { width: 64px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.pack-apercu-liste, .pack-apercu-alertes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.pack-apercu-alertes .pack-alerte { color: var(--bad); font-weight: 700; }
+.pack-apercu-alertes .pack-erreur { color: var(--bad); }
+/* Image hors format : une petite alerte, pas une erreur (cedric, 25/10). */
+.pack-apercu-alertes .pack-alerte.hors-format, .hors-format-liste .pack-alerte { color: var(--warn); font-weight: 600; }
+.item .q-alerte.hors-format { color: var(--warn); }
+.personnage-edit { display: flex; flex-direction: column; gap: 10px; }
+.personnage-edit label { display: flex; flex-direction: column; gap: 4px; }
+/* Un ZIP glissé sur le cadre « Importer un pack ». */
+.pack-import.depot { outline: 3px dashed var(--violet); outline-offset: 4px; }
+.choice-photo .case-manquante { white-space: normal; }
 .fenetre:focus { outline: none; }
 .fenetre::backdrop { background: rgba(40, 20, 60, .55); }
 .fenetre-message { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -785,6 +803,13 @@ button.media-tile:hover { border-color: var(--violet); }
 .q-list { display: flex; flex-direction: column; gap: 16px; }
 .q-groupe { display: flex; flex-direction: column; gap: 10px; }
 .q-groupe h2 { margin: 0; font-size: 20px; }
+/* Rubrique repliée sur une ligne (cedric, 25/10) : un bouton ▸ / ▾ avec son nom et son nombre. */
+.q-groupe.replie { gap: 0; }
+.q-plier { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-height: 44px; padding: 6px 12px; text-align: left;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
+.q-plier:hover { border-color: var(--violet); }
+.q-plier-fleche { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--violet-pale); color: var(--violet); font-size: 16px; }
+.q-plier h2 { font-size: 18px; }
 .q-liste { display: flex; flex-direction: column; gap: 8px; max-width: 1000px; }
 .q-item { display: flex; align-items: flex-start; gap: 14px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--card); }
 .q-item.sans-illus { border-left: 5px solid var(--bad); }
@@ -893,7 +918,7 @@ button.media-tile:hover { border-color: var(--violet); }
 .tirage-rep-img.emoji { display: grid; place-items: center; font-size: 28px; line-height: 1; }
 .tirage-rep-mot { max-width: 100%; }
 .tirage-q-ligne .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
-.tirage-q-ligne .tirage-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }
+.tirage-q-ligne .tirage-de.petit, .tirage-q-ligne .packs-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }
 @media (max-width: 640px) { .tirage-ligne > select { flex: 1 1 100%; } }
 /* Un Quiz = une seule manche (cedric, 23/10) : le compteur (en majuscules, sur la ligne du numéro du jeu), les outils
    de création ensemble, les séries, la Super Finale, puis le « Quiz complet » ; un peu d'air entre chaque partie. */
@@ -1078,6 +1103,18 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 .blind-pochette { flex: none; width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--line-2); background: #fff; }
 .blind-pochette.sans { display: grid; place-items: center; font-size: 26px; line-height: 1; filter: grayscale(1); opacity: .7; border: 2px dashed var(--bad, #b3261e); }
 .blind-titre { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+/* Quiz musical : les 3 mauvaises réponses tirées du refrain, sous la chanson (cedric, 24/10). */
+.leurres { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 4px 56px; }
+.leurres-titre { font-size: 14px; font-weight: 700; color: var(--muted, #6b5f7a); }
+.leurre { display: inline-flex; align-items: center; gap: 2px; }
+.leurre-texte { width: 15em; max-width: 100%; padding: 5px 8px; font-size: 15px; }
+.leurres-aide { flex-basis: 100%; }
+/* Écran étroit : une mauvaise réponse par ligne, toute la largeur, la ✕ toujours visible. */
+@media (max-width: 700px) {
+  .leurres { margin-left: 0; }
+  .leurre { flex: 1 1 100%; min-width: 0; }
+  .leurre-texte { flex: 1; width: auto; min-width: 0; }
+}
 .blind-paroles { flex: none; margin-left: auto; padding: 4px 10px; border-radius: 999px; font-size: 14px; font-weight: 700; white-space: nowrap; }
 .blind-paroles.ok { color: #1d6b3a; background: #e3f6e9; }
 .blind-paroles.non { color: var(--bad, #b3261e); background: #fde8ee; }
@@ -1128,3 +1165,74 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
   .blind-chanson .blind-paroles + .blind-ecouter, .sons-playlist-chanson .blind-paroles + .tirage-retirer { margin-left: auto; }
   .blind-liste, .blind-complet-liste, .sons-playlist-liste { padding: 4px 0; }
 }
+
+/* Rangement des packs (cedric, 25/10) : une ligne par famille, une pastille par niveau (vert, bleu, violet). */
+.pastille-niveau { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; vertical-align: middle; background: var(--soft); }
+.pastille-niveau[data-niveau="Facile"] { background: #22a35a; }
+.pastille-niveau[data-niveau="Moyen"] { background: #2f7fd8; }
+.pastille-niveau[data-niveau="Difficile"] { background: #8a4fd8; }
+.chip .pastille-niveau { margin-right: 2px; }
+.q-familles { display: flex; flex-direction: column; gap: 10px; max-width: 1000px; }
+.q-famille { gap: 8px; }
+.q-famille .q-plier h2 { flex: 1; }
+.q-famille.vide .q-plier { opacity: .55; cursor: default; }
+.q-famille.vide .q-plier:hover { border-color: var(--line); }
+.famille-resume { display: flex; gap: 10px; color: var(--soft); font-weight: 700; font-size: 15px; }
+.famille-niveau { display: inline-flex; align-items: center; gap: 4px; }
+.q-famille > .cards { margin-left: 38px; }
+.item .pack-niveau { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; }
+.item .pack-niveau[data-niveau="Facile"] { color: #1d8a4c; }
+.item .pack-niveau[data-niveau="Moyen"] { color: #2468b8; }
+.item .pack-niveau[data-niveau="Difficile"] { color: #7442bd; }
+.item .pack-niveau.sans { color: var(--warn); font-weight: 700; }
+.pack-etiquettes { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.pack-etiquettes .row { gap: 12px; }
+.pack-etiquette { display: flex; flex-direction: column; gap: 4px; font-weight: 700; font-size: 15px; flex: 1 1 200px; }
+.fenetre-manque { margin: 0; color: var(--bad); font-weight: 700; }
+@media (max-width: 600px) {
+  .q-famille > .cards { margin-left: 0; }
+  .famille-resume { display: none; }
+}
+/* « 🎨 Mes thèmes » (cedric, 25/10) : les trois dés des packs, au-dessus des autres outils du Quiz. */
+.packs-ligne { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding-bottom: 12px; border-bottom: 1px dashed var(--line-2); }
+.packs-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.packs-tete > select { width: auto; flex: 0 1 auto; }
+.packs-des { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.packs-de-ligne { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.packs-de-ligne .packs-de { flex: none; font-size: 26px; line-height: 1; padding: 8px 22px; }
+.packs-de-texte { font-weight: 700; color: var(--ink); flex: 1 1 200px; min-width: 0; }
+/* Le Quiz (cedric, 25/10) : âge et total en tête ; chaque dé avec son âge et son nombre. */
+.quiz-age-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; padding-bottom: 12px; border-bottom: 1px dashed var(--line-2); }
+.quiz-age-ligne > select { width: auto; flex: 0 0 auto; max-width: 100%; }
+.quiz-total { margin-left: auto; padding: 6px 14px; border-radius: 999px; background: var(--violet-pale); color: var(--plum); font-weight: 800; white-space: nowrap; }
+.de-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.de-ligne > .quiz-ajout-champ { flex: 1 1 260px; min-width: 0; }
+.de-ligne > select { width: auto; flex: 0 0 auto; max-width: 100%; }
+.de-ligne .packs-de, .de-ligne .tirage-de { flex: none; align-self: center; font-size: 26px; line-height: 1; padding: 8px 22px; }
+.banque-ligne { padding-bottom: 12px; border-bottom: 1px dashed var(--line-2); }
+@media (max-width: 640px) { .quiz-total { margin-left: 0; } }
+.packs-case .tirage-q-ligne { flex-wrap: wrap; }
+.packs-case-theme { flex: 1 1 140px; min-width: 0; max-width: 260px; }
+/* Bibliothèque › Questions (cedric, 25/10) : le gros bouton d'import, à gauche de « ← Retour ». */
+.retour-barre.haut .importer-haut { font-size: 18px; padding: 12px 22px; }
+.retour-barre.haut .importer-haut[hidden] { display: none; }
+/* Un thème de ses packs parmi les puces d'une banque toute prête. */
+.chip.theme-pack:not(.active) { border-color: var(--violet); color: var(--violet); font-weight: 800; }
+/* Niveau d'une question (cedric, 25/10) : une pastille de couleur ; sur ses questions, un choix qui le change. */
+.q-niveau { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 800; color: #fff; background: var(--soft); white-space: nowrap; }
+.q-niveau[data-niveau="Facile"] { background: #22a35a; }
+.q-niveau[data-niveau="Moyen"] { background: #2f7fd8; }
+.q-niveau[data-niveau="Difficile"] { background: #8a4fd8; }
+select.q-niveau-choix { width: auto; min-width: 0; min-height: 0; border: 0; padding: 3px 26px 3px 10px; cursor: pointer; }
+select.q-niveau-choix option { color: var(--ink); background: var(--card); }
+/* Thème d'un pack à importer : un de ses thèmes (existant) ou un nouveau, au choix. */
+.pack-theme-etat { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.pack-theme-etat[data-etat="existant"] { background: var(--good-pale); color: var(--good); }
+.pack-theme-etat[data-etat="nouveau"] { background: var(--gold-pale); color: var(--warn); }
+.pack-theme-nom[hidden], .pack-theme-etat[hidden] { display: none; }
+/* Le thème de tous les packs, tout en haut de l'aperçu d'import. */
+.pack-theme-global { margin: 0 0 4px; padding: 12px 14px; border-radius: 16px; background: var(--violet-pale); border: 2px solid var(--violet); }
+.pack-theme-global .pack-etiquette { font-size: 17px; }
+.pack-theme-global .hint { margin: 6px 0 0; }
+.q-theme > .title-row { flex-wrap: nowrap; }
+.q-theme > .title-row > .q-plier { flex: 1 1 auto; min-width: 0; }

@@ -12,7 +12,7 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard, roundTirees,
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
   estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES,
-  chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND, JEUX_DE_CHANSONS,
+  chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND, JEUX_DE_CHANSONS, leurresDeLaManche, chansonsStatues,
   estJeuDeMots, seriesMots, motsDuJeu, MAX_MOTS, pictoToursBruts, pictoTours, pictoPropositions, pictoPassages,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
@@ -266,6 +266,10 @@ export function cleanRound(r, playlists = {}) {
       id: x.id.slice(0, 40), origine: x.origine, mots: x.mots.slice(0, MAX_MOTS),
       // Ancien anniversaire, série de la bibliothèque : son nom.
       ...(typeof x.titre === "string" && x.titre.trim() ? { titre: x.titre.trim().slice(0, 80) } : {}),
+      // Qui suis-je ? (cedric, 25/10) : une série piochée dans mes packs garde son dé, le mot tapé et l'âge.
+      ...(x.origine === "biblio" && ["hasard", "theme", "recherche"].includes(x.pioche?.mode)
+        ? { pioche: { mode: x.pioche.mode, ...(typeof x.pioche.terme === "string" && x.pioche.terme.trim() ? { terme: x.pioche.terme.trim().slice(0, 80) } : {}),
+          ...(PROFILES[x.pioche.profil] ? { profil: x.pioche.profil } : {}) } } : {}),
     })).filter((x) => x.mots.length) : [];
     const ordre = series.length && Object.values(r.ordreMots ?? {}).length ? motsDuJeu(r).map((x) => x.cle) : [];
     out = { type, count: r.count ?? BUILTIN_GAMES[type].count, ...(type === "disparu" && r.objects ? { objects: r.objects } : {}), ...photos,
@@ -289,7 +293,11 @@ export function cleanRound(r, playlists = {}) {
       ...(Number.isInteger(r.duration) && r.duration >= 15 && r.duration <= 180 ? { duration: r.duration } : {}),
       ...(mimePerTeam(r) ? { perTeam: mimePerTeam(r) } : {}), ...photos,
     };
-  } else if (type === "statues") out = { type, duration: r.duration ?? STATUES_SEC, ...(roundSongs(r, playlists).length ? { songs: roundSongs(r, playlists).map((t) => t.audioId) } : {}) };
+  } else if (type === "statues") {
+    // Vos chansons de la bibliothèque des sons (cedric, 24/10), sinon les extraits cochés dans les playlists (avant).
+    out = { type, duration: r.duration ?? STATUES_SEC, ...(chansonsStatues(r).length ? { chansons: chansonsStatues(r) }
+      : roundSongs(r, playlists).length ? { songs: roundSongs(r, playlists).map((t) => t.audioId) } : {}) };
+  }
   // Pictionary préparé par équipe (cedric, 24/10) : les passages de chaque équipe dans l'ordre des couleurs (cases
   // retirées comprises, en attente de leur 🎲), les mots proposés à chaque passage et le nombre de passages du 🎲.
   else if (type === "pictionary" && pictoToursBruts(r).some((ps) => ps.length)) {
@@ -307,9 +315,12 @@ export function cleanRound(r, playlists = {}) {
       ...(typeof x.playlistId === "string" && x.playlistId ? { playlistId: x.playlistId.slice(0, 40) } : {}),
     })).filter((x) => x.chansons.length);
     const ordre = series.length ? chansonsDe(r) : [];
+    // Quiz musical : les mauvaises réponses modifiées dans la prestation, par chanson (cedric, 24/10).
+    const leurres = leurresDeLaManche(r);
     out = {
       type, chansons: chansonsBrutes(r), ...(BLIND_NOMBRES.includes(r.nbChansons) ? { nbChansons: r.nbChansons } : {}),
       ...(series.length ? { seriesBlind: series, ...(Object.values(r.ordreBlind ?? {}).length ? { ordreBlind: ordre } : {}) } : {}),
+      ...(Object.keys(leurres).length ? { leurres } : {}),
     };
   } else if (MUSIC_GAMES[type]) out = roundTracks(r).length ? { type, tracks: roundTracks(r) } : { type, playlistId: r.playlistId };
   else if ((type === "zoom" || type === "flou") && roundPicks(r).length && !roundSeriesQuiz(r).length) out = { type, ...picks };
@@ -324,7 +335,9 @@ export function cleanRound(r, playlists = {}) {
     out = { type, ...(seul ? { quizId: seul } : seriesQuiz.length ? { seriesQuiz, ...(ordreQuiz.length ? { ordreQuiz } : {}) } : {}),
       ...(hasFinale(type) && r.finale > 0 ? { finale: Math.min(Math.floor(r.finale), 20) } : {}),
       ...(hasFinale(type) && r.finale > 0 && FACTEURS_FINALE.includes(r.facteur) && r.facteur !== FACTEURS_FINALE[0] ? { facteur: r.facteur } : {}),
-      ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}) };
+      ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}),
+      // L'âge de la première ligne du Quiz (cedric, 25/10), d'office pour ses dés.
+      ...(type === "quiz" && PROFILES[r.profil] ? { profil: r.profil } : {}) };
   } else {
     const ids = roundQuizIds(r);
     // Questions tirées au 🎲 (cedric, 23/10) : gardées dans la manche, avec le profil qui a servi au tirage.
@@ -338,7 +351,9 @@ export function cleanRound(r, playlists = {}) {
       ...(ids.length || !tirees.length ? { quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}) } : {}),
       ...(hasFinale(type) && r.finale > 0 ? { finale: r.finale } : {}),
       // Question des bougies enlevée de ce quiz (elle y est d'office, voir questionBougies).
-      ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}) };
+      ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}),
+      // L'âge de la première ligne du Quiz (cedric, 25/10), d'office pour ses dés.
+      ...(type === "quiz" && PROFILES[r.profil] ? { profil: r.profil } : {}) };
   }
   return { ...out, ...title, ...note, ...link };
 }
@@ -382,7 +397,12 @@ function serieNettoyee(x) {
   if (!questions.length) return null;
   // Le réglage du 🎲 : le profil (Quiz) ou le thème (Quiz illustré).
   return { ...base, ...(x.origine === "de" && PROFILES[x.profil] ? { profil: x.profil } : {}),
-    ...(x.origine === "de" && typeof x.famille === "string" && /^[a-z]{2,20}$/.test(x.famille) ? { famille: x.famille } : {}), questions };
+    ...(x.origine === "de" && typeof x.famille === "string" && /^[a-z]{2,20}$/.test(x.famille) ? { famille: x.famille } : {}),
+    // Série piochée dans les packs (« 🎨 Mes thèmes », cedric 25/10) : son dé et le mot tapé, pour la refaire.
+    ...(x.origine === "reprise" && ["hasard", "theme", "recherche"].includes(x.pioche?.mode)
+      ? { pioche: { mode: x.pioche.mode, ...(typeof x.pioche.terme === "string" && x.pioche.terme.trim() ? { terme: x.pioche.terme.trim().slice(0, 80) } : {}),
+        ...(PROFILES[x.pioche.profil] ? { profil: x.pioche.profil } : {}) } } : {}),
+    questions };
 }
 
 /**
@@ -505,6 +525,8 @@ export function fusionnerBlind(rounds) {
       ...garde, seriesBlind: series,
       // Rangé à la main dans l'un ou l'autre : l'ordre suit, celui du premier puis celui du second.
       ...(ordre(prev).length || ordre(r).length ? { ordreBlind: [...chansonsDe(prev), ...chansonsDe(r).filter((id) => !chansonsDe(prev).includes(id))] } : {}),
+      // Quiz musical : les mauvaises réponses rangées dans l'un ou l'autre suivent leurs chansons.
+      ...(prev.leurres || r.leurres ? { leurres: { ...(r.leurres ?? {}), ...(prev.leurres ?? {}) } } : {}),
     };
     out[out.length - 1].chansons = chansonsBrutes(out[out.length - 1]);
   }
@@ -598,7 +620,10 @@ export function mancheSummary(round, lib = {}) {
   if (r.type === "disparu" && r.photos === true) return `${roundPicks(r).length ? n(roundPicks(r).length) : `${r.count ?? BUILTIN_GAMES.disparu.count} au hasard`} · 📷 photos`;
   if (JEUX_DE_CHANSONS.includes(r.type) && chansonsDe(r).length) return `${chansonsDe(r).length} chanson${chansonsDe(r).length > 1 ? "s" : ""}`;
   if (MUSIC_GAMES[r.type]) return roundTracks(r).length ? n(roundTracks(r).length) : lib.playlists?.[r.playlistId]?.title ?? "playlist";
-  if (r.type === "statues") return `${r.duration ?? STATUES_SEC} s · ${roundSongs(r, lib.playlists).length ? n(roundSongs(r, lib.playlists).length) : "musique de la fête"}`;
+  if (r.type === "statues") {
+    const k = chansonsStatues(r).length;
+    return `${r.duration ?? STATUES_SEC} s · ${k ? `${k} chanson${k > 1 ? "s" : ""}` : roundSongs(r, lib.playlists).length ? n(roundSongs(r, lib.playlists).length) : "musique de la fête"}`;
+  }
   if (r.type === "pictionary" && pictoTours(r).some((ps) => ps.length)) {
     // Préparé par équipe (cedric, 24/10) : passages et mots proposés.
     const tours = pictoTours(r);

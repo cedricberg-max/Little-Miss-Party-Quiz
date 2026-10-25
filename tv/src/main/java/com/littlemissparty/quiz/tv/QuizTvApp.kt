@@ -190,8 +190,11 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, 
             pausedByDialog = false
         }
         QuitDialog(
+            code = state.code,
             paused = state.paused,
             onContinue = close,
+            // Game Show : l'accueil reste neutre pour les invités, « Lancer la fête ! » est ici à la télécommande.
+            onLaunch = if (Look.gs && state.phase == Phase.LOBBY && state.teams.isNotEmpty()) ({ close(); actions.next() }) else null,
             // La pause du menu dure jusqu'à la fermeture de la fenêtre des points.
             onPoints = { confirmQuit = false; pointsOpen = true },
             onRegie = { close(); actions.showRegie() },
@@ -245,7 +248,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, 
 @Composable
 private fun Playing(state: UiState.Playing, actions: TvActions) {
     when (state.phase) {
-        Phase.LOBBY -> if (Look.gs) LobbyGameShow(state, actions) else Lobby(state, actions)
+        Phase.LOBBY -> if (Look.gs) LobbyGameShow(state) else Lobby(state, actions)
         Phase.QUESTION, Phase.CLOSED, Phase.REVEAL ->
             if (state.intro) PresentationScreen(state, actions)
             else if (state.coffres != null || state.question?.isCoffres == true) CoffresScreen(state, actions)
@@ -434,8 +437,10 @@ private fun Locked(state: UiState.Locked, onRequestAgain: () -> Unit, onUpdate: 
 
 @Composable
 private fun QuitDialog(
+    code: String,
     paused: Boolean,
     onContinue: () -> Unit,
+    onLaunch: (() -> Unit)?,
     onPoints: () -> Unit,
     onRegie: () -> Unit,
     onTablette: () -> Unit,
@@ -466,9 +471,12 @@ private fun QuitDialog(
                 "Si vous quittez, la partie reste enregistrée\net sera proposée au prochain démarrage.",
                 color = Color.White.copy(alpha = 0.8f), fontSize = 20.sp, textAlign = TextAlign.Center,
             )
+            // Le code de la partie n'est plus sur l'accueil (cedric, 24/10) : il reste ici, pour une reprise.
+            Text("Code de la partie : $code", color = Palette.Gold, fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
             Spacer(Modifier.height(4.dp))
             val wide = Modifier.fillMaxWidth()
-            TvButton("Continuer la partie", onContinue, wide.focusRequester(focus), primary = true)
+            if (onLaunch != null) TvButton("Lancer la fête !  ▶", onLaunch, wide.focusRequester(focus), primary = true)
+            TvButton("Continuer la partie", onContinue, if (onLaunch == null) wide.focusRequester(focus) else wide, primary = onLaunch == null)
             TvButton("Donner des points", onPoints, wide, fontSize = 20.sp)
             TvButton("Reconnecter la régie", onRegie, wide, fontSize = 20.sp)
             TvButton("Reconnecter une tablette", onTablette, wide, fontSize = 20.sp)
@@ -479,7 +487,8 @@ private fun QuitDialog(
             TvButton("Quitter l'application", onQuit, wide, fontSize = 20.sp)
             TvButton("Terminer et lancer une nouvelle partie", onNewGame, wide, accent = Palette.Pink, fontSize = 20.sp)
         }
-        LaunchedEffect(Unit) { focus.requestFocus() }
+        // Une équipe arrive pendant que la fenêtre est ouverte : « Lancer la fête ! » apparaît et prend la sélection.
+        LaunchedEffect(onLaunch != null) { runCatching { focus.requestFocus() } }
     }
 }
 

@@ -86,6 +86,17 @@ before(async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch();
+  // La régie « cockpit » est la régie par défaut (cedric, 25/10) : ces tests pilotent la disposition d'avant
+  // (?cockpit=0, gardée sur le téléphone), mêmes boutons et mêmes actions ; le test « cockpit » ouvre la sienne
+  // avec ?cockpit=1.
+  const nouveauContexte = browser.newContext.bind(browser);
+  browser.newContext = async (options) => {
+    const contexte = await nouveauContexte(options);
+    await contexte.addInitScript(() => {
+      if (!/[?&]cockpit=1/.test(location.search)) localStorage.setItem("lmp-regie-cockpit", "0");
+    });
+    return contexte;
+  };
 });
 
 after(async () => {
@@ -260,6 +271,8 @@ async function demarrerBoite({ code, host }) {
   }
 
   stops.push(onValue(partie("teams"), (s) => { teams = s.val() ?? {}; }));
+  // Comme la TV : les tablettes n'entrent qu'une fois SA régie ouverte (cedric, 24/10).
+  stops.push(onValue(partie("regie"), (s) => { set(partie("regieActive"), s.exists()).catch(() => {}); }));
   // Prestation chargée au salon d'attente par la régie de CETTE partie : acceptée, conducteur et accueil publiés.
   stops.push(onValue(partie("show"), (s) => enFile(async () => {
     const show = s.val();
@@ -330,7 +343,7 @@ async function ouvrirPage(path) {
 
 /** L'animatrice scanne le QR code de SA TV, touche « Accès régie » et tape le mot de passe commun. */
 async function taperMotDePasse(page) {
-  await page.locator("#regie-open:not([hidden])").click();
+  await page.locator("#screen-gate.active #gate-regie, #regie-open:not([hidden])").first().click();
   await page.fill("#regie-password", PASSWORD);
   await page.click("#regie-go");
 }
@@ -339,7 +352,7 @@ const enRegie = (page, timeout = 30000) => page.locator("#regie:not([hidden])").
 /** Les trois animatrices entrent dans leur régie au même moment (un seul essai de mot de passe chacune). */
 async function troisRegies() {
   const regies = await Promise.all(FETES.map((f) => ouvrirPage(`/?g=${f.code}&emu=1`)));
-  await Promise.all(regies.map((p) => p.locator("#regie-open:not([hidden])").waitFor()));
+  await Promise.all(regies.map((p) => p.locator("#gate-regie:visible").waitFor()));
   await Promise.all(regies.map(taperMotDePasse));
   await Promise.all(regies.map((p) => enRegie(p)));
   return regies;
@@ -369,11 +382,9 @@ function tablette(fete, uid) {
   return {
     uid, fete,
     async rejoindre(name, color) {
-      // Comme le pupitre : l'équipe et sa couleur réservée dans la même écriture.
-      await update(ref(db, `games/${fete.code}`), {
-        [`teams/${uid}`]: { name, color, joinedAt: serverTimestamp() },
-        [`colors/${color.slice(1).toUpperCase()}`]: uid,
-      });
+      // Comme le pupitre : une demande sans nom ni couleur ; la box de SA fête l'inscrit (acceptée sur la régie).
+      await set(ref(db, `games/${fete.code}/joinRequests/${uid}`), { at: serverTimestamp() });
+      await admettre(fete, uid, name, color);
       await signaler();
     },
     repondre: (qid, choice) => set(ref(db, `games/${fete.code}/answers/${qid}/${uid}`), { choice, at: serverTimestamp() }),
@@ -383,12 +394,25 @@ function tablette(fete, uid) {
   };
 }
 
-/** Un pupitre (vraie page) rejoint la partie de sa fête sous le nom [name]. */
-async function pupitre(fete, name) {
+/**
+ * La box d'une fête inscrit une tablette acceptée par l'animatrice (nom et couleur choisis sur la régie), dans la même
+ * écriture que GameViewModel.admitDevice.
+ */
+async function admettre(fete, device, name, color) {
+  await update(ref(env.authenticatedContext(fete.host).database(), `games/${fete.code}`), {
+    [`teams/${device}`]: { name, color, joinedAt: serverTimestamp() },
+    [`colors/${color.slice(1).toUpperCase()}`]: device,
+    [`joinRequests/${device}`]: null,
+  });
+}
+
+/** Un pupitre (vraie page) entre dans la partie de sa fête sous le nom [name], en rose. */
+async function pupitre(fete, name, color = "#FF2D95") {
   const page = await ouvrirPage(`/?g=${fete.code}&emu=1`);
-  await page.locator("#screen-join.active").waitFor();
-  await page.fill("#team-name", name);
-  await page.click("#join");
+  await page.locator("#screen-waiting.active").waitFor();
+  const device = await page.locator("#screen-waiting").getAttribute("data-device");
+  await waitFor(() => lire(fete, `joinRequests/${device}`), `demande de la tablette chez ${fete.nom}`);
+  await admettre(fete, device, name, color);
   await page.locator("#screen-play.active").waitFor();
   return page;
 }
@@ -438,7 +462,7 @@ describe("trois fêtes en même temps sur trois box", () => {
     await Promise.all(FETES.map(demarrerBoite));
     const regies = await Promise.all(FETES.map((f) => ouvrirPage(`/?g=${f.code}&emu=1`)));
     const admin = await ouvrirPage("/admin.html?emu=1");
-    await Promise.all(regies.map((p) => p.locator("#regie-open:not([hidden])").waitFor()));
+    await Promise.all(regies.map((p) => p.locator("#gate-regie:visible").waitFor()));
     await admin.locator("#login:enabled").waitFor();
     // Un seul essai de mot de passe toutes les 2 secondes pour tous les appareils (regieGate/try) : quatre appareils
     // tapent au même moment, chacun doit attendre son tour tout seul, jamais « Trop d'essais » ni un mot de passe à retaper.

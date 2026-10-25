@@ -148,8 +148,8 @@
       </div>
       <div id="library-images">
         <p class="hint">
-          Toutes les images des jeux, en quatre groupes : les émojis, les photos libres de droits de la banque, vos
-          propres images et les pochettes des chansons. Rangez chacune de vos images (nom, catégorie, mots-clés) : la
+          Toutes les images des jeux, en cinq groupes : les images des packs importés d'abord, puis les émojis, les photos
+          libres de droits de la banque, vos propres images et les pochettes des chansons. Rangez chacune de vos images (nom, catégorie, mots-clés) : la
           recherche les retrouve ensuite en un mot pendant que vous préparez un quiz. Un clic montre l'image en grand ;
           « 📋 » la copie pour une question (puis « 📋 Coller » dans la question).
         </p>
@@ -212,7 +212,7 @@
       <div id="library-questions" hidden>
         <p class="hint">
           Toutes les questions des quiz : celles toutes prêtes de l'appli (quiz classique et quiz illustré, séparés), les
-          vôtres écrites en vrac (tous thèmes mélangés) et vos packs importés, rangés par thème. Une question sans
+          vôtres écrites en vrac (tous thèmes mélangés) et vos packs importés, rangés par famille et par niveau. Une question sans
           illustration est signalée par « ⚠ » (quiz classique : une image pour la révélation ; quiz illustré : une par réponse).
           Vos questions se suppriment une par une (« Supprimer ») ou plusieurs à la fois (cochez-les).
         </p>
@@ -224,19 +224,16 @@
         <p id="q-status" class="status" role="status"></p>
         <div id="pack-import" class="panel pack-import" hidden>
           <div class="title-row">
-            <h2>Importer des packs</h2>
-            <label class="btn file-btn">📥 Importer des packs JSON…
-              <input id="pack-file" type="file" multiple accept=".json,application/json,image/*" hidden>
+            <h2>Importer un pack</h2>
+            <label class="btn file-btn">📦 Importer un pack ZIP
+              <input id="pack-file" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
             </label>
           </div>
           <p class="hint small">
-            Un fichier JSON par pack, ou plusieurs packs dans un même fichier (« packs »). Chaque pack a son titre, son
-            thème et ses questions. Déposez les images avec le fichier : elles rejoignent les questions qui les nomment.
+            Choisissez le ZIP du pack, ou glissez-le ici, sans le décompresser : Quiz, Quiz illustré, Vrai ou Faux express,
+            Qui suis-je ? ou une série de photos pour le Zoom mystère et l'Image floue. La Régie l'ouvre, montre un aperçu,
+            puis l'enregistre quand vous confirmez. Tout reste modifiable ensuite (« Éditer »).
           </p>
-          <details class="hint small">
-            <summary>Voir un exemple de pack</summary>
-            <pre id="pack-exemple" class="pack-exemple"></pre>
-          </details>
           <p id="pack-status" class="status"></p>
         </div>
         <div id="q-list" class="q-list"></div>
@@ -457,7 +454,7 @@
         Importez vos propres fichiers musicaux (MP3, M4A, WAV…) : l'administration garde seulement l'extrait
         choisi, la TV le copie avant la partie et le joue même sans Internet. Une playlist sert au blind test
         (morceaux joués dans l'ordre, le premier qui buzze donne le titre, les derniers valent double) et au quiz musical
-        (4 titres proposés sur les pupitres).
+        (le vrai titre et 3 mots de son refrain proposés sur les pupitres).
       </p>
       <div id="playlist-list" class="cards"></div>
       <p class="hint small">
@@ -582,6 +579,8 @@
       <div class="panel grid">
         <label class="wide">Titre du quiz<input id="rv-title" maxlength="120"></label>
         <label>Thème<input id="rv-theme" maxlength="80"></label>
+        <label id="rv-famille-champ" hidden>Famille<select id="rv-famille"></select></label>
+        <label id="rv-niveau-champ" hidden>Niveau<select id="rv-niveau"></select></label>
         <label>Âge minimum<input id="rv-age-min" type="number" min="3" max="99"></label>
         <label>Âge maximum<input id="rv-age-max" type="number" min="3" max="99"></label>
       </div>
@@ -668,7 +667,7 @@
       <div class="panel" id="test-panel">
       <h2>Prestation de test</h2>
       <p class="hint">
-        Crée « ANNIVERSAIRE TEST – Léa, 9 ans », datée du jour, à 4 équipes : les 16 jeux, remplis au 🎲 comme pour une
+        Crée « <span id="test-titre">ANNIVERSAIRE TEST – Touktouka, 9 ans</span> », datée du jour, à 4 équipes : les 16 jeux, remplis au 🎲 comme pour une
         vraie fête, pour essayer la Régie PC, la régie et la TV ensemble. Les anciennes démos (anciennes prestations de
         test, leurs quiz, mimes, playlists, photos dessinées et comptines) sont effacées ; vos prestations, vos quiz et vos
         chansons ne sont jamais touchés. Un nouveau clic la refait à neuf.

@@ -32,7 +32,10 @@ const val ARM_TOLERANCE_MS = 250L
  */
 const val MULTIPLIER_INTRO_MS = 4_500L
 
-/** Blind test : une équipe qui s'est trompée peut rebuzzer sur le même morceau, 3 s après la reprise de la musique. */
+/**
+ * Une équipe qui s'est trompée peut rebuzzer sur la même question 3 s après la reprise : au blind test, la reprise de
+ * la musique ; aux autres jeux au buzzer, le verdict (cedric, 25/10, règle 2), ou la fin d'une pause.
+ */
 const val REBUZZ_DELAY_MS = 3_000L
 
 /** Vrai ou Faux express : temps de la révélation avant l'affirmation suivante. */
@@ -110,6 +113,8 @@ data class GameState(
      * correction de la régie…), même annulé ensuite : la prestation ne peut plus être remplacée ([Game.mayReplaceProgram]).
      */
     val scored: Boolean = false,
+    /** Bilan des scores d'un jeu quitté en cours de route ([GameLeft]) : le jeu où « suivant » mène ensuite. */
+    val leaveTo: String? = null,
 ) {
     val paused: Boolean get() = hold != null
 
@@ -201,6 +206,13 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     val question: Question? get() = state.index.takeIf { it >= 0 }?.let { quiz.questions.getOrNull(it) }
     val isLastQuestion: Boolean get() = state.index >= quiz.questions.lastIndex
+
+    /**
+     * Bilan des scores d'un jeu quitté en cours de route : la première question du jeu choisi par la régie, où
+     * « suivant » mène. Null hors de ce bilan, ou si ce jeu a disparu du programme (« suivant » reprend alors l'ordre).
+     */
+    val leaveTarget: Int? get() = state.leaveTo?.takeIf { state.phase == Phase.SCORES }
+        ?.let { id -> quiz.questions.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
 
     /** Millisecondes restantes au chrono à l'instant [now]. */
     fun remainingMs(now: Long): Long {
@@ -372,6 +384,13 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             else s.copy(phase = Phase.REVEAL, awards = s.awards + (e.qid to e.awards))
         is FactorChosen ->
             if (e.factor !in FACTORS || doubleRunStart(e.start) != e.start) null else s.copy(factors = s.factors + (e.start to e.factor))
+        is GameLeft ->
+            if (s.intro || (s.phase != Phase.QUESTION && s.phase != Phase.CLOSED && s.phase != Phase.REVEAL) || quiz.questions.none { it.id == e.qid }) null
+            // La pause est levée, comme pour un saut : le chrono s'arrête, le tour de mimes ou la mèche aussi.
+            else s.copy(
+                phase = Phase.SCORES, hold = null, resumeAt = null, segments = closeSegments(s, e.at), mime = null, buzz = null,
+                potato = null, leaveTo = e.qid,
+            )
         is ScoresShown -> when {
             s.paused -> null
             s.phase == Phase.REVEAL -> s.copy(phase = Phase.SCORES)
@@ -648,7 +667,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             }
             // Blind test, mauvaise réponse : la musique attend la relance ; l'équipe pourra rebuzzer 3 s après la reprise.
             else if (q.isBlind) s.copy(buzz = b.copy(team = null, blocked = (b.blocked + team).distinct(), tries = b.tries + 1, waiting = true))
-            // Mauvaise réponse : l'équipe est bloquée sur cette image, le chrono repart.
+            // Mauvaise réponse : le chrono repart ; l'équipe pourra rebuzzer 3 s après ce verdict (règle 2, voir [rebuzzAt]).
             else s.copy(buzz = b.copy(team = null, blocked = b.blocked + team, tries = b.tries + 1), segments = s.segments + Segment(e.at))
         }
     }
@@ -657,7 +676,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * Question [q] ouverte : chrono lancé, ou manche de mimes sans chrono (il part au tour de chaque équipe).
      * Une manche de mimes rouverte (jeu rejoué) repart de zéro : ses mimes ne comptent jamais deux fois.
      */
-    private fun open(s0: GameState, index: Int, q: Question, at: Long): GameState = s0.copy(potato = null).let { s ->
+    private fun open(s0: GameState, index: Int, q: Question, at: Long): GameState = s0.copy(potato = null, leaveTo = null).let { s ->
         if (q.isTurns) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null,
             mimes = s.mimes - q.id, mime = MimeRound(deck = q.cards.indices.toList()), turnPoints = s.turnPoints + (q.id to q.foundPoints),
@@ -740,7 +759,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             nextTrack() != null -> openQuestion(state.index + 1, now)
             else -> emit(ScoresShown(nextSeq, now))
         }
-        Phase.SCORES -> if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
+        Phase.SCORES -> leaveTarget?.let { goto(it, now) } ?: if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
         Phase.ENDED -> null
     }
 
@@ -831,6 +850,21 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             log.any { (it is QuestionOpened && it.qid in ids) || (it is Jumped && it.qid in ids) }
         val clear = if (replay) ids else emptyList()
         return emit(Jumped(nextSeq, now, round.first, quiz.questions[round.first].id, clear))
+    }
+
+    /**
+     * Changement de jeu demandé par la régie : quitter le jeu en cours pour un autre jeu passe d'abord par le bilan
+     * des scores, comme la fin normale d'un jeu ([GameLeft], cedric 24/10) ; « suivant » y saute ensuite ([goto]).
+     * Recommencer le jeu en cours, ou changer de jeu depuis un classement, une présentation, le salon ou la fin :
+     * le saut est immédiat.
+     */
+    fun changeGame(index: Int, now: Long): GameEvent? {
+        if (index !in quiz.questions.indices) return null
+        val enCours = !state.intro && state.index >= 0 &&
+            (state.phase == Phase.QUESTION || state.phase == Phase.CLOSED || state.phase == Phase.REVEAL)
+        val cible = roundOf(index).first
+        if (!enCours || cible == roundOf(state.index).first) return goto(index, now)
+        return emit(GameLeft(nextSeq, now, quiz.questions[cible].id))
     }
 
     fun pause(now: Long, reason: String = PAUSE_REGIE, team: String? = null): GameEvent? =
@@ -1047,14 +1081,15 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun blindUnblock(now: Long): GameEvent? = emit(BuzzUnblocked(nextSeq, now))
 
     /**
-     * Blind test : heure à partir de laquelle les équipes qui se sont trompées peuvent rebuzzer sur ce morceau
-     * (3 s après la reprise de la musique, après le décompte 3, 2, 1 s'il y en a un) ; null hors musique en cours.
+     * Heure à partir de laquelle les équipes qui se sont trompées peuvent rebuzzer sur cette question : 3 s après la
+     * reprise du chrono (blind test : de la musique ; autres jeux au buzzer : le verdict), après le décompte 3, 2, 1 s'il
+     * y en a un ; null quand le chrono est arrêté (buzz en cours, musique en attente, pause).
      */
     fun rebuzzAt(): Long? = rebuzzAtIn(state)
 
     private fun rebuzzAtIn(s: GameState): Long? {
         val seg = s.segments.lastOrNull()
-        if (s.phase != Phase.QUESTION || quiz.questions.getOrNull(s.index)?.isBlind != true || s.buzz?.waiting != false || seg == null || seg.end != null) return null
+        if (s.phase != Phase.QUESTION || s.buzz?.waiting != false || seg == null || seg.end != null) return null
         return seg.start + REBUZZ_DELAY_MS
     }
 

@@ -35,6 +35,24 @@ class UpdateTest {
     }
 
     @Test
+    fun `une appli de plusieurs centaines de Mo est acceptée, jusqu'à 2 Go`() {
+        fun avecTaille(size: Long) = Release.parse(
+            """{"versionCode":569,"versionName":"0.1.569","url":"a.apk","sha256":"$sha","size":$size}""",
+        )
+        assertEquals(274_137_157, avecTaille(274_137_157).size, "La 0.1.569 était refusée par la limite de 200 Mo")
+        assertEquals(Release.MAX_APK_BYTES, avecTaille(Release.MAX_APK_BYTES).size)
+        assertFailsWith<IllegalArgumentException> { avecTaille(Release.MAX_APK_BYTES + 1) }
+        assertFailsWith<IllegalArgumentException> { avecTaille(0) }
+    }
+
+    @Test
+    fun `place à prévoir sur la box, deux copies de l'APK plus la marge`() {
+        val r = release.copy(size = 274_137_157)
+        assertEquals(2 * 274_137_157L + UPDATE_SPARE_BYTES, r.spaceNeeded())
+        assertTrue(r.spaceNeeded() < 1_300_000_000, "La Mi Box de cedric (1,3 Go libres) peut se mettre à jour")
+    }
+
+    @Test
     fun `l'APK attendu, plus récent, signé par la même clé, est accepté`() {
         assertNull(verifyApk(release, good, pkg, 57, key))
     }
