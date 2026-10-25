@@ -52,13 +52,26 @@ export function lirePersonnages(data, nomFichier) {
 export function chercheurImages(images) {
   const exacts = new Map();
   const sans = new Map();
+  const garder = (map, cle, f) => { if (!map.has(cle)) map.set(cle, f); };
   for (const f of images) {
     const cle = imageKey(f.nom);
-    if (!exacts.has(cle)) exacts.set(cle, f);
-    if (!sans.has(sansExtension(cle))) sans.set(sansExtension(cle), f);
+    const dossier = dossierDe(f.chemin);
+    garder(exacts, cle, f);
+    garder(sans, sansExtension(cle), f);
+    garder(exacts, `${dossier}\u0000${cle}`, f);
+    garder(sans, `${dossier}\u0000${sansExtension(cle)}`, f);
   }
-  return (nom) => exacts.get(imageKey(nom)) ?? sans.get(sansExtension(imageKey(nom))) ?? null;
+  // [dossier] : celui du fichier de données ; ses images passent avant celles d'un autre dossier du même nom (un ZIP
+  // qui range plusieurs packs, un dossier chacun).
+  return (nom, dossier = null) => {
+    const cle = imageKey(nom);
+    const ici = dossier == null ? null : exacts.get(`${dossier}\u0000${cle}`) ?? sans.get(`${dossier}\u0000${sansExtension(cle)}`);
+    return ici ?? exacts.get(cle) ?? sans.get(sansExtension(cle)) ?? null;
+  };
 }
+
+/** Dossier d'un chemin du ZIP (« » à la racine). */
+export const dossierDe = (chemin) => (`${chemin ?? ""}`.includes("/") ? chemin.slice(0, chemin.lastIndexOf("/")) : "");
 
 const estVraiFaux = (q) => q.kind !== "number" && q.choices?.length === 2 && q.choices.map((c) => `${c}`.toLowerCase()).join("/") === "vrai/faux";
 
@@ -164,11 +177,13 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
       if (!questions.length) { erreurs.push(`« ${p.title || f.nom} » : aucune question complète (il faut des propositions, ou un nombre pour le Juste Chiffre).`); continue; }
       // Images attendues : celle de la révélation, celles des propositions ; absentes = simple alerte.
       const manquantes = [];
+      const dossier = dossierDe(f.chemin);
       questions.forEach((q, i) => {
-        if (q.revealFile) { if (trouver(q.revealFile)) servies.add(imageKey(trouver(q.revealFile).nom)); else manquantes.push({ q: i, case: null, fichier: q.revealFile }); }
+        const trouvee = (nom) => trouver(nom, dossier);
+        if (q.revealFile) { if (trouvee(q.revealFile)) servies.add(trouvee(q.revealFile).chemin); else manquantes.push({ q: i, case: null, fichier: q.revealFile }); }
         (q.imageFiles ?? []).forEach((nom, k) => {
           if (!nom) return;
-          if (trouver(nom)) servies.add(imageKey(trouver(nom).nom));
+          if (trouvee(nom)) servies.add(trouvee(nom).chemin);
           else manquantes.push({ q: i, case: k, fichier: nom });
         });
       });
@@ -178,11 +193,11 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
         : questions.filter((q) => q.kind !== "number").length && questions.every((q) => q.kind === "number" || estVraiFaux(q)) ? "vraifaux" : "quiz";
       packs.push({
         epreuve, titre: p.title || p.theme || nomDuDossier(fichiers, nomZip) || "Pack sans titre", theme: p.theme || "",
-        ageMin: p.ageMin ?? null, ageMax: p.ageMax ?? null, ...etiquettesDu(p), questions, manquantes, aCorriger, ignorees, fichierDonnees: f.nom,
+        ageMin: p.ageMin ?? null, ageMax: p.ageMax ?? null, ...etiquettesDu(p), dossier, questions, manquantes, aCorriger, ignorees, fichierDonnees: f.nom,
       });
     }
   }
-  const inutiles = images.filter((f) => !servies.has(imageKey(f.nom)));
+  const inutiles = images.filter((f) => !servies.has(f.chemin));
   laisses.push(...inutiles.map((f) => f.nom));
   return { packs: erreurs.length ? [] : packs, erreurs, laisses };
 }

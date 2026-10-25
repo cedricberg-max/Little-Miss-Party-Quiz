@@ -8157,8 +8157,8 @@ async function importerPackZip(zip, statut = "pack-status") {
   const aRanger = new Map();
   const prets = new Map();
   let n = 0;
-  const preparer = async (nom, pour) => {
-    const f = parNom(nom);
+  const preparer = async (nom, pour, dossier = null) => {
+    const f = parNom(nom, dossier);
     if (!f) return null;
     const cle = `${pour}:${f.chemin}`;
     if (prets.has(cle)) return prets.get(cle);
@@ -8192,14 +8192,14 @@ async function importerPackZip(zip, statut = "pack-status") {
       }
       for (const [i, q] of p.questions.entries()) {
         if (q.revealFile) {
-          const id = await preparer(q.revealFile, "revelation");
+          const id = await preparer(q.revealFile, "revelation", p.dossier);
           if (id) q.imageId = id;
           else if (!p.manquantes.some((m) => m.q === i && m.case == null)) p.manquantes.push({ q: i, case: null, fichier: q.revealFile });
         }
         if (q.imageFiles) {
           q.choiceImages = [];
           for (const [k, nom] of q.imageFiles.slice(0, 4).entries()) {
-            const id = nom ? await preparer(nom, "case") : null;
+            const id = nom ? await preparer(nom, "case", p.dossier) : null;
             q.choiceImages[k] = id;
             if (nom && !id && !p.manquantes.some((m) => m.q === i && m.case === k)) p.manquantes.push({ q: i, case: k, fichier: nom });
           }

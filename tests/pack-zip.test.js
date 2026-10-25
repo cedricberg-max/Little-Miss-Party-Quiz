@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { faireZip } from "./zip-outil.js";
 import { lireZip, cheminSur, estFichierSysteme } from "../web/public/zip.js";
-import { analyserPack, IMAGE_MANQUANTE, MAX_PHOTOS_SERIE, lirePersonnages } from "../web/public/pack-zip.js";
+import { analyserPack, IMAGE_MANQUANTE, MAX_PHOTOS_SERIE, lirePersonnages, chercheurImages } from "../web/public/pack-zip.js";
 import { FAMILLES, NIVEAUX, lireFamille, lireNiveau, niveauDesAges, niveauDuQuiz, familleDuQuiz, parFamille } from "../web/public/rangement.js";
 
 const texte = async (f) => new TextDecoder().decode(await f.lire());
@@ -206,5 +206,22 @@ describe("rangement des packs : famille et niveau (cedric, 25/10)", () => {
     ({ packs, erreurs } = analyserPack([fichier("savane/pack.json", JSON.stringify({ title: "Animaux de la savane", famille: "Animaux et nature", niveau: "Facile" })), fichier("savane/lion.jpg"), fichier("savane/zebre.jpg")]));
     assert.deepEqual(erreurs, []);
     assert.deepEqual([packs[0].epreuve, packs[0].titre, packs[0].famille, packs[0].niveau, packs[0].questions.length], ["photos", "Animaux de la savane", "Animaux et nature", "Facile", 2]);
+  });
+
+  test("un ZIP pour trois niveaux (et plusieurs jeux) : un pack par fichier ; une image du même nom est prise dans le dossier du pack", () => {
+    const pack = (niveau, choices = ["Rumi", "Mira"]) => JSON.stringify({ title: "K-pop Demon Hunters", famille: "Musique", niveau,
+      questions: [{ text: `Qui chante ? (${niveau})`, choices, correct: 0, image: "kdh-q01-revelation.jpg" }] });
+    const fichiers = [
+      fichier("kdh/facile/pack-facile.json", pack("Facile")), fichier("kdh/facile/kdh-q01-revelation.jpg"),
+      fichier("kdh/moyen/pack-moyen.json", pack("Moyen")), fichier("kdh/moyen/kdh-q01-revelation.jpg"),
+      fichier("kdh/qui/pack-qui-suis-je.json", JSON.stringify({ serie: "K-pop Demon Hunters", famille: "Musique", niveau: "Moyen", personnages: [{ reponse: "Rumi", indices: ["Je chante", "Je chasse"] }] })),
+    ];
+    const { packs, erreurs, laisses } = analyserPack(fichiers);
+    assert.deepEqual(erreurs, []);
+    assert.deepEqual(packs.map((p) => [p.epreuve, p.titre, p.niveau]), [["quiz", "K-pop Demon Hunters", "Facile"], ["quiz", "K-pop Demon Hunters", "Moyen"], ["quisuis", "K-pop Demon Hunters", "Moyen"]]);
+    assert.deepEqual(laisses, []);
+    const trouver = chercheurImages(fichiers.filter((f) => f.nom.endsWith(".jpg")));
+    assert.equal(trouver("kdh-q01-revelation.jpg", packs[0].dossier).chemin, "kdh/facile/kdh-q01-revelation.jpg");
+    assert.equal(trouver("kdh-q01-revelation.jpg", packs[1].dossier).chemin, "kdh/moyen/kdh-q01-revelation.jpg");
   });
 });
