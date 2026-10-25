@@ -266,6 +266,10 @@ export function cleanRound(r, playlists = {}) {
       id: x.id.slice(0, 40), origine: x.origine, mots: x.mots.slice(0, MAX_MOTS),
       // Ancien anniversaire, série de la bibliothèque : son nom.
       ...(typeof x.titre === "string" && x.titre.trim() ? { titre: x.titre.trim().slice(0, 80) } : {}),
+      // Qui suis-je ? (cedric, 25/10) : une série piochée dans mes packs garde son dé, le mot tapé et l'âge.
+      ...(x.origine === "biblio" && ["hasard", "theme", "recherche"].includes(x.pioche?.mode)
+        ? { pioche: { mode: x.pioche.mode, ...(typeof x.pioche.terme === "string" && x.pioche.terme.trim() ? { terme: x.pioche.terme.trim().slice(0, 80) } : {}),
+          ...(PROFILES[x.pioche.profil] ? { profil: x.pioche.profil } : {}) } } : {}),
     })).filter((x) => x.mots.length) : [];
     const ordre = series.length && Object.values(r.ordreMots ?? {}).length ? motsDuJeu(r).map((x) => x.cle) : [];
     out = { type, count: r.count ?? BUILTIN_GAMES[type].count, ...(type === "disparu" && r.objects ? { objects: r.objects } : {}), ...photos,

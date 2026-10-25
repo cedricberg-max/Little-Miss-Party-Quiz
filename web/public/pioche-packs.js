@@ -8,7 +8,7 @@
  * Jamais une question déjà dans la prestation ni retirée (✕) ; d'abord celles du niveau de la prestation, puis les
  * autres s'il en manque (le niveau d'une question changé à la main passe avant celui de son pack). Fonctions pures, testées.
  */
-import { playable, quizKind } from "./show.js";
+import { playable, quizKind, illustreQuestions, expressQuestions, zoomQuestions, estJeuDePhotos } from "./show.js";
 import { niveauDuQuiz, lireNiveau, themeDuQuiz, cleTheme } from "./rangement.js";
 import { contientTout, parPertinence, sansAccent } from "./recherche.js";
 
@@ -21,14 +21,31 @@ export const niveauDesPacks = (niveau) => NIVEAUX[niveau - 1] ?? null;
 const auQuiz = (q) => q.kind === "number" || (q.choices ?? []).filter((c) => `${c ?? ""}`.trim()).length === 4;
 
 /**
- * Les questions des packs importés jouables au Quiz (ni Quiz illustré, ni photos, ni Vrai / Faux) :
- * `{ id, quizId, titre, theme, niveau, q }`. [exclure] : identifiants de quiz à laisser (prestations de test…).
+ * Les questions d'un pack jouables dans le jeu [jeu] (cedric, 25/10 : la carte du Quiz pour chaque jeu) : au Quiz, ses
+ * quiz à 4 réponses ; au Quiz illustré, ses quiz illustrés ; au Vrai ou Faux express, ses Vrai / Faux ; au Zoom
+ * mystère et à l'Image floue, ses séries de photos.
  */
-export function catalogueDesPacks(quizzes = {}, exclure = () => false) {
+const QUESTIONS_DU_JEU = {
+  quiz: (quiz) => (quizKind(quiz) === "classique" ? playable(quiz).filter(auQuiz) : []),
+  illustre: (quiz) => illustreQuestions(quiz),
+  express: (quiz) => (quizKind(quiz) === "classique" ? expressQuestions(quiz) : []),
+  photos: (quiz) => (quizKind(quiz) === "images" ? zoomQuestions(quiz) : []),
+};
+const questionsDuJeu = (jeu) => QUESTIONS_DU_JEU[estJeuDePhotos(jeu) ? "photos" : jeu] ?? QUESTIONS_DU_JEU.quiz;
+/** Ce qui rend une question unique dans la prestation : sa photo au Zoom et à l'Image floue, son texte ailleurs. */
+export const cleDePack = (q, jeu = "quiz") => (estJeuDePhotos(jeu) ? `i:${q.imageId}` : q.text);
+
+/**
+ * Les questions des packs importés (aux photos : de toutes mes séries) jouables dans le jeu [jeu] : `{ id, quizId, titre, theme, niveau, cle, q }`.
+ * [exclure] : identifiants de quiz à laisser (prestations de test…).
+ */
+export function catalogueDesPacks(quizzes = {}, exclure = () => false, jeu = "quiz") {
+  const duJeu = questionsDuJeu(jeu);
   return Object.entries(quizzes ?? {})
-    .filter(([id, quiz]) => quiz?.pack === true && quiz.title && !exclure(id) && quizKind(quiz) === "classique")
-    .flatMap(([id, quiz]) => playable(quiz).filter(auQuiz).map((q, k) => ({
-      id: `${id}:${k}`, quizId: id, titre: quiz.title, theme: themeDuQuiz(quiz), niveau: lireNiveau(q.niveau) ?? niveauDuQuiz(quiz), q,
+    // Au Zoom mystère et à l'Image floue, toutes mes séries de photos, importées ou faites à la main (cedric, 25/10).
+    .filter(([id, quiz]) => (quiz?.pack === true || (estJeuDePhotos(jeu) && quizKind(quiz ?? {}) === "images")) && quiz.title && !exclure(id))
+    .flatMap(([id, quiz]) => duJeu(quiz).map((q, k) => ({
+      id: `${id}:${k}`, quizId: id, titre: quiz.title, theme: themeDuQuiz(quiz), niveau: lireNiveau(q.niveau) ?? niveauDuQuiz(quiz), cle: cleDePack(q, jeu), q,
     })));
 }
 
@@ -48,7 +65,7 @@ export function packsQuiRepondent(catalogue, terme, exclus = new Set()) {
   if (!`${terme ?? ""}`.trim()) return [];
   const parTheme = new Map();
   for (const x of catalogue) {
-    if (exclus.has(x.q.text) || !repond([x.theme, x.titre].filter(Boolean), terme)) continue;
+    if (exclus.has(x.cle ?? x.q.text) || !repond([x.theme, x.titre].filter(Boolean), terme)) continue;
     const cle = cleTheme(x.theme) || x.theme;
     const p = parTheme.get(cle) ?? { titre: x.theme, packs: new Set(), n: 0 };
     p.n += 1;
@@ -82,7 +99,8 @@ function prendre(liste, k, niveau, hasard) {
 export function piocherDansLesPacks(catalogue, n, { mode = "hasard", terme = "", niveau = null, exclus = new Set() } = {}, hasard = Math.random) {
   const vus = new Set();
   // Une même question (même texte) dans deux packs ne compte qu'une fois.
-  const libres = catalogue.filter((x) => !exclus.has(x.q.text) && !vus.has(x.q.text) && vus.add(x.q.text));
+  const cle = (x) => x.cle ?? x.q.text;
+  const libres = catalogue.filter((x) => !exclus.has(cle(x)) && !vus.has(cle(x)) && vus.add(cle(x)));
   if (mode === "recherche") return prendre(libres.filter((x) => serapporte(x, terme)), n, niveau, hasard);
   if (mode === "theme" && `${terme}`.trim()) {
     const du = libres.filter((x) => serapporte(x, terme));
@@ -97,9 +115,23 @@ export function piocherDansLesPacks(catalogue, n, { mode = "hasard", terme = "",
   return prendre(libres, n, niveau, hasard);
 }
 
-/** Une question piochée telle qu'elle est gardée dans la manche (réponses mélangées : la bonne pas toujours la A). */
-export function versQuestionDePack(x, hasard = Math.random) {
+/**
+ * Une question piochée telle qu'elle est gardée dans la manche du jeu [jeu] : au Quiz et au Quiz illustré, réponses
+ * mélangées (la bonne pas toujours la A ; au Quiz illustré, chacune garde son image) ; Vrai / Faux et photos tels quels.
+ */
+export function versQuestionDePack(x, hasard = Math.random, jeu = "quiz") {
   const q = x.q;
+  const choix = () => (Array.isArray(q.choices) ? q.choices : Object.values(q.choices ?? {}));
+  if (estJeuDePhotos(jeu)) return { id: `i:${q.imageId}`, text: q.text, choices: [...choix()], correct: q.correct, imageId: q.imageId };
+  if (jeu === "express") return { id: `pk-${x.id}`, text: q.text, choices: [...choix()].slice(0, 2), correct: q.correct };
+  if (jeu === "illustre") {
+    const images = choix().map((_, k) => (IMAGE_ID.test(q.choiceImages?.[k] ?? "") ? q.choiceImages[k] : ""));
+    const ordre = melanger(choix().map((_, k) => k).slice(0, 4), hasard);
+    return {
+      id: `pk-${x.id}`, text: q.text, choices: ordre.map((k) => choix()[k]), correct: ordre.indexOf(q.correct),
+      ...(images.some(Boolean) ? { choiceImages: ordre.map((k) => images[k]) } : {}), ...(IMAGE_ID.test(q.imageId ?? "") ? { imageId: q.imageId } : {}),
+    };
+  }
   if (q.kind === "number") return { id: `pk-${x.id}`, text: q.text, nombre: true, correct: q.correct };
   const choices = melanger(q.choices.slice(0, 4), hasard);
   return {

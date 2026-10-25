@@ -489,17 +489,9 @@ async function ajouterJeu(page, type = "quiz") {
  * le quiz [id] (une série de plus).
  */
 async function integrerQuiz(round, id, texte) {
-  // Au Quiz, la ligne n'existe plus (cedric, 25/10) : le quiz s'ajoute par le crochet de test de l'émulateur.
-  if (await round.locator(".quiz-biblio-cherche").count() === 0) {
-    const i = Number(await round.getAttribute("data-manche"));
-    assert.equal(await round.page().evaluate(([k, q]) => window.__integrerQuiz(k, q), [i, id]), true, `quiz « ${texte} » ajouté`);
-    return;
-  }
-  const series = round.locator(".quiz-series > li.serie");
-  const avant = await series.count();
-  await round.locator(".quiz-biblio-cherche").fill(texte);
-  await round.locator(`.quiz-biblio-item[data-quiz="${id}"]`).click();
-  await series.nth(avant).waitFor();
+  // La ligne n'existe plus (cedric, 25/10) : le quiz s'ajoute par le crochet de test de l'émulateur.
+  const i = Number(await round.getAttribute("data-manche"));
+  assert.equal(await round.page().evaluate(([k, q]) => window.__integrerQuiz(k, q), [i, id]), true, `quiz « ${texte} » ajouté`);
 }
 
 /** « ↺ Reprendre une manche déjà faite » (cedric, 23/10) : ouvre la liste sous la manche, puis prend la manche [cle]. */
@@ -5677,15 +5669,19 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator(`#q-list .pack[data-pack="${id}"] .pack-niveau.sans`, { hasText: "Niveau à choisir dans « Éditer »" }).waitFor();
     assert.equal(await page.locator("#q-list .photos-nouvelle").textContent(), "📷 Nouvelle série de photos");
     await page.locator('#q-groups [data-groupe="miennes"]', { hasText: "(0)" }).waitFor();
-    // Image floue (cedric, 23/10 : comme le Quiz) : la série de photos s'intègre par sa recherche, avec ses 3 photos.
+    // Image floue (cedric, 25/10 : la carte du Quiz) : la série de photos faite à la main se pioche aux dés de « Mes packs ».
     await page.click("#nav button[data-screen=home]");
     await page.click("#home-new");
     await ajouterJeu(page, "flou");
     const round = page.locator("#show-rounds .round").nth(0);
-    await round.locator(".quiz-biblio-cherche").fill("monu");
-    await round.locator(`.quiz-biblio-item[data-quiz="${id}"]`, { hasText: "3 photos" }).click();
+    assert.equal(await round.locator(".packs-ligne").getAttribute("data-packs"), "3");
+    await round.locator(".packs-recherche").fill("monu");
+    await round.locator(".packs-suggestion", { hasText: "Monuments et animaux" }).click();
+    await round.locator("select.de-nombre-recherche").selectOption("3");
+    await round.locator(".packs-de-recherche").click();
     await round.locator(".round-head > .quiz-compteur", { hasText: "3 photos" }).waitFor();
-    assert.equal(await round.locator(".quiz-series .serie-voir").textContent(), "▸ 📚 Série de photos « Monuments et animaux » : 3 photos");
+    assert.equal(await round.locator(".quiz-total").textContent(), "Total : 3 cartes à deviner");
+    assert.equal(await round.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Image floue complète : 3 photos, dans l'ordre de passage");
     await page.context().close();
   });
 
@@ -5817,10 +5813,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
     await ajouterJeu(page, "express");
-    // « 📗 Intégrer un Vrai / Faux de la bibliothèque » (cedric, 23/10 et 24/10) : seulement ses Vrai / Faux.
+    // Un quiz de la bibliothèque dans le Vrai ou Faux (crochet de test ; la ligne n'existe plus) : seulement ses Vrai / Faux.
     const manche = page.locator("#show-rounds .round").nth(0);
-    await manche.locator(".quiz-biblio-cherche").fill("scien");
-    await manche.locator('.quiz-biblio-item[data-quiz="sciences"]', { hasText: "2 affirmations" }).click();
+    await integrerQuiz(manche, "sciences", "scien");
     await manche.locator(".round-head > .quiz-compteur", { hasText: "2 affirmations" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
@@ -5920,8 +5915,10 @@ describe("bibliothèque de quiz et prestations", () => {
     const premiere = page.locator("#show-rounds .round").nth(0);
     assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((l) => l.map((x) => x.dataset.jeu)), ["illustre", "quiz"]);
     assert.equal(await premiere.locator("select.finale").inputValue(), "1");
-    // Le Quiz illustré a l'architecture du Quiz (cedric, 23/10) : le quiz illustré en est une série.
-    assert.deepEqual(await premiere.locator(".quiz-series > li.serie").evaluateAll((xs) => xs.map((x) => x.dataset.origine)), ["quiz"]);
+    // Le Quiz illustré a la carte du Quiz (cedric, 25/10) : l'âge et le total, mes packs, le tout prêt, le rappel ; pas de liste des séries.
+    assert.deepEqual(await premiere.locator(".quiz-outils > *").evaluateAll((els) => els.map((e) => e.className)),
+      ["quiz-age-ligne", "packs-ligne", "banque-ligne", "quiz-ajouts quiz-rappel"]);
+    assert.equal(await premiere.locator(".quiz-series").count(), 0);
     // Le Quiz n'intègre plus de quiz de la bibliothèque (cedric, 25/10) : ses dés et « Rappeler un de vos quiz ».
     const seconde = page.locator("#show-rounds .round").nth(1);
     assert.equal(await seconde.locator(".quiz-biblio").count(), 0);
@@ -5969,7 +5966,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const PNG = `data:image/png;base64,${png([200, 120, 60]).toString("base64")}`;
     const ids = ["1111111111111111", "2222222222222222", "3333333333333333", "4444444444444444"];
     const PETITS = {
-      title: "Les animaux des petits", kind: "photo", source: "banque", updatedAt: 1,
+      title: "Les animaux des petits", kind: "photo", source: "banque", updatedAt: 1, pack: true, niveau: "Facile",
       questions: [
         { text: "Où est le chat ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 0, status: "validee", choiceImages: ids },
         { text: "Où est le lion ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 3, status: "validee", choiceImages: ids },
@@ -5992,19 +5989,26 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-age", "5");
     await ajouterJeu(page, "illustre");
     const round = page.locator("#show-rounds .round").nth(0);
-    const ligne = round.locator(".quiz-outils > .tirage-ligne");
+    const ligne = round.locator(".banque-ligne .tirage-ligne");
     const compteur = round.locator(".round-head > .quiz-compteur");
-    const series = round.locator(".quiz-series > li.serie");
-    const origines = () => series.evaluateAll((xs) => xs.map((x) => x.dataset.origine));
-    // Comme le Quiz : une seule manche, le compteur sur la ligne du numéro, les outils ensemble, la Super Finale. Ni
-    // bougies (elles vont dans le Quiz) ni profil : le 🎲 tire par thème dans le Quiz illustré tout prêt.
+    const total = round.locator(".quiz-total");
+    // La carte du Quiz (cedric, 25/10) : une seule manche, le compteur sur la ligne du numéro ; l'âge et le total, trois
+    // dés dans mes packs, un dans le Quiz illustré tout prêt (par thème), le rappel ; la Super Finale. Ni bougies (elles
+    // vont dans le Quiz) ni liste des séries (elles sont dans le « complet »).
     assert.equal(await page.locator('#show-rounds .jeu-bloc[data-jeu="illustre"] .jeu-plus').count(), 0);
     assert.deepEqual(await round.locator(".round-head > *").evaluateAll((xs) => xs.map((x) => x.className)), ["num", "quiz-compteur"]);
     assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)), ["quiz-outils", "quiz-finale"]);
-    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-theme", "tirage-nombre", "btn tirage-de"]);
-    assert.equal(await ligne.locator(".tirage-theme").inputValue(), "");
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((els) => els.map((e) => e.className)),
+      ["quiz-age-ligne", "packs-ligne", "banque-ligne", "quiz-ajouts quiz-rappel"]);
+    assert.equal(await round.locator(".quiz-biblio, .quiz-series").count(), 0);
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)),
+      ["btn tirage-de", "packs-de-texte", "tirage-theme de-theme de-theme-banque", "tirage-nombre de-nombre de-nombre-banque"]);
+    assert.equal(await ligne.locator(".packs-de-texte").textContent(), "Tout au hasard dans le Quiz illustré tout prêt");
+    assert.equal(await ligne.locator(".de-theme-banque").inputValue(), "");
+    // Mes packs : seulement les quiz illustrés (pas « animaux », un Quiz classique).
+    assert.equal(await round.locator(".packs-ligne").getAttribute("data-packs"), "2");
+    assert.deepEqual([await round.locator("select.quiz-age").inputValue(), await total.textContent()], ["PETITS", "Total : 0 question"]);
     assert.equal(await round.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler un de vos quiz illustrés");
-    assert.equal(await round.locator(".quiz-biblio-titre").textContent(), "📗 Intégrer un quiz illustré de votre bibliothèque");
     assert.equal(await compteur.textContent(), "Aucune question pour l'instant");
     assert.equal(await round.locator(".quiz-finale select.finale").inputValue(), "3");
 
@@ -6014,55 +6018,49 @@ describe("bibliothèque de quiz et prestations", () => {
     await rappel.locator(".quiz-rappel-liste", { hasText: "Aucune prestation archivée ne correspond." }).waitFor();
     await rappel.locator(".quiz-rappel-cherche").fill("luna");
     await rappel.locator('.quiz-rappel-item[data-show="luna"]').click();
-    await series.first().waitFor();
-    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 📅 Anniversaire de Luna (10 mai 2026) : 2 questions");
-    // Ses quiz illustrés de la bibliothèque, jamais un quiz classique (« animaux » ne trouve que le sien).
-    await round.locator(".quiz-biblio-cherche").fill("animaux");
-    await round.locator(".quiz-biblio-item").first().waitFor();
-    assert.deepEqual(await round.locator(".quiz-biblio-item").evaluateAll((xs) => xs.map((x) => x.dataset.quiz)), ["petits"]);
-    await round.locator('.quiz-biblio-item[data-quiz="petits"]').click();
-    await series.nth(1).waitFor();
-    assert.equal(await series.nth(1).locator(".serie-voir").textContent(), "▸ 📚 Quiz illustré « Les animaux des petits » : 2 questions");
+    await total.filter({ hasText: "Total : 2 questions" }).waitFor();
+    // 🎲 « Tout au hasard dans mes packs », 2 questions : celles du pack illustré.
+    await round.locator("select.de-nombre-hasard").selectOption("2");
+    await round.locator(".packs-de-hasard").click();
+    await total.filter({ hasText: "Total : 4 questions" }).waitFor();
 
-    // Le 🎲 : 6 questions du thème Animaux, en tête ; jamais une question déjà là.
-    await ligne.locator(".tirage-theme").selectOption("animaux");
-    await ligne.locator(".tirage-nombre").selectOption("6");
+    // Le 🎲 du tout prêt : 6 questions du thème Animaux ; jamais une question déjà là ; l'âge de la première ligne ne bouge pas.
+    await ligne.locator(".de-theme-banque").selectOption("animaux");
+    await ligne.locator(".de-nombre-banque").selectOption("6");
     await ligne.locator(".tirage-de").click();
-    await waitFor(async () => (await series.count()) === 3, "série du dé");
-    assert.deepEqual(await origines(), ["de", "reprise", "quiz"]);
-    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 🎲 6 questions tirées au hasard (Animaux)");
+    await total.filter({ hasText: "Total : 10 questions" }).waitFor();
     assert.equal(await compteur.textContent(), "10 questions, dont 3 en Super Finale");
-    await series.nth(0).locator(".serie-voir").click();
-    const lignes = series.nth(0).locator(".serie-liste > li");
-    assert.equal(await lignes.count(), 6);
+    assert.equal(await round.locator("select.quiz-age").inputValue(), "PETITS");
+    const complet = round.locator(".quiz-complet");
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Quiz illustré complet : 10 questions, dans l'ordre de passage");
+    await complet.locator(".quiz-complet-voir").click();
+    const lignes = complet.locator(".quiz-complet-q");
+    assert.equal(await lignes.count(), 10);
     const deja = new Set([...tireesLuna, ...PETITS.questions].map((q) => q.text));
-    for (const t of await lignes.locator(".tirage-texte").allTextContents()) assert.ok(!deja.has(t), `déjà là : ${t}`);
-    // Chaque question montre ses 4 réponses en petites images (photo libre ou émoji, jamais une image à soi), la bonne en vert.
+    const textes = await lignes.locator(".tirage-texte").allTextContents();
+    assert.equal(textes.filter((t) => !deja.has(t)).length, 6, "6 nouvelles questions tirées");
+    // Chaque question montre ses 4 réponses en petites images, la bonne en vert.
     for (const li of await lignes.all()) {
       assert.equal(await li.locator(".tirage-rep").count(), 4);
       assert.equal(await li.locator(".tirage-rep.bonne").count(), 1);
-      const images = await li.locator(".tirage-rep-img").evaluateAll((xs) => xs.map((x) => (x.tagName === "IMG" ? x.getAttribute("src") : `émoji ${x.textContent}`)));
-      assert.equal(images.length, 4);
-      for (const src of images) assert.match(src, /^(banque\/[^/]+\.jpg|émoji .+)$/);
     }
-    // ✕ : un 🎲 prend sa place et tire une autre question du même thème.
-    const retiree = await lignes.nth(0).locator(".tirage-texte").textContent();
-    await lignes.nth(0).locator(".tirage-retirer").click();
-    await series.nth(0).locator(".serie-liste li.vide").waitFor();
+    // ✕ sur une question du tout prêt : son 🎲 reste en tête du « complet » et en tire une autre du même thème.
+    const k = textes.findIndex((t) => !deja.has(t));
+    const retiree = textes[k];
+    await lignes.nth(k).locator(".tirage-retirer").click();
+    await complet.locator("li.vide").waitFor();
     assert.equal(await compteur.textContent(), "9 questions, dont 3 en Super Finale · 1 à tirer");
-    await lignes.nth(0).locator(".tirage-de").click();
-    await series.nth(0).locator(".serie-liste li.vide").waitFor({ state: "detached" });
-    assert.notEqual(await lignes.nth(0).locator(".tirage-texte").textContent(), retiree);
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▾ 🧩 Quiz illustré complet : 9 questions, dans l'ordre de passage (1 à tirer)");
+    await complet.locator("li.vide .tirage-de").click();
+    await complet.locator("li.vide").waitFor({ state: "detached" });
     assert.equal(await compteur.textContent(), "10 questions, dont 3 en Super Finale");
+    assert.ok(!(await lignes.locator(".tirage-texte").allTextContents()).includes(retiree));
 
     // Un Quiz illustré ajouté juste après n'en crée pas un second : on revient à celui-ci.
     await ajouterJeu(page, "illustre");
     await page.locator("#annonce", { hasText: "Le Quiz illustré est déjà le dernier jeu" }).waitFor();
     assert.equal(await page.locator("#show-rounds .round").count(), 1);
     // Le « Quiz illustré complet » : tout, dans l'ordre de passage, chaque question avec ses images.
-    const complet = round.locator(".quiz-complet");
-    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Quiz illustré complet : 10 questions, dans l'ordre de passage");
-    await complet.locator(".quiz-complet-voir").click();
     assert.equal(await complet.locator(".quiz-complet-q .tirage-reponses").count(), 10);
     await capture(page, "quiz-illustre-manche");
     if (process.env.CAPTURES) {
@@ -6078,8 +6076,9 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(zoe.rounds.length, 1);
     const [manche] = zoe.rounds;
     assert.equal(manche.type, "illustre");
-    assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.famille ?? null, x.questions?.length ?? x.quizId]),
-      [["de", "animaux", 6], ["reprise", null, 2], ["quiz", null, "petits"]]);
+    assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.famille ?? null, x.questions?.length ?? x.quizId, x.pioche?.mode ?? null]),
+      [["de", "animaux", 6, null], ["reprise", null, 2, null], ["reprise", null, 2, "hasard"]]);
+    assert.deepEqual(manche.seriesQuiz[2].questions.map((q) => q.text).sort(), PETITS.questions.map((q) => q.text).sort());
     assert.equal(manche.finale, 3);
     assert.equal(manche.bougies, undefined);
     for (const q of manche.seriesQuiz[0].questions) {
@@ -6096,7 +6095,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(qs.length, 10);
     assert.deepEqual([...new Set(qs.map((q) => q.round))], ["Quiz illustré"]);
     assert.deepEqual(qs.slice(0, 8).map((q) => q.choiceBanque?.length), Array(8).fill(4));
-    assert.deepEqual(qs.slice(8).map((q) => q.choiceImages), [ids, ids]);
+    assert.deepEqual(qs.slice(8).map((q) => [...q.choiceImages].sort()), [ids, ids]);
     assert.deepEqual(qs.map((q) => !!q.finale), [...Array(7).fill(false), true, true, true]);
     assert.ok(!qs.some((q) => /bougies/.test(q.text)));
     // Lancée par la régie : chaque réponse a son image copiée dans la partie (photo libre, émoji dessiné, ou la sienne).
@@ -6117,7 +6116,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("Régie PC (cedric, 23/10) : le Zoom mystère et l'Image floue se construisent comme le Quiz : 🎲 dans les photos libres par thème, un ancien anniversaire, ses séries de photos, « Zoom mystère complet », jamais deux fois la même photo ; la TV reçoit les photos", async () => {
+  test("Régie PC (cedric, 23 et 25/10) : le Zoom mystère et l'Image floue ont la carte du Quiz : l'âge et les cartes à deviner, 🎲 dans mes séries de photos et dans les photos libres par thème, un ancien anniversaire, « Zoom mystère complet », jamais deux fois la même photo ; la TV reçoit les photos", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const { banqueItems, BANQUE } = await import("../web/public/banque-photos.js");
     const cle = (x) => x.key.slice(BANQUE.length);
@@ -6141,15 +6140,25 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-age", "7");
     await ajouterJeu(page, "zoom");
     const round = page.locator("#show-rounds .round").nth(0);
-    const ligne = round.locator(".quiz-outils > .tirage-ligne");
+    const ligne = round.locator(".banque-ligne .tirage-ligne");
     const compteur = round.locator(".round-head > .quiz-compteur");
-    const series = round.locator(".quiz-series > li.serie");
-    // Comme le Quiz, avec des photos ; ni Super Finale ni bougies.
+    const total = round.locator(".quiz-total");
+    // La carte du Quiz (cedric, 25/10), avec des photos : l'âge et le total de cartes à deviner, trois dés dans mes
+    // séries de photos (importées ou faites à la main), un dans les photos libres (par thème), le rappel, « ⭐ Composer
+    // avec vos images » ; ni Super Finale ni bougies ; plus de liste des séries.
     assert.deepEqual(await round.locator(".round-head > *").evaluateAll((xs) => xs.map((x) => x.className)), ["num", "quiz-compteur"]);
     assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)), ["quiz-outils"]);
-    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-theme", "tirage-nombre", "btn tirage-de"]);
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((els) => els.map((e) => e.className)),
+      ["quiz-age-ligne", "packs-ligne", "banque-ligne", "quiz-ajouts quiz-rappel", "quiz-ajouts vos-images"]);
+    assert.equal(await round.locator(".quiz-biblio, .quiz-series").count(), 0);
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)),
+      ["btn tirage-de", "packs-de-texte", "tirage-theme de-theme de-theme-banque", "tirage-nombre de-nombre de-nombre-banque"]);
+    assert.equal(await ligne.locator(".packs-de-texte").textContent(), "Tout au hasard dans les photos libres de droit");
+    assert.deepEqual(await round.locator("select.de-nombre-hasard option").evaluateAll((os) => os.map((o) => o.textContent)).then((t) => [t[0], t.length]), ["1 carte", 15]);
+    assert.equal(await round.locator(".quiz-age-titre").textContent(), "🎂 Âge des cartes");
+    assert.equal(await total.textContent(), "Total : 0 carte à deviner");
+    assert.equal(await round.locator(".packs-ligne").getAttribute("data-packs"), "2");
     assert.equal(await round.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler les photos d'un ancien anniversaire");
-    assert.equal(await round.locator(".quiz-biblio-titre").textContent(), "📗 Intégrer une de vos séries de photos");
     assert.equal(await compteur.textContent(), "Aucune photo pour l'instant");
 
     // Un ancien anniversaire : ses photos de l'Image floue reviennent au Zoom mystère.
@@ -6158,80 +6167,75 @@ describe("bibliothèque de quiz et prestations", () => {
     await rappel.locator(".quiz-rappel-liste", { hasText: "Aucune prestation archivée ne correspond." }).waitFor();
     await rappel.locator(".quiz-rappel-cherche").fill("luna");
     await rappel.locator('.quiz-rappel-item[data-show="luna"]', { hasText: "2 photos" }).click();
-    await series.first().waitFor();
-    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 📅 Anniversaire de Luna (10 mai 2026) : 2 photos");
-    // Ses séries de photos, jamais un quiz classique.
-    await round.locator(".quiz-biblio-cherche").fill("a");
-    await round.locator(".quiz-biblio-item").first().waitFor();
-    assert.deepEqual(await round.locator(".quiz-biblio-item").evaluateAll((xs) => xs.map((x) => x.dataset.quiz)), ["disney"]);
-    await round.locator('.quiz-biblio-item[data-quiz="disney"]').click();
-    await series.nth(1).waitFor();
-    assert.equal(await series.nth(1).locator(".serie-voir").textContent(), "▸ 📚 Série de photos « Disney » : 2 photos");
+    await total.filter({ hasText: "Total : 2 cartes à deviner" }).waitFor();
+    // 🎲 « Thème à 100 % » : « Disney », 2 cartes : ses deux photos (jamais un quiz classique).
+    await round.locator(".packs-recherche").fill("Disney");
+    await round.locator("select.de-nombre-recherche").selectOption("2");
+    await round.locator(".packs-de-recherche").click();
+    await total.filter({ hasText: "Total : 4 cartes à deviner" }).waitFor();
 
-    // Le 🎲 : 6 photos libres d'animaux, en tête, jamais une photo déjà là.
-    await ligne.locator(".tirage-theme").selectOption("animaux");
-    await ligne.locator(".tirage-nombre").selectOption("6");
+    // Le 🎲 des photos libres : 6 photos d'animaux, jamais une photo déjà là.
+    await ligne.locator(".de-theme-banque").selectOption("animaux");
+    await ligne.locator(".de-nombre-banque").selectOption("6");
     await ligne.locator(".tirage-de").click();
-    await waitFor(async () => (await series.count()) === 3, "série du dé");
-    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 🎲 6 photos tirées au hasard (Animaux)");
+    await total.filter({ hasText: "Total : 10 cartes à deviner" }).waitFor();
     assert.equal(await compteur.textContent(), "10 photos");
-    await series.nth(0).locator(".serie-voir").click();
-    const lignes = series.nth(0).locator(".serie-liste > li");
-    assert.equal(await lignes.count(), 6);
-    const tirees = async () => (await lignes.locator("img.tirage-photo").evaluateAll((xs) => xs.map((x) => x.getAttribute("src"))))
-      .map((src) => decodeURIComponent(src.match(/^banque\/(.+)\.jpg$/)[1]));
-    const zoom = await tirees();
+    const complet = round.locator(".quiz-complet");
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Zoom mystère complet : 10 photos, dans l'ordre de passage");
+    await complet.locator(".quiz-complet-voir").click();
+    assert.equal(await complet.locator(".quiz-complet-q .tirage-photo").count(), 10);
+    const libres = async (ou) => (await ou.locator(".quiz-complet-q img.tirage-photo").evaluateAll((xs) => xs.map((x) => x.getAttribute("src"))))
+      .map((src) => src.match(/^banque\/(.+)\.jpg$/)).filter(Boolean).map((m) => decodeURIComponent(m[1])).filter((k) => k !== p1 && k !== p2);
+    const zoom = await libres(complet);
     assert.equal(zoom.length, 6);
-    for (const k of zoom) assert.ok(animaux.includes(k) && k !== p1 && k !== p2, k);
+    for (const k of zoom) assert.ok(animaux.includes(k), k);
     // La ligne dit la réponse à trouver (pas « Qu'est-ce que c'est ? »), sans son émoji : la photo est à côté (cedric, 24/10).
-    assert.ok((await lignes.locator(".tirage-texte").allTextContents()).every((t) => t && !/qu'est-ce/i.test(t) && /^\p{L}/u.test(t)));
-    // ↑ ↓ dans la liste tirée au 🎲 aussi (cedric, 24/10) : l'ordre de passage du « Zoom mystère complet » suit.
-    assert.equal(await lignes.nth(0).locator(".tirage-monter").isDisabled(), true);
-    assert.equal(await lignes.nth(5).locator(".tirage-descendre").isDisabled(), true);
-    const premiereDuComplet = async () => decodeURIComponent((await round.locator(".quiz-complet-q img.tirage-photo").first().getAttribute("src")).match(/^banque\/(.+)\.jpg$/)[1]);
-    assert.equal(await premiereDuComplet(), zoom[0]);
-    await lignes.nth(0).locator(".tirage-descendre").click();
-    await waitFor(async () => (await tirees()).join() === [zoom[1], zoom[0], ...zoom.slice(2)].join(), "la 1re photo passe en 2e");
-    assert.equal(await premiereDuComplet(), zoom[1]);
-    await lignes.nth(1).locator(".tirage-monter").click();
-    await waitFor(async () => (await tirees()).join() === zoom.join(), "remise à sa place");
-    // ✕ : un 🎲 prend sa place et tire une autre photo.
-    await lignes.nth(0).locator(".tirage-retirer").click();
-    await series.nth(0).locator(".serie-liste li.vide", { hasText: "Photo à tirer" }).waitFor();
+    assert.ok((await complet.locator(".quiz-complet-q .tirage-texte").allTextContents()).every((t) => t && !/qu'est-ce/i.test(t) && /^\p{L}/u.test(t)));
+    // ✕ sur une photo libre : son 🎲 reste en tête du « complet » et en tire une autre.
+    const ligneDe = (k) => complet.locator(".quiz-complet-q").filter({ has: page.locator(`img.tirage-photo[src="${`banque/${encodeURIComponent(k)}.jpg`}"]`) });
+    await ligneDe(zoom[0]).locator(".tirage-retirer").click();
+    await complet.locator("li.vide", { hasText: "Photo à tirer" }).waitFor();
     assert.equal(await compteur.textContent(), "9 photos · 1 à tirer");
-    await lignes.nth(0).locator(".tirage-de").click();
-    await series.nth(0).locator(".serie-liste li.vide").waitFor({ state: "detached" });
-    const zoom2 = await tirees();
+    await complet.locator("li.vide .tirage-de").click();
+    await complet.locator("li.vide").waitFor({ state: "detached" });
+    const zoom2 = await libres(complet);
     assert.ok(!zoom2.includes(zoom[0]), "la photo retirée ne revient pas");
+    assert.equal(zoom2.length, 6);
     assert.equal(await compteur.textContent(), "10 photos");
 
     // Un Zoom mystère ajouté juste après n'en crée pas un second.
     await ajouterJeu(page, "zoom");
     await page.locator("#annonce", { hasText: "Le Zoom mystère est déjà le dernier jeu : ajoutez-y vos photos" }).waitFor();
     assert.equal(await page.locator("#show-rounds .round").count(), 1);
-    // « Zoom mystère complet » : chaque photo dans l'ordre ; ✕ sur Elsa la retire de sa série.
-    const complet = round.locator(".quiz-complet");
-    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Zoom mystère complet : 10 photos, dans l'ordre de passage");
-    await complet.locator(".quiz-complet-voir").click();
-    assert.equal(await complet.locator(".quiz-complet-q .tirage-photo").count(), 10);
+    // ✕ sur Elsa (piochée dans mes séries) : ses deux dés restent à sa place, en tête du « complet ».
     await complet.locator(".quiz-complet-q", { hasText: "Elsa" }).locator(".tirage-retirer").click();
-    await compteur.filter({ hasText: "9 photos" }).waitFor();
-    assert.equal(await series.nth(2).locator(".serie-voir").textContent(), "▸ 📚 Série de photos « Disney » : 1 photo (1 retirée)");
+    await compteur.filter({ hasText: "9 photos · 1 à tirer" }).waitFor();
+    assert.equal(await complet.locator("li.packs-case .packs-case-theme").inputValue(), "Disney");
 
     // Une Image floue dans la même fête : son 🎲 ne reprend aucune photo du Zoom mystère (jamais deux fois).
     await ajouterJeu(page, "flou");
     const flou = page.locator("#show-rounds .round").nth(1);
-    await flou.locator(".tirage-theme").selectOption("animaux");
-    await flou.locator(".tirage-nombre").selectOption("6");
-    await flou.locator(".tirage-de").click();
+    await flou.locator(".de-theme-banque").selectOption("animaux");
+    await flou.locator(".de-nombre-banque").selectOption("6");
+    await flou.locator(".banque-ligne .tirage-de").click();
     await flou.locator(".round-head > .quiz-compteur", { hasText: "6 photos" }).waitFor();
-    assert.equal(await flou.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Image floue complète : 6 photos, dans l'ordre de passage");
-    await flou.locator(".quiz-series .serie-voir").click();
-    const floues = (await flou.locator(".quiz-series .serie-liste img.tirage-photo").evaluateAll((xs) => xs.map((x) => x.getAttribute("src"))))
-      .map((src) => decodeURIComponent(src.match(/^banque\/(.+)\.jpg$/)[1]));
+    assert.equal(await flou.locator(".quiz-total").textContent(), "Total : 6 cartes à deviner");
+    const completFlou = flou.locator(".quiz-complet");
+    assert.equal(await completFlou.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Image floue complète : 6 photos, dans l'ordre de passage");
+    await completFlou.locator(".quiz-complet-voir").click();
+    const floues = await libres(completFlou);
     assert.equal(floues.length, 6);
-    for (const k of floues) assert.ok(!zoom2.includes(k) && k !== p1 && k !== p2, `déjà au Zoom mystère : ${k}`);
+    for (const k of floues) assert.ok(!zoom2.includes(k), `déjà au Zoom mystère : ${k}`);
+    // ↑ ↓ dans le « complet » : l'ordre de passage.
+    assert.equal(await completFlou.locator(".quiz-complet-q").first().locator(".quiz-complet-monter").isDisabled(), true);
+    await completFlou.locator(".quiz-complet-q").first().locator(".quiz-complet-descendre").click();
+    await waitFor(async () => (await libres(completFlou)).join() === [floues[1], floues[0], ...floues.slice(2)].join(), "la 1re photo passe en 2e");
     await capture(page, "zoom-flou-manche");
+    if (process.env.CAPTURES) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await capture(page, "zoom-flou-manche-pc");
+      await page.setViewportSize({ width: 390, height: 844 });
+    }
 
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
@@ -6240,11 +6244,11 @@ describe("bibliothèque de quiz et prestations", () => {
     const zoe = Object.values(shows).find((x) => x.childName === "Zoé");
     assert.deepEqual(zoe.rounds.map((r) => r.type), ["zoom", "flou"]);
     const [manche] = zoe.rounds;
-    assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.famille ?? null, x.questions?.length ?? x.quizId]),
-      [["de", "animaux", 6], ["reprise", null, 2], ["quiz", null, "disney"]]);
-    assert.deepEqual(manche.seriesQuiz[2].sans, [`i:${A}`]);
+    assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.famille ?? null, x.questions?.length ?? x.quizId, x.pioche?.mode ?? null]),
+      [["de", "animaux", 6, null], ["reprise", null, 2, null], ["reprise", null, 1, "recherche"]]);
+    assert.deepEqual(manche.seriesQuiz[2].questions.map((q) => q.imageId), [B]);
     assert.equal(manche.finale, undefined);
-    assert.deepEqual(manche.seriesQuiz[0].questions.map((q) => q.banque), zoom2);
+    assert.deepEqual(manche.seriesQuiz[0].questions.map((q) => q.banque).sort(), [...zoom2].sort());
     await page.context().close();
 
     // Sur la TV : un seul jeu « Zoom mystère » de 9 photos, sans Super Finale ; lancées par la régie, photos copiées.
@@ -6253,7 +6257,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(qs.length, 9);
     assert.deepEqual([...new Set(qs.map((q) => q.round))], ["Zoom mystère"]);
     assert.ok(!qs.some((q) => q.finale));
-    assert.deepEqual(qs.map((q) => q.imageId ?? `b:${q.banque}`), [...zoom2.map((k) => `b:${k}`), `b:${p1}`, `b:${p2}`, B]);
+    assert.deepEqual(qs.map((q) => q.imageId ?? `b:${q.banque}`).sort(), [...zoom2.map((k) => `b:${k}`), `b:${p1}`, `b:${p2}`, B].sort());
     await seedLibrary("shows/zoe", { ...zoe, date: "2099-12-02", status: "publiee" });
     box = startBox();
     const regie = await openRegie();
@@ -6332,25 +6336,25 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator(".vos-images-ajouter").click();
     await compteur.filter({ hasText: "4 photos" }).waitFor();
     assert.equal(await round.locator(".vos-images-tuile").count(), 0, "le panneau se referme");
-    const serie = round.locator('.quiz-series > li.serie[data-origine="images"]');
-    assert.equal(await serie.locator(".serie-voir").textContent(), "▾ ⭐ 4 photos choisies dans la bibliothèque");
-    // Dans l'ordre des clics, la réponse sans émoji, la photo à côté.
-    assert.deepEqual(await serie.locator(".serie-liste .tirage-texte").allTextContents(), ["Tigre", "Mamie Jo", "Panda", "Lion"]);
-    assert.equal(await serie.locator(".serie-liste img.tirage-photo").count(), 4);
+    // Dans le « Zoom mystère complet » (plus de liste des séries, cedric 25/10) : dans l'ordre des clics, la réponse sans
+    // émoji, la photo à côté.
+    const complet = round.locator(".quiz-complet");
+    await complet.locator(".quiz-complet-voir").click();
+    const lignesCompletes = complet.locator(".quiz-complet-q");
+    assert.deepEqual(await lignesCompletes.locator(".tirage-texte").allTextContents(), ["Tigre", "Mamie Jo", "Panda", "Lion"]);
+    assert.equal(await lignesCompletes.locator("img.tirage-photo").count(), 4);
 
-    // Un 🎲 dans le même jeu : jamais une photo déjà choisie.
-    const ligne = round.locator(".quiz-outils > .tirage-ligne");
-    await ligne.locator(".tirage-nombre").selectOption("6");
+    // Le 🎲 des photos libres dans le même jeu : jamais une photo déjà choisie ; sa série passe en tête.
+    const ligne = round.locator(".banque-ligne .tirage-ligne");
+    await ligne.locator(".de-nombre-banque").selectOption("6");
     await ligne.locator(".tirage-de").click();
     await compteur.filter({ hasText: "10 photos" }).waitFor();
-    const de = round.locator('.quiz-series > li.serie[data-origine="de"]');
-    await de.locator(".serie-voir").click();
-    const tirees = (await de.locator(".serie-liste img.tirage-photo").evaluateAll((xs) => xs.map((x) => x.getAttribute("src"))))
+    const tirees = (await lignesCompletes.locator("img.tirage-photo").evaluateAll((xs) => xs.slice(0, 6).map((x) => x.getAttribute("src"))))
       .map((src) => decodeURIComponent(src.match(/^banque\/(.+)\.jpg$/)[1]));
     assert.equal(tirees.length, 6);
     assert.ok(!tirees.includes("panda"), "le 🎲 ne reprend pas une photo de la composition");
     const [cle] = tirees;
-    const nomTiree = (await de.locator(".serie-liste .tirage-texte").first().textContent()).trim();
+    const nomTiree = (await lignesCompletes.locator(".tirage-texte").first().textContent()).trim();
 
     // Rouverte : celles déjà dans la composition ne se recochent pas ; celle du 🎲 est en rouge, mais possible.
     await round.locator(".vos-images-titre").click();
@@ -6369,7 +6373,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await round.locator(".vos-images-ajouter").textContent(), "＋ Ajouter cette photo");
     await round.locator(".vos-images-ajouter").click();
     await compteur.filter({ hasText: "11 photos" }).waitFor();
-    assert.equal(await round.locator('.quiz-series > li.serie[data-origine="images"]').count(), 1);
+    assert.equal(await round.locator(".quiz-total").textContent(), "Total : 11 cartes à deviner");
 
     // Une Image floue dans la même fête : ses images et photos libres déjà au Zoom mystère sont en rouge, mais restent possibles.
     await ajouterJeu(page, "flou");
@@ -6525,7 +6529,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC (cedric, 24/10) : Qui suis-je ? se construit comme le Quiz : 🎲, les personnages d'un ancien anniversaire, une de vos séries, chacun avec sa petite image ; « Qui suis-je ? complet » (↑ ↓ ✕ 🔀)", async () => {
+  test("Régie PC (cedric, 24 et 25/10) : Qui suis-je ? a la carte du Quiz : l'âge et le total, 🎲 dans mes packs et dans les personnages du jeu, un ancien anniversaire, chacun avec sa petite image ; « Qui suis-je ? complet » (↑ ↓ ✕ 🔀)", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const PNG = `data:image/png;base64,${png([200, 40, 90]).toString("base64")}`;
     const ELSA = "00000000000000e1";
@@ -6550,75 +6554,97 @@ describe("bibliothèque de quiz et prestations", () => {
     await ajouterJeu(page, "quisuis");
     const round = page.locator('#show-rounds .jeu-bloc[data-jeu="quisuis"] .round');
     const compteur = round.locator(".round-head > .quiz-compteur");
-    const series = round.locator(".quiz-series > li.serie");
+    const total = round.locator(".quiz-total");
     assert.equal(await compteur.textContent(), "Aucun personnage pour l'instant : la TV en tirera 5 au hasard");
-    // Les outils : le 🎲, un ancien anniversaire, une de vos séries ; pas de personnage écrit ici (il lui faut ses indices).
-    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-ligne", "quiz-ajouts quiz-rappel", "quiz-ajouts quiz-biblio"]);
+    // La carte du Quiz (cedric, 25/10) : l'âge et le total, trois 🎲 dans mes packs (les personnages de mes séries), un
+    // dans les personnages du jeu, le rappel ; plus de ligne « Intégrer une de vos séries » ni de liste des séries.
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)),
+      ["quiz-age-ligne", "packs-ligne", "banque-ligne", "quiz-ajouts quiz-rappel"]);
+    assert.equal(await round.locator(".quiz-biblio, .quiz-series").count(), 0);
+    assert.equal(await round.locator(".quiz-age-titre").textContent(), "🎂 Âge des personnages");
+    assert.equal(await total.textContent(), "Total : 0 personnage");
+    assert.equal(await round.locator(".packs-ligne").getAttribute("data-packs"), "2");
+    assert.equal(await round.locator(".banque-ligne .packs-de-texte").textContent(), "Tout au hasard dans les personnages du jeu");
+    assert.equal(await round.locator("select.de-nombre-banque").inputValue(), "5");
+    assert.deepEqual(await round.locator("select.de-nombre-hasard option").evaluateAll((os) => os.map((o) => Number(o.value))), Array.from({ length: 15 }, (_, k) => k + 1));
     assert.equal(await round.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler les personnages d'un ancien anniversaire");
-    assert.equal(await round.locator(".quiz-biblio-titre").textContent(), "📗 Intégrer une de vos séries de Qui suis-je ?");
 
     // Un ancien anniversaire : tous ses personnages, en une série.
     await round.locator(".quiz-rappel-cherche").fill("mal");
     await round.locator('.quiz-rappel-item[data-show="malo"]').click();
     await compteur.filter({ hasText: "2 personnages" }).waitFor();
-    assert.match(await series.nth(0).locator(".serie-voir").textContent(), /^▾ 📅 Anniversaire de Malo \(.+\) : 2 personnages$/);
-    // Une de vos séries : avec l'image d'Elsa, celle de la révélation ; Simba avec son émoji.
-    await round.locator(".quiz-biblio-cherche").fill("dis");
-    await round.locator('.quiz-biblio-item[data-serie="Disney"]').click();
+    assert.equal(await total.textContent(), "Total : 2 personnages");
+    // 🎲 « Thème à 100 % » dans mes packs : « Disney », 2 personnages ; le même dé avec le même mot refait sa série.
+    await round.locator(".packs-recherche").fill("Disney");
+    await round.locator("select.de-nombre-recherche").selectOption("2");
+    await round.locator(".packs-de-recherche").click();
     await compteur.filter({ hasText: "4 personnages" }).waitFor();
-    const disney = series.nth(1);
-    assert.equal(await disney.locator(".serie-voir").textContent(), "▾ 📚 Série « Disney » : 2 personnages");
-    await waitFor(async () => (await disney.locator('[data-mot="elsa"] img.tirage-mini').getAttribute("src")) === PNG, "la petite image d'Elsa");
-    assert.equal(await disney.locator('[data-mot="simba"] .tirage-mini.emoji').textContent(), "🦁");
-    assert.equal(await disney.locator('[data-mot="elsa"] .mot-indices').textContent(), "Je suis reine · Je fais de la glace · Libérée, délivrée");
-    // Déjà là : la même série ne s'ajoute pas deux fois.
-    await round.locator(".quiz-biblio-cherche").fill("dis");
-    assert.match(await round.locator('.quiz-biblio-item[data-serie="Disney"]').textContent(), /✓ déjà dans ce jeu/);
-    await round.locator('.quiz-biblio-item[data-serie="Disney"]').click();
-    await page.locator("#annonce", { hasText: "Tous ces personnages sont déjà dans Qui suis-je ?." }).waitFor();
+    await round.locator(".packs-de-recherche").click();
+    await page.waitForTimeout(300);
+    assert.equal(await compteur.textContent(), "4 personnages");
 
-    // Le 🎲 : 3 personnages, aucun de ceux déjà là ; tirés au hasard, jamais une image téléversée.
-    await round.locator(".tirage-nombre").selectOption("3");
-    await round.locator(".tirage-de").click();
+    // Le 🎲 des personnages du jeu : 3, aucun de ceux déjà là ni de mes séries ; jamais une image téléversée.
+    await round.locator("select.de-nombre-banque").selectOption("3");
+    await round.locator(".banque-ligne .tirage-de").click();
     await compteur.filter({ hasText: "7 personnages" }).waitFor();
-    const de = round.locator('.quiz-series > li.serie[data-origine="de"]');
-    assert.equal(await de.locator(".serie-voir").textContent(), "▾ 🎲 3 personnages tirés au hasard");
-    assert.equal(await de.locator(".serie-liste img").count(), 0);
-    const tires = await de.locator(".serie-liste .tirage-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
-    for (const cle of ["le pirate", "la fée", "elsa", "simba"]) assert.ok(!tires.includes(cle), cle);
+    assert.equal(await total.textContent(), "Total : 7 personnages");
 
-    // « Qui suis-je ? complet » : le 🎲 d'abord, puis les séries ajoutées ; ↓, ✕ et 🔀 ; la petite image aussi.
+    // « Qui suis-je ? complet » : le 🎲 d'abord, puis les séries ajoutées ; la petite image, les indices ; ✕, ↓ et 🔀.
     const complet = round.locator(".quiz-complet");
     assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Qui suis-je ? complet : 7 personnages, dans l'ordre de passage");
     await complet.locator(".quiz-complet-voir").click();
     const ordre = () => complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
-    assert.deepEqual(await ordre(), [...tires, "le pirate", "la fée", "elsa", "simba"]);
-    await complet.locator('.quiz-complet-q[data-mot="elsa"] img.tirage-mini').waitFor();
+    const debut = await ordre();
+    const tires = debut.slice(0, 3);
+    for (const cle of ["le pirate", "la fée", "elsa", "simba"]) assert.ok(!tires.includes(cle), cle);
+    assert.deepEqual(debut.slice(3, 5), ["le pirate", "la fée"]);
+    assert.deepEqual(debut.slice(5).sort(), ["elsa", "simba"]);
+    assert.equal(await complet.locator(".quiz-complet-q img.tirage-mini").count(), 1, "seule Elsa a une image (la sienne), jamais au 🎲");
+    await waitFor(async () => (await complet.locator('[data-mot="elsa"] img.tirage-mini').getAttribute("src")) === PNG, "la petite image d'Elsa");
+    assert.equal(await complet.locator('[data-mot="simba"] .tirage-mini.emoji').textContent(), "🦁");
+    assert.equal(await complet.locator('[data-mot="elsa"] .mot-indices').textContent(), "Je suis reine · Je fais de la glace · Libérée, délivrée");
     await complet.locator('.quiz-complet-q[data-mot="la fée"] .tirage-retirer').click();
     await compteur.filter({ hasText: "6 personnages" }).waitFor();
+    const avantDescente = await ordre();
     await complet.locator(".quiz-complet-q").nth(0).locator(".quiz-complet-descendre").click();
-    await waitFor(async () => (await ordre()).join() === [tires[1], tires[0], tires[2], "le pirate", "elsa", "simba"].join(), "le premier passe en 2e");
+    await waitFor(async () => (await ordre()).join() === [avantDescente[1], avantDescente[0], ...avantDescente.slice(2)].join(), "le premier passe en 2e");
     const avant = await ordre();
     await complet.locator(".quiz-melanger").click();
     await waitFor(async () => (await ordre()).join() !== avant.join(), "mélangés");
+    // ✕ sur Elsa (piochée dans mes packs) : ses deux dés restent, en tête, avec le thème de sa série.
+    await complet.locator('.quiz-complet-q[data-mot="elsa"] .tirage-retirer').click();
+    await compteur.filter({ hasText: "5 personnages" }).waitFor();
+    assert.equal(await complet.locator("li.packs-case .packs-case-theme").inputValue(), "Disney");
+    await complet.locator("li.packs-case .packs-case-hasard").click();
+    await page.locator("#annonce", { hasText: "Plus aucun personnage libre à tirer." }).waitFor();
+    // ✕ sur un personnage du 🎲 : son 🎲 en tire un autre.
+    await complet.locator(`.quiz-complet-q[data-mot="${tires[2]}"] .tirage-retirer`).click();
+    await compteur.filter({ hasText: "4 personnages" }).waitFor();
+    await complet.locator("li.vide:not(.packs-case) .tirage-de").click();
+    await compteur.filter({ hasText: "5 personnages" }).waitFor();
+    assert.ok(!(await ordre()).includes(tires[2]), "le personnage retiré ne revient pas");
     const joues = await ordre();
     await capture(page, "qui-suis-je");
+    if (process.env.CAPTURES) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await capture(page, "qui-suis-je-pc");
+      await page.setViewportSize({ width: 390, height: 844 });
+    }
 
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
     const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
     const [qs] = zoe.rounds;
-    assert.deepEqual(qs.seriesMots.map((x) => [x.origine, x.mots.length]), [["de", 3], ["reprise", 1], ["biblio", 2]]);
-    assert.equal(qs.seriesMots[2].titre, "Disney");
-    assert.equal(qs.seriesMots[2].mots.find((m) => m.answer === "Elsa").imageId, ELSA);
-    // Sur la TV : dans l'ordre du « complet », Elsa avec son image, chacun avec ses indices.
+    assert.deepEqual(qs.seriesMots.map((x) => [x.origine, x.mots.filter((m) => !m.vide).length, x.pioche ?? null]),
+      [["de", 3, null], ["reprise", 1, null], ["biblio", 1, { mode: "recherche", terme: "Disney", profil: "MOYENS" }]]);
+    assert.equal(qs.seriesMots[2].titre, "Mes packs : « Disney » à 100 %");
+    // Sur la TV : dans l'ordre du « complet », chacun avec ses indices.
     const { snapshot, problems } = buildSnapshot("zoe", zoe, {});
     assert.deepEqual(problems, []);
     const questions = snapshot.quiz.questions.filter((q) => q.kind === "quisuis");
     assert.deepEqual(questions.map((q) => q.choices[0].toLowerCase()), joues);
-    const elsa = questions.find((q) => q.choices[0] === "Elsa");
-    assert.equal(elsa.imageId, ELSA);
-    assert.deepEqual(elsa.cards.map((c) => c.word), ["Je suis reine", "Je fais de la glace", "Libérée, délivrée"]);
+    const simba = questions.find((q) => q.choices[0] === "Simba");
+    assert.deepEqual(simba.cards.map((c) => c.word), ["Mon père est Mufasa", "Je deviens roi"]);
     await page.context().close();
   });
 
@@ -6892,12 +6918,12 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC (cedric, 23/10) : le Vrai ou Faux express se construit comme le Quiz : 🎲 dans le Vrai ou Faux tout prêt (autant de vraies que de fausses, au niveau du profil), un ancien anniversaire, les Vrai / Faux de ses quiz, « Vrai ou Faux complet », jamais deux fois la même affirmation", async () => {
+  test("Régie PC (cedric, 23 et 25/10) : le Vrai ou Faux express a la carte du Quiz : 🎲 dans mes packs et dans le Vrai ou Faux tout prêt (autant de vraies que de fausses, au niveau du profil), un ancien anniversaire, les Vrai / Faux de ses quiz, « Vrai ou Faux complet », jamais deux fois la même affirmation", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const { AFFIRMATIONS } = await import("../web/public/banque-vrai-faux.js");
     const moyennes = new Map(AFFIRMATIONS.filter((x) => x.niveau === 2).map((x) => [x.text, x]));
     const vf = (text, vrai) => ({ text, choices: ["Vrai", "Faux"], correct: vrai ? 0 : 1, status: "validee" });
-    const SCIENCES = { title: "Sciences", source: "tableur", updatedAt: 1, questions: [
+    const SCIENCES = { title: "Sciences", source: "tableur", updatedAt: 1, pack: true, niveau: "Moyen", questions: [
       vf("Le Soleil est une étoile", true), { text: "Planète la plus proche ?", choices: ["Mercure", "Mars", "Vénus", "Terre"], correct: 0, status: "validee" }, vf("Les poissons volent", false)] };
     const LUNA = { childName: "Luna", age: 9, date: "2026-05-10", status: "archivee", updatedAt: 1, rounds: [{ type: "express", quizId: "sciences" }, { type: "quiz", quizId: "animaux" }] };
     await seedLibrary("quizzes", { animaux: ANIMAUX, sciences: SCIENCES });
@@ -6919,82 +6945,85 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-age", "10");
     await ajouterJeu(page, "express");
     const round = page.locator("#show-rounds .round").nth(0);
-    const ligne = round.locator(".quiz-outils > .tirage-ligne");
+    const ligne = round.locator(".banque-ligne .tirage-ligne");
     const compteur = round.locator(".round-head > .quiz-compteur");
-    const series = round.locator(".quiz-series > li.serie");
-    // Comme le Quiz, avec des affirmations : sa Super Finale en dernière ligne (3 dernières, ×2 d'office), pas de bougies.
+    const total = round.locator(".quiz-total");
+    // La carte du Quiz (cedric, 25/10), avec des affirmations : l'âge et le total, trois 🎲 dans mes packs, un dans le
+    // Vrai ou Faux tout prêt (avec son âge), le rappel ; sa Super Finale en dernière ligne (3 dernières, ×2 d'office), pas de bougies.
     assert.deepEqual(await round.locator(".round-head > *").evaluateAll((xs) => xs.map((x) => x.className)), ["num", "quiz-compteur"]);
     assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)), ["quiz-outils", "quiz-finale"]);
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((els) => els.map((e) => e.className)),
+      ["quiz-age-ligne", "packs-ligne", "banque-ligne", "quiz-ajouts quiz-rappel"]);
+    assert.equal(await round.locator(".quiz-biblio, .quiz-series").count(), 0);
     assert.equal(await round.locator(".quiz-finale .finale-oui").inputValue(), "oui");
     assert.equal(await round.locator(".quiz-finale select.finale").inputValue(), "3");
     assert.equal(await round.locator(".quiz-finale select.finale option:checked").textContent(), "Les 3 dernières affirmations");
     assert.equal(await round.locator(".quiz-finale .finale-facteur").inputValue(), "2");
-    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "btn tirage-de"]);
-    assert.equal(await ligne.locator(".tirage-profil").inputValue(), "MOYENS", "le profil de l'âge de l'enfant");
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)),
+      ["btn tirage-de", "packs-de-texte", "tirage-profil de-age de-age-banque", "tirage-nombre de-nombre de-nombre-banque"]);
+    assert.equal(await ligne.locator(".packs-de-texte").textContent(), "Tout au hasard dans le Vrai ou Faux tout prêt");
+    assert.deepEqual([await round.locator("select.quiz-age").inputValue(), await ligne.locator(".de-age-banque").inputValue()], ["MOYENS", "MOYENS"], "le profil de l'âge de l'enfant");
+    assert.equal(await round.locator(".quiz-age-titre").textContent(), "🎂 Âge des affirmations");
+    assert.equal(await total.textContent(), "Total : 0 affirmation");
+    // Mes packs : seulement leurs Vrai / Faux (« Sciences » en a 2 ; « animaux » aucun).
+    assert.equal(await round.locator(".packs-ligne").getAttribute("data-packs"), "2");
     assert.equal(await round.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler les affirmations d'un ancien anniversaire");
-    assert.equal(await round.locator(".quiz-biblio-titre").textContent(), "📗 Intégrer un Vrai / Faux de la bibliothèque");
     assert.equal(await compteur.textContent(), "Aucune affirmation pour l'instant");
 
+    // 🎲 « Tout au hasard dans mes packs », 2 affirmations : les Vrai / Faux de « Sciences », jamais sa question à 4 réponses.
+    await round.locator("select.de-nombre-hasard").selectOption("2");
+    await round.locator(".packs-de-hasard").click();
+    await total.filter({ hasText: "Total : 2 affirmations" }).waitFor();
     // Un ancien anniversaire : ses affirmations, copiées.
     await round.locator(".quiz-rappel-cherche").fill("luna");
     await round.locator('.quiz-rappel-item[data-show="luna"]', { hasText: "2 affirmations" }).click();
-    await series.first().waitFor();
-    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 📅 Anniversaire de Luna (10 mai 2026) : 2 affirmations");
-    // Ses quiz qui ont des Vrai / Faux, jamais les autres.
-    await round.locator(".quiz-biblio-cherche").fill("i");
-    await round.locator(".quiz-biblio-item").first().waitFor();
-    assert.deepEqual(await round.locator(".quiz-biblio-item").evaluateAll((xs) => xs.map((x) => x.dataset.quiz)), ["sciences"]);
-    await round.locator('.quiz-biblio-item[data-quiz="sciences"]').click();
-    await series.nth(1).waitFor();
-    assert.equal(await series.nth(1).locator(".serie-voir").textContent(), "▸ 📚 Vrai / Faux du quiz « Sciences » : 2 affirmations");
+    await total.filter({ hasText: "Total : 4 affirmations" }).waitFor();
 
-    // Le 🎲 : 8 affirmations du niveau Moyen, 4 vraies et 4 fausses, en tête.
-    await ligne.locator(".tirage-nombre").selectOption("8");
+    // Le 🎲 du tout prêt : 8 affirmations du niveau Moyen, 4 vraies et 4 fausses, en tête.
+    await ligne.locator(".de-nombre-banque").selectOption("8");
     await ligne.locator(".tirage-de").click();
-    await waitFor(async () => (await series.count()) === 3, "série du dé");
-    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 🎲 8 affirmations tirées au hasard (Moyens)");
+    await total.filter({ hasText: "Total : 12 affirmations" }).waitFor();
     assert.equal(await compteur.textContent(), "12 affirmations, dont 3 en Super Finale");
-    await series.nth(0).locator(".serie-voir").click();
-    const lignes = series.nth(0).locator(".serie-liste > li");
-    const textes = async () => lignes.locator(".tirage-texte").allTextContents();
+    const complet = round.locator(".quiz-complet");
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Vrai ou Faux complet : 12 affirmations, dans l'ordre de passage");
+    await complet.locator(".quiz-complet-voir").click();
+    const lignes = complet.locator(".quiz-complet-q");
+    const textes = async () => (await lignes.locator(".tirage-texte").allTextContents()).slice(0, 8);
     const premier = await textes();
     assert.equal(premier.length, 8);
     for (const t of premier) assert.ok(moyennes.has(t), `niveau Moyen : ${t}`);
-    assert.equal(await lignes.locator(".tirage-vf.vrai").count(), 4);
-    assert.equal(await lignes.locator(".tirage-vf.faux").count(), 4);
-    for (const [k, t] of premier.entries()) assert.equal(await lignes.nth(k).locator(".tirage-vf").textContent(), moyennes.get(t).vrai ? "✓ Vrai" : "✗ Faux");
-    // ✕ : un 🎲 prend sa place et tire une autre affirmation.
+    const vfs = (await lignes.locator(".tirage-vf").allTextContents()).slice(0, 8);
+    assert.deepEqual([vfs.filter((x) => x === "✓ Vrai").length, vfs.filter((x) => x === "✗ Faux").length], [4, 4]);
+    for (const [k, t] of premier.entries()) assert.equal(vfs[k], moyennes.get(t).vrai ? "✓ Vrai" : "✗ Faux");
+    // ✕ sur une affirmation du tout prêt : son 🎲 reste en tête du « complet » et en tire une autre.
     await lignes.nth(0).locator(".tirage-retirer").click();
-    await series.nth(0).locator(".serie-liste li.vide", { hasText: "Affirmation à tirer" }).waitFor();
+    await complet.locator("li.vide", { hasText: "Affirmation à tirer" }).waitFor();
     assert.equal(await compteur.textContent(), "11 affirmations, dont 3 en Super Finale · 1 à tirer");
-    await lignes.nth(0).locator(".tirage-de").click();
-    await series.nth(0).locator(".serie-liste li.vide").waitFor({ state: "detached" });
+    await complet.locator("li.vide .tirage-de").click();
+    await complet.locator("li.vide").waitFor({ state: "detached" });
     const second = await textes();
     assert.ok(!second.includes(premier[0]), "l'affirmation retirée ne revient pas");
     assert.equal(new Set(second).size, 8);
     assert.equal(await compteur.textContent(), "12 affirmations, dont 3 en Super Finale");
 
-    // « Vrai ou Faux complet » : chaque affirmation dans l'ordre ; ✕ sur une affirmation la retire de sa série.
+    // Un Vrai ou Faux ajouté juste après n'en crée pas un second.
     await ajouterJeu(page, "express");
     await page.locator("#annonce", { hasText: "Le Vrai ou Faux express est déjà le dernier jeu : ajoutez-y vos affirmations" }).waitFor();
-    const complet = round.locator(".quiz-complet");
-    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Vrai ou Faux complet : 12 affirmations, dans l'ordre de passage");
-    await complet.locator(".quiz-complet-voir").click();
     assert.equal(await complet.locator(".quiz-complet-q .tirage-vf").count(), 12);
-    // Le dernier : celui du quiz « Sciences » (celui de Luna passe avant).
-    await complet.locator(".quiz-complet-q", { hasText: "Les poissons volent" }).last().locator(".tirage-retirer").click();
-    await compteur.filter({ hasText: "11 affirmations" }).waitFor();
-    assert.equal(await series.nth(2).locator(".serie-voir").textContent(), "▸ 📚 Vrai / Faux du quiz « Sciences » : 1 affirmation (1 retirée)");
+    // ✕ sur « Les poissons volent » de mes packs (avant celle de Luna) : ses deux dés restent à sa place.
+    await complet.locator(".quiz-complet-q", { hasText: "Les poissons volent" }).first().locator(".tirage-retirer").click();
+    await compteur.filter({ hasText: "11 affirmations, dont 3 en Super Finale · 1 à tirer" }).waitFor();
+    await complet.locator("li.packs-case").waitFor();
 
     // Un autre Vrai ou Faux express dans la même fête : son 🎲 ne reprend aucune affirmation du premier.
     await ajouterJeu(page, "coffres");
     await ajouterJeu(page, "express");
     const autre = page.locator("#show-rounds .round").nth(2);
-    await autre.locator(".tirage-nombre").selectOption("10");
-    await autre.locator(".tirage-de").click();
+    await autre.locator(".de-nombre-banque").selectOption("10");
+    await autre.locator(".banque-ligne .tirage-de").click();
     await autre.locator(".round-head > .quiz-compteur", { hasText: "10 affirmations" }).waitFor();
-    await autre.locator(".quiz-series .serie-voir").click();
-    const autres = await autre.locator(".quiz-series .serie-liste .tirage-texte").allTextContents();
+    await autre.locator(".quiz-complet-voir").click();
+    const autres = await autre.locator(".quiz-complet-q .tirage-texte").allTextContents();
     assert.equal(autres.length, 10);
     for (const t of autres) assert.ok(moyennes.has(t) && !second.includes(t), `déjà dans le premier : ${t}`);
     await capture(page, "vrai-faux-manche");
@@ -7006,9 +7035,9 @@ describe("bibliothèque de quiz et prestations", () => {
     const zoe = Object.values(shows).find((x) => x.childName === "Zoé");
     assert.deepEqual(zoe.rounds.map((r) => r.type), ["express", "coffres", "express"]);
     const [manche] = zoe.rounds;
-    assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.profil ?? null, x.questions?.length ?? x.quizId]),
-      [["de", "MOYENS", 8], ["reprise", null, 2], ["quiz", null, "sciences"]]);
-    assert.deepEqual(manche.seriesQuiz[2].sans, ["Les poissons volent"]);
+    assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.profil ?? null, x.questions?.length ?? x.quizId, x.pioche?.mode ?? null]),
+      [["de", "MOYENS", 8, null], ["reprise", null, 1, "hasard"], ["reprise", null, 2, null]]);
+    assert.deepEqual(manche.seriesQuiz[1].questions.map((q) => q.text), ["Le Soleil est une étoile"]);
     assert.equal(manche.finale, 3);
     assert.deepEqual(manche.seriesQuiz[0].questions.map((q) => q.text), second);
     await page.context().close();
@@ -7017,7 +7046,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // le second (10 affirmations) a la sienne.
     const { snapshot } = buildSnapshot("zoe", zoe, { animaux: ANIMAUX, sciences: SCIENCES });
     const qs = snapshot.quiz.questions.filter((q) => q.round === "Vrai ou Faux express");
-    assert.deepEqual(qs.slice(0, 11).map((q) => q.text), [...second, "Le Soleil est une étoile", "Les poissons volent", "Le Soleil est une étoile"]);
+    assert.deepEqual(qs.slice(0, 11).map((q) => q.text), [...second, "Le Soleil est une étoile", "Le Soleil est une étoile", "Les poissons volent"]);
     assert.ok(qs.every((q) => q.kind === "express"));
     assert.deepEqual(qs.map((q) => q.double), [...Array(8).fill(false), true, true, true, ...Array(7).fill(false), true, true, true]);
     assert.deepEqual(qs.slice(0, 8).map((q) => q.choices[q.correct]), second.map((t) => (moyennes.get(t).vrai ? "Vrai" : "Faux")));
