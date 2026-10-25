@@ -601,6 +601,8 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit(if (Look.gs) "UNE CHANSON AVEC LE MOT" else "CHANTE LE MOT !")
         ecran.voit("SOLEIL")
+        // Le mot sur son enseigne néon (proposition F, 25/10), une fois l'enseigne allumée.
+        ecran.capture("chante-le-mot", attente = 900)
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "c1" && it.child("buzzOpen").value == true } }
         assertTrue(licornes.buzzer(code))
         ecran.voit("À vous de chanter !")
@@ -745,6 +747,8 @@ class RegieTest : TestTv() {
         // les deux équipes félicitées, et le refrain avec ses paroles.
         assertEquals("applied", regie.commande(code, "next"))
         ouverte("m1")
+        // « Quel est ce titre ? », un néon de couleur par mot (proposition T1, 25/10), une fois les mots allumés.
+        ecran.capture("quiz-musical-question", attente = 900)
         assertTrue(licornes.repondre(code, "m1", 1))
         assertTrue(dragons.repondre(code, "m1", 1))
         ecran.voit("Toutes les équipes ont répondu")
