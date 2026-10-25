@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.getValue
@@ -113,15 +114,18 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
         Scene { Rayons(ms) }
         Row(Modifier.fillMaxSize().padding(horizontal = 72.dp, vertical = 40.dp), verticalAlignment = Alignment.CenterVertically) {
             // La platine glisse en place, puis le bras vient se poser et le disque se met à tourner.
-            Platine(
-                angle = { (ms() - 1300f).coerceAtLeast(0f) / 1000f * 198f },
-                leve = 1f - bras.value,
-                or = 0f,
-                modifier = Modifier.fillMaxHeight(0.85f).graphicsLayer {
-                    translationX = -(1f - arrivee.value) * size.width * 0.6f
-                    alpha = arrivee.value
-                },
-            )
+            val place = Modifier.fillMaxHeight(0.85f).graphicsLayer {
+                translationX = -(1f - arrivee.value) * size.width * 0.6f
+                alpha = arrivee.value
+            }
+            val classique: @Composable () -> Unit = {
+                SideEffect { Habillage.platineIntroClassique = true }
+                Platine(angle = { (ms() - 1300f).coerceAtLeast(0f) / 1000f * 198f }, leve = 1f - bras.value, or = 0f, modifier = place)
+            }
+            // Game Show : déjà la platine néon de l'écoute, à l'arrêt (cedric, 25/10 : l'ancienne platine passait juste
+            // avant la nouvelle au premier morceau).
+            if (Look.gs) PlatineNeonGs(joue = false, manquant = false, modifier = place.aspectRatio(PlatineNeon.LARGEUR / PlatineNeon.HAUTEUR), secours = classique)
+            else classique()
             Spacer(Modifier.width(56.dp))
             Column(Modifier.weight(1f)) {
                 Text(

@@ -5,6 +5,7 @@ import com.littlemissparty.quiz.engine.POTATO_BOMBS
 import com.littlemissparty.quiz.engine.POTATO_POINTS
 import com.littlemissparty.quiz.engine.PUMP_TARGET
 import com.littlemissparty.quiz.engine.Scoring
+import com.littlemissparty.quiz.tv.habillage.Habillage
 import com.littlemissparty.quiz.tv.habillage.Look
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -652,8 +653,11 @@ class RegieTest : TestTv() {
         attendreQue("la régie voit l'extrait prêt") { regie.extraitPret(code, id)?.takeIf { it == "ok" } }
 
         // Le morceau s'annonce : la musique attend « Lancer le morceau », personne ne peut buzzer.
+        Habillage.platineIntroClassique = false
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("BLIND TEST")
+        // Game Show : la présentation montre déjà la platine néon, jamais l'ancienne (cedric, 25/10).
+        if (Look.gs) assertFalse("ancienne platine à la présentation du blind test", Habillage.platineIntroClassique)
         ecran.voit("Morceau 1 / 2")
         ecran.voit("Prêts ? Écoutez bien…")
         // La présentation tient au-dessus des équipes et des boutons.

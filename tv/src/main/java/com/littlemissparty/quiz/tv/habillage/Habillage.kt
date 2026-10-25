@@ -68,6 +68,9 @@ object Habillage {
     /** L'intro vidéo d'un jeu passe sur l'écran de présentation : le décor ne lit pas son propre fond vidéo. */
     val introJeu = mutableStateOf(false)
 
+    /** La présentation du blind test a dessiné l'ancienne platine (Classique, ou platine néon introuvable) ; lu par les tests. */
+    @Volatile var platineIntroClassique = false
+
     /** La vidéo de l'écran de fin du Game Show passe : le décor ne lit pas son propre fond vidéo. */
     val finVideo = mutableStateOf(false)
 }
