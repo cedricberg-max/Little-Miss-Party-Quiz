@@ -30,7 +30,7 @@ internal data class SanteBox(
         val duree = if (minutes >= 60) "${minutes / 60} h ${"%02d".format(Locale.ROOT, minutes % 60)}" else "$minutes min"
         val alerte = alertes().takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "⚠ ", postfix = " · ") ?: ""
         return alerte +
-            "RAM libre $ramLibreMo/$ramTotaleMo Mo · appli $appliMo/$appliMaxMo Mo · disque ${disque()} · " +
+            "RAM $ramLibreMo/$ramTotaleMo Mo · appli $appliMo/$appliMaxMo Mo · disque ${disque()} · " +
             "boucles $boucles, sons $sonsLongs, incidents $incidentsSon · " +
             "Internet ${if (internet) "oui" else "NON"} · $ecran · tablettes $tablettes/$equipes · $duree"
     }
@@ -38,8 +38,8 @@ internal data class SanteBox(
     /** Ce qui mérite d'être lu en premier : rien quand tout va bien. */
     fun alertes(): List<String> = buildList {
         if (ramBasse || ramLibreMo < RAM_BASSE_MO) add("mémoire basse")
-        if (appliMaxMo > 0 && appliMo * 100 >= appliMaxMo * 85) add("appli près de sa limite")
-        if (disqueLibreMo < DISQUE_BAS_MO) add("place basse")
+        if (appliMaxMo > 0 && appliMo * 100 >= appliMaxMo * 85) add("appli pleine")
+        if (disqueLibreMo < DISQUE_BAS_MO) add("disque bas")
         if (!internet) add("sans Internet")
     }
 

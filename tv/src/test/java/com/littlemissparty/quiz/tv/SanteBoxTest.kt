@@ -17,7 +17,7 @@ class SanteBoxTest {
     fun `tout va bien, une ligne sans alerte`() {
         assertEquals(emptyList<String>(), normal.alertes())
         assertEquals(
-            "RAM libre 812/1945 Mo · appli 95/192 Mo · disque 1,3 Go · boucles 1, sons 0, incidents 3 · " +
+            "RAM 812/1945 Mo · appli 95/192 Mo · disque 1,3 Go · boucles 1, sons 0, incidents 3 · " +
                 "Internet oui · question · tablettes 4/4 · 1 h 05",
             normal.ligne(),
         )
@@ -26,12 +26,12 @@ class SanteBoxTest {
     @Test
     fun `memoire, place et Internet en alerte en tete de ligne`() {
         val mal = normal.copy(ramLibreMo = 120, appliMo = 170, disqueLibreMo = 600, internet = false, depuisMs = 6 * 60_000L)
-        assertEquals(listOf("mémoire basse", "appli près de sa limite", "place basse", "sans Internet"), mal.alertes())
-        assertTrue(mal.ligne().startsWith("⚠ mémoire basse, appli près de sa limite, place basse, sans Internet · RAM libre 120/"))
+        assertEquals(listOf("mémoire basse", "appli pleine", "disque bas", "sans Internet"), mal.alertes())
+        assertTrue(mal.ligne().startsWith("⚠ mémoire basse, appli pleine, disque bas, sans Internet · RAM 120/"))
         assertTrue(mal.ligne().contains("disque 600 Mo"))
         assertTrue(mal.ligne().endsWith("6 min"))
         // Le workflow « Rapports » garde les 200 premiers caractères : tout tient, même avec toutes les alertes.
-        assertTrue(mal.copy(ecran = "intro en pause", tablettes = 8, equipes = 8).ligne().length <= 200)
+        assertTrue(mal.copy(ecran = "question en pause", ramTotaleMo = 16_384, appliMaxMo = 1_024, tablettes = 8, equipes = 8, incidentsSon = 60, depuisMs = 5 * 3_600_000L).ligne().length <= 200)
     }
 
     @Test
