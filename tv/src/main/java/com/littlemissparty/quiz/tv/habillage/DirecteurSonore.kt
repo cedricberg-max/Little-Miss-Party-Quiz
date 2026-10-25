@@ -148,8 +148,9 @@ class DirecteurSonore {
                     o += Ordre.Musique(musique, Tempo.TRANSITION_MUSIQUE)
                 } else if (i.superFinale && !p.superFinale) {
                     // Les dernières questions du quiz passent à points ×2 : un éclat « points doublés », une seule fois.
-                    // Ce n'est pas un nouveau jeu : ni rideau ni jingle de manche.
-                    o += Ordre.Jouer(Son.BT_DOUBLE)
+                    // Ce n'est pas un nouveau jeu : ni rideau ni jingle de manche. Game Show : un impact, pas les cuivres
+                    // du Classique, qui faisaient deux musiques à la fois sur Daft Punk (cedric, 25/10 au soir).
+                    o += Ordre.Jouer(if (i.gameShow) Son.IMPACT else Son.BT_DOUBLE)
                     // Game Show : la musique de la manche ne s'arrête pas, la nappe de tension la rejoint (cedric, 23/10).
                     if (!i.gameShow) {
                         o += Ordre.Musique(Ambiance.SILENCE)
@@ -275,8 +276,12 @@ class DirecteurSonore {
                 o += Ordre.Musique(Ambiance.BILAN, Tempo.BT_OUTRO_MUSIQUE)
             } else {
                 o += Ordre.Jouer(Son.WHOOSH)
-                o += Ordre.Jouer(Son.COMPTEUR, Tempo.CLASSEMENT_COMPTEUR)
-                if (i.meneurAPoints) o += Ordre.Jouer(Son.COURONNE, Tempo.CLASSEMENT_COURONNE)
+                // Game Show : le riff d'Aerodynamic seul. Le compteur et la couronne du Classique sont des sons musicaux
+                // qui faisaient deux musiques à la fois (cedric, 25/10 au soir, classement en cours de Quiz).
+                if (!i.gameShow) {
+                    o += Ordre.Jouer(Son.COMPTEUR, Tempo.CLASSEMENT_COMPTEUR)
+                    if (i.meneurAPoints) o += Ordre.Jouer(Son.COURONNE, Tempo.CLASSEMENT_COURONNE)
+                }
                 o += Ordre.Musique(Ambiance.BILAN)
             }
             Ecran.FIN -> if (i.gameShow) {

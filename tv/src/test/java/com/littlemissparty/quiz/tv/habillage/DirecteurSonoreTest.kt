@@ -178,8 +178,19 @@ class DirecteurSonoreTest {
         d.observer(q1.copy(gameShow = true))
         d.observer(q2.copy(gameShow = true))
         val bascule = d.observer(q2.copy(index = 8, superFinale = true, gameShow = true))
-        assertTrue(Son.BT_DOUBLE in bascule.sons())
+        // Un impact, jamais les cuivres du Classique par-dessus Daft Punk (cedric, 25/10 au soir : deux musiques).
+        assertTrue(Son.IMPACT in bascule.sons())
+        assertFalse(Son.BT_DOUBLE in bascule.sons())
         assertEquals(listOf(Ambiance.DECISIVE), bascule.filterIsInstance<Ordre.Musique>().map { it.ambiance })
+    }
+
+    @Test
+    fun `Game Show, le classement en cours de partie n'a que sa musique, sans compteur ni couronne du Classique`() {
+        val d = DirecteurSonore()
+        d.observer(q2.copy(gameShow = true))
+        val ordres = d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 2, meneurAPoints = true, gameShow = true))
+        assertFalse(Son.COMPTEUR in ordres.sons() || Son.COURONNE in ordres.sons())
+        assertEquals(Ambiance.BILAN, ordres.musique())
     }
 
     @Test

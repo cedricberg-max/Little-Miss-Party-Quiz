@@ -44,7 +44,11 @@ void main() {
  */
 internal const val SHADER_PIXELS = """
 #extension GL_OES_EGL_image_external : require
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 uniform samplerExternalOES uTex;
 uniform mat4 uM;
 varying vec2 v;
@@ -160,6 +164,7 @@ internal class LecteurAlpha(
 
     private fun echec(e: Throwable) {
         Log.w("Habillage", "Robot ignoré : ${e.message}")
+        Sons.incident("Clip du robot ${nomClip()} arrêté : ${e.message} (${GelFond.fondsOuverts} vidéos, ${GelFond.clipsOuverts.get()} clips ouverts)")
         val avecFond = !seul && GelFond.fondsOuverts > 0
         post {
             if (avecFond) GelFond.uneSeuleVideo()
@@ -248,6 +253,8 @@ internal class LecteurAlpha(
             echec(e)
         }
     }
+
+    private fun nomClip(): String = runCatching { resources.getResourceEntryName(resId) }.getOrDefault("$resId")
 
     private fun dessiner() {
         val v = video ?: return
