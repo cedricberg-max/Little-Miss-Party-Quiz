@@ -987,13 +987,86 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("réponse choisie : son anneau blanc tient dans l'écran (tous les quiz à réponses, portrait et paysage), jamais un « ! » seul sur sa ligne", async () => {
+    const FORMATS = { "petit téléphone": [320, 640], "téléphone droit": [390, 844], "téléphone couché": [844, 390], "tablette posée": [1280, 800], "tablette droite": [800, 1280] };
+    const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const IDS = ["0123456789abcdef", "fedcba9876543210", "00112233445566ff", "ffeeddccbbaa9988"];
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/choiceImages`), Object.fromEntries(IDS.map((id) => [id, PNG]))));
+    for (const look of ["gs", "classique"]) {
+      await hostState(null);
+      // Pas de vrai plein écran ici : la fenêtre du navigateur de test ne changerait plus de taille.
+      const page = await openPupitre(`&look=${look}`, (context) => context.addInitScript(() => { Element.prototype.requestFullscreen = () => Promise.resolve(); }));
+      await joinTeam(page, `Les Zooms ${look}`);
+      const jeux = [
+        ["quiz", question({ qid: `${look}1`, choices: ["Le guépard", "La tortue des Galápagos", "Le paresseux", "L'escargot de Bourgogne"] })],
+        ["zoom mystère", question({ qid: `${look}2`, kind: "zoom", text: "Qu'est-ce que c'est ?", choices: ["Roi Boo", "Skelerex", "Mallow", "Chomp enchaîné"] })],
+        ["réponses en images", question({ qid: `${look}3`, choices: ["Lion", "Chien", "Vache", "Chat"], choiceImages: IDS })],
+        ["vrai ou faux", question({ qid: `${look}4`, kind: "express", choices: ["Vrai", "Faux"] })],
+      ];
+      for (const [jeu, etat] of jeux) {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await hostState(etat);
+        await page.locator(`#screen-question.active .choice >> nth=${etat.choices.length - 1}`).waitFor();
+        // La dernière réponse, celle du bas (ou de droite), là où l'anneau dépassait.
+        await page.locator(".choice").nth(etat.choices.length - 1).click();
+        await page.locator(".choice.picked").waitFor();
+        for (const [format, [width, height]] of Object.entries(FORMATS)) {
+          await page.setViewportSize({ width, height });
+          await page.waitForTimeout(400);
+          const dehors = await page.evaluate(() => {
+            const ecran = document.querySelector(".screen.active");
+            const e = ecran.getBoundingClientRect();
+            const out = [];
+            for (const choix of ecran.querySelectorAll(".choice")) {
+              // Anneau blanc de 4 px autour de la réponse choisie : il doit rester dans l'écran qui défile.
+              const r = choix.getBoundingClientRect();
+              const bord = choix.classList.contains("picked") ? 4 : 0;
+              if (r.left - bord < Math.max(e.left, 0) - 0.5 || r.right + bord > Math.min(e.right, innerWidth) + 0.5) {
+                out.push(`${choix.textContent} ${Math.round(r.left)}→${Math.round(r.right)} dans ${Math.round(e.left)}→${Math.round(e.right)}`);
+              }
+            }
+            // Le titre : sa dernière ligne n'est jamais faite que d'un signe de ponctuation.
+            const titre = document.getElementById("q-number");
+            const texte = titre.firstChild;
+            if (texte?.nodeType === Node.TEXT_NODE && /[!?:]$/.test(texte.nodeValue) && texte.nodeValue.length > 2) {
+              const haut = (i) => { const r = document.createRange(); r.setStart(texte, i); r.setEnd(texte, i + 1); return r.getBoundingClientRect().top; };
+              const n = texte.nodeValue.length;
+              if (Math.abs(haut(n - 1) - haut(n - 3)) > 2) out.push(`« ${texte.nodeValue.slice(-1)} » seul sur sa ligne : ${texte.nodeValue}`);
+            }
+            return out;
+          });
+          assert.deepEqual(dehors, [], `${look}, ${jeu}, ${format} (${width}×${height})`);
+        }
+      }
+      await page.context().close();
+    }
+  });
+
+  test("retour sur la page (autre appli, plein écran qui bascule) : le toucher qui la ramène ne répond pas à la place de l'équipe", async () => {
+    const page = await openPupitre("", (context) => context.addInitScript(() => { Element.prototype.requestFullscreen = () => Promise.resolve(); }));
+    const equipe = await joinTeam(page, "Les Revenants");
+    await hostState(question({ qid: "retour1" }));
+    await page.locator("#screen-question.active .choice").first().waitFor();
+    // La page revient au premier plan (cedric, 25/10 : « réponse envoyée » au retour, sans avoir répondu).
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await page.locator(".choice").nth(2).click();
+    await page.waitForTimeout(400);
+    assert.equal(await page.locator(".choice.picked").count(), 0, "pas de réponse dans la seconde du retour");
+    assert.equal(await read(`answers/retour1/${equipe}`), null);
+    // Une seconde plus tard, l'équipe répond normalement.
+    await page.waitForTimeout(800);
+    await page.locator(".choice").nth(1).click();
+    await waitFor(async () => (await read(`answers/retour1/${equipe}`))?.choice === 1, "réponse B enregistrée");
+    await page.context().close();
+  });
+
   test("présentation d'un jeu sur la TV : pas de buzzer ni de question, la tablette dit d'écouter l'animatrice", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
     await hostState({ phase: "intro", seq: 5, total: 4, scores: {}, round: 1, buzzOpen: false, paused: false, index: 2, qid: "f1", kind: "flou", deadline: null, game: { title: "Image floue", n: 1, of: 3, label: "Image floue · 1 / 3" } });
     await page.locator("#play-intro:not([hidden])", { hasText: "Prochain jeu" }).waitFor();
     assert.equal(await page.locator("#play-intro-title").textContent(), "Image floue");
-    assert.equal(await page.locator("#play-status").textContent(), "Écoutez bien l'animatrice !");
+    assert.equal(await page.locator("#play-status").textContent(), "Écoutez bien l'animatrice\u00a0!", "espace insécable : le « ! » ne part jamais seul à la ligne");
     assert.equal(await page.locator("#buzz").isVisible(), false, "pas de buzzer pendant la présentation");
     assert.equal(await page.locator("#screen-question").isVisible(), false);
     await hostState(question({ qid: "f1", kind: "flou", choices: null, buzzOpen: true, buzz: { blocked: [] }, round: "f1-1000-0" }));
@@ -1103,6 +1176,8 @@ describe("pupitre", () => {
     await page.waitForTimeout(2500);
     await visibilite("visible");
     await page.locator("#screen-question.active .choice", { hasText: "Vénus" }).waitFor({ timeout: 8000 });
+    // Le toucher qui ramène la page ne répond pas : la réponse se donne une seconde après le retour.
+    await page.waitForTimeout(1000);
     await page.locator(".choice").nth(2).click();
     await waitFor(async () => (await read(`answers/q2/${uid}`))?.choice === 2, "réponse envoyée sur la nouvelle connexion");
     await waitFor(async () => (await read(`presence/${uid}`))?.online === true, "présence remise");

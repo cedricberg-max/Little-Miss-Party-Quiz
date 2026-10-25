@@ -7,9 +7,11 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.platform.ViewRootForTest
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
@@ -215,6 +217,41 @@ class Ecran(private val nomTest: () -> String) {
             runCatching { Log.e(TAG, "« $texte » coupé ou hors écran, plan de l'écran :\n${plan()}") }
             throw AssertionError("« $texte » n'est pas entièrement visible")
         }
+    }
+
+    /**
+     * Le texte s'affiche en entier (règle 10) : visible, aucun mot coupé en fin de ligne (« Téléphériqu / e », 25/10),
+     * jamais de « … » ; vérifié dans la mise en page réelle de chaque texte qui le contient.
+     */
+    fun motsEntiers(texte: String, ms: Long = 5_000) {
+        entierementVisible(texte, ms)
+        val defauts = mutableListOf<String>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            fenetres().flatMap(::racinesCompose).forEach { racine -> defautsDeMots(racine.semanticsOwner.rootSemanticsNode, texte, defauts) }
+        }
+        if (defauts.isNotEmpty()) {
+            capture("mot-coupe")
+            throw AssertionError("« $texte » mal affiché : ${defauts.joinToString(" ; ")}")
+        }
+    }
+
+    private fun defautsDeMots(n: SemanticsNode, texte: String, defauts: MutableList<String>) {
+        val textes = n.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }
+        if (textes.any { texte in it }) {
+            val mises = mutableListOf<TextLayoutResult>()
+            n.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(mises)
+            mises.firstOrNull()?.let { l ->
+                val s = l.layoutInput.text.text
+                for (i in 0 until l.lineCount) {
+                    if (l.isLineEllipsized(i)) defauts += "« … » ligne ${i + 1} de « $s »"
+                    val fin = l.getLineEnd(i, visibleEnd = true)
+                    if (fin in 1 until s.length && !s[fin - 1].isWhitespace() && !s[fin].isWhitespace() && s[fin - 1] != '-') {
+                        defauts += "mot coupé : « ${s.substring(0, fin)} | ${s.substring(fin)} »"
+                    }
+                }
+            }
+        }
+        n.children.forEach { defautsDeMots(it, texte, defauts) }
     }
 
     /** Attend que le bouton portant ce texte ait le focus de la télécommande. */

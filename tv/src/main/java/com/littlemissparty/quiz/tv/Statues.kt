@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.Sons
 import com.littlemissparty.quiz.tv.habillage.StatuesGameShow
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import com.littlemissparty.quiz.tv.habillage.apparition
@@ -65,7 +66,13 @@ private fun MusiqueStatues(danse: Boolean, chansons: List<String>) {
     var illisibles by remember(chansons) { mutableStateOf(emptySet<String>()) }
     val jouables = chansons.filter { it !in illisibles }
     val chanson = if (jouables.isEmpty()) null else jouables[rang % jouables.size]
-    val player = remember(chanson, jouables.size) {
+    // Lecteur en panne (erreur, ou muet pendant la danse : TV du 25/10 au soir) : refait, deux fois au plus.
+    var essai by remember(chanson) { mutableIntStateOf(0) }
+    val panne: (String) -> Unit = { raison ->
+        Sons.incidentChanson("Statues, ${if (chanson == null) "musique maison" else "chanson"} : $raison${if (essai < ESSAIS_CHANSON) ", lecteur refait" else ""}")
+        if (essai < ESSAIS_CHANSON) essai++
+    }
+    val player = remember(chanson, jouables.size, essai) {
         runCatching {
             MediaPlayer().apply {
                 setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
@@ -80,15 +87,25 @@ private fun MusiqueStatues(danse: Boolean, chansons: List<String>) {
                 isLooping = jouables.size <= 1
                 if (jouables.size > 1) setOnCompletionListener { rang++ }
                 prepare()
+                setOnErrorListener { _, quoi, extra -> panne("lecteur en erreur ($quoi, $extra)"); true }
             }
-        }.onFailure { Log.w("Statues", "Musique indisponible", it) }.getOrNull()
+        }.onFailure {
+            Log.w("Statues", "Musique indisponible", it)
+            Sons.incidentChanson("Statues : musique illisible (${it.message})")
+        }.getOrNull()
     }
     // Chanson illisible : écartée, la suivante joue ; plus aucune : la musique maison prend le relais.
     LaunchedEffect(chanson, player) { if (player == null && chanson != null) illisibles = illisibles + chanson }
     if (player == null) return
     DisposableEffect(player) { onDispose { runCatching { player.stop() }; runCatching { player.release() } } }
     LaunchedEffect(player, danse) {
-        runCatching { if (danse) player.start() else if (player.isPlaying) player.pause() }
+        runCatching {
+            if (danse) {
+                val depart = player.currentPosition
+                player.start()
+                verifierQueCaJoue(player, depart, panne)
+            } else if (player.isPlaying) player.pause()
+        }
     }
 }
 

@@ -152,21 +152,22 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
             state.phase == Phase.REVEAL || state.phase == Phase.SCORES -> {
                 Text(if (q.isChante) "Le mot :" else "C'était :", color = Palette.InkSoft, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    q.choices.getOrNull(q.correct).orEmpty(),
-                    color = Palette.Gold, fontSize = 52.sp, lineHeight = 58.sp, fontWeight = FontWeight.Black,
-                    textAlign = TextAlign.Center, modifier = Modifier.apparition(0, state.phase),
+                // Le mot entier, jamais coupé (« Téléphériqu / e », 25/10) : il rétrécit selon sa longueur, et la phrase
+                // dessous garde toujours sa place, entière, à 8 équipes comme à 1.
+                TexteAjuste(
+                    q.choices.getOrNull(q.correct).orEmpty(), color = Palette.Gold, max = 52.sp, min = 22.sp, lignes = 2,
+                    modifier = Modifier.fillMaxWidth().weight(1f, fill = false).apparition(0, state.phase),
                 )
                 Spacer(Modifier.height(20.dp))
-                Text(
+                TexteAjuste(
                     when {
                         gagnant != null && q.isChante -> "Bravo ${gagnant.name}, quelle voix !"
                         gagnant != null -> "Bravo ${gagnant.name} !"
                         q.isChante -> "Personne n'a chanté, ce n'est pas grave !"
                         else -> "Personne n'a trouvé, ce n'est pas grave !"
                     },
-                    color = gagnant?.color?.toColor() ?: Palette.Ink, fontSize = 30.sp, lineHeight = 36.sp,
-                    fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+                    color = gagnant?.color?.toColor() ?: Palette.Ink, max = 30.sp, min = 16.sp, lignes = 3,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             buzzer != null -> {

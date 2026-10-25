@@ -211,6 +211,15 @@ object Sons {
     }
 
     /** Un incident du son : dans le journal de la box, et dans ses rapports (ses répétitions groupées). */
+    /**
+     * Incident d'une chanson de jeu (Quiz musical, blind test, statues) : toujours envoyé, hors du plafond des sons de
+     * l'habillage. Le 25/10 au soir, ce plafond était atteint quand les chansons se sont tues : rien n'était remonté.
+     */
+    fun incidentChanson(texte: String) {
+        Log.w(TAG, texte)
+        runCatching { rapporteur?.invoke(texte) }
+    }
+
     internal fun incident(texte: String) {
         Log.w(TAG, texte)
         if (incidents.noter(texte, SystemClock.uptimeMillis())) h.postDelayed({ incidents.fermer(texte) }, incidents.fenetreMs)
