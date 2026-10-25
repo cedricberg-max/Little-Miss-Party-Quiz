@@ -16,6 +16,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -125,12 +127,23 @@ private val LARGEUR_TITRE_INTRO = 520.dp
 @Composable
 internal fun IntroJeuGameShow(titre: String, famille: String, nom: String, video: Boolean, modifier: Modifier = Modifier) {
     var echec by remember(nom) { mutableStateOf(false) }
-    if (echec) return PresentationJeuGameShow(titre, famille, modifier)
+    // Vidéo qui lâche (test du 25/10 au soir : Gonfleur fou, l'écran dessiné restait figé) : relancée, plusieurs fois ;
+    // l'écran dessiné tient la place en attendant. La vidéo tourne en boucle jusqu'à « Lancer l'épreuve ».
+    var essai by remember(nom) { mutableIntStateOf(0) }
+    LaunchedEffect(echec, nom) {
+        if (echec && essai < ESSAIS_INTRO_JEU) {
+            delay(RELANCE_INTRO_JEU_MS)
+            essai++
+            echec = false
+        }
+    }
     val actif = video && !Habillage.introLancement.value
+    // Avant le repli : pendant une relance, le décor ne rouvre pas son propre fond vidéo (une vidéo à la fois).
     DisposableEffect(actif) {
         Habillage.introJeu.value = actif
         onDispose { Habillage.introJeu.value = false }
     }
+    if (echec) return PresentationJeuGameShow(titre, famille, modifier)
     var lancee by remember(nom) { mutableStateOf(false) }
     LaunchedEffect(actif, nom) {
         lancee = false
@@ -139,15 +152,23 @@ internal fun IntroJeuGameShow(titre: String, famille: String, nom: String, video
             lancee = true
         }
     }
-    var prete by remember(nom, lancee) { mutableStateOf(false) }
-    val opacite = remember(nom, lancee) { Animatable(0f) }
+    var prete by remember(nom, lancee, essai) { mutableStateOf(false) }
+    val opacite = remember(nom, lancee, essai) { Animatable(0f) }
     LaunchedEffect(prete) { if (prete) opacite.animateTo(1f, tween(FONDU_INTRO_JEU_MS)) }
     val embleme = emblemeJeu(famille)
     val couleur = if (embleme.couleur == Color(0xFFF0CC92)) GS.Rose else enNeon(embleme.couleur)
     Box(modifier.fillMaxSize()) {
-        if (lancee) {
+        if (lancee) key(essai) {
             AndroidView(
-                factory = { LecteurFond(it, ressourceIntroJeu(nom), surPret = { prete = true }, surEchec = { echec = true }) },
+                factory = {
+                    LecteurFond(
+                        it, ressourceIntroJeu(nom), surPret = { prete = true },
+                        surEchec = {
+                            Sons.incident("Intro du jeu « $nom » : la vidéo a lâché (${GelFond.fondsOuverts} vidéos ouvertes), essai ${essai + 1}")
+                            echec = true
+                        },
+                    )
+                },
                 update = { it.alpha = opacite.value },
                 onRelease = { it.liberer() },
                 modifier = Modifier.fillMaxSize(),
@@ -156,6 +177,10 @@ internal fun IntroJeuGameShow(titre: String, famille: String, nom: String, video
         TitreIntroJeu(titre, couleur)
     }
 }
+
+/** Relances d'une intro de jeu qui lâche, puis l'écran dessiné reste. */
+internal const val ESSAIS_INTRO_JEU = 6
+private const val RELANCE_INTRO_JEU_MS = 1_500L
 
 @Composable
 private fun TitreIntroJeu(titre: String, couleur: Color) {

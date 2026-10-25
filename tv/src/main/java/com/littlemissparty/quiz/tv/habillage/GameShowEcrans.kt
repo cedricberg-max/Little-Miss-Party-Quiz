@@ -2,6 +2,8 @@ package com.littlemissparty.quiz.tv.habillage
 
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -164,7 +166,13 @@ fun PresentationJeuGameShow(titre: String, famille: String, modifier: Modifier =
                 titre.length <= 22 -> 52.sp
                 else -> 40.sp
             }
-            Box(Modifier.padding(horizontal = 50.dp).apparition(500, titre), contentAlignment = Alignment.Center) {
+            // Plaque sombre sous le titre : il passe devant les pupitres du plateau et doit rester lisible (cedric, 25/10).
+            Box(
+                Modifier.padding(horizontal = 50.dp).apparition(500, titre)
+                    .background(GS.Noir.copy(alpha = 0.72f), RoundedCornerShape(18.dp))
+                    .padding(horizontal = 28.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(titre, maxLines = 2, overflow = TextOverflow.Ellipsis, style = styleTitreNeon(taille, couleur))
                 // Reflet blanc qui traverse le titre toutes les 5 secondes (le titre reste net et immobile).
                 Text(
