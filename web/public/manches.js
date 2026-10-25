@@ -331,7 +331,9 @@ export function cleanRound(r, playlists = {}) {
     out = { type, ...(seul ? { quizId: seul } : seriesQuiz.length ? { seriesQuiz, ...(ordreQuiz.length ? { ordreQuiz } : {}) } : {}),
       ...(hasFinale(type) && r.finale > 0 ? { finale: Math.min(Math.floor(r.finale), 20) } : {}),
       ...(hasFinale(type) && r.finale > 0 && FACTEURS_FINALE.includes(r.facteur) && r.facteur !== FACTEURS_FINALE[0] ? { facteur: r.facteur } : {}),
-      ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}) };
+      ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}),
+      // L'âge de la première ligne du Quiz (cedric, 25/10), d'office pour ses dés.
+      ...(type === "quiz" && PROFILES[r.profil] ? { profil: r.profil } : {}) };
   } else {
     const ids = roundQuizIds(r);
     // Questions tirées au 🎲 (cedric, 23/10) : gardées dans la manche, avec le profil qui a servi au tirage.
@@ -345,7 +347,9 @@ export function cleanRound(r, playlists = {}) {
       ...(ids.length || !tirees.length ? { quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}) } : {}),
       ...(hasFinale(type) && r.finale > 0 ? { finale: r.finale } : {}),
       // Question des bougies enlevée de ce quiz (elle y est d'office, voir questionBougies).
-      ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}) };
+      ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}),
+      // L'âge de la première ligne du Quiz (cedric, 25/10), d'office pour ses dés.
+      ...(type === "quiz" && PROFILES[r.profil] ? { profil: r.profil } : {}) };
   }
   return { ...out, ...title, ...note, ...link };
 }
@@ -392,7 +396,8 @@ function serieNettoyee(x) {
     ...(x.origine === "de" && typeof x.famille === "string" && /^[a-z]{2,20}$/.test(x.famille) ? { famille: x.famille } : {}),
     // Série piochée dans les packs (« 🎨 Mes thèmes », cedric 25/10) : son dé et le mot tapé, pour la refaire.
     ...(x.origine === "reprise" && ["hasard", "theme", "recherche"].includes(x.pioche?.mode)
-      ? { pioche: { mode: x.pioche.mode, ...(typeof x.pioche.terme === "string" && x.pioche.terme.trim() ? { terme: x.pioche.terme.trim().slice(0, 80) } : {}) } } : {}),
+      ? { pioche: { mode: x.pioche.mode, ...(typeof x.pioche.terme === "string" && x.pioche.terme.trim() ? { terme: x.pioche.terme.trim().slice(0, 80) } : {}),
+        ...(PROFILES[x.pioche.profil] ? { profil: x.pioche.profil } : {}) } } : {}),
     questions };
 }
 
