@@ -2822,6 +2822,18 @@ const SANS_CONTENU = ["coffres", "patate", "gonfleur"];
  */
 const JEU_OUVERT = Symbol("jeu ouvert");
 
+/**
+ * Tests sur l'émulateur seulement : un quiz de la bibliothèque dans le Quiz du jeu [i], comme le faisait « Intégrer un
+ * quiz de votre bibliothèque » (retiré du Quiz par cedric le 25/10 ; les prestations qui en ont un le jouent toujours).
+ */
+if (emulator) window.__integrerQuiz = (i, quizId) => {
+  const r = editing?.rounds?.[i];
+  if (!r || !quizzes[quizId]) return false;
+  seriesDe(r).push({ id: nouvelId("q"), origine: "quiz", quizId });
+  refreshRounds();
+  return true;
+};
+
 function refreshRounds() {
   if (!editing) return;
   roundCtx = prestationCtx;
@@ -3336,7 +3348,7 @@ function compteurQuiz(r) {
   const total = questionsDesSeries(r, quizzes).length;
   const finale = hasFinale(r.type) && r.finale > 0 ? Math.min(r.finale, total) : 0;
   const unite = estJeuDePhotos(r.type) ? "photo" : r.type === "express" ? "affirmation" : "question";
-  const aTirer = casesDuTirage(r).filter(caseVide).length + casesPioche(seriePioche(r)).filter(caseVide).length;
+  const aTirer = casesDuTirage(r).filter(caseVide).length + seriesPioche(r).flatMap(casesPioche).filter(caseVide).length;
   const aFinir = seriesDe(r).filter((x) => x.origine === "main").flatMap((x) => x.questions ?? []).filter((q) => q && !questionJouable(q)).length;
   const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r && questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r);
   return [
@@ -3347,15 +3359,16 @@ function compteurQuiz(r) {
 }
 
 /**
- * « 🎨 Mes thèmes » (cedric, 25/10) : la série piochée dans les packs importés (une seule, refaite par chacun des
- * trois dés) ; gardée comme une série reprise (`pioche` : le dé et le mot tapé), la TV la joue comme les autres.
+ * « 🎨 Mes thèmes » (cedric, 25/10) : les séries piochées dans les packs importés, une par dé et par thème tapé (le
+ * même dé avec le même mot refait la sienne) ; gardées comme des séries reprises (`pioche` : le dé, le mot tapé, l'âge),
+ * la TV les joue comme les autres.
  */
-const seriePioche = (r) => seriesDe(r).find((x) => x.pioche && x.origine === "reprise") ?? null;
+const seriesPioche = (r) => seriesDe(r).filter((x) => x.pioche && x.origine === "reprise");
 const casesPioche = (x) => (Array.isArray(x?.questions) ? x.questions : Object.values(x?.questions ?? {})).filter(Boolean);
 /** Le catalogue des packs jouables au Quiz (sans les quiz des prestations de test). */
 const catalogueQuiz = () => catalogueDesPacks(quizzes, estQuizDeTest);
-/** Ce que dit le titre d'une série piochée : « au hasard », « thème principal « Mario » », « « K-pop » ». */
-const sortePioche = (p) => (p?.mode === "theme" ? `thème principal « ${p.terme} »` : p?.mode === "recherche" ? `« ${p.terme} »` : "tous mes thèmes au hasard");
+/** Ce que dit le titre d'une série piochée : « au hasard », « « Mario » + le reste au hasard », « « K-pop » à 100 % ». */
+const sortePioche = (p) => (p?.mode === "theme" ? `« ${p.terme} » pour moitié, le reste au hasard` : p?.mode === "recherche" ? `« ${p.terme} » à 100 %` : "tout au hasard");
 
 /**
  * Un champ de thème (cedric, 25/10) : à droite de son 🎲 ; en tapant, les packs qui répondent (filtre en direct, ceux
@@ -3381,66 +3394,112 @@ function champThemePacks({ classe, placeholder, label, valeur = "", catalogue, e
   return { champ, bloc: h("div", { class: "quiz-ajout-champ" }, champ, liste) };
 }
 
+/** Nombre de questions d'un dé du Quiz (cedric, 25/10) : de 1 à 15. */
+const NOMBRES_DE_QUIZ = Array.from({ length: 15 }, (_, k) => k + 1);
 /**
- * Ligne « 🎨 Mes thèmes » d'un Quiz (cedric, 25/10), au-dessus des autres outils (les packs d'abord) : le nombre de
- * questions et trois dés. 1. tout au hasard dans les packs ; 2. un thème principal (la moitié des questions), le reste
- * au hasard dans les autres packs ; 3. un mot (thème, personnage…) : seulement ce qui s'y rapporte. Le niveau est
- * celui de la prestation d'abord ; jamais une question déjà dans la prestation ni retirée.
+ * Réglages de chaque dé du Quiz, le temps de l'écran (cedric, 25/10) : son âge (d'office celui de la première ligne ;
+ * changé sur un dé, il ne vaut que pour lui) et son nombre de questions.
  */
-function lignePacks(r, profil, changer) {
+const reglagesDesDes = new WeakMap();
+const reglageDuDe = (r, de) => {
+  if (!reglagesDesDes.has(r)) reglagesDesDes.set(r, {});
+  const tous = reglagesDesDes.get(r);
+  return (tous[de] ??= {});
+};
+/** L'âge de la première ligne du Quiz : celui choisi, sinon celui de la prestation. */
+const ageDuQuiz = (r) => (PROFILES[r.profil] ? r.profil : roundCtx.profile?.() ?? "MOYENS");
+const ageDuDe = (r, de) => (PROFILES[reglageDuDe(r, de).profil] ? reglageDuDe(r, de).profil : ageDuQuiz(r));
+/** Le menu d'âge (« Petits (6 à 8 ans) »…) d'une ligne. */
+const menuAge = (valeur, attrs, changer) => h("select", { class: "tirage-profil", ...attrs, onchange: (e) => changer(e.target.value) },
+  ...Object.entries(PROFILES).map(([k, p]) => h("option", { value: k, selected: k === valeur, text: p.label })));
+
+/**
+ * Première ligne du Quiz (cedric, 25/10) : l'âge des questions, d'office pour chaque 🎲 en dessous (sauf celui dont on a
+ * changé l'âge), et le total des questions du Quiz (il compte, il ne se règle pas).
+ */
+function ligneAgeQuiz(r, changer) {
+  const total = questionsDesSeries(r, quizzes).length;
+  return h("div", { class: "quiz-age-ligne" },
+    h("span", { class: "quiz-ajout-titre quiz-age-titre", text: "🎂 Âge des questions" }),
+    menuAge(ageDuQuiz(r), { class: "tirage-profil quiz-age", "aria-label": "Âge des questions (d'office pour chaque 🎲)" }, (v) => { r.profil = v; changer(); }),
+    h("span", { class: "quiz-total", "aria-live": "polite", title: "Toutes les questions du Quiz (elles se comptent, elles ne se règlent pas)", text: `Total : ${plural(total, "question")}` }));
+}
+
+/**
+ * Les dés du Quiz (cedric, 25/10), une ligne chacun, avec son âge et son nombre de questions (1 à 15) ; chacun ajoute
+ * sa série (le même dé, avec le même mot, refait la sienne) :
+ * 1. tout au hasard dans mes packs ; 2. un thème principal pour moitié, le reste au hasard dans les autres packs ;
+ * 3. un thème à 100 % (thème, personnage…) ; 4. tout au hasard dans les questions libres de droit (Quiz classique tout
+ * prêt, Juste Chiffre compris). Jamais une question déjà dans la prestation ni retirée.
+ */
+function lignesDesQuiz(r, changer) {
   const catalogue = catalogueQuiz();
-  const actuelle = seriePioche(r);
-  const p = actuelle?.pioche ?? {};
-  const n = casesPioche(actuelle).length || r.nbPioche || TIRAGE_DEFAUT;
-  const nombre = h("select", { class: "tirage-nombre packs-nombre", "aria-label": "Nombre de questions à piocher dans mes thèmes", onchange: (e) => { r.nbPioche = Number(e.target.value); } },
-    ...[...new Set([...TIRAGE_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: plural(k, "question") })));
-  // Sans la série piochée en cours (le dé la refait) : ses questions peuvent revenir, jamais celles retirées.
-  const exclusSansElle = () => {
+  const memeSerie = (mode, terme) => seriesPioche(r).find((x) => x.pioche.mode === mode && (mode === "hasard" || cleTheme(x.pioche.terme ?? "") === cleTheme(terme)));
+  // Sans la série que le dé refait : ses questions peuvent revenir, jamais celles retirées.
+  const exclusSans = (serie) => {
     const toutes = seriesDe(r);
-    r.seriesQuiz = toutes.filter((x) => x !== seriePioche(r));
+    r.seriesQuiz = toutes.filter((x) => x !== serie);
     try { return textesPris(r); } finally { r.seriesQuiz = toutes; }
   };
+  const nombreDe = (de) => {
+    const n = NOMBRES_DE_QUIZ.includes(reglageDuDe(r, de).n) ? reglageDuDe(r, de).n : TIRAGE_DEFAUT;
+    return h("select", { class: `tirage-nombre de-nombre de-nombre-${de}`, "aria-label": "Nombre de questions de ce 🎲", onchange: (e) => { reglageDuDe(r, de).n = Number(e.target.value); } },
+      ...NOMBRES_DE_QUIZ.map((k) => h("option", { value: k, selected: k === n, text: plural(k, "question") })));
+  };
+  const ageDe = (de) => menuAge(ageDuDe(r, de), { class: `tirage-profil de-age de-age-${de}`, "aria-label": "Âge des questions de ce 🎲" }, (v) => { reglageDuDe(r, de).profil = v; });
   const piocher = (mode, champ) => {
     const terme = champ?.value.trim() ?? "";
-    if (mode !== "hasard" && !terme) { annonce(mode === "theme" ? "Tapez le thème principal à droite du 🎲." : "Tapez un thème, un personnage ou un mot à droite du 🎲."); champ.focus(); return; }
-    const k = Number(nombre.value);
-    const trouvees = piocherDansLesPacks(catalogue, k, { mode, terme, niveau: niveauDesPacks(NIVEAU_DU_PROFIL[profil]), exclus: exclusSansElle() });
+    if (champ) reglageDuDe(r, mode).terme = terme;
+    if (mode !== "hasard" && !terme) { annonce(mode === "theme" ? "Tapez le thème principal à droite du 🎲." : "Tapez le thème (ou un personnage) à droite du 🎲."); champ.focus(); return; }
+    if (!catalogue.length) { annonce("Aucun pack de quiz importé : Bibliothèque › Questions › « 📦 Importer un pack ZIP »."); return; }
+    const k = NOMBRES_DE_QUIZ.includes(reglageDuDe(r, mode).n) ? reglageDuDe(r, mode).n : TIRAGE_DEFAUT;
+    const profil = ageDuDe(r, mode);
+    const avant = memeSerie(mode, terme);
+    const trouvees = piocherDansLesPacks(catalogue, k, { mode, terme, niveau: niveauDesPacks(NIVEAU_DU_PROFIL[profil]), exclus: exclusSans(avant) });
     if (!trouvees.length) { annonce(mode === "hasard" ? "Plus aucune question libre dans vos packs." : `Aucune question libre ne se rapporte à « ${terme} » dans vos packs.`); return; }
     if (trouvees.length < k) annonce(`Seulement ${plural(trouvees.length, "question libre", "questions libres")}${mode === "recherche" ? ` sur « ${terme} »` : ""} : les voici.`);
-    let x = seriePioche(r);
-    if (!x) { x = { id: "packs", origine: "reprise" }; seriesDe(r).unshift(x); }
-    x.pioche = { mode, ...(mode === "hasard" ? {} : { terme }) };
-    x.titre = `Mes thèmes : ${sortePioche(x.pioche)}`;
+    let x = avant;
+    if (!x) { x = { id: nouvelId("pk"), origine: "reprise" }; seriesDe(r).push(x); }
+    x.pioche = { mode, ...(mode === "hasard" ? {} : { terme }), profil };
+    x.titre = `Mes packs : ${sortePioche(x.pioche)}`;
     x.questions = trouvees.map((y) => versQuestionDePack(y));
-    seriesDepliees.add(x);
-    r.nbPioche = k;
     changer();
   };
-  const theme = champThemePacks({ classe: "packs-theme", placeholder: "Thème principal", label: "Thème principal (la moitié des questions)", valeur: p.mode === "theme" ? p.terme : "",
-    catalogue, exclus: exclusSansElle(), entree: () => piocher("theme", theme.champ) });
-  const cherche = champThemePacks({ classe: "packs-recherche", placeholder: "Thème, personnage…", label: "Piocher seulement sur ce thème", valeur: p.mode === "recherche" ? p.terme : "",
-    catalogue, exclus: exclusSansElle(), entree: () => piocher("recherche", cherche.champ) });
+  // Le mot tapé reste dans son champ quand la carte se redessine.
+  const theme = champThemePacks({ classe: "packs-theme", placeholder: "Thème principal pour moitié, le reste au hasard", label: "Thème principal : la moitié des questions, le reste au hasard dans mes packs",
+    valeur: reglageDuDe(r, "theme").terme ?? "", catalogue, exclus: exclusSans(null), entree: () => piocher("theme", theme.champ) });
+  const cherche = champThemePacks({ classe: "packs-recherche", placeholder: "Thème à 100 % (ou un personnage) dans mes packs", label: "Thème à 100 % : toutes les questions sur ce thème",
+    valeur: reglageDuDe(r, "recherche").terme ?? "", catalogue, exclus: exclusSans(null), entree: () => piocher("recherche", cherche.champ) });
+  theme.champ.addEventListener("input", () => { reglageDuDe(r, "theme").terme = theme.champ.value; });
+  cherche.champ.addEventListener("input", () => { reglageDuDe(r, "recherche").terme = cherche.champ.value; });
   const de = (mode, titre, champ = null) => h("button", { type: "button", class: `btn packs-de packs-de-${mode}`, text: "🎲", "aria-label": titre, title: titre, onclick: () => piocher(mode, champ) });
-  return h("div", { class: "packs-ligne", "data-packs": String(catalogue.length) },
-    h("div", { class: "packs-tete" },
-      h("span", { class: "quiz-ajout-titre packs-titre", text: "🎨 Mes thèmes" }),
-      nombre,
-      catalogue.length ? null : h("span", { class: "hint small", text: "Aucun pack de quiz importé : Bibliothèque › Questions › « 📦 Importer un pack ZIP »." })),
-    h("div", { class: "packs-des" },
-      h("div", { class: "packs-de-ligne" }, de("hasard", "Piocher au hasard dans tous mes thèmes"), h("span", { class: "packs-de-texte", text: "Tout au hasard dans mes packs" })),
-      h("div", { class: "packs-de-ligne" }, de("theme", "Piocher : la moitié sur le thème principal, le reste au hasard", theme.champ), theme.bloc),
-      h("div", { class: "packs-de-ligne" }, de("recherche", "Piocher seulement sur ce thème", cherche.champ), cherche.bloc)));
+  const ligne = (classe, ...enfants) => h("div", { class: `de-ligne ${classe}` }, ...enfants);
+  const banque = () => tirerQuestionsQuiz(r, NOMBRES_DE_QUIZ.includes(reglageDuDe(r, "banque").n) ? reglageDuDe(r, "banque").n : TIRAGE_DEFAUT, ageDuDe(r, "banque"));
+  return [
+    h("div", { class: "packs-ligne", "data-packs": String(catalogue.length) },
+      h("div", { class: "packs-tete" },
+        h("span", { class: "quiz-ajout-titre packs-titre", text: "🎨 Mes packs" }),
+        catalogue.length ? null : h("span", { class: "hint small", text: "Aucun pack de quiz importé : Bibliothèque › Questions › « 📦 Importer un pack ZIP »." })),
+      ligne("packs-de-ligne", de("hasard", "Tout au hasard dans mes packs"), h("span", { class: "packs-de-texte", text: "Tout au hasard dans mes packs" }), ageDe("hasard"), nombreDe("hasard")),
+      ligne("packs-de-ligne", de("theme", "Thème principal pour moitié, le reste au hasard dans mes packs", theme.champ), theme.bloc, ageDe("theme"), nombreDe("theme")),
+      ligne("packs-de-ligne", de("recherche", "Thème à 100 % dans mes packs", cherche.champ), cherche.bloc, ageDe("recherche"), nombreDe("recherche"))),
+    h("div", { class: "banque-ligne" },
+      ligne("tirage-ligne",
+        h("button", { type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tout au hasard dans les questions libres de droit", title: "Tout au hasard dans les questions libres de droit (Quiz classique tout prêt, Juste Chiffre compris)", onclick: () => { banque(); changer(); } }),
+        h("span", { class: "packs-de-texte", text: "Tout au hasard dans les questions libres de droit" }), ageDe("banque"), nombreDe("banque"))),
+  ];
 }
 
 /**
  * Une question retirée d'une série piochée (cedric, 25/10) : deux dés à sa place, l'un au hasard dans tous les packs,
- * l'autre sur le thème tapé dans son petit champ (d'office celui de la série).
+ * l'autre sur le thème tapé dans son petit champ (d'office celui de la série) ; à l'âge de la série.
  */
 function caseVidePioche(r, x, i, profil, changer) {
   const catalogue = catalogueQuiz();
+  const age = PROFILES[x.pioche?.profil] ? x.pioche.profil : profil;
   const remplir = (mode, terme = "") => {
     if (mode === "recherche" && !terme) { annonce("Tapez un thème à droite du second 🎲."); champ.focus(); return; }
-    const [y] = piocherDansLesPacks(catalogue, 1, { mode, terme, niveau: niveauDesPacks(NIVEAU_DU_PROFIL[profil]), exclus: textesPris(r) });
+    const [y] = piocherDansLesPacks(catalogue, 1, { mode, terme, niveau: niveauDesPacks(NIVEAU_DU_PROFIL[age]), exclus: textesPris(r) });
     if (!y) { annonce(mode === "hasard" ? "Plus aucune question libre dans vos packs." : `Plus aucune question libre sur « ${terme} » dans vos packs.`); return; }
     x.questions = casesPioche(x).map((q, k) => (k === i ? versQuestionDePack(y) : q));
     changer();
@@ -3448,7 +3507,7 @@ function caseVidePioche(r, x, i, profil, changer) {
   const champ = h("input", { type: "search", class: "packs-case-theme", placeholder: "Thème…", "aria-label": "Thème de la question à piocher", maxlength: "80",
     value: x.pioche?.terme ?? "", onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); remplir("recherche", champ.value.trim()); } } });
   return h("li", { class: "tirage-q vide packs-case" }, h("div", { class: "tirage-q-ligne" },
-    h("button", { type: "button", class: "btn packs-de petit packs-case-hasard", text: "🎲", "aria-label": "Piocher une question au hasard dans mes thèmes", title: "Une question au hasard, n'importe quel thème", onclick: () => remplir("hasard") }),
+    h("button", { type: "button", class: "btn packs-de petit packs-case-hasard", text: "🎲", "aria-label": "Piocher une question au hasard dans mes packs", title: "Une question au hasard, n'importe quel thème", onclick: () => remplir("hasard") }),
     h("span", { class: "hint small", text: "ou" }),
     h("button", { type: "button", class: "btn packs-de petit packs-case-theme-de", text: "🎲", "aria-label": "Piocher une question sur ce thème", title: "Une question sur le thème tapé à droite", onclick: () => remplir("recherche", champ.value.trim()) }),
     champ));
@@ -3570,9 +3629,12 @@ function mancheQuiz(r) {
     choisir: (x) => { series.push({ id: nouvelId("q"), origine: "quiz", quizId: x.id }); changer(); },
   });
   // Quatrième ligne (Zoom mystère, Image floue) : composer avec ses propres images de « Mes images ».
-  // « 🎨 Mes thèmes » (cedric, 25/10) : au Quiz, les packs importés d'abord, au-dessus de la banque libre.
-  const packs = !photos && !illustre && !express ? lignePacks(r, profil, changer) : null;
-  const outils = h("div", { class: "quiz-outils" }, packs, ligne, rappel, biblio, photos ? ligneVosImages(r, changer) : null);
+  // Le Quiz (cedric, 25/10) : l'âge et le total, les dés de mes packs puis celui des questions libres de droit, chacun
+  // avec son âge et son nombre, puis « Rappeler un de vos quiz » ; plus d'ajout d'un quiz de la bibliothèque, et ses
+  // séries se voient dans le « Quiz complet ».
+  const classique = !photos && !illustre && !express;
+  const outils = classique ? h("div", { class: "quiz-outils" }, ligneAgeQuiz(r, changer), ...lignesDesQuiz(r, changer), rappel)
+    : h("div", { class: "quiz-outils" }, ligne, rappel, biblio, photos ? ligneVosImages(r, changer) : null);
 
   // Les séries, dans l'ordre choisi ; les questions de la Super Finale y sont marquées.
   const ligneQuestion = (x, q, retirer, extra = null) => {
@@ -3746,7 +3808,7 @@ function mancheQuiz(r) {
     questionAFocaliser = null;
     requestAnimationFrame(() => document.querySelector(`[data-question="${CSS.escape(id)}"] .q-main-texte`)?.focus());
   }
-  return [compteur, outils, series.length ? liste : null, bougies, derniere, quizComplet(r, assemblage, clesFinale, changer)];
+  return [compteur, outils, series.length && !classique ? liste : null, bougies, derniere, quizComplet(r, assemblage, clesFinale, changer, classique ? profil : null)];
 }
 
 /** Résultats montrés au plus sous une recherche d'ajout du Quiz (cedric, 23/10 : « 5 ou 6 »). */
@@ -3894,8 +3956,16 @@ const oublierPlaceBougies = (r) => { if (r.ordreQuiz?.length) r.ordreQuiz = r.or
  * L'ordre rangé ici est gardé dans la manche (`ordreQuiz`). La question des bougies (case cochée) en est une comme les
  * autres : d'office juste avant la Super Finale (sa place suit les ajouts), jusqu'à ce qu'on la déplace ou qu'on mélange.
  */
-function quizComplet(r, assemblage, clesFinale, changer) {
-  if (!assemblage.length) return null;
+function quizComplet(r, assemblage, clesFinale, changer, profilVides = null) {
+  // Le Quiz (cedric, 25/10) : ses séries ne se voient plus qu'ici ; une question tirée au 🎲 (banque ou mes packs)
+  // retirée laisse ses dés, en tête de la liste, pour en tirer une autre.
+  const avecVides = profilVides != null;
+  const vides = !avecVides ? [] : [
+    ...casesDuTirage(r).map((q, i) => ({ serie: serieDuDe(r), q, i })),
+    ...seriesPioche(r).flatMap((x) => casesPioche(x).map((q, i) => ({ serie: x, q, i }))),
+  ].filter((v) => caseVide(v.q));
+  if (!assemblage.length && !vides.length) return null;
+  if (vides.length) quizCompletsDeplies.add(r);
   const photos = estJeuDePhotos(r.type);
   const unite = photos ? "photo" : r.type === "express" ? "affirmation" : "question";
   const sig = (q) => (photos ? signatureQuestion(q, r.type) : q.text);
@@ -3936,9 +4006,12 @@ function quizComplet(r, assemblage, clesFinale, changer) {
       const reste = (serie.questions ?? []).filter(Boolean);
       const k = reste.findIndex((q) => cleQuestion(serie, q, r.type) === x.cle);
       if (k < 0) return;
-      if (serie.origine === "de") r.ecartees = [...(r.ecartees ?? []), sig(reste[k])];
-      serie.questions = reste.filter((_, i) => i !== k);
-      if (!serie.questions.some((q) => !caseVide(q))) r.seriesQuiz = seriesDe(r).filter((y) => y !== serie);
+      if (serie.origine === "de" || serie.pioche) r.ecartees = [...(r.ecartees ?? []), sig(reste[k])];
+      if (avecVides && (serie.origine === "de" || serie.pioche)) serie.questions = reste.map((q, i) => (i === k ? { vide: true, ...(q.nombre ? { nombre: true } : {}) } : q));
+      else {
+        serie.questions = reste.filter((_, i) => i !== k);
+        if (!serie.questions.some((q) => !caseVide(q))) r.seriesQuiz = seriesDe(r).filter((y) => y !== serie);
+      }
     }
     if (r.ordreQuiz?.length) r.ordreQuiz = cles.filter((c) => c !== x.cle && (c !== CLE_BOUGIES || rangees != null));
     changer();
@@ -3959,10 +4032,20 @@ function quizComplet(r, assemblage, clesFinale, changer) {
       h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer cette ${unite} plus tôt`, "aria-label": `Monter cette ${unite}`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
       h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer cette ${unite} plus tard`, "aria-label": `Descendre cette ${unite}`, disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
       h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: x.bougies ? "Enlever la question des bougies (la case se décoche)" : photos || unite === "affirmation" ? `Enlever cette ${unite} du jeu` : "Enlever cette question du quiz", "aria-label": `Enlever cette ${unite}`, onclick: () => enlever(x) }))));
-  const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignes);
+  const caseVideDe = ({ q, i }) => h("li", { class: "tirage-q vide" }, h("div", { class: "tirage-q-ligne" },
+    h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre question", title: "Tirer une autre question dans les questions libres de droit", onclick: () => {
+      const { qcm, chiffres } = piocherQuiz(r, { qcm: q.nombre ? 0 : 1, chiffres: q.nombre ? 1 : 0, profil: profilVides });
+      const neuve = qcm[0] ?? chiffres[0];
+      if (!neuve) { annonce("Plus aucune question libre de cette sorte pour cet âge : changez l'âge, ou baissez le nombre de questions."); return; }
+      poserTirage(r, casesDuTirage(r).map((y, k) => (k === i ? neuve : y)));
+      changer();
+    } }),
+    h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : "Question à tirer" })));
+  const lignesVides = vides.map((v) => (v.serie?.pioche ? caseVidePioche(r, v.serie, v.i, profilVides, changer) : caseVideDe(v)));
+  const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignesVides, ...lignes);
   liste.hidden = !quizCompletsDeplies.has(r);
   const nom = { illustre: "Quiz illustré complet", zoom: "Zoom mystère complet", flou: "Image floue complète", express: "Vrai ou Faux complet" }[r.type] ?? "Quiz complet";
-  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${nom} : ${vue.length} ${unite}${vue.length > 1 ? "s" : ""}, dans l'ordre de passage`;
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${nom} : ${vue.length} ${unite}${vue.length > 1 ? "s" : ""}, dans l'ordre de passage${vides.length ? ` (${vides.length} à tirer)` : ""}`;
   const voir = h("button", {
     type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
     title: photos || unite === "affirmation" ? `Voir toutes les ${unite}s du jeu, dans l'ordre` : "Voir toutes les questions du quiz, dans l'ordre",

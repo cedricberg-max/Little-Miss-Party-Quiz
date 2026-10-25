@@ -1200,7 +1200,17 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 .packs-des { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .packs-de-ligne { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .packs-de-ligne .packs-de { flex: none; font-size: 26px; line-height: 1; padding: 8px 22px; }
-.packs-de-texte { font-weight: 700; color: var(--ink); }
+.packs-de-texte { font-weight: 700; color: var(--ink); flex: 1 1 200px; min-width: 0; }
+/* Le Quiz (cedric, 25/10) : âge et total en tête ; chaque dé avec son âge et son nombre. */
+.quiz-age-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; padding-bottom: 12px; border-bottom: 1px dashed var(--line-2); }
+.quiz-age-ligne > select { width: auto; flex: 0 0 auto; max-width: 100%; }
+.quiz-total { margin-left: auto; padding: 6px 14px; border-radius: 999px; background: var(--violet-pale); color: var(--plum); font-weight: 800; white-space: nowrap; }
+.de-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.de-ligne > .quiz-ajout-champ { flex: 1 1 260px; min-width: 0; }
+.de-ligne > select { width: auto; flex: 0 0 auto; max-width: 100%; }
+.de-ligne .packs-de, .de-ligne .tirage-de { flex: none; align-self: center; font-size: 26px; line-height: 1; padding: 8px 22px; }
+.banque-ligne { padding-bottom: 12px; border-bottom: 1px dashed var(--line-2); }
+@media (max-width: 640px) { .quiz-total { margin-left: 0; } }
 .packs-case .tirage-q-ligne { flex-wrap: wrap; }
 .packs-case-theme { flex: 1 1 140px; min-width: 0; max-width: 260px; }
 /* Bibliothèque › Questions (cedric, 25/10) : le gros bouton d'import, à gauche de « ← Retour ». */
