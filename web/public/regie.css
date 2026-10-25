@@ -399,12 +399,14 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
   background: var(--danger); color: #fff; font: inherit; font-size: 14px; font-weight: 900; white-space: nowrap;
   box-shadow: 0 0 14px rgba(255, 90, 95, .55); animation: r-alerte 1.2s ease-in-out infinite alternate;
 }
-/* Elle rétrécit (noms coupés « … ») avant de pousser le chrono hors de l'écran. */
-.regie .pastille-hl { display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0; max-width: 55vw; }
+/* Elle rétrécit (noms coupés « … ») avant de pousser le chrono hors de l'écran : 150 px restent au chrono. */
+.regie .pastille-hl { display: inline-flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; max-width: calc(100vw - 150px); padding: 0 10px; }
 /* Cerclée de nuit puis de blanc : une équipe rose ou rouge se lit aussi sur la pastille rouge. */
-.regie .pastille-hl .hl-couleur { flex: none; width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 0 2.5px #1a0b2e, 0 0 0 4px #fff; margin: 0 3px; }
-.regie .pastille-hl .hl-couleur + .hl-couleur { margin-left: 1px; }
+.regie .pastille-hl .hl-couleur { flex: none; width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 0 2.5px #1a0b2e, 0 0 0 4px #fff; margin: 0 2px; }
+.regie .pastille-hl .hl-couleur + .hl-couleur { margin-left: -1px; }
 .regie .pastille-hl .hl-noms { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Trois équipes et plus : le nombre ne se coupe jamais. */
+.regie .pastille-hl .hl-noms.nombre { flex: none; overflow: visible; }
 .regie .pastille-hl.revenue { background: var(--ok); color: #1a0b2e; box-shadow: none; animation: none; cursor: default; }
 
 /* Barre du haut sur une ligne : le jeu et l'étape (coupés au besoin), la pastille, le chrono toujours entier. */

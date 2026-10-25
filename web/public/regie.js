@@ -195,14 +195,14 @@ function pastilleHorsLigne(bandeau, coupees, revenues) {
   pastille.hidden = !ids.length;
   pastille.classList.toggle("revenue", !coupees.length);
   const nom = (id) => live.teams[id]?.name ?? "Une équipe";
-  const couleurs = ids.slice(0, 4).map((id) => {
+  const couleurs = ids.slice(0, 3).map((id) => {
     const c = document.createElement("span");
     c.className = "hl-couleur";
     c.style.background = live.teams[id]?.color ?? "#fff";
     return c;
   });
   const noms = document.createElement("span");
-  noms.className = "hl-noms";
+  noms.className = ids.length <= 2 ? "hl-noms" : "hl-noms nombre";
   noms.textContent = ids.length <= 2 ? ids.map(nom).join(", ") : String(ids.length);
   const pluriel = ids.length > 1 ? "s" : "";
   pastille.replaceChildren("📱", ...couleurs, noms, coupees.length ? "hors ligne" : `revenue${pluriel}`);

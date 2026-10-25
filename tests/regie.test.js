@@ -1100,8 +1100,10 @@ describe("régie", () => {
     await setPresence("vert", false);
     await page.locator("#c-horsligne .hl-noms", { hasText: /^3$/ }).waitFor({ timeout: 8000 });
     assert.equal(await page.locator("#c-horsligne .hl-couleur").count(), 3);
-    const pl = await page.locator("#c-horsligne").boundingBox();
-    assert.ok(pl.x >= 0 && pl.x + pl.width <= 360 - 15, `pastille entière : ${JSON.stringify(pl)}`);
+    for (const id of ["c-horsligne", "c-timer"]) {
+      const r = await page.locator(`#${id}`).boundingBox();
+      assert.ok(r.x >= 0 && r.x + r.width <= 360 - 15, `#${id} entier avec trois équipes coupées : ${JSON.stringify(r)}`);
+    }
     // Retour : verte un instant, avec le nom ; puis plus rien quand tout le monde est là.
     await setPresence("rose", true);
     await setPresence("vert", true);
