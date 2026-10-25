@@ -54,7 +54,7 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
         Sons.incidentChanson("Extrait ${q.audioId} (question ${q.id}) : $raison${if (essai < ESSAIS_CHANSON) ", lecteur refait" else ""}")
         if (essai < ESSAIS_CHANSON) essai++
     }
-    val player = remember(q.id, path, essai) {
+    val preparation = rememberPrepareAuCalme(q.id, path, essai, liberer = ::rendreLecteur) {
         runCatching {
             MediaPlayer().apply {
                 setAudioAttributes(
@@ -68,7 +68,8 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
             Log.w("Extrait", "Extrait illisible ${q.audioId}", it)
             Sons.incidentChanson("Extrait ${q.audioId} (question ${q.id}) illisible : ${it.message}")
         }.getOrNull()
-    } ?: return
+    }
+    val player = (preparation as? Preparation.Faite)?.lecteur ?: return
     DisposableEffect(player) {
         val volume = boosterExtrait(player)
         onDispose { runCatching { volume?.release() }; runCatching { player.stop() }; runCatching { player.release() } }
@@ -115,6 +116,12 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
             Unit
         }.onFailure { Log.w("Extrait", "Lecture impossible", it) }
     }
+}
+
+/** Arrête et rend un lecteur de chanson ; sans effet s'il l'est déjà. */
+internal fun rendreLecteur(l: MediaPlayer) {
+    runCatching { l.stop() }
+    runCatching { l.release() }
 }
 
 /** Extrait toujours absent de la box ce temps après l'ouverture de sa question : signalé dans les rapports. */
@@ -178,7 +185,7 @@ object PositionRefrain {
  */
 @Composable
 fun RefrainEnBoucle(cle: String, path: String, dureeMs: Long? = null) {
-    val lecteurs = remember(cle, path) {
+    val preparation = rememberPrepareAuCalme(cle, path, liberer = { l: List<MediaPlayer> -> l.forEach(::rendreLecteur) }) {
         runCatching {
             List(2) {
                 MediaPlayer().apply {
@@ -194,7 +201,8 @@ fun RefrainEnBoucle(cle: String, path: String, dureeMs: Long? = null) {
             Log.w("Extrait", "Refrain illisible", it)
             Sons.incidentChanson("Refrain ($cle) illisible : ${it.message}")
         }.getOrNull()
-    } ?: return
+    }
+    val lecteurs = (preparation as? Preparation.Faite)?.lecteur ?: return
     DisposableEffect(lecteurs) {
         val volumes = lecteurs.map { boosterExtrait(it, GAIN_REFRAIN_MB) }
         onDispose {

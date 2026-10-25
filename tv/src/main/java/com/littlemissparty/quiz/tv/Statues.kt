@@ -72,7 +72,7 @@ private fun MusiqueStatues(danse: Boolean, chansons: List<String>) {
         Sons.incidentChanson("Statues, ${if (chanson == null) "musique maison" else "chanson"} : $raison${if (essai < ESSAIS_CHANSON) ", lecteur refait" else ""}")
         if (essai < ESSAIS_CHANSON) essai++
     }
-    val player = remember(chanson, jouables.size, essai) {
+    val preparation = rememberPrepareAuCalme(chanson, jouables.size, essai, liberer = ::rendreLecteur) {
         runCatching {
             MediaPlayer().apply {
                 setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
@@ -95,8 +95,10 @@ private fun MusiqueStatues(danse: Boolean, chansons: List<String>) {
         }.getOrNull()
     }
     // Chanson illisible : écartée, la suivante joue ; plus aucune : la musique maison prend le relais.
-    LaunchedEffect(chanson, player) { if (player == null && chanson != null) illisibles = illisibles + chanson }
-    if (player == null) return
+    LaunchedEffect(chanson, preparation) {
+        if (preparation is Preparation.Faite && preparation.lecteur == null && chanson != null) illisibles = illisibles + chanson
+    }
+    val player = (preparation as? Preparation.Faite)?.lecteur ?: return
     DisposableEffect(player) { onDispose { runCatching { player.stop() }; runCatching { player.release() } } }
     LaunchedEffect(player, danse) {
         runCatching {
