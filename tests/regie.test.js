@@ -1245,6 +1245,38 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("« ± Points » sur un petit téléphone (test du 25/10) : la fenêtre tient dans l'écran, rien ne se superpose ; le mode sombre forcé du téléphone ne repeint pas la régie", async () => {
+    box = startBox();
+    await addTeam("touj", "TOUJ");
+    await setPresence("touj", true);
+    for (const [w, h] of [[360, 640], [300, 560], [390, 844]]) {
+      const page = await openRegie(await contexteSansChoix({ viewport: { width: w, height: h } }));
+      await pair(page);
+      await inRegie(page);
+      // L'appli se déclare sombre : le navigateur n'applique pas son propre mode sombre.
+      assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "dark");
+      assert.equal(await page.locator('meta[name="color-scheme"]').getAttribute("content"), "dark");
+      await page.click("#c-plus");
+      await page.click("#c-points");
+      await page.locator("#pts:not([hidden])").waitFor();
+      await page.waitForTimeout(300);
+      // Les champs gardent leur rendu clair : case blanche, chiffres foncés.
+      assert.equal(await page.locator("#pts-input").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(255, 255, 255)");
+      const blocs = await page.evaluate(() => [...document.querySelector("#pts .pts-box").children]
+        .filter((el) => el.getClientRects().length).map((el) => { const r = el.getBoundingClientRect(); return { id: el.id || el.className, top: r.top, bottom: r.bottom }; }));
+      for (const b of blocs) assert.ok(b.top >= 0 && b.bottom <= h + 0.5, `${w}x${h} : « ${b.id} » dans l'écran ${JSON.stringify(b)}`);
+      for (let k = 1; k < blocs.length; k++) {
+        assert.ok(blocs[k].top >= blocs[k - 1].bottom - 0.5, `${w}x${h} : « ${blocs[k].id} » ne chevauche pas « ${blocs[k - 1].id} »`);
+      }
+      await capture(page, `points-${w}x${h}`, { pleinePage: false });
+      // Valider reste touchable et donne les points.
+      await page.click('#pts-presets [data-set="10"]');
+      await page.click("#pts-ok");
+      await page.locator("#pts").waitFor({ state: "hidden" });
+      await page.context().close();
+    }
+  });
+
   test("blind test : playlist et statuts, lancer, juger, relancer pour les autres, passer, raccourcir, titre suivant", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");

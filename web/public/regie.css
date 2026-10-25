@@ -193,9 +193,10 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
   font-size: 13px; color: rgba(255, 255, 255, .75); background: rgba(0, 0, 0, .25);
   border: 1px solid rgba(255, 255, 255, .25); border-radius: 999px; padding: 8px 12px;
 }
-.modal { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgba(11, 6, 20, .8); padding: 16px; }
+/* Une fenêtre plus haute que l'écran (petit téléphone) défile : jamais de titre ni de bouton coupé hors de portée. */
+.modal { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgba(11, 6, 20, .8); padding: 16px; overflow-y: auto; overscroll-behavior: contain; }
 .modal-box {
-  width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px;
+  margin: auto 0; flex: none; width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px;
   background: var(--night); color: #fff4f2; border-radius: 20px; padding: 20px; text-align: center;
 }
 .modal-title { margin: 0; font-size: 20px; font-weight: 800; }
@@ -229,6 +230,24 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .pts-fine button { min-height: 46px; border-radius: 12px; border: 1px solid var(--trait); background: var(--panel); color: var(--ink); font-size: 16px; font-weight: 800; }
 .regie .pts-fine input { min-width: 0; max-width: none; text-align: center; font-size: 20px; font-weight: 800; border-radius: 12px; }
 .regie .pts-range { width: 100%; accent-color: var(--gold); }
+/* Téléphone peu haut : la fenêtre des points tient dans l'écran, sans rien superposer. */
+@media (max-height: 720px) {
+  .regie .pts-box { gap: 7px; padding: 14px 16px; }
+  .regie .pts-box .modal-title { font-size: 19px; }
+  .regie .pts-teams button { min-height: 36px; }
+  .regie .pts-sign button { min-height: 38px; }
+  .regie .pts-value { font-size: 40px; }
+  .regie .pts-grid button { min-height: 44px; }
+  .regie .pts-fine button { min-height: 40px; }
+  .regie .pts-box .btn { min-height: 48px; padding-top: 8px; padding-bottom: 8px; }
+  .regie .pts-fine input { padding: 6px; }
+  .regie .pts-range { margin: 4px 0; }
+}
+@media (max-height: 600px) {
+  .regie #pts.modal { padding: 8px 16px; }
+  .regie .pts-value { font-size: 34px; }
+  .regie .pts-grid button { min-height: 40px; }
+}
 .regie .pts-box #pts-ok.malus { background: #FF7A2F; color: #2a1240; }
 .regie .ask-text { margin: 0; font-size: 16px; line-height: 1.45; color: var(--ink); white-space: pre-line; }
 .regie .ask-box .btn { min-height: 56px; width: 100%; }

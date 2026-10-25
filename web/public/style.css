@@ -6,6 +6,12 @@
   --gold: #ffd166;
   --team: var(--pink);
 }
+/* L'appli est déjà sombre : on le dit au navigateur, sinon le « mode sombre » forcé du téléphone repeint tout
+   (test du 25/10 : boutons dorés devenus blancs ou bleu clair, cases de saisie noires). Les champs et boutons
+   gardent leur rendu clair d'origine. */
+:root { color-scheme: dark; }
+@media (prefers-color-scheme: dark) { :root { color-scheme: dark; } }
+input, select, textarea, button { color-scheme: light; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; }
 body {
