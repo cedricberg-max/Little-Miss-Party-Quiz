@@ -1203,3 +1203,6 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 .packs-de-texte { font-weight: 700; color: var(--ink); }
 .packs-case .tirage-q-ligne { flex-wrap: wrap; }
 .packs-case-theme { flex: 1 1 140px; min-width: 0; max-width: 260px; }
+/* Bibliothèque › Questions (cedric, 25/10) : le gros bouton d'import, à gauche de « ← Retour ». */
+.retour-barre.haut .importer-haut { font-size: 18px; padding: 12px 22px; }
+.retour-barre.haut .importer-haut[hidden] { display: none; }

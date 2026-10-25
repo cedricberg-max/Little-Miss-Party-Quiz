@@ -4484,6 +4484,12 @@ barresRetour($("screen-banque"), pagePrecedente);
 // en bas aussi (cedric, 21/10).
 ["screen-game", "screen-quizzes", "screen-mimes", "screen-music", "screen-shows", "screen-library", "screen-settings"]
   .forEach((id) => barresRetour($(id), pagePrecedente));
+// Bibliothèque › Questions (cedric, 25/10) : un gros bouton pour importer un pack, à gauche de « ← Retour », toujours là.
+$("screen-library").querySelector(":scope > .retour-barre.haut")?.prepend(h("button", {
+  type: "button", id: "q-importer-haut", class: "btn importer-haut", text: "📦 Importer un pack ZIP", hidden: true,
+  title: "Choisir le ZIP d'un pack (ou de plusieurs packs) et l'importer",
+  onclick: () => { qGroupe = "packs"; qPack = null; qSelection.clear(); renderQuestions(); $("pack-file").click(); },
+}));
 
 $("quiz-import-open").onclick = () => {
   $("import-text").value = "";
@@ -7816,6 +7822,7 @@ function renderLibrary(force = false) {
   $("library-images").hidden = libTab !== "images";
   $("library-sons").hidden = libTab !== "sons";
   $("library-questions").hidden = libTab !== "questions";
+  if ($("q-importer-haut")) $("q-importer-haut").hidden = libTab !== "questions";
   if (libTab === "sons") { renderPlaylistsSons(); renderSongs(); }
   else if (libTab === "questions") renderQuestions();
   else renderMedias(force);
@@ -8202,7 +8209,10 @@ function dessinerQuestions() {
       const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { const y = window.scrollY; qGroupe = k; renderQuestions(); noterRubrique(y); } });
       const contenu = enCartes[k]
         ? (enCartes[k].length ? h("div", { class: "cards" }, ...enCartes[k].slice(0, QUESTIONS_APERCU).map(cartePack))
-          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "photos" ? "Aucune série de photos pour l'instant : « Voir tout », puis « 📷 Nouvelle série de photos »." : "Aucun pack pour l'instant : « Voir tout », puis « 📦 Importer un pack ZIP »." }))
+          : recherche ? h("p", { class: "hint small", text: "Rien ici pour cette recherche." })
+          : k === "photos" ? h("p", { class: "hint small", text: "Aucune série de photos pour l'instant : « Voir tout », puis « 📷 Nouvelle série de photos »." })
+          : h("div", { class: "row" }, h("p", { class: "hint small", text: "Aucun pack pour l'instant." }),
+            h("button", { type: "button", class: "btn q-importer-vide", text: "📦 Importer un pack ZIP", onclick: () => $("q-importer-haut").click() })))
         : (filtre(g[k]).length ? h("div", { class: "q-liste" }, ...filtre(g[k]).slice(0, QUESTIONS_APERCU).map(ligneQuestion))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune question écrite à la main pour l'instant." : "" }));
       return h("section", { class: `q-groupe${ouvert ? " ouvert" : " replie"}`, "data-groupe": k }, h("div", { class: "title-row" }, plier, ouvert ? voir : null), ouvert ? contenu : null);
