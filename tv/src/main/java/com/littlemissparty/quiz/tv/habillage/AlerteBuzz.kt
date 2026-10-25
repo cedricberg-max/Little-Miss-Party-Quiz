@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -94,6 +96,9 @@ internal fun AlerteBuzz(ms: () -> Float, couleur: Color, fondu: () -> Float, mod
     }
 }
 
+/** « STOP » et son point d'exclamation, séparés par une espace fine insécable. */
+private const val STOP_TEXTE = "STOP\u202F!"
+
 /**
  * « STOP ! » qui claque : il arrive en très grand, retombe à sa taille et se dédouble en cyan et en rose le temps du
  * claquement ; ensuite il garde un liseré cyan décalé, comme une enseigne. [fondu] comme pour [AlerteBuzz].
@@ -106,8 +111,17 @@ internal fun StopGlitch(ms: () -> Float, taille: TextUnit, modifier: Modifier = 
         fontFamily = PoliceGsTitre, fontSize = taille, fontWeight = FontWeight.Normal,
         shadow = Shadow(GS.Rose.copy(alpha = 0.9f), Offset.Zero, 36f),
     )
+    // Centrage optique (cedric, 25/10 : « le STOP n'est pas centré ») : c'est le mot STOP qui se pose sur l'axe de
+    // l'anneau, le point d'exclamation dépasse à droite ; espace fine insécable entre les deux.
+    val mesure = rememberTextMeasurer()
+    val decalageOptique = remember(taille) {
+        val st = TextStyle(fontFamily = PoliceGsTitre, fontSize = taille)
+        (mesure.measure(STOP_TEXTE, st, softWrap = false, maxLines = 1).size.width -
+            mesure.measure("STOP", st, softWrap = false, maxLines = 1).size.width) / 2f
+    }
     Box(
         modifier.clearAndSetSemantics {}.graphicsLayer {
+            translationX = decalageOptique * 0.8f
             val t = ms()
             val p = (t / 180f).coerceIn(0f, 1f)
             val s = if (p < 1f) 1.9f - 0.9f * p else 1f + 0.05f * sin(((t - 180f) / 120f).coerceAtMost(PI.toFloat()))
@@ -121,11 +135,11 @@ internal fun StopGlitch(ms: () -> Float, taille: TextUnit, modifier: Modifier = 
             val t = ms()
             if (t < STOP_CLAQUE_MS) 9f * (1f - t / STOP_CLAQUE_MS) * (if ((t / 50f).toInt() % 2 == 0) 1f else -0.6f) else 0f
         }
-        Text("STOP !", maxLines = 1, softWrap = false, style = style(GS.Cyan.copy(alpha = 0.85f)),
+        Text(STOP_TEXTE, maxLines = 1, softWrap = false, style = style(GS.Cyan.copy(alpha = 0.85f)),
             modifier = Modifier.graphicsLayer { translationX = (-2.5f - decalage()) * density; translationY = 1.5f * density })
-        Text("STOP !", maxLines = 1, softWrap = false, style = style(GS.Rose.copy(alpha = 0.7f)),
+        Text(STOP_TEXTE, maxLines = 1, softWrap = false, style = style(GS.Rose.copy(alpha = 0.7f)),
             modifier = Modifier.graphicsLayer { val d = decalage(); translationX = (d * 1.2f) * density; alpha = if (d == 0f) 0f else 1f })
-        Text("STOP !", maxLines = 1, softWrap = false, style = degrade)
+        Text(STOP_TEXTE, maxLines = 1, softWrap = false, style = degrade)
     }
 }
 
