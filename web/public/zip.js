@@ -134,3 +134,34 @@ export async function lireZip(donnees, limites = LIMITES_ZIP) {
   }
   return fichiers;
 }
+
+/**
+ * Comme lireZip, en ouvrant aussi les ZIP rangés dans le ZIP (cedric, 25/10 : ChatGPT livre parfois « une archive qui
+ * contient 7 archives »), sur un seul niveau : « quiz-facile.zip » devient le dossier « quiz-facile/ ». Les limites
+ * valent pour le tout ; un ZIP dans un ZIP intérieur n'est pas ouvert (laissé de côté comme un fichier inconnu).
+ */
+export async function lireZipEtSesZip(donnees, limites = LIMITES_ZIP) {
+  const fichiers = [];
+  const vus = new Set();
+  let total = 0;
+  const ajouter = (f) => {
+    if (vus.has(f.chemin)) return;
+    total += f.taille;
+    if (total > limites.total) throw new Error(`Le ZIP contient plus de ${Mo(limites.total)} une fois ouvert : faites un pack plus petit.`);
+    if (fichiers.length >= limites.fichiers) throw new Error(`Le ZIP contient plus de ${limites.fichiers} fichiers : faites un pack plus petit.`);
+    vus.add(f.chemin);
+    fichiers.push(f);
+  };
+  for (const f of await lireZip(donnees, limites)) {
+    if (!/\.zip$/i.test(f.nom)) { ajouter(f); continue; }
+    const dossier = f.chemin.replace(/\.zip$/i, "");
+    let dedans;
+    try {
+      dedans = await lireZip(await f.lire(), limites);
+    } catch (err) {
+      throw new Error(`Dans « ${f.chemin} » : ${err?.message ?? "il n'a pas pu être ouvert."}`);
+    }
+    for (const g of dedans) ajouter({ ...g, chemin: `${dossier}/${g.chemin}` });
+  }
+  return fichiers;
+}

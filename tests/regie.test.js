@@ -8880,6 +8880,26 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await page.locator('.q-famille[data-famille="Films et séries"] .pack .pack-niveau').allInnerTexts(), ["Facile", "Moyen", "Difficile"]);
     // Chaque carte dit son jeu, reconnu à l'import : c'est ce jeu-là qui le propose dans une prestation.
     assert.deepEqual(await page.locator('.q-famille[data-famille="Films et séries"] .pack .pill').allInnerTexts(), ["📝 Quiz classique", "📝 Quiz classique", "✅ Vrai ou Faux express"]);
+
+    // Un ZIP qui contient des ZIP (ChatGPT, 25/10) : tout dans le même aperçu. Une image panoramique : petite alerte, pas un refus.
+    const kpop = (niveau, image) => JSON.stringify({ title: "K-pop", famille: "Musique", niveau,
+      questions: [{ text: `Qui chante ${niveau} ?`, choices: ["Rumi", "Mira"], correct: 0, ...(image ? { revelation: image } : {}) }] });
+    await page.setInputFiles("#pack-file", zip("kpop.zip", [
+      ["kpop/quiz-facile.zip", faireZip([["pack.json", kpop("Facile", "rumi.png")], ["rumi.png", pngHalves(1600, 900, [200, 40, 90], [40, 90, 200])]])],
+      ["kpop/quiz-moyen.zip", faireZip([["pack.json", kpop("Moyen", "mira.png")], ["mira.png", pngHalves(800, 600, [90, 200, 40], [40, 40, 40])]])],
+    ]));
+    await fenetre.locator(".pack-apercu-pack h3").nth(1).waitFor();
+    assert.match(await fenetre.innerText(), /Question 1 : Image panoramique \(1600 × 900\) : attendu paysage 4:3, 800 × 600\. Elle sera recadrée sur la TV\./);
+    assert.equal(await fenetre.locator(".pack-alerte.hors-format").count(), 1, "l'image au bon format ne dit rien");
+    await capture(page, "pack-zip-hors-format", { pleinePage: false });
+    assert.equal(await repondreFenetre(page), "Importer ces 2 packs ?");
+    await page.locator("#pack-status", { hasText: "✓ Importé" }).waitFor();
+    const [idKpop, kpopFacile] = Object.entries(await library("quizzes")).find(([, q]) => q.title === "K-pop" && q.niveau === "Facile");
+    assert.deepEqual(Object.values(kpopFacile.imagesHorsFormat ?? {}).length, 1);
+    const carteKpop = page.locator(`.pack[data-pack="${idKpop}"]`);
+    await carteKpop.locator(".q-alerte.hors-format", { hasText: "⚠ 1 image hors format : « Ouvrir » pour voir" }).waitFor();
+    await carteKpop.getByRole("button", { name: "Ouvrir" }).click();
+    await page.locator(".hors-format-liste li", { hasText: "Question 1 : Image panoramique (1600 × 900)" }).waitFor();
     await page.context().close();
   });
 
