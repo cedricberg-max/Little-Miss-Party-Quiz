@@ -490,3 +490,44 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
   background: linear-gradient(180deg, #ff6b7a, #e0304a); color: #fff;
 }
 .regie.cockpit .actions .verdict.en-bas .flou-judge:has(.flou-bonus:not([hidden])) .mauvaise { min-height: 0; }
+
+/* Milieu de la régie « cockpit » (maquette validée par cedric, 25/10) : la bonne réponse en grand, puis une tuile par
+   équipe. Au buzz, le verdict plein écran passe devant tout. */
+.regie.cockpit .answer.grosse {
+  font: inherit; color: var(--gold); align-self: stretch; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; padding: 8px 12px 10px; text-align: left;
+  border: 2px solid rgba(240, 204, 146, .55); border-radius: 16px; background: linear-gradient(180deg, rgba(240, 204, 146, .16), rgba(240, 204, 146, .06));
+}
+.regie.cockpit .answer.grosse .rep-lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; opacity: .85; }
+.regie.cockpit .answer.grosse .rep-txt { display: flex; align-items: center; gap: 10px; font-size: 28px; line-height: 1.1; font-weight: 900; overflow-wrap: anywhere; }
+.regie.cockpit .answer.grosse .rep-lettre { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--gold); color: var(--night-deep); font-size: 22px; line-height: 1; }
+.regie.cockpit .answer.grosse.masked .rep-txt { font-size: 20px; color: var(--ink-soft); }
+
+.regie .tuiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; grid-auto-rows: minmax(clamp(84px, 15vh, 140px), auto); flex-shrink: 0; }
+.regie .tuiles.une { grid-template-columns: 1fr; grid-auto-rows: minmax(84px, auto); }
+.regie .tuiles.serree { grid-auto-rows: minmax(60px, auto); }
+.regie .tuile {
+  position: relative; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; align-content: center; gap: 2px 8px;
+  min-width: 0; padding: 8px 10px 8px 16px; border-radius: 14px; border: 1px solid var(--trait); background: var(--panel);
+  color: var(--ink); text-align: left; font: inherit; overflow: hidden; cursor: pointer;
+}
+.regie .tuile::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 7px; background: var(--c); }
+.regie .tuile:disabled { opacity: 1; cursor: default; }
+.regie .tuile .t-nom { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.regie .tuile .t-score { grid-row: 2; grid-column: 2; align-self: end; font-size: 30px; line-height: 1; font-weight: 900; font-variant-numeric: tabular-nums; }
+.regie .tuile .t-etat { grid-row: 2; grid-column: 1; align-self: end; min-width: 0; font-size: 14px; font-weight: 700; color: var(--ink-soft); overflow-wrap: anywhere; }
+.regie .tuile .t-etat.ok { color: var(--ok); }
+.regie .tuile .t-etat.ko { color: #ff8a8f; }
+.regie .tuile .t-etat.attend { color: #ffd27a; }
+.regie .tuile .t-place { flex: none; display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 5px; border-radius: 12px; background: rgba(255, 255, 255, .12); font-size: 13px; font-weight: 900; }
+.regie .tuile .t-place.premiere { background: var(--gold); color: var(--night-deep); }
+.regie .tuile.coupee { border: 2px solid var(--danger); background: rgba(255, 90, 95, .16); }
+.regie .tuile.coupee .t-etat { color: #ff8a8f; }
+.regie .tuiles.serree .tuile { padding-top: 6px; padding-bottom: 6px; }
+.regie .tuiles.serree .tuile .t-nom { font-size: 15px; }
+.regie .tuiles.serree .tuile .t-score { font-size: 22px; }
+.regie .tuiles.serree .tuile .t-etat { font-size: 12px; }
+/* Jusqu'à 4 équipes : le nom, les points en grand, puis ce que fait l'équipe, chacun sur sa ligne. */
+.regie .tuiles:not(.serree) .tuile { grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 4px; }
+.regie .tuiles:not(.serree) .tuile .t-score { grid-row: 2; grid-column: 1; font-size: 34px; }
+.regie .tuiles:not(.serree) .tuile .t-etat { grid-row: 3; grid-column: 1; }
+.regie .tuiles .t-astuce { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--ink-soft); text-align: center; }

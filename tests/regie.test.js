@@ -1245,6 +1245,87 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("régie « cockpit » : le milieu de l'écran (maquette validée le 25/10) : la réponse en grand, une tuile par équipe, toucher = bonus ou malus, tablette coupée = QR, tout s'efface au buzz", async () => {
+    box = startBox();
+    const equipes = [["lic", "Les Licornes", "#FF6B1A"], ["dra", "Les Dragons", "#39FF14"], ["sta", "Les Stars", "#FF2D95"], ["pir", "Les Pirates", "#FFE600"]];
+    for (const [k, [id, nom, c]] of equipes.entries()) { await addTeam(id, nom, c, 1000 + k); await setPresence(id, true); }
+    const plan = [
+      { id: "q1", text: "Quel est le plus grand animal du monde ?", choices: ["L'éléphant", "La baleine bleue", "La girafe", "Le requin"], correct: 1, duration: 20, round: "Quiz" },
+      { id: "q2", text: "Combien de pattes a une araignée ?", choices: ["6", "10", "8", "4"], correct: 2, duration: 20, round: "Quiz" },
+    ];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", questions: plan });
+    const base = { ...questionState(1), qid: "q1", text: plan[0].text, choices: plan[0].choices, total: 2, scores: { lic: 300, dra: 250, sta: 200, pir: 150 } };
+    await box.set(base);
+    for (const [id, choice] of [["lic", 1], ["dra", 0], ["pir", 1]]) {
+      await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/answers/q1/${id}`), { choice, at: Date.now() }));
+    }
+    const page = await openRegie(await contexteSansChoix({ viewport: { width: 390, height: 844 } }));
+    await pair(page);
+    await inRegie(page);
+    await page.locator("#regie.cockpit").waitFor();
+    // Question : la bonne réponse en grand, puis les 4 équipes, qui a répondu et qui réfléchit.
+    await page.locator("#c-answer.grosse .rep-txt", { hasText: "La baleine bleue" }).waitFor();
+    assert.equal(await page.locator("#c-answer .rep-lettre").textContent(), "B");
+    const tuile = (id) => page.locator(`#c-tuiles .tuile[data-team="${id}"]`);
+    await tuile("sta").locator(".t-etat", { hasText: "… réfléchit" }).waitFor();
+    assert.equal(await tuile("lic").locator(".t-etat").textContent(), "✓ a répondu");
+    assert.equal(await tuile("lic").locator(".t-score").textContent(), "300");
+    assert.equal(await page.locator("#c-tuiles .tuile").count(), 4);
+    // Rien ne dépasse de l'écran ni ne passe sous les boutons du bas.
+    const bas = await page.locator(".regie .actions").boundingBox();
+    for (const [id] of equipes) {
+      const r = await tuile(id).boundingBox();
+      assert.ok(r.x >= 0 && r.x + r.width <= 390 && r.y + r.height <= bas.y + 1, `tuile ${id} dans l'écran : ${JSON.stringify(r)}`);
+    }
+    await capture(page, "cockpit-milieu-question-390x844", { pleinePage: false });
+    // La réponse se cache d'un toucher.
+    await page.click("#c-answer");
+    await page.locator("#c-answer .rep-txt", { hasText: "Réponse cachée" }).waitFor();
+    await page.click("#c-answer");
+    await page.locator("#c-answer .rep-txt", { hasText: "La baleine bleue" }).waitFor();
+    // Toucher une équipe : « Bonus ou malus » réglé sur elle.
+    await tuile("dra").click();
+    await page.locator("#pts:not([hidden])").waitFor();
+    assert.match(await page.locator("#pts-teams button.on").textContent(), /Les Dragons/);
+    await page.click("#pts-cancel");
+    await page.locator("#pts").waitFor({ state: "hidden" });
+    // Réponse révélée : la réponse de chaque équipe et ses points ; la tablette des Stars coupée : tuile rouge, toucher = QR.
+    await box.set({ ...base, phase: "reveal", correct: 1, scores: { lic: 400, dra: 250, sta: 200, pir: 250 },
+      awards: { lic: { correct: true, points: 100, bonus: 0 }, dra: { correct: false, points: 0, bonus: 0 }, pir: { correct: true, points: 100, bonus: 0 } } });
+    await setPresence("sta", false);
+    await tuile("lic").locator(".t-etat", { hasText: "✓ B · +100" }).waitFor();
+    assert.equal(await tuile("dra").locator(".t-etat").textContent(), "✕ A · 0");
+    await page.locator('#c-tuiles .tuile.coupee[data-team="sta"]', { hasText: "Hors ligne" }).waitFor({ timeout: 8000 });
+    await capture(page, "cockpit-milieu-reponse-390x844", { pleinePage: false });
+    await tuile("sta").click();
+    await page.locator("#tablette:not([hidden])").waitFor();
+    await page.click("#tablette-close");
+    await page.locator("#tablette").waitFor({ state: "hidden" });
+    await setPresence("sta", true);
+    await page.locator("#c-tuiles .tuile.coupee").waitFor({ state: "detached" });
+    // Scores : le classement, et la réponse de la question suivante en grand.
+    await box.set({ ...base, phase: "scores", correct: 1, scores: { lic: 400, dra: 250, sta: 200, pir: 250 } });
+    await page.locator("#c-answer.grosse .rep-lbl", { hasText: "Prochaine réponse" }).waitFor();
+    assert.match(await page.locator("#c-answer .rep-txt").textContent(), /^C8$/);
+    assert.match(await page.locator("#c-question").textContent(), /^Question suivante : Combien de pattes/);
+    assert.deepEqual(await page.locator("#c-tuiles .tuile").evaluateAll((els) => els.map((e) => e.dataset.team)), ["lic", "dra", "pir", "sta"]);
+    assert.deepEqual(await page.locator("#c-tuiles .t-place").allTextContents(), ["1", "2", "2", "4"]);
+    // Buzz : tout s'efface, le verdict plein écran passe devant (inchangé).
+    await box.set({ ...base, phase: "question", kind: "flou", choices: null, buzzOpen: true, buzz: { team: "lic", blocked: [] } });
+    await page.locator("#c-tuiles").waitFor({ state: "hidden" });
+    // 8 équipes : toutes dans l'écran, au-dessus des boutons du bas.
+    const autres = [["nin", "Les Ninjas", "#2B86C5"], ["fus", "Les Fusées", "#9B5DE5"], ["tig", "Les Tigres", "#F94144"], ["dau", "Les Dauphins", "#2EE8E0"]];
+    for (const [k, [id, nom, c]] of autres.entries()) { await addTeam(id, nom, c, 2000 + k); await setPresence(id, true); }
+    await box.set({ ...base, phase: "scores", buzz: null, buzzOpen: false, scores: { lic: 400, dra: 250, sta: 200, pir: 250, nin: 200, fus: 150, tig: 100, dau: 50 } });
+    await page.locator("#c-tuiles .tuile").nth(7).waitFor();
+    for (let k = 0; k < 8; k++) {
+      const r = await page.locator("#c-tuiles .tuile").nth(k).boundingBox();
+      assert.ok(r.y >= 0 && r.y + r.height <= bas.y + 1, `8 équipes : tuile ${k} au-dessus des boutons : ${JSON.stringify(r)}`);
+    }
+    await capture(page, "cockpit-milieu-8-equipes-390x844", { pleinePage: false });
+    await page.context().close();
+  });
+
   test("« ± Points » sur un petit téléphone (test du 25/10) : la fenêtre tient dans l'écran, rien ne se superpose ; le mode sombre forcé du téléphone ne repeint pas la régie", async () => {
     box = startBox();
     await addTeam("touj", "TOUJ");

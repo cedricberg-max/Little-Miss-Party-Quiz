@@ -168,6 +168,13 @@ function installerCockpit() {
     const bouton = e.target.closest("button");
     if (bouton && bouton.id !== "c-end") fermerPlus();
   }, true);
+  // Le milieu de l'écran (cedric, 25/10) : une tuile par équipe, sous la carte de la question.
+  const tuiles = document.createElement("section");
+  tuiles.id = "c-tuiles";
+  tuiles.className = "tuiles";
+  tuiles.setAttribute("aria-label", "Équipes");
+  tuiles.hidden = true;
+  document.querySelector(".regie .control > .card").after(tuiles);
   $("c-plus").onclick = () => ($("plus").hidden ? ouvrirPlus() : fermerPlus());
   $("plus-fermer").onclick = fermerPlus;
   $("plus-fond").onclick = fermerPlus;
@@ -198,6 +205,111 @@ function fermerPlus() {
 }
 
 window.addEventListener("resize", caleSurLeBas);
+
+/**
+ * Régie « cockpit » (maquette validée par cedric, 25/10) : la bonne réponse en grand, lettre dans une pastille dorée.
+ * Toucher la cache (et la remontre), comme avant.
+ */
+function grosseReponse(btn, { correct, text, number, flou, prochaine = false }) {
+  const lbl = document.createElement("span");
+  lbl.className = "rep-lbl";
+  lbl.textContent = prochaine ? "Prochaine réponse" : "Bonne réponse";
+  const oeil = document.createElement("span");
+  oeil.textContent = answerMasked ? "👁 voir" : "👁 cacher";
+  lbl.append(oeil);
+  const txt = document.createElement("span");
+  txt.className = "rep-txt";
+  if (answerMasked) txt.textContent = "Réponse cachée";
+  else if (number) txt.textContent = String(correct);
+  else {
+    if (!flou && CHOICE_LETTERS[correct]) txt.append(Object.assign(document.createElement("span"), { className: "rep-lettre", textContent: CHOICE_LETTERS[correct] }));
+    txt.append(text);
+  }
+  btn.replaceChildren(lbl, txt);
+}
+
+/** Classement au milieu d'un jeu : la question qui suit, si elle est du même jeu et a une bonne réponse à annoncer. */
+function questionSuivante(st) {
+  const { questions, next } = gamesOf(st);
+  const k = (st.index ?? -1) + 1;
+  const q = questions[k];
+  if (!q || (next && next.start === k) || st.leaveTo != null) return null;
+  if (["portes", "coffres", "gonfleur", "patate", "statues", "mime", "pictionary", "blind"].includes(q.kind)) return null;
+  if (q.correct == null) return null;
+  return { q, correct: q.correct, text: q.choices?.[q.correct] ?? "", number: q.kind === "number", flou: BUZZ_KINDS.includes(q.kind) };
+}
+
+/** Jeux qui ont déjà leur propre écran au milieu de la régie pendant la question (mimes, blind test, statues…). */
+const MILIEU_OCCUPE = ["mime", "blind", "statues", "coffres", "gonfleur", "patate"];
+
+/**
+ * Une tuile par équipe (1 à 8) : sa couleur, ses points, ce qu'elle fait (a répondu, réfléchit, sa réponse et ses
+ * points une fois révélée, sa place au classement). La toucher ouvre « Bonus ou malus » réglé sur elle ; une tablette
+ * coupée passe en rouge et la toucher ouvre le QR pour la reconnecter. Au buzz, le verdict plein écran passe devant.
+ */
+function renderTuiles(st, teams) {
+  const box = $("c-tuiles");
+  const occupe = MILIEU_OCCUPE.some((id) => !$(id).hidden) || !!st.buzz?.team;
+  box.hidden = !teams.length || occupe;
+  if (box.hidden) { box.dataset.cle = ""; return; }
+  const scores = st.scores ?? {};
+  const tri = teams.map(([id]) => scores[id] ?? 0).sort((a, b) => b - a);
+  const place = (id) => tri.indexOf(scores[id] ?? 0) + 1;
+  const classement = st.phase === "scores" || st.phase === "ended";
+  const enQuestion = (st.phase === "question" || st.phase === "closed") && !BUZZ_KINDS.includes(st.kind);
+  const revele = st.phase === "reveal" && st.awards != null;
+  const ordre = classement ? [...teams].sort((a, b) => (scores[b[0]] ?? 0) - (scores[a[0]] ?? 0)) : teams;
+  // Redessinées seulement quand quelque chose change : un doigt posé sur une tuile ne la perd jamais en route.
+  const cle = JSON.stringify([st.phase, st.kind, st.index, ordre.map(([id, t]) => [id, t.name, t.color, scores[id], tablettesCoupees.has(id), live.answers[id] ? live.answers[id].choice ?? true : null, st.awards?.[id] ?? null])]);
+  if (box.dataset.cle === cle) return;
+  box.dataset.cle = cle;
+  box.classList.toggle("une", teams.length === 1);
+  box.classList.toggle("serree", teams.length > 4);
+  const tuiles = ordre.map(([id, t]) => {
+    const coupee = tablettesCoupees.has(id);
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "tuile";
+    b.dataset.team = id;
+    b.style.setProperty("--c", t.color ?? "#fff");
+    const nom = document.createElement("span");
+    nom.className = "t-nom";
+    if (classement) nom.append(Object.assign(document.createElement("span"), { className: `t-place${place(id) === 1 ? " premiere" : ""}`, textContent: String(place(id)) }));
+    nom.append(t.name ?? "Équipe");
+    const score = Object.assign(document.createElement("span"), { className: "t-score", textContent: String(scores[id] ?? 0) });
+    const etat = document.createElement("span");
+    etat.className = "t-etat";
+    const rep = live.answers[id];
+    const a = st.awards?.[id];
+    if (coupee && st.phase !== "ended") {
+      b.classList.add("coupee");
+      etat.textContent = "📱 Hors ligne · touchez : QR";
+    } else if (st.phase === "lobby") {
+      etat.textContent = "connectée";
+      etat.classList.add("ok");
+    } else if (enQuestion) {
+      etat.textContent = rep ? (st.kind === "number" ? `✓ ${rep.choice}` : "✓ a répondu") : "… réfléchit";
+      etat.classList.add(rep ? "ok" : "attend");
+    } else if (revele && !BUZZ_KINDS.includes(st.kind)) {
+      const choix = rep == null ? "pas de réponse" : st.kind === "number" ? String(rep.choice) : CHOICE_LETTERS[rep.choice] ?? "";
+      const pts = (a?.points ?? 0) + (a?.bonus ?? 0);
+      etat.textContent = `${a?.correct ? "✓" : "✕"} ${choix} · ${pts > 0 ? "+" : ""}${pts}`;
+      etat.classList.add(a?.correct ? "ok" : "ko");
+    } else if (a && (a.points || a.bonus)) {
+      const pts = (a.points ?? 0) + (a.bonus ?? 0);
+      etat.textContent = `${pts > 0 ? "+" : ""}${pts}`;
+      etat.classList.add(pts > 0 ? "ok" : "ko");
+    }
+    b.append(nom, score, etat);
+    b.setAttribute("aria-label", `${t.name ?? "Équipe"} : ${scores[id] ?? 0} points${etat.textContent ? `, ${etat.textContent}` : ""}`);
+    b.disabled = st.phase === "ended" && !coupee;
+    b.onclick = coupee ? ouvrirTablette : () => choosePoints(id, true);
+    return b;
+  });
+  const astuce = Object.assign(document.createElement("p"), { className: "t-astuce", textContent: "Touchez une équipe : bonus ou malus" });
+  astuce.hidden = st.phase === "ended";
+  box.replaceChildren(...tuiles, astuce);
+}
 
 /**
  * Tablettes coupées : une pastille rouge dans la barre du haut (verte un instant au retour) ; la toucher = la reconnecter.
@@ -499,7 +611,17 @@ function render() {
     const flou = BUZZ_KINDS.includes(q?.kind ?? st.kind);
     answerBtn.textContent = answerMasked ? "Réponse masquée · toucher pour voir" : number ? `Juste Chiffre · ${correct}` : flou ? `Réponse · ${text}` : `Réponse ${CHOICE_LETTERS[correct]} · ${text}`;
     answerBtn.classList.toggle("masked", answerMasked);
+    if (COCKPIT) grosseReponse(answerBtn, { correct, text, number, flou });
   }
+  // Classement d'un jeu en cours : la réponse de la question qui arrive, en grand, pour l'annoncer sans chercher.
+  const suite = COCKPIT && st.phase === "scores" ? questionSuivante(st) : null;
+  if (suite) {
+    answerBtn.hidden = false;
+    $("c-question").textContent = `Question suivante : ${suite.q.text ?? ""}`;
+    grosseReponse(answerBtn, { ...suite, prochaine: true });
+    answerBtn.classList.toggle("masked", answerMasked);
+  }
+  answerBtn.classList.toggle("grosse", COCKPIT && !answerBtn.hidden && !(portes && q?.doors));
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
   $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
 
@@ -515,6 +637,7 @@ function render() {
   renderGonfleur(st, teams);
   renderPatate(st);
   renderTeams(st, teams);
+  if (COCKPIT) renderTuiles(st, teams);
   renderPoints();
   renderPlan(st);
   renderShows(st);
@@ -628,6 +751,8 @@ const REVENUE_MS = 3000;
 const horsLigneDepuis = new Map();
 let alertees = new Set();
 let masquees = new Set();
+/** Équipes coupées depuis plus de 4 s (même délai que la pastille) : leur tuile passe en rouge, toucher = le QR. */
+let tablettesCoupees = new Set();
 let revenue = { ids: [], noms: [], jusqua: 0 };
 let alerteTimer = null;
 
@@ -651,6 +776,7 @@ function renderAlerte(st, teams) {
   if (coupees.some((id) => !alertees.has(id) && !masquees.has(id))) navigator.vibrate?.([200, 100, 200]);
   alertees = new Set(coupees);
   const visibles = coupees.filter((id) => !masquees.has(id));
+  tablettesCoupees = new Set(coupees);
   const pluriel = visibles.length > 1 ? "s" : "";
   if (visibles.length) {
     box.className = "r-alerte";
