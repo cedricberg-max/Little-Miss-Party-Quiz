@@ -1203,6 +1203,48 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("régie « cockpit » (test du 25/10) : « ☰ Plus » ouvert ne cache jamais « Lancer la fête ! », même avec une tablette restée sur une ancienne partie", async () => {
+    box = startBox();
+    // L'équipe est inscrite, mais sa tablette est restée sur une ancienne partie : hors ligne ici.
+    await addTeam("touj", "TOUJ");
+    const page = await openRegie(await contexteSansChoix({ viewport: { width: 360, height: 640 } }));
+    await pair(page);
+    await inRegie(page);
+    await page.locator("#regie.cockpit").waitFor();
+    await page.locator("#c-horsligne .hl-noms", { hasText: /^TOUJ$/ }).waitFor({ timeout: 8000 });
+    const dansLEcran = (id) => page.evaluate((id) => {
+      const el = document.getElementById(id);
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return r.top >= 0 && r.bottom <= innerHeight + 0.5 && r.height > 0 && (hit === el || el.contains(hit));
+    }, id);
+    // « ☰ Plus » ouvert sur l'onglet Prestation : la feuille s'arrête au-dessus du bas de la régie.
+    await page.click("#c-plus");
+    await page.locator("#plus:not([hidden])").waitFor();
+    await page.click("#plus #tab-show");
+    await page.locator("#plus #panel-show:not([hidden])").waitFor();
+    assert.equal(await page.locator("#plus").isHidden(), false);
+    for (const id of ["c-next", "c-pause", "c-plus"]) assert.ok(await dansLEcran(id), `#${id} visible et touchable, « ☰ Plus » ouvert`);
+    assert.equal(await page.locator("#c-next").textContent(), "Lancer la fête !");
+    assert.equal(await page.locator("#c-next").isDisabled(), false, "une tablette hors ligne ne bloque jamais le lancement");
+    const feuille = await page.locator("#plus").boundingBox();
+    const bas = await page.locator(".regie .actions").boundingBox();
+    assert.ok(feuille.y + feuille.height <= bas.y + 1, `la feuille s'arrête au-dessus des boutons : ${JSON.stringify({ feuille, bas })}`);
+    await page.waitForTimeout(300); // fin de l'animation, pour la capture
+    await capture(page, "cockpit-plus-lancer-360x640", { pleinePage: false });
+    // « ☰ Plus » touché une seconde fois : la feuille se referme.
+    await page.click("#c-plus");
+    await page.locator("#plus").waitFor({ state: "hidden" });
+    // Ouvert de nouveau : « Lancer la fête ! » referme la feuille et lance la fête, tablette toujours hors ligne.
+    await page.click("#c-plus");
+    await page.locator("#plus:not([hidden])").waitFor();
+    await page.click("#c-next");
+    await page.locator("#plus").waitFor({ state: "hidden" });
+    await page.locator("#c-phase", { hasText: "Question en cours" }).waitFor();
+    assert.deepEqual((await commands()).map((c) => c.type), ["next"]);
+    await page.context().close();
+  });
+
   test("blind test : playlist et statuts, lancer, juger, relancer pour les autres, passer, raccourcir, titre suivant", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");

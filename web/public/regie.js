@@ -168,20 +168,36 @@ function installerCockpit() {
     const bouton = e.target.closest("button");
     if (bouton && bouton.id !== "c-end") fermerPlus();
   }, true);
-  $("c-plus").onclick = ouvrirPlus;
+  $("c-plus").onclick = () => ($("plus").hidden ? ouvrirPlus() : fermerPlus());
   $("plus-fermer").onclick = fermerPlus;
   $("plus-fond").onclick = fermerPlus;
+  // Le bas de la régie reste utilisable sous la feuille : Pause, le bouton principal ou « Fin de la fête » la referment.
+  for (const id of ["c-pause", "c-next", "c-fin"]) $(id).addEventListener("click", fermerPlus);
+}
+
+/**
+ * « ☰ Plus » s'arrête au-dessus du bas de la régie : Pause, « ☰ Plus » et le bouton principal (« Lancer la fête ! »)
+ * restent visibles et utilisables (test du 25/10 : feuille ouverte, Sarah ne trouvait plus comment lancer la fête).
+ */
+function caleSurLeBas() {
+  if ($("plus").hidden) return;
+  const haut = document.querySelector(".regie .actions")?.getBoundingClientRect().top;
+  const bas = haut > 0 ? Math.max(0, window.innerHeight - haut) : 0;
+  document.documentElement.style.setProperty("--bas-regie", `${Math.round(bas)}px`);
 }
 
 function ouvrirPlus() {
   $("plus").hidden = false;
   $("plus-fond").hidden = false;
+  caleSurLeBas();
 }
 
 function fermerPlus() {
   $("plus").hidden = true;
   $("plus-fond").hidden = true;
 }
+
+window.addEventListener("resize", caleSurLeBas);
 
 /**
  * Tablettes coupées : une pastille rouge dans la barre du haut (verte un instant au retour) ; la toucher = la reconnecter.
@@ -529,6 +545,7 @@ function render() {
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
   $("c-end").hidden = st.phase === "ended";
+  caleSurLeBas();
 }
 
 /**
@@ -3163,6 +3180,8 @@ async function loadShow(id) {
         shows = { list: shows.list.map((x) => (x.id === id ? { ...x, run: { etat: "ici", code } }
           : x.run?.etat === "ici" ? { ...x, run: { etat: "preparee" } } : x)) };
       }
+      // Prestation choisie dans « ☰ Plus » : la feuille se referme, « Lancer la fête ! » est juste là.
+      fermerPlus();
       return done(`« ${snapshot.title} » est chargée sur la TV : ${snapshot.rounds.length} jeu${snapshot.rounds.length > 1 ? "x" : ""}.`);
     }
     annuler();
