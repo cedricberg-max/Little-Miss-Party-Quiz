@@ -138,6 +138,7 @@ private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, 
                 val taille = with(LocalDensity.current) { ((maxHeight - 34.dp) / 1.15f).coerceIn(16.dp, 52.dp).toSp() }
                 // En photos : la photo remplit la case au-dessus du nom (l'émoji reste en secours si elle manque).
                 val cote: Dp = min(maxWidth - 12.dp, maxHeight - 40.dp).coerceIn(24.dp, 160.dp)
+                val largeurNom = maxWidth - 8.dp
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = if (enOr) Modifier.apparition(0, "retour") else Modifier) {
                     if (photo != null) {
                         Image(
@@ -152,7 +153,7 @@ private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, 
                     // « Bateau à voile », 25/10) : jamais de « … ».
                     TexteAjuste(
                         carte.word, color = if (enOr) Palette.Gold else Palette.Ink, max = 22.sp, min = 11.sp, lignes = 1,
-                        fontWeight = FontWeight.Bold, modifier = Modifier.width(maxWidth - 8.dp),
+                        fontWeight = FontWeight.Bold, modifier = Modifier.width(largeurNom),
                     )
                 }
             }

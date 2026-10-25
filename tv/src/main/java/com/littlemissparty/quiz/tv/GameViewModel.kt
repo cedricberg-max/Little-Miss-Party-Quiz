@@ -462,7 +462,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val fin = mutableMapOf<String, Any>("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP, "leftAt" to ServerValue.TIMESTAMP)
         if (suite != null) {
             try {
-                val regies = db.getReference("games/$ancien/regie").readOnce()?.children.orEmpty()
+                val regies = db.getReference("games/$ancien/regie").readOnce()?.children?.toList().orEmpty()
                     .mapNotNull { r -> r.key?.let { it to (r.child("via").getValue(String::class.java) ?: "pin") } }
                 if (regies.isNotEmpty()) {
                     withTimeoutOrNull(8000L) {
@@ -2366,7 +2366,7 @@ private suspend fun DatabaseReference.readHandedOver(lobby: String, uid: String,
     // sans ses médias (voir [CLES_REPRISE]).
     val hote = child("hostUid")
     withTimeoutOrNull(timeoutMs) {
-        suspendCancellableCoroutine { cont ->
+        suspendCancellableCoroutine<Unit> { cont ->
             val listener = object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     if (snapshot.getValue(String::class.java) == uid && cont.isActive) { hote.removeEventListener(this); cont.resume(Unit) }
