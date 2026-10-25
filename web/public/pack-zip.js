@@ -141,7 +141,8 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
     const titre = [fiche?.title, fiche?.titre, fiche?.nom].find((v) => typeof v === "string" && v.trim())?.trim();
     const nomDossier = dossier ? dossier.split("/").pop().replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim() : "";
     packs.push({
-      epreuve: "photos", titre: titre || (avecContenu.length || fiches.length > 1 ? nomDossier : nomDuDossier(fichiers, nomZip)) || "Mes photos", theme: "",
+      epreuve: "photos", titre: titre || (avecContenu.length || fiches.length > 1 ? nomDossier : nomDuDossier(fichiers, nomZip)) || "Mes photos",
+      theme: typeof fiche?.theme === "string" ? fiche.theme.trim().slice(0, 80) : "",
       ageMin: null, ageMax: null, ...etiquettesDu(fiche), dossier, questions, manquantes: [], aCorriger: [], ignorees: [],
     });
   };
