@@ -167,7 +167,8 @@ class DirecteurSonore {
                 // Zoom mystère : moteur d'objectif et déclic quand la photo apparaît.
                 if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT)
                 // Image floue et Zoom mystère : une longue montée accompagne la photo qui se précise (ou se dézoome).
-                if (i.flou || i.zoom) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT)
+                // Elle dure tout le chrono (cedric, 25/10 : à l'Image floue, 30 s de montée pour 40 s de chrono).
+                if (i.flou || i.zoom) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT, etireSurMs = (i.chronoMs - Tempo.PROPOSITIONS_DEBUT).coerceAtLeast(0))
                 // Extrait musical (blind test, quiz musical) : le diamant se pose sur le disque quand la chanson part.
                 // Blind test : seulement quand la chanson part vraiment (pas pendant la présentation).
                 if (i.musical && (!i.blind || i.blindLecture)) o += Ordre.Jouer(Son.BT_DIAMANT)
@@ -471,6 +472,8 @@ data class Instant(
     val express: Boolean = false,
     val reponseVraie: Boolean = false,
     val zoom: Boolean = false,
+    /** Durée du chrono de la question (millisecondes) ; 0 hors des questions. */
+    val chronoMs: Long = 0,
     /**
      * Jeux au buzzer (Image floue, Chante le mot, Qui suis-je) : place de l'équipe qui a buzzé et attend le
      * verdict (-1 sinon), équipes déjà ratées, indices de Qui suis-je déjà affichés.
@@ -720,7 +723,8 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
 }
 
 sealed interface Ordre {
-    data class Jouer(val son: Son, val dansMs: Long = 0) : Ordre
+    /** [etireSurMs] : un son long plus court que ça est ralenti (sans changer sa hauteur) pour durer ce temps-là. */
+    data class Jouer(val son: Son, val dansMs: Long = 0, val etireSurMs: Long = 0) : Ordre
     data class Musique(val ambiance: Ambiance, val dansMs: Long = 0, val fonduMs: Long = Tempo.FONDU_MUSIQUE) : Ordre
     /** Les boucles musicales repartent du début de leur première mesure (relais calé sur le générique). */
     data class Caler(val dansMs: Long = 0) : Ordre
@@ -813,3 +817,14 @@ object Tempo {
     fun tampon(k: Int, express: Boolean = false) =
         if (express) EXPRESS_TAMPON + k * EXPRESS_TAMPON_PAS else REVELATION_TAMPON + k * REVELATION_TAMPON_PAS
 }
+
+/**
+ * Vitesse de lecture d'un son long de [dureeFichierMs] qui doit durer [etireSurMs] : ralenti jusqu'à [VITESSE_MIN] au
+ * plus, jamais accéléré (un chrono plus court le coupe à la fin, comme avant).
+ */
+internal fun vitesseEtiree(dureeFichierMs: Int, etireSurMs: Long): Float =
+    if (dureeFichierMs <= 0 || etireSurMs <= dureeFichierMs) 1f
+    else (dureeFichierMs.toFloat() / etireSurMs).coerceAtLeast(VITESSE_MIN)
+
+/** Un son étiré ne descend pas sous cette vitesse : au-delà, il deviendrait pâteux. */
+internal const val VITESSE_MIN = 0.6f

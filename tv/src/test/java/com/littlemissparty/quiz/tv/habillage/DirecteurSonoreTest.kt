@@ -497,6 +497,22 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `image floue, la montee dure tout le chrono sans jamais accelerer`() {
+        val d = DirecteurSonore()
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 8, equipes = 3))
+        // cedric, 25/10 : 30 s de montée pour 40 s de chrono, elle s'arrêtait avant la fin.
+        val entree = d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, jeuBuzz = true, flou = true, chronoMs = 40_000))
+        val montee = entree.filterIsInstance<Ordre.Jouer>().single { it.son == Son.FLOU_MONTEE }
+        assertEquals(40_000 - Tempo.PROPOSITIONS_DEBUT, montee.etireSurMs)
+        assertEquals(30_000f / 39_650f, vitesseEtiree(30_000, montee.etireSurMs), 0.001f)
+        // Chrono plus court que le fichier : vitesse normale, coupée à la fin comme avant ; jamais trop pâteuse.
+        assertEquals(1f, vitesseEtiree(30_000, 20_000), 0.0001f)
+        assertEquals(1f, vitesseEtiree(30_000, 0), 0.0001f)
+        assertEquals(1f, vitesseEtiree(0, 40_000), 0.0001f)
+        assertEquals(VITESSE_MIN, vitesseEtiree(30_000, 120_000), 0.0001f)
+    }
+
+    @Test
     fun `image floue, montee puis buzz qui fige tout, rate gentil, revelation`() {
         val d = DirecteurSonore()
         val image = Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, jeuBuzz = true, flou = true)

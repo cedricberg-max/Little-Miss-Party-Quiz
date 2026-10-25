@@ -266,7 +266,7 @@ object Sons {
                 when (o) {
                     Ordre.Couper -> couper()
                     is Ordre.Arreter -> essayer("arreter") { eteindre(o.son) }
-                    is Ordre.Jouer -> plus(o.dansMs) { jouer(o.son) }
+                    is Ordre.Jouer -> plus(o.dansMs) { jouer(o.son, o.etireSurMs) }
                     is Ordre.Musique -> {
                         ambianceVoulue = o.ambiance
                         plus(o.dansMs) { versAmbiance(o.ambiance, o.fonduMs) }
@@ -356,7 +356,7 @@ object Sons {
         if (dansMs <= 0) r.run() else h.postAtTime(r, prevus, SystemClock.uptimeMillis() + dansMs)
     }
 
-    private fun jouer(s: Son) {
+    private fun jouer(s: Son, etireSurMs: Long = 0) {
         if (s.long) {
             variantes[s]?.let { v ->
                 longs[s]?.takeIf { it.isPlaying }?.let { it.pause(); endormir(it) }
@@ -376,6 +376,11 @@ object Sons {
                 // Lecteur dans un mauvais état (souvent : en erreur, en attente de sa réparation) : ce son-là reste muet.
                 incident("Son ${s.name} pas joué : lecteur hors service")
                 return
+            }
+            // Vitesse : étiré sur tout un chrono, ou de nouveau normale (le réglage reste sur le lecteur).
+            essayer("vitesse ${s.name}") {
+                val vitesse = vitesseEtiree(mp.duration, etireSurMs)
+                if (vitesse != 1f || mp.playbackParams.speed != 1f) mp.playbackParams = mp.playbackParams.setSpeed(vitesse).setPitch(1f)
             }
             if (s == Son.GENERIQUE) departGenerique = SystemClock.uptimeMillis()
             // Un son qui ne part pas sans erreur restait invisible : vérifié un instant plus tard (sauf relancé, arrêté,

@@ -160,6 +160,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         express = s.question?.isExpress == true,
         reponseVraie = s.question?.let { q -> q.choices.getOrNull(q.correct)?.trim()?.startsWith("vrai", ignoreCase = true) } == true,
         zoom = s.question?.isZoom == true,
+        chronoMs = s.question?.durationMs ?: 0,
         jeuBuzz = s.question?.isBuzz == true,
         flou = s.question?.isFlou == true,
         chante = s.question?.isChante == true,
