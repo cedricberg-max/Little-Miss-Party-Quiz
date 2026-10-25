@@ -496,7 +496,6 @@ function suivreLaSuite(suite) {
   const p = new URLSearchParams(location.search);
   p.set("g", suite);
   p.delete("reprise");
-  p.delete("regie");
   location.replace(`${location.pathname}?${p}`);
   return true;
 }
