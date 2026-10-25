@@ -8858,10 +8858,10 @@ describe("bibliothèque de quiz et prestations", () => {
     // Trois niveaux dans un seul ZIP (cedric, 25/10) : même nom, même famille ; un même nom à un autre niveau n'est pas un doublon.
     await page.click('#library-tabs [data-lib-tab="questions"]');
     await page.click('#q-groups [data-groupe="packs"]');
-    const hp = (niveau, ageMin, ageMax) => JSON.stringify({ title: "Harry Potter", famille: "Films et séries", niveau, ageMin, ageMax,
-      questions: [{ text: `Question ${niveau} ?`, choices: ["Oui", "Non"], correct: 0 }] });
+    const hp = (niveau, ageMin, ageMax, choices = ["Oui", "Non"]) => JSON.stringify({ title: "Harry Potter", famille: "Films et séries", niveau, ageMin, ageMax,
+      questions: [{ text: `Question ${niveau} ?`, choices, correct: 0 }] });
     await page.setInputFiles("#pack-file", zip("harry-potter.zip", [
-      ["harry-potter/pack-facile.json", hp("Facile", 5, 8)], ["harry-potter/pack-moyen.json", hp("Moyen", 9, 11)], ["harry-potter/pack-difficile.json", hp("Difficile", 12, 15)],
+      ["harry-potter/pack-facile.json", hp("Facile", 5, 8)], ["harry-potter/pack-moyen.json", hp("Moyen", 9, 11)], ["harry-potter/pack-difficile.json", hp("Difficile", 12, 15, ["Vrai", "Faux"])],
     ]));
     await fenetre.locator(".pack-apercu-pack h3").nth(2).waitFor();
     assert.equal(await fenetre.locator(".pack-apercu-pack h3").evaluateAll((els) => els.map((e) => e.textContent).join(" | ")), "Harry Potter | Harry Potter | Harry Potter");
@@ -8872,6 +8872,8 @@ describe("bibliothèque de quiz et prestations", () => {
       [["Harry Potter", "Films et séries", "Difficile"], ["Harry Potter", "Films et séries", "Facile"], ["Harry Potter", "Films et séries", "Moyen"]]);
     await page.locator('.q-famille[data-famille="Films et séries"] .q-plier h2', { hasText: "🎬 Films et séries (3)" }).waitFor();
     assert.deepEqual(await page.locator('.q-famille[data-famille="Films et séries"] .pack .pack-niveau').allInnerTexts(), ["Facile", "Moyen", "Difficile"]);
+    // Chaque carte dit son jeu, reconnu à l'import : c'est ce jeu-là qui le propose dans une prestation.
+    assert.deepEqual(await page.locator('.q-famille[data-famille="Films et séries"] .pack .pill').allInnerTexts(), ["📝 Quiz classique", "📝 Quiz classique", "✅ Vrai ou Faux express"]);
     await page.context().close();
   });
 

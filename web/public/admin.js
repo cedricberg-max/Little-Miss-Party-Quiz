@@ -3449,7 +3449,7 @@ function mancheQuiz(r) {
     .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"))
     .map(([qid, q]) => {
       const k = duJeu(q).length;
-      return { id: qid, titre: q.title, details: [nUnites(k), q.theme, dejaLa.has(qid) ? `✓ déjà dans ce ${photos ? "jeu" : "Quiz"}` : ""].filter(Boolean).join(" · "),
+      return { id: qid, titre: q.title, details: [nUnites(k), niveauDuQuiz(q), q.theme, dejaLa.has(qid) ? `✓ déjà dans ce ${photos ? "jeu" : "Quiz"}` : ""].filter(Boolean).join(" · "),
         noms: [q.title], autres: [q.theme] };
     });
   const biblio = ligneAjoutQuiz({
@@ -7928,6 +7928,18 @@ async function supprimerQuestions(liste) {
 /** Un pack importé ou une série de photos : rangé par famille et par niveau dans la Bibliothèque. */
 const estPackOuSerie = (quiz) => quiz?.pack === true || quiz?.source === "json" || quiz?.source === "photos" || quizKind(quiz ?? {}) === "images";
 
+/**
+ * Le jeu d'un pack, écrit sur sa carte (cedric, 25/10 : « qu'est-ce qui fait que c'est relié à un quiz illustré ou à un
+ * quiz normal ? ») : reconnu à l'import, et c'est ce jeu-là seulement qui le propose dans une prestation.
+ */
+function jeuDuPack(quiz) {
+  const kind = quizKind(quiz);
+  if (kind !== "classique") return QUIZ_KINDS[kind];
+  const qs = (quiz.questions ?? []).filter((q) => q && q.kind !== "number");
+  const vraiFaux = (q) => (q.choices ?? []).map((c) => `${c}`.trim().toLowerCase()).join("/") === "vrai/faux";
+  return qs.length && qs.every(vraiFaux) ? "✅ Vrai ou Faux express" : QUIZ_KINDS.classique;
+}
+
 /** Pastille de couleur d'un niveau (vert Facile, bleu Moyen, violet Difficile). */
 const pastilleNiveau = (niveau) => h("span", { class: "pastille-niveau", "data-niveau": niveau, "aria-hidden": "true" });
 
@@ -7962,7 +7974,7 @@ function packsParFamille(cartes, recherche, vide) {
 
 function cartePack(p) {
   return h("div", { class: `item pack${packsNouveaux.has(p.id) ? " copie-recente" : ""}`, "data-pack": p.id },
-    h("span", { class: "pill", text: QUIZ_KINDS[p.kind] ?? "📝 Quiz classique" }),
+    h("span", { class: "pill", text: jeuDuPack(quizzes[p.id] ?? {}) }),
     h("b", { text: p.title }),
     p.niveau ? h("span", { class: "pack-niveau", "data-niveau": p.niveau }, pastilleNiveau(p.niveau), p.niveau) : h("span", { class: "pack-niveau sans", text: "Niveau à choisir dans « Éditer »" }),
     h("span", { text: [p.theme && p.theme !== p.title ? p.theme : null, SOURCES[p.source] ?? ""].filter(Boolean).join(" · ") }),
