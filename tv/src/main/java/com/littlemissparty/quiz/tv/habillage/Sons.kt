@@ -86,6 +86,12 @@ object Sons {
     private val lits = mutableMapOf<Lit, LitSonore>()
     /** Fichier de chaque lecteur : un lecteur endormi ([endormir]) se recharge depuis lui. */
     private val fichiers = WeakHashMap<MediaPlayer, String>()
+    /**
+     * Sons longs pas préparés (remis à zéro, sans fichier) : ils ne tiennent rien dans le serveur audio de la box et se
+     * préparent au moment de jouer ([eveiller]). Une cinquantaine de lecteurs prêts en même temps saturaient celui de la
+     * TCL (erreurs -2147483646, test du 25/10 au soir). Fil du son seulement.
+     */
+    private val dormants: MutableSet<MediaPlayer> = Collections.newSetFromMap(IdentityHashMap<MediaPlayer, Boolean>())
     private var appli: Context? = null
     /** Tous les sons du démarrage sont chargés : une boucle absente ensuite est un incident. */
     private var chargementFini = false
@@ -234,11 +240,13 @@ object Sons {
     private fun chargerLong(app: Context, s: Son) = essayer(s.name) {
         // Sons propres au Game Show (le podium) : rien à charger en Classique.
         if (!Look.gs && s.fichier.startsWith("gs_")) return@essayer
-        val principal = lecteur(app, s.fichier, boucle = false) ?: return@essayer
+        // Le générique part dès l'ouverture : seul prêt d'avance. Les autres se préparent quand ils jouent.
+        val pret = s == Son.GENERIQUE
+        val principal = lecteur(app, s.fichier, boucle = false, pret = pret) ?: return@essayer
         longs[s] = principal
         if (!Look.gs) return@essayer
         val gs = s.fichier.replaceFirst("lmp_", "gs_")
-        val autres = (2..MAX_VARIANTES).mapNotNull { k -> brut(app, "${gs}_$k")?.let { lecteur(app, "${gs}_$k", boucle = false) } }
+        val autres = (2..MAX_VARIANTES).mapNotNull { k -> brut(app, "${gs}_$k")?.let { lecteur(app, "${gs}_$k", boucle = false, pret = pret) } }
         if (autres.isNotEmpty()) variantes[s] = listOf(principal) + autres
     }
 
@@ -301,7 +309,12 @@ object Sons {
         h.post {
             essayer("caler ${s.name}") {
                 val mp = longs[s] ?: return@essayer
-                if (!joue || enArriere || positionMs < 0 || positionMs >= mp.duration) {
+                if (!joue || enArriere) {
+                    if (mp.isPlaying) mp.pause()
+                    return@essayer
+                }
+                if (!eveiller(s, mp)) return@essayer
+                if (positionMs < 0 || positionMs >= mp.duration) {
                     if (mp.isPlaying) mp.pause()
                     return@essayer
                 }
@@ -365,6 +378,7 @@ object Sons {
                 longs[s] = v[i]
             }
             val mp = longs[s] ?: return absent(s)
+            if (!eveiller(s, mp)) return
             val lancement = (lancements[s] ?: 0) + 1
             lancements[s] = lancement
             if (mp.isPlaying) mp.pause()
@@ -390,7 +404,7 @@ object Sons {
             if (!tresCourt) h.postAtTime({
                 essayer("demarrage") {
                     if (!enArriere && lancements[s] == lancement && (arrets[s] ?: 0) == arret && longs[s] === mp &&
-                        !mp.isPlaying && mp.currentPosition <= 0
+                        mp !in dormants && !mp.isPlaying && mp.currentPosition <= 0
                     ) {
                         incident("Son ${s.name} resté muet au lancement")
                     }
@@ -425,7 +439,7 @@ object Sons {
     /** Relance en fondu un son long mis en pause en cours de route, à l'endroit où il s'était arrêté (rien s'il était fini). */
     private fun reprendreLong(s: Son) {
         val mp = longs[s] ?: return
-        if (mp.isPlaying || mp.currentPosition <= 0 || mp.currentPosition >= mp.duration - REPRISE_MIN_RESTE_MS) return
+        if (mp in dormants || mp.isPlaying || mp.currentPosition <= 0 || mp.currentPosition >= mp.duration - REPRISE_MIN_RESTE_MS) return
         val lancement = (lancements[s] ?: 0) + 1
         lancements[s] = lancement
         mp.setVolume(0f, 0f)
@@ -572,15 +586,18 @@ object Sons {
         return Boucle(a, b, periode, surTour) { incident("Boucle « $nom » : $it") }
     }
 
-    private fun lecteur(context: Context, nom: String, boucle: Boolean): MediaPlayer? {
+    /** Lecteur du fichier [nom] ; pas [pret] : sans fichier, préparé au moment de jouer ([eveiller]). */
+    private fun lecteur(context: Context, nom: String, boucle: Boolean, pret: Boolean = true): MediaPlayer? {
         val res = id(context, nom) ?: return null
         val neuf = MediaPlayer()
-        try {
-            remplir(context, neuf, res)
-        } catch (e: Exception) {
-            neuf.release()
-            throw e
-        }
+        if (pret) {
+            try {
+                remplir(context, neuf, res)
+            } catch (e: Exception) {
+                neuf.release()
+                throw e
+            }
+        } else dormants += neuf
         return neuf.apply {
             isLooping = boucle
             fichiers[this] = nom
@@ -622,23 +639,49 @@ object Sons {
     private fun endormir(mp: MediaPlayer) {
         val c = appli ?: return
         val nom = fichiers[mp] ?: return
+        if (mp in dormants) return
         try {
             if (mp.isPlaying) return
+            // Remis à zéro sans être rechargé : il ne tient plus rien dans le serveur audio, [eveiller] le prépare.
             mp.reset()
-            remplir(c, mp, id(c, nom) ?: throw IllegalStateException("$nom introuvable"))
+            mp.setVolume(0f, 0f)
+            dormants += mp
         } catch (e: Exception) {
-            incident("Lecteur « $nom » non rechargé (${e.message}), reconstruit")
+            incident("Lecteur « $nom » non endormi (${e.message}), reconstruit")
             reconstruire(c, nom, false, mp)
+        }
+    }
+
+    /**
+     * Prépare, juste avant de le jouer, un son long endormi ([dormants]). false : pas préparé (incident noté, lecteur
+     * refait pour la prochaine fois) ; ce son-là ne joue pas cette fois.
+     */
+    private fun eveiller(s: Son, mp: MediaPlayer): Boolean {
+        if (mp !in dormants) return true
+        val c = appli ?: return false
+        val nom = fichiers[mp] ?: return false
+        return try {
+            remplir(c, mp, id(c, nom) ?: throw IllegalStateException("$nom introuvable"))
+            dormants -= mp
+            true
+        } catch (e: Exception) {
+            incident("Son ${s.name} (« $nom ») pas préparé (${e.message}) : pas joué, lecteur refait")
+            dormants -= mp
+            reconstruire(c, nom, false, mp)
+            false
         }
     }
 
     private fun reconstruire(context: Context, nom: String, boucle: Boolean, ancien: MediaPlayer) {
         essayer("reconstruire") { ancien.release() }
+        dormants -= ancien
         // Réparation prévue plus tard : entre-temps, le son a pu être lâché (changement de design) ; rien à refaire.
         val utilise = longs.values.any { it === ancien } || variantes.values.any { v -> v.any { it === ancien } } ||
             crayon === ancien || lits.values.any { it.possede(ancien) }
         if (!utilise) return
-        val neuf = try { lecteur(context, nom, boucle) } catch (e: Exception) { null } ?: return
+        // Son long refait : endormi, préparé quand il rejoue. Crayon et boucles : prêts tout de suite.
+        val long = longs.values.any { it === ancien } || variantes.values.any { v -> v.any { it === ancien } }
+        val neuf = try { lecteur(context, nom, boucle, pret = !long) } catch (e: Exception) { null } ?: return
         Son.entries.find { longs[it] === ancien }?.let { longs[it] = neuf }
         for (s in variantes.keys.toList()) variantes[s] = variantes.getValue(s).map { if (it === ancien) neuf else it }
         if (crayon === ancien) {
@@ -686,6 +729,7 @@ object Sons {
             (longs.values + variantes.values.flatten()).toSet().forEach { essayer("recharger") { it.release() } }
             longs.clear()
             variantes.clear()
+            dormants.clear()
             derniereVariante.clear()
             lits.values.forEach { essayer("recharger") { it.liberer(h, LIBERATION_MS) } }
             lits.clear()
