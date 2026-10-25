@@ -7,6 +7,8 @@ local.properties
 .firebase/
 web/public/firebase-config.json
 node_modules/
+# Aussi un lien symbolique node_modules (le motif « node_modules/ » ne vise que les dossiers).
+node_modules
 tests/test-results/
 *-debug.log
 web/public/tv/

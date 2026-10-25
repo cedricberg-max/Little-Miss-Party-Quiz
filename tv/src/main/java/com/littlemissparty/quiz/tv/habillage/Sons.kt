@@ -8,6 +8,8 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import kotlin.math.abs
 
@@ -40,8 +42,6 @@ object Sons {
     private const val CALAGE_ATTENTE_MS = 400L
     /** Veille des boucles : une boucle qui devrait s'entendre et ne joue plus est relancée (cedric, 23 octobre). */
     private const val VEILLE_MS = 1_000L
-    /** Incidents du son envoyés dans les rapports de la box, au plus, par lancement de l'appli. */
-    private const val MAX_INCIDENTS = 20
     /** Délai avant de rendre les lecteurs d'une boucle libérée : Android a fini de relancer celui qui prenait le relais. */
     private const val LIBERATION_MS = 2_000L
 
@@ -53,7 +53,12 @@ object Sons {
     private val fonduCrayon = Any()
     private val veille = Any()
     private var veilleLancee = false
-    private var incidents = 0
+    /** Les incidents du son, une fois chacun, leurs répétitions résumées (voir [Incidents]). */
+    private val incidents = Incidents { texte -> runCatching { rapporteur?.invoke(texte) } }
+    /** Quand refaire un lecteur en erreur (voir [Reprises]) ; ceux qui attendent déjà le leur. */
+    private val reprises = Reprises()
+    private val enReparation: MutableSet<MediaPlayer> =
+        Collections.synchronizedSet(Collections.newSetFromMap(IdentityHashMap<MediaPlayer, Boolean>()))
 
     /**
      * Où envoyer un incident du son (boucle arrêtée toute seule, relais raté, lecteur en erreur) : les rapports de la
@@ -201,12 +206,10 @@ object Sons {
         }
     }
 
-    /** Un incident du son : dans le journal de la box, et dans ses rapports (les premiers seulement). */
+    /** Un incident du son : dans le journal de la box, et dans ses rapports (ses répétitions groupées). */
     internal fun incident(texte: String) {
         Log.w(TAG, texte)
-        if (incidents >= MAX_INCIDENTS) return
-        incidents++
-        runCatching { rapporteur?.invoke(texte) }
+        if (incidents.noter(texte, SystemClock.uptimeMillis())) h.postDelayed({ incidents.fermer(texte) }, incidents.fenetreMs)
     }
 
     private fun enchainer(etapes: ArrayDeque<() -> Unit>) {
@@ -522,10 +525,19 @@ object Sons {
         return neuf.apply {
             isLooping = boucle
             fichiers[this] = nom
-            // Un lecteur en erreur (serveur audio de la box relancé…) resterait muet toute la partie : on le refait.
+            // Un lecteur en erreur (serveur audio de la box relancé…) resterait muet toute la partie : on le refait,
+            // une fois (ses erreurs suivantes attendent la même réparation), et de plus en plus tard (voir [Reprises]).
             setOnErrorListener { mp, quoi, extra ->
-                incident("Lecteur « $nom » en erreur ($quoi, $extra), reconstruit")
-                h.post { reconstruire(context, nom, boucle, mp) }
+                if (!enReparation.add(mp)) {
+                    incident("Lecteur « $nom » en erreur ($quoi, $extra), déjà en réparation")
+                    return@setOnErrorListener true
+                }
+                val delai = reprises.delai(nom, SystemClock.uptimeMillis())
+                incident("Lecteur « $nom » en erreur ($quoi, $extra), refait dans $delai ms")
+                h.postDelayed({
+                    enReparation.remove(mp)
+                    reconstruire(context, nom, boucle, mp)
+                }, delai)
                 true
             }
             // Un son long arrivé au bout rend sa sortie audio (les boucles remplacent ce relais par le leur).
@@ -563,6 +575,10 @@ object Sons {
 
     private fun reconstruire(context: Context, nom: String, boucle: Boolean, ancien: MediaPlayer) {
         essayer("reconstruire") { ancien.release() }
+        // Réparation prévue plus tard : entre-temps, le son a pu être lâché (changement de design) ; rien à refaire.
+        val utilise = longs.values.any { it === ancien } || variantes.values.any { v -> v.any { it === ancien } } ||
+            crayon === ancien || lits.values.any { it.possede(ancien) }
+        if (!utilise) return
         val neuf = try { lecteur(context, nom, boucle) } catch (e: Exception) { null } ?: return
         Son.entries.find { longs[it] === ancien }?.let { longs[it] = neuf }
         for (s in variantes.keys.toList()) variantes[s] = variantes.getValue(s).map { if (it === ancien) neuf else it }

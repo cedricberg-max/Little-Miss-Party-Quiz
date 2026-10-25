@@ -30,6 +30,7 @@ import com.google.firebase.database.ValueEventListener
 import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
 import com.littlemissparty.quiz.tv.GameViewModel
+import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.MainActivity
 import com.littlemissparty.quiz.tv.habillage.Look
 import java.io.ByteArrayOutputStream
@@ -338,13 +339,24 @@ class Ecran(private val nomTest: () -> String) {
             noeuds.joinToString("\n") + "\n" + compose
     }
 
-    fun capture(nom: String) {
+    /**
+     * Capture de l'écran. [attente] : laisse d'abord finir une animation ; une révélation se joue en 3 s (mauvaises
+     * réponses éteintes, bonne en vert, points), capturée trop tôt elle ressemble encore à la question.
+     */
+    fun capture(nom: String, attente: Long = 0) {
+        if (attente > 0) SystemClock.sleep(attente)
         val fichier = "$DOSSIER_CAPTURES/${nomTest()}-%02d-$nom.png".format(++numero)
         Log.i(TAG, "Capture $fichier")
         device.executeShellCommand("screencap -p $fichier")
     }
 
     companion object {
+        /** Une révélation entière : tampons et points compris. */
+        val APRES_REVELATION = Tempo.REVELATION_POINTS + 1_000L
+
+        /** Le rideau « C'est parti ! » d'un nouveau jeu, posé quelques secondes sur la première question. */
+        val APRES_RIDEAU = Tempo.TRANSITION_RIDEAU + 500L
+
         /** Récupéré par le workflow après les tests (adb pull). */
         const val DOSSIER_CAPTURES = "/data/local/tmp/lmp-captures"
     }

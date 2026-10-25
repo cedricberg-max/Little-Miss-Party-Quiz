@@ -2,18 +2,66 @@ name: Rapports de la box
 
 # Lancement manuel : affiche les rapports envoyés par les box (chemin reports/ de la base : plantages, incidents du
 # son), illisibles depuis l'appli. Rien n'est modifié dans la base.
+# Avec « captures » (numéro d'un passage des tests émulateur) : affiche à la place quelques captures de ce passage,
+# réduites en JPEG et encodées en base64 dans le journal, pour les relire là où l'archive des tests n'est pas
+# téléchargeable.
 on:
   workflow_dispatch:
     inputs:
       nombre:
         description: "Nombre de rapports à lire, les plus récents (1 à 1000)"
         default: "20"
+      captures:
+        description: "Numéro d'un passage « Tests Android (émulateur TV) » dont afficher les captures (vide = les rapports)"
+        default: ""
+      noms:
+        description: "Captures à afficher, séparées par des virgules"
+        default: "question-1,question-8-equipes,revelation,revelation-8-equipes,question-fermee,reponses-en-images,reponses-en-images-revelation,express-affirmation,zoom-mystere-question,zoom-mystere-revelation,image-floue-buzz,image-floue-revelation,juste-chiffre-question,juste-chiffre-revelation,quiz-musical-revelation,mimes-tour,mimes-6-equipes-tour"
 
 permissions:
   contents: read
 
 jobs:
+  captures:
+    if: inputs.captures != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+    env:
+      PASSAGE: ${{ inputs.captures }}
+      NOMS: ${{ inputs.noms }}
+    steps:
+      - name: Vérifier le numéro du passage
+        run: case "$PASSAGE" in *[!0-9]*) echo "Numéro de passage invalide" >&2; exit 1 ;; esac
+      - uses: actions/download-artifact@v4
+        with:
+          name: tests-android-tv
+          run-id: ${{ inputs.captures }}
+          github-token: ${{ github.token }}
+          path: archive
+      - name: Afficher les captures
+        run: |
+          command -v convert >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick >/dev/null; }
+          echo "== Toutes les captures du passage =="
+          find archive -name '*.png' -printf '%f\n' | sort
+          # Une capture s'appelle « <Test>-<n°>-<nom>.png » ; un même nom peut venir de plusieurs tests.
+          for nom in $(printf '%s' "$NOMS" | tr ',' ' '); do
+            case "$nom" in *[!a-zA-Z0-9-]*) echo "Nom ignoré : $nom"; continue ;; esac
+            trouve=
+            for png in $(find archive -name "*-[0-9][0-9]-$nom.png" -o -name "$nom.png" | sort | head -3); do
+              trouve=1
+              fichier=$(basename "$png" .png)
+              convert "$png" -resize '1280x>' -quality 85 "$RUNNER_TEMP/$fichier.jpg"
+              echo "=== CAPTURE $fichier $(identify -format '%wx%h' "$png") $(wc -c < "$RUNNER_TEMP/$fichier.jpg")"
+              base64 -w 1000 "$RUNNER_TEMP/$fichier.jpg" | sed 's/^/B64 /'
+              echo "=== FIN $fichier"
+            done
+            [ -n "$trouve" ] || echo "=== ABSENTE $nom"
+          done
+
   lire:
+    if: inputs.captures == ''
     runs-on: ubuntu-latest
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
