@@ -1081,7 +1081,10 @@ describe("régie", () => {
     assert.equal(await page.locator("#plus").isHidden(), true);
     // Tablette coupée : une pastille dans la barre du haut, plus de grand bandeau rouge.
     await setPresence("bleu", false);
-    await page.locator("#c-horsligne", { hasText: "📱 1 hors ligne" }).waitFor({ timeout: 8000 });
+    // Le nom de l'équipe d'un coup d'œil (cedric, 25/10), avec sa couleur.
+    await page.locator("#c-horsligne .hl-noms", { hasText: /^Les Bleus$/ }).waitFor({ timeout: 8000 });
+    assert.match(await page.locator("#c-horsligne").textContent(), /^📱.*hors ligne$/);
+    assert.equal(await page.locator("#c-horsligne .hl-couleur").count(), 1);
     assert.equal(await page.locator("#r-alerte").isHidden(), true);
     for (const id of ["c-horsligne", "c-timer"]) {
       const r = await page.locator(`#${id}`).boundingBox();
@@ -1089,6 +1092,25 @@ describe("régie", () => {
     }
     assert.equal(await page.locator("#c-horsligne").getAttribute("title"), "Déconnectée : Les Bleus");
     await capture(page, "cockpit-question-360x640", { pleinePage: false });
+    // Deux équipes : les deux noms ; trois et plus : les couleurs et le nombre. Toujours entière dans la barre.
+    await addTeam("vert", "Les Super Licornes Magiques", "#39FF14");
+    await setPresence("vert", true);
+    await setPresence("rose", false);
+    await page.locator("#c-horsligne .hl-noms", { hasText: "Les Roses, Les Bleus" }).waitFor({ timeout: 8000 });
+    await setPresence("vert", false);
+    await page.locator("#c-horsligne .hl-noms", { hasText: /^3$/ }).waitFor({ timeout: 8000 });
+    assert.equal(await page.locator("#c-horsligne .hl-couleur").count(), 3);
+    const pl = await page.locator("#c-horsligne").boundingBox();
+    assert.ok(pl.x >= 0 && pl.x + pl.width <= 360 - 15, `pastille entière : ${JSON.stringify(pl)}`);
+    // Retour : verte un instant, avec le nom ; puis plus rien quand tout le monde est là.
+    await setPresence("rose", true);
+    await setPresence("vert", true);
+    await page.locator("#c-horsligne .hl-noms", { hasText: "Les Bleus" }).waitFor();
+    await setPresence("bleu", true);
+    await page.locator("#c-horsligne.revenue", { hasText: "revenue" }).waitFor();
+    await page.locator("#c-horsligne").waitFor({ state: "hidden", timeout: 10000 });
+    await setPresence("bleu", false);
+    await page.locator("#c-horsligne", { hasText: "Les Bleus" }).waitFor({ timeout: 8000 });
     // « ☰ Plus » monte du bas ; une commande qui ouvre sa fenêtre le referme.
     await page.click("#c-plus");
     await page.locator("#plus:not([hidden])").waitFor();

@@ -183,14 +183,30 @@ function fermerPlus() {
   $("plus-fond").hidden = true;
 }
 
-/** Tablettes coupées : une pastille rouge dans la barre du haut (verte un instant au retour) ; la toucher = la reconnecter. */
+/**
+ * Tablettes coupées : une pastille rouge dans la barre du haut (verte un instant au retour) ; la toucher = la reconnecter.
+ * Elle dit qui, d'un coup d'œil (cedric, 25/10) : la couleur et le nom de l'équipe, les deux noms pour deux équipes,
+ * les couleurs et le nombre au-delà. Rien quand toutes les tablettes sont là.
+ */
 function pastilleHorsLigne(bandeau, coupees, revenues) {
   bandeau.hidden = true;
   const pastille = $("c-horsligne");
-  pastille.hidden = !coupees.length && !revenues.length;
+  const ids = coupees.length ? coupees : revenues;
+  pastille.hidden = !ids.length;
   pastille.classList.toggle("revenue", !coupees.length);
-  pastille.textContent = coupees.length ? `📱 ${coupees.length} hors ligne` : "📱 revenue";
-  pastille.title = coupees.length ? `Déconnectée${coupees.length > 1 ? "s" : ""} : ${coupees.join(", ")}` : revenues.join(", ");
+  const nom = (id) => live.teams[id]?.name ?? "Une équipe";
+  const couleurs = ids.slice(0, 4).map((id) => {
+    const c = document.createElement("span");
+    c.className = "hl-couleur";
+    c.style.background = live.teams[id]?.color ?? "#fff";
+    return c;
+  });
+  const noms = document.createElement("span");
+  noms.className = "hl-noms";
+  noms.textContent = ids.length <= 2 ? ids.map(nom).join(", ") : String(ids.length);
+  const pluriel = ids.length > 1 ? "s" : "";
+  pastille.replaceChildren("📱", ...couleurs, noms, coupees.length ? "hors ligne" : `revenue${pluriel}`);
+  pastille.title = coupees.length ? `Déconnectée${pluriel} : ${ids.map(nom).join(", ")}` : `Revenue${pluriel} : ${ids.map(nom).join(", ")}`;
   pastille.onclick = coupees.length ? ouvrirTablette : null;
 }
 
@@ -595,7 +611,7 @@ const REVENUE_MS = 3000;
 const horsLigneDepuis = new Map();
 let alertees = new Set();
 let masquees = new Set();
-let revenue = { noms: [], jusqua: 0 };
+let revenue = { ids: [], noms: [], jusqua: 0 };
 let alerteTimer = null;
 
 function renderAlerte(st, teams) {
@@ -613,7 +629,7 @@ function renderAlerte(st, teams) {
     ? teams.map(([id]) => id).filter((id) => horsLigneDepuis.has(id) && now - horsLigneDepuis.get(id) >= ALERTE_APRES_MS)
     : [];
   const revenues = [...alertees].filter((id) => ids.has(id) && enLigne(id));
-  if (revenues.length) revenue = { noms: revenues.map(name), jusqua: now + REVENUE_MS };
+  if (revenues.length) revenue = { ids: revenues, noms: revenues.map(name), jusqua: now + REVENUE_MS };
   // Une tablette de plus vient de lâcher : le téléphone vibre (dans la poche ou posé, Sarah le sent).
   if (coupees.some((id) => !alertees.has(id) && !masquees.has(id))) navigator.vibrate?.([200, 100, 200]);
   alertees = new Set(coupees);
@@ -635,7 +651,7 @@ function renderAlerte(st, teams) {
     box.onclick = null;
     box.hidden = false;
   } else box.hidden = true;
-  if (COCKPIT) pastilleHorsLigne(box, visibles.map(name), revenue.jusqua > now ? revenue.noms : []);
+  if (COCKPIT) pastilleHorsLigne(box, visibles, revenue.jusqua > now ? revenue.ids : []);
   // Prochain changement à montrer : une coupure qui atteint 4 s, ou la fin du bandeau vert.
   const prochains = [...horsLigneDepuis.values()].map((t) => t + ALERTE_APRES_MS).filter((t) => t > now);
   if (revenue.jusqua > now) prochains.push(revenue.jusqua);
