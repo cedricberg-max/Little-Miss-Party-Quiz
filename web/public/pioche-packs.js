@@ -123,7 +123,11 @@ export function versQuestionDePack(x, hasard = Math.random, jeu = "quiz") {
   const q = x.q;
   const choix = () => (Array.isArray(q.choices) ? q.choices : Object.values(q.choices ?? {}));
   if (estJeuDePhotos(jeu)) return { id: `i:${q.imageId}`, text: q.text, choices: [...choix()], correct: q.correct, imageId: q.imageId };
-  if (jeu === "express") return { id: `pk-${x.id}`, text: q.text, choices: [...choix()].slice(0, 2), correct: q.correct };
+  // Vrai ou Faux : l'image de l'affirmation (Mario, K-pop…) se montre à la révélation (cedric, 25/10).
+  if (jeu === "express") {
+    return { id: `pk-${x.id}`, text: q.text, choices: [...choix()].slice(0, 2), correct: q.correct,
+      ...(IMAGE_ID.test(q.imageId ?? "") ? { imageId: q.imageId } : typeof q.image === "string" && q.image ? { emoji: q.image } : {}) };
+  }
   if (jeu === "illustre") {
     const images = choix().map((_, k) => (IMAGE_ID.test(q.choiceImages?.[k] ?? "") ? q.choiceImages[k] : ""));
     const ordre = melanger(choix().map((_, k) => k).slice(0, 4), hasard);

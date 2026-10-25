@@ -95,6 +95,11 @@ describe("pioche dans mes packs", () => {
     assert.deepEqual(versQuestionDePack(zoom[0], hasard, "flou"), { id: `i:${IMG(1)}`, text: "Qui est-ce ?", choices: ["Rumi", "Zoey", "Jinu", "Derpy"], correct: 0, imageId: IMG(1) });
     const [vf] = catalogueDesPacks(packs, () => false, "express");
     assert.deepEqual(versQuestionDePack(vf, hasard, "express"), { id: `pk-${vf.id}`, text: "Vrai ?", choices: ["Vrai", "Faux"], correct: 0 }, "Vrai / Faux jamais mélangé");
+    // Son image montrée à la fin (cedric, 25/10 : « l'image doit être montrée à la fin ») : photo, sinon émoji.
+    const vfImage = { ...vf, q: { ...vf.q, imageId: IMG(7) } };
+    assert.deepEqual(versQuestionDePack(vfImage, hasard, "express"), { id: `pk-${vf.id}`, text: "Vrai ?", choices: ["Vrai", "Faux"], correct: 0, imageId: IMG(7) });
+    assert.equal(versQuestionDePack({ ...vf, q: { ...vf.q, image: "🍄" } }, hasard, "express").emoji, "🍄");
+    assert.equal(versQuestionDePack({ ...vf, q: { ...vf.q, imageId: "pas-une-image" } }, hasard, "express").imageId, undefined);
     const illus = catalogueDesPacks(packs, () => false, "illustre").find((x) => x.quizId === "illus");
     for (let k = 0; k < 6; k++) {
       const x = versQuestionDePack(illus, hasard, "illustre");
