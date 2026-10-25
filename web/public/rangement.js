@@ -60,3 +60,71 @@ export function parFamille(cartes = []) {
   return FAMILLES.map((f) => [f, cartes.filter((c) => (c.famille ?? "Divers") === f)
     .sort((a, b) => (ordre[a.niveau] ?? 3) - (ordre[b.niveau] ?? 3) || `${a.title}`.localeCompare(`${b.title}`, "fr", { sensitivity: "base" }))]);
 }
+
+/*
+ * Thèmes (cedric, 25/10, 12 h 35 : « les rubriques devraient être le nom du thème directement : Mario, Barbie, K-pop »).
+ * La Bibliothèque range ses packs par thème, plus par famille : le thème est le champ « theme » du pack ; sans lui,
+ * son nom sans le niveau (« Harry Potter – Moyen » → « Harry Potter »). Deux écritures proches (« kpop », « K-pop »,
+ * « K Pop ») sont le même thème. La famille d'un pack reste lue et gardée, mais ne range plus rien.
+ */
+
+/** La clé d'un thème : lettres et chiffres seulement, sans accents ni majuscules (« K-pop » = « kpop »). */
+export const cleTheme = (t) => simple(t).replace(/ /g, "");
+
+/** Fin d'un nom qui dit le niveau : « – Facile », « (Moyen) », « - niveau 3 ». */
+const NIVEAU_EN_FIN = /\s*[-–—:(,]*\s*(?:niveau\s*[123]|facile|moyen|difficile)\s*\)?\s*$/i;
+
+/** Le thème d'un pack : [theme], sinon [titre] sans son niveau, sinon « Sans thème ». */
+export function themeDe(theme, titre) {
+  const t = `${theme ?? ""}`.replace(/\s+/g, " ").trim();
+  if (t) return t;
+  const sansNiveau = `${titre ?? ""}`.replace(NIVEAU_EN_FIN, "").replace(/\s+/g, " ").trim();
+  return sansNiveau || `${titre ?? ""}`.trim() || "Sans thème";
+}
+
+/** Le thème d'un quiz enregistré. */
+export const themeDuQuiz = (quiz) => themeDe(quiz?.theme, quiz?.title);
+
+/** [nom] écrit comme le thème déjà là qui se confond avec lui (« kpop » → « K-pop Demon Hunters » si c'est sa clé), sinon tel quel. */
+export function themeExistant(nom, existants = []) {
+  const cle = cleTheme(nom);
+  return (cle && existants.find((t) => cleTheme(t) === cle)) || `${nom ?? ""}`.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * [cartes] (des packs `{ theme, title, niveau }`) rangées par thème : `[[thème, cartes]]`, thèmes dans l'ordre
+ * alphabétique ; un thème s'écrit comme la plupart de ses packs l'écrivent ; dans un thème, Facile, Moyen, Difficile.
+ */
+export function parTheme(cartes = []) {
+  const groupes = new Map();
+  for (const c of cartes) {
+    const nom = themeDe(c.theme, c.title);
+    const cle = cleTheme(nom) || nom;
+    if (!groupes.has(cle)) groupes.set(cle, { noms: new Map(), cartes: [] });
+    const g = groupes.get(cle);
+    g.noms.set(nom, (g.noms.get(nom) ?? 0) + 1);
+    g.cartes.push(c);
+  }
+  const ordre = { Facile: 0, Moyen: 1, Difficile: 2 };
+  return [...groupes.values()]
+    .map((g) => [[...g.noms].sort((a, b) => b[1] - a[1])[0][0], g.cartes.sort((a, b) => (ordre[a.niveau] ?? 3) - (ordre[b.niveau] ?? 3)
+      || `${a.title}`.localeCompare(`${b.title}`, "fr", { sensitivity: "base" }))])
+    .sort(([a], [b]) => a.localeCompare(b, "fr", { sensitivity: "base" }));
+}
+
+/**
+ * Le thème déjà là où ranger un pack nommé [nom] (cedric, 25/10 : « la Régie me propose sur quel thème elle a prévu de
+ * joindre ce pack ») : la même clé, sinon un thème dont la clé contient la sienne ou l'inverse (« kpop » et « K-pop
+ * Demon Hunters »), le plus proche en longueur ; null : un nouveau thème.
+ */
+export function themeProche(nom, existants = []) {
+  const cle = cleTheme(nom);
+  if (!cle) return null;
+  const exact = existants.find((t) => cleTheme(t) === cle);
+  if (exact) return exact;
+  const proches = existants.filter((t) => {
+    const c = cleTheme(t);
+    return Math.min(c.length, cle.length) >= 4 && (c.includes(cle) || cle.includes(c));
+  });
+  return proches.sort((a, b) => Math.abs(cleTheme(a).length - cle.length) - Math.abs(cleTheme(b).length - cle.length))[0] ?? null;
+}

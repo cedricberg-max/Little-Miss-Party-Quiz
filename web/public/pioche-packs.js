@@ -6,10 +6,10 @@
  * - « recherche » : un mot (thème, personnage…) : seulement les questions qui s'y rapportent (titre ou thème du pack,
  *   texte ou réponses de la question), même s'il n'y en a qu'une série.
  * Jamais une question déjà dans la prestation ni retirée (✕) ; d'abord celles du niveau de la prestation, puis les
- * autres s'il en manque. Fonctions pures, testées.
+ * autres s'il en manque (le niveau d'une question changé à la main passe avant celui de son pack). Fonctions pures, testées.
  */
 import { playable, quizKind } from "./show.js";
-import { niveauDuQuiz } from "./rangement.js";
+import { niveauDuQuiz, lireNiveau, themeDuQuiz, cleTheme } from "./rangement.js";
 import { contientTout, parPertinence, sansAccent } from "./recherche.js";
 
 const IMAGE_ID = /^[0-9a-f]{16}$/;
@@ -28,7 +28,7 @@ export function catalogueDesPacks(quizzes = {}, exclure = () => false) {
   return Object.entries(quizzes ?? {})
     .filter(([id, quiz]) => quiz?.pack === true && quiz.title && !exclure(id) && quizKind(quiz) === "classique")
     .flatMap(([id, quiz]) => playable(quiz).filter(auQuiz).map((q, k) => ({
-      id: `${id}:${k}`, quizId: id, titre: quiz.title, theme: quiz.theme ?? "", niveau: niveauDuQuiz(quiz), q,
+      id: `${id}:${k}`, quizId: id, titre: quiz.title, theme: themeDuQuiz(quiz), niveau: lireNiveau(q.niveau) ?? niveauDuQuiz(quiz), q,
     })));
 }
 
@@ -40,17 +40,23 @@ const repond = (textes, terme) => contientTout(textes, terme) || (serre(terme).l
 /** La question se rapporte à [terme] : le titre ou le thème de son pack, son texte ou ses réponses. */
 export const serapporte = (x, terme) => repond([x.titre, x.theme, x.q.text, ...(x.q.choices ?? [])].filter(Boolean), terme);
 
-/** Les packs dont le titre ou le thème répond à [terme] (le champ, en direct) : `[{ titre, n }]`, les plus proches d'abord. */
+/**
+ * Les thèmes (cedric, 25/10 : les rubriques sont les thèmes) dont le nom ou un pack répond à [terme] (le champ, en
+ * direct) : `[{ titre, n }]` (titre : le thème), les plus proches d'abord ; n : ses questions libres.
+ */
 export function packsQuiRepondent(catalogue, terme, exclus = new Set()) {
   if (!`${terme ?? ""}`.trim()) return [];
-  const parTitre = new Map();
+  const parTheme = new Map();
   for (const x of catalogue) {
-    if (exclus.has(x.q.text) || !repond([x.titre, x.theme].filter(Boolean), terme)) continue;
-    const p = parTitre.get(x.titre) ?? { titre: x.titre, theme: x.theme, n: 0 };
+    if (exclus.has(x.q.text) || !repond([x.theme, x.titre].filter(Boolean), terme)) continue;
+    const cle = cleTheme(x.theme) || x.theme;
+    const p = parTheme.get(cle) ?? { titre: x.theme, packs: new Set(), n: 0 };
     p.n += 1;
-    parTitre.set(x.titre, p);
+    p.packs.add(x.titre);
+    parTheme.set(cle, p);
   }
-  return parPertinence([...parTitre.values()], terme, (p) => [p.titre], (p) => [p.theme].filter(Boolean));
+  return parPertinence([...parTheme.values()].map(({ titre, packs, n }) => ({ titre, theme: [...packs].filter((t) => t !== titre).join(", "), n })),
+    terme, (p) => [p.titre], (p) => [p.theme].filter(Boolean));
 }
 
 const melanger = (liste, hasard) => {

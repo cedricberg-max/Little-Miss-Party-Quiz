@@ -1206,3 +1206,23 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 /* Bibliothèque › Questions (cedric, 25/10) : le gros bouton d'import, à gauche de « ← Retour ». */
 .retour-barre.haut .importer-haut { font-size: 18px; padding: 12px 22px; }
 .retour-barre.haut .importer-haut[hidden] { display: none; }
+/* Un thème de ses packs parmi les puces d'une banque toute prête. */
+.chip.theme-pack:not(.active) { border-color: var(--violet); color: var(--violet); font-weight: 800; }
+/* Niveau d'une question (cedric, 25/10) : une pastille de couleur ; sur ses questions, un choix qui le change. */
+.q-niveau { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 800; color: #fff; background: var(--soft); white-space: nowrap; }
+.q-niveau[data-niveau="Facile"] { background: #22a35a; }
+.q-niveau[data-niveau="Moyen"] { background: #2f7fd8; }
+.q-niveau[data-niveau="Difficile"] { background: #8a4fd8; }
+select.q-niveau-choix { width: auto; min-width: 0; min-height: 0; border: 0; padding: 3px 26px 3px 10px; cursor: pointer; }
+select.q-niveau-choix option { color: var(--ink); background: var(--card); }
+/* Thème d'un pack à importer : un de ses thèmes (existant) ou un nouveau, au choix. */
+.pack-theme-etat { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.pack-theme-etat[data-etat="existant"] { background: var(--good-pale); color: var(--good); }
+.pack-theme-etat[data-etat="nouveau"] { background: var(--gold-pale); color: var(--warn); }
+.pack-theme-nom[hidden], .pack-theme-etat[hidden] { display: none; }
+/* Le thème de tous les packs, tout en haut de l'aperçu d'import. */
+.pack-theme-global { margin: 0 0 4px; padding: 12px 14px; border-radius: 16px; background: var(--violet-pale); border: 2px solid var(--violet); }
+.pack-theme-global .pack-etiquette { font-size: 17px; }
+.pack-theme-global .hint { margin: 6px 0 0; }
+.q-theme > .title-row { flex-wrap: nowrap; }
+.q-theme > .title-row > .q-plier { flex: 1 1 auto; min-width: 0; }

@@ -20,8 +20,9 @@ import { quizKind } from "./show.js";
 import { etiquettes, familleDuQuiz, niveauDuQuiz } from "./rangement.js";
 
 export const GROUPES_QUESTIONS = {
-  classiques: "📝 Quiz classique tout prêt", illustrees: "🖼️ Quiz illustré tout prêt", vraifaux: "✅ Vrai ou Faux tout prêt", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs",
-  photos: "🔍 Mes séries de photos", tests: "🧪 Questions de test",
+  // Ses thèmes (ses packs) d'abord (cedric, 25/10 : « le genre de série que je vais utiliser en priorité »).
+  packs: "🎨 Mes thèmes", classiques: "📝 Quiz classique tout prêt", illustrees: "🖼️ Quiz illustré tout prêt", vraifaux: "✅ Vrai ou Faux tout prêt",
+  miennes: "✍️ Mes questions en vrac", photos: "🔍 Mes séries de photos", tests: "🧪 Questions de test",
 };
 export const JUSTE_CHIFFRE = "🔢 Juste Chiffre";
 export const QUESTION_4_REPONSES = "❓ Question à 4 réponses toute prête";

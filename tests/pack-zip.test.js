@@ -291,3 +291,23 @@ describe("images hors format (alerte, jamais bloquante)", () => {
     assert.deepEqual(Object.keys(FORMATS_IMAGES).sort(), ["case", "photo", "revelation"]);
   });
 });
+
+describe("thèmes des packs (cedric, 25/10 : la rubrique est le thème)", () => {
+  test("le thème : celui du pack, sinon son nom sans le niveau ; deux écritures proches sont le même thème", async () => {
+    const R = await import("../web/public/rangement.js");
+    assert.equal(R.themeDe("", "Harry Potter – Moyen"), "Harry Potter");
+    assert.equal(R.themeDe(null, "K-pop (Facile)"), "K-pop");
+    assert.equal(R.themeDe("", "Top 3"), "Top 3", "un chiffre n'est pas un niveau");
+    assert.equal(R.themeDe("  Mario  ", "Mario – Facile"), "Mario");
+    assert.equal(R.cleTheme("K-Pop  Démon"), R.cleTheme("kpop demon"));
+    assert.equal(R.themeExistant("kpop demon hunters", ["K-pop Demon Hunters", "Mario"]), "K-pop Demon Hunters");
+    assert.equal(R.themeExistant("Barbie", ["Mario"]), "Barbie");
+    // La Régie propose un thème déjà là : le même nom, ou un nom proche ; sinon un nouveau.
+    assert.equal(R.themeProche("Kpop", ["K-pop Demon Hunters", "Mario"]), "K-pop Demon Hunters");
+    assert.equal(R.themeProche("Super Mario", ["Mario", "Super Mario Bros"]), "Super Mario Bros");
+    assert.equal(R.themeProche("Barbie", ["Mario"]), null);
+    assert.equal(R.themeProche("Art", ["Arthur"]), null, "trop court pour être proche");
+    const rangees = R.parTheme([{ theme: "kpop", title: "a", niveau: "Moyen" }, { theme: "K-pop", title: "b", niveau: "Facile" }, { theme: "K-pop", title: "c" }, { title: "Mario – Facile" }]);
+    assert.deepEqual(rangees.map(([t, c]) => [t, c.map((x) => x.title)]), [["K-pop", ["b", "a", "c"]], ["Mario", ["Mario – Facile"]]]);
+  });
+});
