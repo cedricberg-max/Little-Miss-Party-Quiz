@@ -74,4 +74,33 @@ describe("pioche dans mes packs", () => {
     assert.deepEqual(versQuestionDePack({ id: "c:0", q: QUIZZES.chiffre.questions[0] }), { id: "pk-c:0", text: "Combien de frères Mario ?", nombre: true, correct: 2 });
     assert.deepEqual([1, 2, 3, null].map(niveauDesPacks), ["Facile", "Moyen", "Difficile", null]);
   });
+
+  test("chaque jeu pioche dans ses packs (cedric, 25/10) : Quiz illustré, Vrai ou Faux, séries de photos", () => {
+    const IMG = (k) => `${k}`.repeat(16).slice(0, 16);
+    const packs = {
+      ...QUIZZES,
+      photos: { title: "Zoom K-pop", niveau: "Facile", pack: true, kind: "images", source: "photos",
+        questions: ["Rumi", "Mira"].map((nom, k) => ({ text: "Qui est-ce ?", choices: [nom, "Zoey", "Jinu", "Derpy"], correct: 0, imageId: IMG(k + 1), status: "validee" })) },
+      illus: { title: "Illustré K-pop", niveau: "Facile", pack: true, kind: "photo",
+        questions: [{ text: "Qui chante ?", choices: ["Rumi", "Mira", "Zoey", "Jinu"], correct: 2, choiceImages: { 0: IMG("a"), 1: IMG("b"), 2: IMG("c"), 3: IMG("d") }, imageId: IMG("e"), status: "validee" }] },
+    };
+    assert.deepEqual([...new Set(catalogueDesPacks(packs, () => false, "illustre").map((x) => x.titre))].sort(), ["Illustré", "Illustré K-pop"]);
+    assert.deepEqual(catalogueDesPacks(packs, () => false, "express").map((x) => x.titre), ["VF"]);
+    const zoom = catalogueDesPacks(packs, () => false, "zoom");
+    assert.deepEqual(zoom.map((x) => x.cle), [`i:${IMG(1)}`, `i:${IMG(2)}`], "aux photos, une question = sa photo (le texte est le même partout)");
+    const main = { title: "Monuments", kind: "images", source: "photos", questions: [{ text: "Qui est-ce ?", choices: ["Tour Eiffel", "Lune", "Chat", "Pont"], correct: 0, imageId: IMG(9), status: "validee" }] };
+    assert.deepEqual(catalogueDesPacks({ ...packs, main }, () => false, "flou").map((x) => x.titre), ["Zoom K-pop", "Zoom K-pop", "Monuments"], "aux photos, mes séries faites à la main aussi");
+    assert.equal(catalogueDesPacks({ main }, () => false, "quiz").length, 0);
+    assert.deepEqual(piocherDansLesPacks(zoom, 5, { exclus: new Set([`i:${IMG(1)}`]) }).map((x) => x.q.choices[0]), ["Mira"]);
+    assert.deepEqual(versQuestionDePack(zoom[0], hasard, "flou"), { id: `i:${IMG(1)}`, text: "Qui est-ce ?", choices: ["Rumi", "Zoey", "Jinu", "Derpy"], correct: 0, imageId: IMG(1) });
+    const [vf] = catalogueDesPacks(packs, () => false, "express");
+    assert.deepEqual(versQuestionDePack(vf, hasard, "express"), { id: `pk-${vf.id}`, text: "Vrai ?", choices: ["Vrai", "Faux"], correct: 0 }, "Vrai / Faux jamais mélangé");
+    const illus = catalogueDesPacks(packs, () => false, "illustre").find((x) => x.quizId === "illus");
+    for (let k = 0; k < 6; k++) {
+      const x = versQuestionDePack(illus, hasard, "illustre");
+      assert.equal(x.choices[x.correct], "Zoey");
+      assert.deepEqual(x.choices.map((c, i) => [c, x.choiceImages[i]]).sort(), [["Jinu", IMG("d")], ["Mira", IMG("b")], ["Rumi", IMG("a")], ["Zoey", IMG("c")]], "chaque réponse garde son image");
+      assert.equal(x.imageId, IMG("e"));
+    }
+  });
 });
