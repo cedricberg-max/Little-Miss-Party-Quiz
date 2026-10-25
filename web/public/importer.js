@@ -99,7 +99,11 @@ export function wordFromImage(name) {
  * les réponses des autres photos. Les questions arrivent validées : Sarah relit les réponses avant d'enregistrer.
  */
 export function photoQuestions(names, text = "Qu'est-ce que c'est ?", random = Math.random) {
-  const answers = names.map((n, i) => wordFromImage(n) || `Photo ${i + 1}`);
+  return questionsDePhotos(names.map((n, i) => wordFromImage(n) || `Photo ${i + 1}`), text, random);
+}
+
+/** Questions d'une série de photos dont les réponses sont données (cedric, 25/10 : liste « photos » d'un pack.json). */
+export function questionsDePhotos(answers, text = "Qu'est-ce que c'est ?", random = Math.random) {
   return answers.map((answer, i) => {
     const others = [...new Set(answers.filter((a, j) => j !== i && norm(a) !== norm(answer)))];
     for (let k = others.length - 1; k > 0; k--) { const j = Math.floor(random() * (k + 1)); [others[k], others[j]] = [others[j], others[k]]; }
