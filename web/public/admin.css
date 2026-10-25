@@ -800,6 +800,13 @@ button.media-tile:hover { border-color: var(--violet); }
 .q-list { display: flex; flex-direction: column; gap: 16px; }
 .q-groupe { display: flex; flex-direction: column; gap: 10px; }
 .q-groupe h2 { margin: 0; font-size: 20px; }
+/* Rubrique repliée sur une ligne (cedric, 25/10) : un bouton ▸ / ▾ avec son nom et son nombre. */
+.q-groupe.replie { gap: 0; }
+.q-plier { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-height: 44px; padding: 6px 12px; text-align: left;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
+.q-plier:hover { border-color: var(--violet); }
+.q-plier-fleche { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--violet-pale); color: var(--violet); font-size: 16px; }
+.q-plier h2 { font-size: 18px; }
 .q-liste { display: flex; flex-direction: column; gap: 8px; max-width: 1000px; }
 .q-item { display: flex; align-items: flex-start; gap: 14px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--card); }
 .q-item.sans-illus { border-left: 5px solid var(--bad); }

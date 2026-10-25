@@ -7780,6 +7780,8 @@ function renderPlaylistsSons() {
 
 /** Groupe ouvert : null (tous en aperçu) ou une clé de GROUPES_QUESTIONS ; pack ouvert ; famille ou thème choisi. */
 let qGroupe = null;
+/** Rubriques dépliées dans l'aperçu de Bibliothèque › Questions (toutes repliées à l'ouverture de la page). */
+const qOuverts = new Set();
 let qPack = null;
 let qCategorie = null;
 /** Quiz classique tout prêt : toutes, les questions à 4 réponses (« qcm ») ou les Juste Chiffre (« nombre ») ; un niveau. */
@@ -7967,16 +7969,23 @@ function dessinerQuestions() {
     return;
   }
 
-  // Aperçu : les groupes l'un sous l'autre, quelques questions (ou packs) chacun.
+  // Aperçu : les groupes l'un sous l'autre, chacun replié sur une ligne (cedric, 25/10) ; ▸ le déplie (quelques
+  // questions ou packs, et « Voir tout »), ▾ le replie. Les rubriques dépliées le restent tant que la page est ouverte.
   if (!qGroupe) {
     box.replaceChildren(...groupes.map(([k, label]) => {
+      const ouvert = qOuverts.has(k);
+      const plier = h("button", {
+        type: "button", class: "q-plier", "aria-expanded": ouvert ? "true" : "false",
+        title: ouvert ? "Replier cette rubrique" : "Déplier cette rubrique",
+        onclick: () => { if (ouvert) qOuverts.delete(k); else qOuverts.add(k); renderQuestions(); },
+      }, h("span", { class: "q-plier-fleche", text: ouvert ? "▾" : "▸" }), h("h2", { text: `${label} (${compte[k]})` }));
       const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { const y = window.scrollY; qGroupe = k; renderQuestions(); noterRubrique(y); } });
       const contenu = enCartes[k]
         ? (enCartes[k].length ? h("div", { class: "cards" }, ...enCartes[k].slice(0, QUESTIONS_APERCU).map(cartePack))
-          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "photos" ? "Aucune série de photos pour l'instant : « Voir tout », puis « 📷 Nouvelle série de photos »." : "Aucun pack pour l'instant : « Voir tout », puis « 📥 Importer des packs JSON… »." }))
+          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "photos" ? "Aucune série de photos pour l'instant : « Voir tout », puis « 📷 Nouvelle série de photos »." : "Aucun pack pour l'instant : « Voir tout », puis « 📦 Importer un pack ZIP »." }))
         : (filtre(g[k]).length ? h("div", { class: "q-liste" }, ...filtre(g[k]).slice(0, QUESTIONS_APERCU).map(ligneQuestion))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune question écrite à la main pour l'instant." : "" }));
-      return h("section", { class: "q-groupe", "data-groupe": k }, h("div", { class: "title-row" }, h("h2", { text: label }), voir), contenu);
+      return h("section", { class: `q-groupe${ouvert ? " ouvert" : " replie"}`, "data-groupe": k }, h("div", { class: "title-row" }, plier, ouvert ? voir : null), ouvert ? contenu : null);
     }));
     return;
   }

@@ -3818,6 +3818,7 @@ describe("bibliothèque de quiz et prestations", () => {
 
     // Les questions de la prestation de test ne sont plus « en vrac » : elles ont leur groupe.
     await page.locator('#q-groups [data-groupe="tests"]', { hasText: "🧪 Questions de test (1)" }).waitFor();
+    for (const k of ["tests", "miennes"]) await page.locator(`.q-groupe[data-groupe="${k}"] .q-plier`).click();
     await page.locator('.q-groupe[data-groupe="tests"] .q-item[data-question="test-lea-tous-les-jeux-quiz/0"]').waitFor();
     assert.equal(await page.locator('.q-groupe[data-groupe="miennes"] .q-item').count(), 1);
     await page.click('#q-groups [data-groupe="tests"]');
@@ -8566,7 +8567,18 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#library-questions:not([hidden])").waitFor();
     assert.equal(await page.locator("#library-images").isHidden(), true);
 
-    // Aperçu : les trois groupes, avec l'alerte sur ce qui n'a pas d'illustration.
+    // Aperçu (cedric, 25/10) : chaque rubrique repliée sur une ligne, son nom et son nombre ; ▸ la déplie, ▾ la replie.
+    await page.locator('.q-groupe.replie[data-groupe="classiques"] .q-plier', { hasText: "▸" }).waitFor();
+    assert.equal(await page.locator("#q-list .q-item, #q-list .pack").count(), 0, "tout est replié à l'arrivée");
+    await capture(page, "questions-repliees");
+    assert.match(await page.locator('.q-groupe[data-groupe="miennes"] .q-plier h2').innerText(), /\(2\)$/);
+    await page.locator('.q-groupe[data-groupe="classiques"] .q-plier').click();
+    await page.locator('.q-groupe.ouvert[data-groupe="classiques"] .q-item').first().waitFor();
+    await page.locator('.q-groupe[data-groupe="classiques"] .q-plier', { hasText: "▾" }).click();
+    await page.locator('.q-groupe.replie[data-groupe="classiques"]').waitFor();
+    assert.equal(await page.locator('.q-groupe[data-groupe="classiques"] .q-item').count(), 0);
+    for (const k of ["illustrees", "miennes", "packs"]) await page.locator(`.q-groupe[data-groupe="${k}"] .q-plier`).click();
+    // Avec l'alerte sur ce qui n'a pas d'illustration.
     await page.locator('.q-groupe[data-groupe="illustrees"] .q-item').first().waitFor();
     await page.locator('.q-groupe[data-groupe="miennes"] .q-item[data-question="mien/0"] .q-illus.emoji', { hasText: "☁️" }).waitFor();
     await page.locator('.q-groupe[data-groupe="miennes"] .q-item.sans-illus[data-question="mien/1"] .q-alerte', { hasText: "⚠ Pas d'illustration" }).waitFor();
@@ -8729,6 +8741,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await fenetre.locator(".pack-apercu-vignettes img").nth(1).waitFor();
     assert.match(await fenetre.innerText(), /Quiz illustré · 5 à 8 ans · Thème « Disney » · 1 question/);
     assert.match(await fenetre.innerText(), /Question 1, réponse C : Image manquante : ajoutez une illustration\./);
+    await capture(page, "pack-zip-apercu", { pleinePage: false });
     assert.equal(await repondreFenetre(page), "Importer « Reine des neiges » ?");
     await page.locator("#pack-status", { hasText: "✓ Importé : « Reine des neiges » : 1 question. 1 image manquante : ajoutez-les dans « Éditer »." }).waitFor();
     let quizzes = await library("quizzes");
