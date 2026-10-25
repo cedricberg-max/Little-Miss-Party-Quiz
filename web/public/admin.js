@@ -494,6 +494,7 @@ function refreshLists() {
   if (!$("screen-playlist-edit").hidden && !$("playlist-lib").hidden) renderLibPicker();
   if (!$("screen-show-edit").hidden) refreshRounds();
   if (!$("screen-game").hidden) renderGame();
+  if (!$("screen-settings").hidden && document.activeElement !== $("test-theme-choix")) remplirThemesTest();
 }
 
 const byDate = ([, a], [, b]) => (a.date ?? "9999").localeCompare(b.date ?? "9999");
@@ -5811,10 +5812,16 @@ const tic = () => new Promise((fin) => setTimeout(fin, 0));
  * Touche une fois le 🎲 de chaque jeu de la prestation ouverte, comme Sarah (celui de chaque équipe aux Mimes) : chaque
  * jeu se remplit avec son propre tirage (âge, équipes, « jamais deux fois » avec les jeux d'avant).
  */
-async function toucherLesDes() {
+async function toucherLesDes({ packs = false } = {}) {
   const bloc = (i) => $("show-rounds").querySelectorAll(".jeu-bloc")[i];
   const n = $("show-rounds").querySelectorAll(".jeu-bloc").length;
   for (let i = 0; i < n; i++) {
+    // Prestation test d'un thème : les jeux à packs touchent leur 🎲 « thème à 100 % » (le thème déjà tapé).
+    if (packs && JEUX_A_PACKS.includes(bloc(i)?.dataset.jeu)) {
+      bloc(i).querySelector(".packs-de-recherche")?.click();
+      await tic();
+      continue;
+    }
     const equipes = bloc(i)?.dataset.jeu === "mimes" ? bloc(i).querySelectorAll(".mime-equipe").length : 0;
     if (equipes) {
       for (let k = 0; k < equipes; k++) {
@@ -5883,6 +5890,69 @@ $("test-prestation").onclick = async () => {
     console.error(err);
     status("test-status", "Échec : vérifiez la connexion puis réessayez.");
     annonce("Échec de la prestation de test : vérifiez la connexion puis réessayez.");
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+/** Les jeux qui piochent dans les packs importés (leur carte a les dés « 🎨 Mes packs »). */
+const JEUX_A_PACKS = ["quiz", "illustre", "express", "zoom", "flou", "quisuis"];
+
+/**
+ * « 🎨 Prestation test d'un thème » (cedric, 25/10 : « une prestation test qui exploite exclusivement les packs, Mario,
+ * dans tous les jeux où on peut extraire des séries ») : la fête de test (même âge, mêmes équipes, datée du jour), les
+ * jeux à packs remplis par leur 🎲 « thème à 100 % » sur ce thème (un jeu sans rien sur ce thème est retiré), les autres
+ * jeux au 🎲 habituel. Rien n'est effacé ; elle se refait à neuf (une par thème).
+ */
+function remplirThemesTest() {
+  const menu = $("test-theme-choix");
+  const avant = menu.value;
+  const themes = themesExistants();
+  menu.replaceChildren(...(themes.length ? themes.map((t) => h("option", { value: t, text: t })) : [h("option", { value: "", text: "Aucun thème : importez d'abord des packs" })]));
+  if (themes.includes(avant)) menu.value = avant;
+  $("test-theme").disabled = !themes.length;
+}
+$("test-theme-choix").addEventListener("focus", remplirThemesTest);
+document.querySelector('#nav button[data-screen="settings"]').addEventListener("click", () => setTimeout(remplirThemesTest, 0));
+$("test-theme").onclick = async () => {
+  remplirThemesTest();
+  const theme = $("test-theme-choix").value;
+  if (!theme) return;
+  const titre = `🧪 Test packs ${theme}`.slice(0, 120);
+  if (!(await confirmer(`Créer « ${titre} » ?\n\nDatée d'aujourd'hui, ${plural(TEST_FICHE.teams, "équipe")}, ${TEST_FICHE.age} ans : le Quiz, le Quiz illustré, le Vrai ou Faux, le Zoom mystère, l'Image floue et Qui suis-je ? piochent seulement dans « ${theme} » ; les autres jeux gardent leur contenu habituel.\n\nRien n'est effacé.`, { ok: "Créer" }))) return;
+  const btn = $("test-theme");
+  btn.disabled = true;
+  try {
+    editShow(null);
+    editing.id = `test-packs-${cleTheme(theme).replace(/[^a-z0-9]/g, "") || "theme"}`;
+    editing.origin = "test";
+    $("show-child").value = TEST_FICHE.childName;
+    $("show-title").value = titre;
+    $("show-title").dataset.auto = "";
+    $("show-age").value = String(TEST_FICHE.age);
+    $("show-teams").value = String(TEST_FICHE.teams);
+    $("show-date").value = isoDay();
+    $("show-status").value = "publiee";
+    $("show-notes").value = `Prestation de TEST des packs « ${theme} » : les jeux à packs piochent seulement dans ce thème.`;
+    renderCouleurs();
+    editing.rounds = JEUX_DU_TEST.map((type) => ({ type, [JEU_OUVERT]: true }));
+    refreshRounds();
+    // Le thème tapé dans chaque champ « thème à 100 % » (les jeux une fois mis en forme par la carte).
+    for (const r of editing.rounds) if (r && JEUX_A_PACKS.includes(r.type)) reglageDuDe(r, "recherche").terme = theme;
+    refreshRounds();
+    await toucherLesDes({ packs: true });
+    // Un jeu à packs sans rien sur ce thème : retiré (jamais rempli d'autre chose).
+    const rien = (r) => JEUX_A_PACKS.includes(r.type) && !((r.type === "quisuis" ? r.seriesMots : r.seriesQuiz) ?? []).some((x) => x?.pioche?.mode === "recherche");
+    const retires = editing.rounds.filter((r) => r && rien(r)).map((r) => ROUND_TYPES[r.type] ?? r.type);
+    editing.rounds = editing.rounds.filter((r) => r && !rien(r));
+    editing.rounds.forEach((r) => { r[JEU_OUVERT] = false; });
+    refreshRounds();
+    const ok = await enregistrerPrestation();
+    status("test-theme-status", ok ? `Créée : « ${titre} »${retires.length ? ` (rien sur « ${theme} » pour : ${retires.join(", ")} ; ces jeux sont retirés)` : ""}.`
+      : "Échec de l'enregistrement : vérifiez la connexion puis réessayez.", ok);
+  } catch (err) {
+    console.error(err);
+    status("test-theme-status", "Échec : vérifiez la connexion puis réessayez.");
   } finally {
     btn.disabled = false;
   }

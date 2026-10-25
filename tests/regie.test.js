@@ -9253,6 +9253,36 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("« 🎨 Prestation test d'un thème » (cedric, 25/10) : les jeux à packs piochent seulement dans ce thème, un jeu sans rien dessus est retiré, les autres jeux comme d'habitude", async () => {
+    const [A, B, C] = ["d1d1d1d1d1d1d1d1", "d2d2d2d2d2d2d2d2", "d3d3d3d3d3d3d3d3"];
+    const pack = (title, theme, n) => ({ title, theme, niveau: "Moyen", pack: true, kind: "classique", source: "json", updatedAt: 1,
+      questions: Array.from({ length: n }, (_, k) => ({ text: `${title} ${k + 1} ?`, choices: ["A", "B", "C", "D"], correct: k % 4, status: "validee" })) });
+    const photo = (imageId, rep) => ({ text: "Qu'est-ce que c'est ?", choices: [rep, ...["Yoshi", "Toad", "Peach", "Luigi"].filter((x) => x !== rep).slice(0, 3)], correct: 0, status: "validee", imageId });
+    await seedLibrary("quizzes", { mario: pack("Super Mario", "Mario", 20), disney: pack("Disney", "Disney", 20),
+      zoom: { title: "Super Mario", theme: "Mario", niveau: "Facile", pack: true, kind: "images", source: "photos", updatedAt: 1, questions: [photo(A, "Yoshi"), photo(B, "Toad"), photo(C, "Peach")] } });
+    const page = await admin();
+    await page.click("#nav button[data-screen=settings]");
+    await page.locator('#test-theme-choix option[value="Mario"]').waitFor({ state: "attached" });
+    assert.deepEqual(await page.locator("#test-theme-choix option").allTextContents(), ["Disney", "Mario"]);
+    await page.locator("#test-theme-choix").selectOption("Mario");
+    await page.click("#test-theme");
+    assert.match(await repondreFenetre(page), /Créer « 🧪 Test packs Mario » \?/);
+    await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor({ timeout: 30000 });
+    const fete = (await library("shows"))["test-packs-mario"];
+    assert.deepEqual([fete.title, fete.childName, fete.date, fete.status], ["🧪 Test packs Mario", "Touktouka", isoDay(), "publiee"]);
+    // Pas de Quiz illustré, de Vrai ou Faux ni de Qui suis-je ? sur Mario : retirés ; l'Image floue n'a plus de photo libre (jamais deux fois).
+    // (Pas de chansons dans cette bibliothèque : ni Blind test ni Quiz musical.)
+    assert.deepEqual(fete.rounds.map((r) => r.type), ["quiz", "mimes", "zoom", "chante", "disparu", "statues", "pictionary", "gonfleur", "patate", "coffres"]);
+    const jeu = Object.fromEntries(fete.rounds.map((r) => [r.type, r]));
+    assert.deepEqual(jeu.quiz.seriesQuiz.map((x) => [x.origine, x.pioche?.mode, x.pioche?.terme]), [["reprise", "recherche", "Mario"]]);
+    assert.ok(jeu.quiz.seriesQuiz[0].questions.every((q) => q.text.startsWith("Super Mario")), "rien d'autre que Mario");
+    assert.deepEqual(jeu.zoom.seriesQuiz[0].questions.map((q) => q.imageId).sort(), [A, B, C]);
+    assert.ok(jeu.mimes.equipes.every((l) => l.length > 0), "les autres jeux au 🎲 habituel");
+    await page.click("#nav button[data-screen=settings]");
+    await page.locator("#test-theme-status", { hasText: "Créée : « 🧪 Test packs Mario » (rien sur « Mario » pour : " }).waitFor();
+    await page.context().close();
+  });
+
   test("Import : les images nommées par l'IA (cedric, 25/10 : « Yoshi, Toad… ») arrivent sous leur nom dans le thème, citées ou non, et se retrouvent en tapant", async () => {
     const page = await admin();
     await page.click("#nav button[data-screen=library]");
@@ -9535,7 +9565,7 @@ describe("bibliothèque de quiz et prestations", () => {
 
     const page = await admin();
     await page.click("#nav button[data-screen=settings]");
-    assert.equal(await page.locator("#test-panel button").count(), 1, "un seul bouton");
+    assert.equal(await page.locator("#test-panel #test-prestation").count(), 1, "un seul bouton de prestation de test");
     // Annuler : rien ne bouge.
     await page.click("#test-prestation");
     await repondreFenetre(page, { accepter: false });
