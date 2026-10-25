@@ -47,7 +47,9 @@ import { panneauPhotosManquantes, motsSansPhoto } from "./photos-manquantes.js";
 import { niveauMime, niveauxPourProfil, etiquetteMime } from "./banque-mimes.js";
 import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from "./retour.js";
-import { confirmer, avertir, demanderTexte } from "./fenetre.js";
+import { confirmer, avertir, demanderTexte, apercu } from "./fenetre.js";
+import { lireZip } from "./zip.js";
+import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES } from "./pack-zip.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
@@ -56,7 +58,7 @@ import {
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
-import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, questionsVraiFauxPretes, mesQuestions, mesPacks, mesSeriesDePhotos, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme, estQuizDeTest } from "./questions.js";
+import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, questionsVraiFauxPretes, mesQuestions, mesPacks, mesSeriesDePhotos, questionsDeTest, questionCorrespond, illustration, retirerQuestions, packsParTheme, estQuizDeTest } from "./questions.js";
 import { NIVEAUX_CHIFFRES, libelleNiveau, niveauPourAge, tirerChiffres } from "./banque-chiffres.js";
 import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 
@@ -4666,9 +4668,11 @@ function illustrationRow(q, i) {
       info.textContent = "Cadrage enregistré. Pensez à enregistrer le quiz.";
     }),
   });
-  // Repère de préparation, jamais bloquant : sans illustration, la révélation montre seulement la réponse.
-  const missing = h("span", { class: "tag missing", text: "illustration manquante" });
-  const refreshMissing = () => { missing.hidden = !!(q.imageId || q.image); };
+  // Repère de préparation, jamais bloquant : sans illustration, la révélation montre seulement la réponse. Seulement
+  // quand l'image est attendue (cedric, 25/10) : pas au Juste Chiffre, au Vrai ou Faux, ni au Quiz illustré (facultative).
+  const missing = h("span", { class: "tag missing", text: IMAGE_MANQUANTE });
+  const facultative = () => q.kind === "number" || (draft.kind === "photo" && enImages(q)) || (q.choices?.length === 2 && q.choices.join("/").toLowerCase() === "vrai/faux");
+  const refreshMissing = () => { missing.hidden = !!(q.imageId || q.image) || facultative(); };
   const showPreview = () => {
     refreshMissing();
     preview.hidden = !q.imageId;
@@ -4761,6 +4765,9 @@ function illustrationRow(q, i) {
  * Réponse en image (quiz des petits) : « 📷 » choisit une photo sur le PC pour cette case, réduite avant l'envoi.
  * Sur la TV et les tablettes, la photo remplace le texte ; le mot reste dessous, en petit.
  */
+/** Question aux réponses en images (au moins une image posée) : au Quiz illustré, chaque réponse attend la sienne. */
+const enImages = (q) => (q.slotImages ?? q.choiceImages ?? []).some((id) => IMAGE_ID.test(id ?? ""));
+
 function choicePhoto(q, slots, k) {
   // Vignette comme sur la TV (carré arrondi, image qui le remplit) : un clic ouvre le cadrage.
   const thumb = h("img", {
@@ -4774,10 +4781,13 @@ function choicePhoto(q, slots, k) {
       });
     },
   });
+  // Quiz illustré : chaque réponse attend son image ; sans elle, la petite alerte (cedric, 25/10), rien d'autre.
+  const manque = h("span", { class: "tag missing case-manquante", text: IMAGE_MANQUANTE, hidden: true });
   const show_ = () => {
     const id = q.slotImages?.[k];
     thumb.hidden = !id;
     remove.hidden = !id;
+    manque.hidden = !!id || draft.kind !== "photo" || !enImages(q) || !`${slots[k] ?? ""}`.trim();
     if (!id) return;
     if (imageCache[id]) { thumb.src = imageCache[id]; return; }
     get(ref(db, `library/images/${id}`)).then((snap) => {
@@ -4813,7 +4823,7 @@ function choicePhoto(q, slots, k) {
     },
   });
   show_();
-  return h("span", { class: "choice-photo" }, thumb, remove,
+  return h("span", { class: "choice-photo" }, thumb, remove, manque,
     h("button", { type: "button", class: "icon", title: "Mettre une image à la place du texte", text: "📷", onclick: (e) => { e.preventDefault(); file.click(); } }),
     h("button", {
       type: "button", class: "icon", title: "Choisir l'image dans la bibliothèque (photos libres, vos images, pochettes)", text: "🖼️",
@@ -7786,17 +7796,6 @@ const qSelection = new Set();
 let qListees = [];
 const QUESTIONS_APERCU = 4;
 const QUESTIONS_MAX = 300;
-const EXEMPLE_PACK = {
-  packs: [{
-    title: "Les animaux de la savane", theme: "Animaux",
-    questions: [
-      { text: "Quel animal a une très longue trompe ?", choices: ["Éléphant", "Girafe", "Lion", "Zèbre"], correct: 0, illustration: "🐘" },
-      { text: "Quel animal est le roi de la savane ?", choices: ["Hippopotame", "Lion", "Gazelle", "Autruche"], correct: 1, illustration: "lion.png" },
-      { text: "Combien de pattes a une girafe ?", correct: 4, illustration: "🦒" },
-    ],
-  }],
-};
-$("pack-exemple").textContent = JSON.stringify(EXEMPLE_PACK, null, 2);
 
 function groupesQuestions() {
   illustreesCache ??= questionsIllustreesPretes();
@@ -7947,7 +7946,8 @@ function dessinerQuestions() {
   const total = Object.values(compte).reduce((a, b) => a + b, 0);
   $("q-groups").replaceChildren(chip(null, "Tout", total), ...groupes.map(([k, label]) => chip(k, label, compte[k])));
   $("q-count").textContent = recherche ? plural(total, "question trouvée", "questions trouvées") : "";
-  $("pack-import").hidden = qGroupe !== "packs" || !!qPack;
+  // Le ZIP d'un pack s'importe depuis les packs et depuis les séries de photos (cedric, 25/10).
+  $("pack-import").hidden = (qGroupe !== "packs" && qGroupe !== "photos") || !!qPack;
   const box = $("q-list");
   const plusQue = (n) => (n > QUESTIONS_MAX ? h("p", { class: "hint small", text: `… et ${n - QUESTIONS_MAX} autres : précisez la recherche.` }) : null);
 
@@ -8052,76 +8052,243 @@ $("q-search").oninput = () => renderQuestions();
 const dureeQuestion = (d) => (Number.isFinite(d) && d >= 5 && d <= 120 ? d : null);
 
 /**
- * « 📥 Importer des packs JSON… » : chaque pack devient un quiz de la bibliothèque (source « fichier »), jouable dans
- * le Quiz comme les autres. Les images déposées avec le fichier rejoignent les questions qui les nomment. Une question
- * sans défaut est validée d'office ; les autres restent « À valider », à corriger dans « Éditer ».
+ * « 📦 Importer un pack ZIP » (cedric, 25/10) : un seul ZIP, ouvert ici dans le navigateur, sans IA ni service
+ * extérieur. La Régie lit les données du pack, rejoint les images par leur nom, vérifie, montre un aperçu, puis
+ * enregistre après confirmation. Rien n'est écrit avant : les images sont préparées en mémoire, rangées seulement au
+ * « Enregistrer », et le pack en dernier (un échec ne laisse jamais de pack à moitié). Un pack ne remplace jamais un
+ * autre : même nom, il s'appelle « … (2) ». Une image absente reste absente, avec la petite alerte : ni émoji ni autre
+ * image à sa place.
  */
-$("pack-file").onchange = async () => {
-  const fichiers = [...$("pack-file").files];
-  $("pack-file").value = "";
-  const images = new Map();
-  const jsons = [];
-  for (const f of fichiers) {
-    if (f.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(f.name)) images.set(imageKey(f.name), f);
-    else jsons.push(f);
+const TYPES_IMAGES = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
+
+async function importerPackZip(zip, statut = "pack-status") {
+  if (!zip) return;
+  if (!/\.zip$/i.test(zip.name ?? "") && !/zip/.test(zip.type ?? "")) {
+    return status(statut, "Choisissez le fichier ZIP du pack (il se termine par .zip), sans le décompresser.");
   }
   status("q-status", "");
-  if (!jsons.length) return status("pack-status", "Choisissez au moins un fichier JSON (avec ses images s'il en a).");
-  const erreurs = [];
-  const packs = [];
-  for (const f of jsons) {
-    const lu = lirePacks(await f.text());
-    if (lu.erreur) erreurs.push(`${f.name} : ${lu.erreur}`);
-    else lu.packs.forEach((p) => packs.push({ ...p, fichier: f.name.replace(/\.json$/i, "") }));
-  }
-  if (!packs.length) return status("pack-status", erreurs.join(" "));
-  const faits = [];
-  let questionsFaites = 0, aValider = 0, sansIllus = 0, ignorees = 0;
+  status(statut, "Ouverture du ZIP…", true);
+  let analyse, parNom;
   try {
-    for (const p of packs) {
-      await attachImportImages(p.questions, images, "pack-status");
-      const verifs = checkQuestions(p.questions);
-      const gardees = p.questions.map((q, i) => ({ q, ok: !verifs[i].errors.length })).filter(({ q }) => q.kind === "number" || q.choices.length);
-      ignorees += p.questions.length - gardees.length;
-      if (!gardees.length) continue;
-      // Une photo par case A à D au plus (la base n'en garde pas d'autres).
-      gardees.forEach(({ q }) => { if (q.choiceImages) q.choiceImages = q.choiceImages.slice(0, 4); });
-      const kind = gardees.some(({ q }) => (q.choiceImages ?? []).some(Boolean)) ? "photo" : "classique";
-      const questions = gardees.map(({ q, ok }) => ({
-        text: q.text.slice(0, 300), choices: q.kind === "number" ? null : q.choices,
-        correct: Number.isInteger(q.correct) ? q.correct : -1, kind: q.kind === "number" ? "number" : null,
-        duration: dureeQuestion(q.duration), double: q.double === true, status: ok ? "validee" : "brouillon",
-        image: cleanEmoji(q.image) || null, imageId: q.imageId || null, choiceImages: q.kind === "number" ? null : savedChoiceImages(q),
-      }));
-      const id = push(ref(db, "library/quizzes")).key;
-      const title = (p.title || p.theme || p.fichier || "Pack sans titre").slice(0, 120);
-      await set(ref(db, `library/quizzes/${id}`), {
-        title, theme: p.theme || null, ageMin: p.ageMin ?? null, ageMax: p.ageMax ?? null, source: "json", kind,
-        createdAt: Date.now(), updatedAt: serverTimestamp(), questions,
-      });
-      faits.push(id);
-      questionsFaites += questions.length;
-      aValider += questions.filter((q) => q.status !== "validee").length;
-      sansIllus += questions.filter((q) => !illustration(q, kind).ok).length;
-    }
+    const fichiers = await lireZip(zip);
+    const lus = [];
+    for (const f of fichiers) lus.push({ chemin: f.chemin, nom: f.nom, ...(/\.json$/i.test(f.nom) ? { texte: new TextDecoder("utf-8").decode(await f.lire()) } : {}) });
+    analyse = analyserPack(lus, { nomZip: zip.name });
+    parNom = chercheurImages(fichiers.filter((f) => estImage(f.nom)));
   } catch (err) {
     console.error(err);
-    erreurs.push("Import interrompu : vérifiez Internet ou reconnectez-vous, puis recommencez avec les packs manquants.");
+    status(statut, "");
+    return avertir(`Ce ZIP ne peut pas être importé.\n\n${err?.message || "Il n'a pas pu être ouvert."} Rien n'a été enregistré.`);
   }
-  packsNouveaux = new Set(faits);
-  setTimeout(() => { packsNouveaux = new Set(); if (libTab === "questions" && !$("screen-library").hidden) renderQuestions(); }, 6000);
-  const y = window.scrollY;
-  qGroupe = "packs";
-  qPack = null;
-  renderQuestions();
-  noterRubrique(y);
-  const bilan = faits.length
-    ? [`${plural(faits.length, "pack importé", "packs importés")} : ${plural(questionsFaites, "question")}`,
-      aValider ? `${aValider} à valider dans « Éditer »` : null, sansIllus ? `⚠ ${sansIllus} sans illustration` : null,
-      ignorees ? `${ignorees} ignorée${ignorees > 1 ? "s" : ""} (sans réponses)` : null].filter(Boolean).join(", ") + "."
-    : "Aucun pack importé.";
-  status("pack-status", [bilan, ...erreurs].join(" "), faits.length > 0 && !erreurs.length);
+  if (analyse.erreurs.length) {
+    status(statut, "");
+    return avertir(`Ce pack ne peut pas être importé.\n\n${analyse.erreurs.join("\n\n")}\n\nRien n'a été enregistré.`);
+  }
+
+  // Images préparées en mémoire (réduites comme partout ailleurs), rangées seulement après confirmation.
+  const aRanger = new Map();
+  const prets = new Map();
+  let n = 0;
+  const preparer = async (nom, pour) => {
+    const f = parNom(nom);
+    if (!f) return null;
+    const cle = `${pour}:${f.chemin}`;
+    if (prets.has(cle)) return prets.get(cle);
+    status(statut, `Préparation des images… (${++n})`, true);
+    let id = null;
+    try {
+      const ext = f.nom.split(".").pop().toLowerCase();
+      const blob = new Blob([await f.lire()], { type: TYPES_IMAGES[ext] ?? "image/jpeg" });
+      const data = pour === "case" ? await compressImage(blob, CHOICE_IMAGE.budget, CHOICE_IMAGE.width) : await compressImage(blob);
+      id = await imageId(data);
+      aRanger.set(id, data);
+      imageCache[id] = data;
+    } catch (err) {
+      console.error(err);
+    }
+    prets.set(cle, id);
+    return id;
+  };
+  try {
+    for (const p of analyse.packs) {
+      if (p.epreuve === "quisuis") continue;
+      if (p.epreuve === "photos") {
+        const gardees = [];
+        for (const q of p.questions) {
+          const id = await preparer(q.photo, "photo");
+          if (id) gardees.push({ ...q, imageId: id });
+          else p.ignorees.push(`« ${q.photo} » : photo illisible, elle n'est pas importée (essayez un JPEG).`);
+        }
+        p.questions = gardees;
+        continue;
+      }
+      for (const [i, q] of p.questions.entries()) {
+        if (q.revealFile) {
+          const id = await preparer(q.revealFile, "revelation");
+          if (id) q.imageId = id;
+          else if (!p.manquantes.some((m) => m.q === i && m.case == null)) p.manquantes.push({ q: i, case: null, fichier: q.revealFile });
+        }
+        if (q.imageFiles) {
+          q.choiceImages = [];
+          for (const [k, nom] of q.imageFiles.slice(0, 4).entries()) {
+            const id = nom ? await preparer(nom, "case") : null;
+            q.choiceImages[k] = id;
+            if (nom && !id && !p.manquantes.some((m) => m.q === i && m.case === k)) p.manquantes.push({ q: i, case: k, fichier: nom });
+          }
+        }
+      }
+      p.manquantes.sort((a, b) => a.q - b.q || (a.case ?? -1) - (b.case ?? -1));
+    }
+  } finally {
+    status(statut, "");
+  }
+  const vides = analyse.packs.filter((p) => (p.epreuve === "quisuis" ? !p.personnages.length : !p.questions.length));
+  if (vides.length === analyse.packs.length) {
+    return avertir(`Ce pack ne peut pas être importé.\n\n${analyse.packs.flatMap((p) => p.ignorees).join("\n") || "Aucune image n'a pu être lue."}\n\nRien n'a été enregistré.`);
+  }
+  const packs = analyse.packs.filter((p) => !vides.includes(p));
+
+  // Noms déjà pris : le pack s'ajoute à côté, l'ancien ne change pas.
+  const pris = new Set(Object.values(quizzes ?? {}).map((q) => `${q?.title ?? ""}`.trim().toLowerCase()));
+  for (const p of packs) {
+    if (p.epreuve === "quisuis") continue;
+    const base = p.titre.slice(0, 110);
+    let titre = base;
+    for (let k = 2; pris.has(titre.toLowerCase()); k++) titre = `${base} (${k})`;
+    if (titre !== base) p.renomme = base;
+    p.titre = titre;
+    pris.add(titre.toLowerCase());
+  }
+  // Qui suis-je ? : un personnage déjà dans le jeu reste tel quel.
+  const jeuQui = CONTENT_GAMES.quisuis;
+  const etatQui = builtinState("quisuis");
+  const connus = new Set([...jeuQui.catalog, ...etatQui.extra].map((x) => jeuQui.key(x)));
+  for (const p of packs.filter((x) => x.epreuve === "quisuis")) {
+    p.deja = p.personnages.filter((x) => connus.has(jeuQui.key(x))).length;
+    p.personnages = p.personnages.filter((x) => !connus.has(jeuQui.key(x)) && connus.add(jeuQui.key(x)));
+  }
+  const aEnregistrer = packs.filter((p) => p.epreuve !== "quisuis" || p.personnages.length);
+  const contenu = h("div", { class: "pack-apercu" },
+    ...packs.map(apercuDuPack),
+    analyse.laisses.length ? h("p", { class: "hint small", text: `Laissé${analyse.laisses.length > 1 ? "s" : ""} de côté : ${analyse.laisses.join(", ")}.` }) : null);
+  if (!aEnregistrer.length) return apercu("Rien de nouveau dans ce pack.", contenu, { ok: "Fermer", annuler: null });
+  const titre = aEnregistrer.length > 1 ? `Importer ces ${aEnregistrer.length} packs ?` : `Importer « ${aEnregistrer[0].titre} » ?`;
+  if (!(await apercu(titre, contenu, { ok: aEnregistrer.length > 1 ? "Enregistrer les packs" : "Enregistrer le pack" }))) return status(statut, "Import annulé : rien n'a été enregistré.");
+
+  // Enregistrement : les images d'abord (invisibles tant qu'aucun pack ne les nomme), les packs ensuite.
+  status(statut, "Enregistrement…", true);
+  const faits = [];
+  try {
+    const liste = [...aRanger];
+    for (let k = 0; k < liste.length; k += 6) {
+      await Promise.all(liste.slice(k, k + 6).map(async ([id, data]) => {
+        const cible = ref(db, `library/images/${id}`);
+        if (!(await get(cible)).exists()) await set(cible, data);
+      }));
+    }
+    const qui = aEnregistrer.filter((p) => p.epreuve === "quisuis");
+    const ecritures = {};
+    for (const p of aEnregistrer.filter((x) => x.epreuve !== "quisuis")) {
+      const id = push(ref(db, "library/quizzes")).key;
+      ecritures[`library/quizzes/${id}`] = quizDuPack(p);
+      faits.push(id);
+    }
+    if (qui.length) {
+      ecritures["library/contents/quisuis"] = {
+        off: etatQui.off.length ? etatQui.off : null,
+        extra: [...etatQui.extra, ...qui.flatMap((p) => p.personnages)].map(({ level, ...x }) => x),
+        images: Object.keys(etatQui.images).length ? etatQui.images : null,
+        updatedAt: serverTimestamp(),
+      };
+    }
+    // Un seul envoi : tous les packs, ou aucun.
+    await update(ref(db), ecritures);
+  } catch (err) {
+    console.error(err);
+    return status(statut, "Enregistrement refusé : vérifiez Internet ou reconnectez-vous, puis réimportez le ZIP. Rien n'a été enregistré.");
+  }
+  const bilan = aEnregistrer.map((p) => (p.epreuve === "quisuis" ? `${plural(p.personnages.length, "personnage ajouté", "personnages ajoutés")} à Qui suis-je ?`
+    : `« ${p.titre} » : ${plural(p.questions.length, p.epreuve === "photos" ? "photo" : "question")}`));
+  const manquantes = aEnregistrer.reduce((t, p) => t + p.manquantes.length, 0);
+  if (builtinType === "quisuis") renderBuiltin();
+  if (faits.length) {
+    packsNouveaux = new Set(faits);
+    setTimeout(() => { packsNouveaux = new Set(); if (libTab === "questions" && !$("screen-library").hidden) renderQuestions(); }, 6000);
+    if (libTab === "questions" && !$("screen-library").hidden) {
+      const y = window.scrollY;
+      qGroupe = aEnregistrer.every((p) => p.epreuve === "photos") ? "photos" : "packs";
+      qPack = null;
+      renderQuestions();
+      noterRubrique(y);
+    }
+  }
+  status(statut, `✓ Importé : ${bilan.join(" ; ")}.${manquantes ? ` ${plural(manquantes, "image manquante")} : ajoutez-les dans « Éditer ».` : ""}`, true);
+}
+
+/** Le quiz enregistré d'un pack (mêmes champs qu'un quiz fait dans la Régie). */
+function quizDuPack(p) {
+  const aCorriger = new Set(p.aCorriger.map((x) => x.q));
+  const kind = p.epreuve === "illustre" ? "photo" : p.epreuve === "photos" ? "images" : "classique";
+  return {
+    title: p.titre, theme: p.theme || null, ageMin: p.ageMin ?? null, ageMax: p.ageMax ?? null,
+    source: p.epreuve === "photos" ? "photos" : "json", kind, createdAt: Date.now(), updatedAt: serverTimestamp(),
+    questions: p.questions.map((q, i) => {
+      const nombre = q.kind === "number";
+      const choices = nombre ? null : q.choices.slice(0, 4);
+      return {
+        text: q.text.slice(0, 300), choices, correct: nombre ? (Number.isInteger(q.correct) ? q.correct : 0) : Number.isInteger(q.correct) ? q.correct : -1,
+        kind: nombre ? "number" : null, duration: dureeQuestion(q.duration), double: q.double === true,
+        status: aCorriger.has(i) ? "brouillon" : "validee", image: cleanEmoji(q.image) || null, imageId: q.imageId || null,
+        choiceImages: nombre ? null : savedChoiceImages({ ...q, choices }),
+      };
+    }),
+  };
+}
+
+/** Récapitulatif d'un pack avant de l'enregistrer : nom, épreuve, âges, nombre, vignettes, alertes. */
+function apercuDuPack(p) {
+  const ages = p.ageMin && p.ageMax ? (p.ageMin === p.ageMax ? `${p.ageMin} ans` : `${p.ageMin} à ${p.ageMax} ans`) : p.ageMin ? `dès ${p.ageMin} ans` : p.ageMax ? `jusqu'à ${p.ageMax} ans` : null;
+  const nombre = p.epreuve === "quisuis" ? plural(p.personnages.length, "personnage nouveau", "personnages nouveaux")
+    : plural(p.questions.length, p.epreuve === "photos" ? "photo" : "question");
+  const ids = p.epreuve === "quisuis" ? [] : p.questions.flatMap((q) => [q.imageId, ...(q.choiceImages ?? [])]).filter((id) => id && imageCache[id]);
+  const VIGNETTES = 24;
+  const lignes = [
+    ...p.manquantes.map((m) => [`${ouQuestion(m.q, m.case)} : ${IMAGE_MANQUANTE}`, "pack-alerte"]),
+    ...p.aCorriger.map((x) => [`${ouQuestion(x.q)} : ${x.messages.join(" ")} Elle arrive « À valider » : corrigez-la dans « Éditer ».`, "pack-erreur"]),
+    ...p.ignorees.map((t) => [t, "pack-erreur"]),
+  ];
+  return h("section", { class: "pack-apercu-pack", "data-epreuve": p.epreuve },
+    h("h3", { text: p.titre }),
+    h("p", { class: "pack-apercu-infos" },
+      h("b", { text: EPREUVES[p.epreuve] }), ages ? ` · ${ages}` : "", p.theme && p.theme !== p.titre ? ` · Thème « ${p.theme} »` : "", ` · ${nombre}`),
+    p.renomme ? h("p", { class: "hint small", text: `Un pack « ${p.renomme} » existe déjà : celui-ci s'appellera « ${p.titre} », l'ancien ne change pas.` }) : null,
+    p.deja ? h("p", { class: "hint small", text: `${plural(p.deja, "personnage était", "personnages étaient")} déjà dans le jeu : laissé${p.deja > 1 ? "s" : ""} tel${p.deja > 1 ? "s" : ""} quel${p.deja > 1 ? "s" : ""}.` }) : null,
+    p.epreuve === "quisuis" ? h("ul", { class: "pack-apercu-liste" }, ...p.personnages.slice(0, 12).map((x) => h("li", { text: `${x.emoji ? `${x.emoji} ` : ""}${x.answer} · ${plural(x.clues.length, "indice")}` })),
+      ...(p.personnages.length > 12 ? [h("li", { text: `… et ${p.personnages.length - 12} autres` })] : [])) : null,
+    ids.length ? h("div", { class: "pack-apercu-vignettes" }, ...ids.slice(0, VIGNETTES).map((id) => h("img", { src: imageCache[id], alt: "" })),
+      ...(ids.length > VIGNETTES ? [h("span", { class: "plus", text: `+${ids.length - VIGNETTES}` })] : [])) : null,
+    lignes.length ? h("ul", { class: "pack-apercu-alertes" }, ...lignes.map(([t, c]) => h("li", { class: c, text: t }))) : null);
+}
+
+$("pack-file").onchange = () => {
+  const [zip] = $("pack-file").files;
+  $("pack-file").value = "";
+  importerPackZip(zip);
 };
+// Le ZIP se dépose aussi sur le cadre « Importer un pack ».
+deposeZip($("pack-import"), (zip) => importerPackZip(zip));
+
+/** Un ZIP glissé sur [zone] : [faire](le fichier). */
+function deposeZip(zone, faire) {
+  zone.addEventListener("dragover", (e) => { if ([...(e.dataTransfer?.types ?? [])].includes("Files")) { e.preventDefault(); zone.classList.add("depot"); } });
+  zone.addEventListener("dragleave", () => zone.classList.remove("depot"));
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    zone.classList.remove("depot");
+    const [zip] = e.dataTransfer?.files ?? [];
+    if (zip) faire(zip);
+  });
+}
 
 /** Les groupes d'images ; ses images et les pochettes retirées à part ([RETIREES] : par groupe). */
 function groupesImages() {
@@ -8669,6 +8836,7 @@ function renderBuiltin() {
         detail ? h("span", { class: "detail", text: detail }) : null,
         vignettes),
       photo,
+      custom && type === "quisuis" ? h("button", { type: "button", class: "icon", title: "Modifier ce personnage", "aria-label": "Modifier ce personnage", text: "✏️", onclick: () => modifierPersonnage(item) }) : null,
       custom ? h("button", {
         type: "button", class: "icon", title: "Supprimer cet ajout", text: "✕",
         onclick: async () => {
@@ -8767,6 +8935,35 @@ function contentPhoto(type, item, key, images) {
     file);
 }
 
+/**
+ * Qui suis-je ? : modifier un de ses personnages (cedric, 25/10 : réponse, émoji, indices, après un import comme à la
+ * main). Une nouvelle réponse garde sa place dans le jeu (retiré ou non) et son image.
+ */
+async function modifierPersonnage(item) {
+  const type = "quisuis";
+  const game = CONTENT_GAMES[type];
+  const champ = (label, valeur, max) => h("label", {}, label, h("input", { value: valeur ?? "", maxlength: max }));
+  const indices = [0, 1, 2, 3].map((k) => champ(`Indice ${k + 1}${k === 0 ? " (le plus difficile)" : k === 3 ? " (le plus facile)" : ""}`, item.clues[k], 120));
+  const formulaire = h("div", { class: "form personnage-edit" },
+    champ("Réponse", item.answer, 60), champ("Émoji (facultatif)", item.emoji, 16), champ("Série (facultatif)", item.serie, 30), ...indices);
+  const lire = (l) => l.querySelector("input").value.trim();
+  for (;;) {
+    if (!(await apercu(`Modifier « ${item.answer} »`, formulaire, { ok: "Enregistrer" }))) return;
+    const [reponse, emoji, serie] = [...formulaire.children].slice(0, 3).map(lire);
+    const neuf = game.clean({ answer: reponse, emoji: cleanEmoji(emoji) || "", serie, clues: indices.map(lire).filter(Boolean), ...(item.imageId ? { imageId: item.imageId } : {}) });
+    const { off, extra, images } = builtinState(type);
+    const ancienne = game.key(item);
+    if (!neuf) { await avertir("Il faut la réponse et au moins 2 indices."); continue; }
+    const cle = game.key(neuf);
+    if (cle !== ancienne && [...game.catalog, ...extra].some((x) => game.key(x) === cle)) { await avertir(`« ${neuf.answer} » existe déjà dans le jeu.`); continue; }
+    // Nouvelle réponse : la case « retiré du jeu » et l'image suivent le personnage.
+    const slots = cle === ancienne ? images : Object.fromEntries(Object.entries(images).map(([slot, id]) => [slot === contentSlot(ancienne) ? contentSlot(cle) : slot, id]));
+    return saveBuiltin(type, {
+      off: off.map((k) => (k === ancienne ? cle : k)), extra: extra.map((x) => (game.key(x) === ancienne ? neuf : x)), images: slots,
+    }, `« ${game.label(neuf)} » est modifié.`);
+  }
+}
+
 /** Formulaire d'ajout propre à chaque jeu. */
 function renderBuiltinForm() {
   const type = builtinType;
@@ -8785,11 +8982,14 @@ function renderBuiltinForm() {
       h("label", {}, "Série (facultatif)", h("input", { id: "bi-serie", maxlength: 30, list: "bi-serie-list", placeholder: "Disney" }),
         h("datalist", { id: "bi-serie-list" }, ...nomsDesSeries(builtinState(type).extra).map((nom) => h("option", { value: nom })))),
       ...[1, 2, 3, 4].map((n) => field(`Indice ${n}${n === 1 ? " (le plus difficile)" : n === 4 ? " (le plus facile)" : ""}`, `bi-clue${n}`, { wide: true, max: 120 })),
-      // Ou une série entière d'un coup, en JSON (écrite par exemple avec ChatGPT).
+      // Ou une série entière d'un coup : le ZIP du pack (cedric, 25/10), le même bouton que dans la Bibliothèque.
       h("div", { class: "wide row" },
-        h("label", { class: "btn secondary file-btn" }, "📥 Importer une série (JSON)…",
-          h("input", { id: "bi-json", type: "file", accept: ".json,application/json", multiple: true, hidden: true, onchange: (e) => importerPersonnages(e.target) })),
-        h("span", { class: "hint small", text: "Un fichier par série : { \"serie\": \"Disney\", \"personnages\": [{ \"reponse\": \"Elsa\", \"emoji\": \"❄️\", \"indices\": [\"…\", \"…\", \"…\"] }] }" })),
+        h("label", { class: "btn secondary file-btn" }, "📦 Importer un pack ZIP",
+          h("input", {
+            id: "bi-zip", type: "file", accept: ".zip,application/zip,application/x-zip-compressed", hidden: true,
+            onchange: (e) => { const [zip] = e.target.files ?? []; e.target.value = ""; importerPackZip(zip, "builtin-status"); },
+          })),
+        h("span", { class: "hint small", text: "Le ZIP d'une série de personnages, sans le décompresser : un aperçu s'affiche avant d'enregistrer." })),
     ]
     : [
       field("Nom de la famille d'objets", "bi-theme", { placeholder: "Les jouets" }),
@@ -8842,58 +9042,6 @@ $("builtin-add").onsubmit = async (e) => {
   if ($("bi-serie")) $("bi-serie").value = serie;
   if ($("bi-photos-count")) $("bi-photos-count").textContent = "";
 };
-
-/**
- * Personnages de Qui suis-je ? lus dans un fichier JSON (cedric, 24/10 : « à la main ou en json ») : une série
- * ({ serie, personnages }), plusieurs ({ series: [...] }, ou une liste de séries), ou une simple liste de personnages
- * (sa série : le nom du fichier). En français ou en anglais : reponse / answer, indices / clues, emoji.
- */
-function lirePersonnages(data, nomFichier) {
-  const liste = (x) => x?.personnages ?? x?.characters ?? x?.items;
-  const perso = (p) => ({ answer: p?.reponse ?? p?.["réponse"] ?? p?.answer ?? p?.nom ?? p?.name, emoji: p?.emoji, clues: p?.indices ?? p?.clues, serie: p?.serie ?? p?.["série"] });
-  const serieDe = (x) => ({
-    serie: [x?.serie, x?.["série"], x?.titre, x?.title, x?.nom, x?.name].find((v) => typeof v === "string" && v.trim()) ?? nomFichier,
-    personnages: liste(x).map(perso),
-  });
-  const estSerie = (x) => Array.isArray(liste(x));
-  if (Array.isArray(data?.series)) return data.series.filter(estSerie).map(serieDe);
-  if (estSerie(data)) return [serieDe(data)];
-  if (Array.isArray(data) && data.some(estSerie)) return data.filter(estSerie).map(serieDe);
-  if (Array.isArray(data)) return [{ serie: nomFichier, personnages: data.map(perso) }];
-  return [];
-}
-
-/** « 📥 Importer une série (JSON)… » de Qui suis-je ? : chaque personnage valable rejoint sa série ; ceux déjà là sont laissés. */
-async function importerPersonnages(input) {
-  const fichiers = [...(input.files ?? [])];
-  input.value = "";
-  if (!fichiers.length) return;
-  const type = "quisuis";
-  const game = CONTENT_GAMES[type];
-  const { off, extra } = builtinState(type);
-  const connus = new Set([...game.catalog, ...extra].map((x) => game.key(x)));
-  const ajouts = [];
-  const erreurs = [];
-  let deja = 0, refuses = 0;
-  for (const f of fichiers) {
-    let lu;
-    try { lu = JSON.parse(await f.text()); } catch { erreurs.push(`« ${f.name} » n'est pas un fichier JSON valable.`); continue; }
-    for (const { serie, personnages } of lirePersonnages(lu, f.name.replace(/\.json$/i, ""))) {
-      for (const p of personnages) {
-        const item = game.clean({ ...p, serie: p.serie || serie });
-        if (!item) { refuses++; continue; }
-        if (connus.has(game.key(item))) { deja++; continue; }
-        connus.add(game.key(item));
-        ajouts.push(item);
-      }
-    }
-  }
-  const notes = [deja ? `${plural(deja, "personnage était", "personnages étaient")} déjà dans le jeu` : "", refuses ? `${plural(refuses, "personnage ignoré", "personnages ignorés")} (il faut sa réponse et au moins 2 indices)` : ""].filter(Boolean);
-  if (!ajouts.length) return status("builtin-status", [...erreurs, notes.length ? `Rien d'ajouté : ${notes.join(" ; ")}.` : erreurs.length ? "" : "Aucun personnage trouvé dans ce fichier."].filter(Boolean).join(" "));
-  const series = nomsDesSeries(ajouts);
-  await saveBuiltin(type, { off, extra: [...extra, ...ajouts] },
-    `${plural(ajouts.length, "personnage ajouté", "personnages ajoutés")}${series.length ? ` (${series.map((s) => `série « ${s} »`).join(", ")})` : ""}${notes.length ? ` ; ${notes.join(" ; ")}` : ""}.${erreurs.length ? ` ${erreurs.join(" ")}` : ""}`);
-}
 
 // ---------- Page d'un jeu : ses manches ----------
 

@@ -11,6 +11,7 @@ import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { ref, get, set, update, push, onValue, serverTimestamp } from "firebase/database";
 import { chromium } from "playwright";
 import { loadRules, seedAdmin, allowBox, ADMIN_PASSWORD } from "./rules-loader.js";
+import { faireZip } from "./zip-outil.js";
 import { lockedUntil, isoDay, heureCourte, jourHeure } from "../web/public/show.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
@@ -6525,18 +6526,37 @@ describe("bibliothèque de quiz et prestations", () => {
         { reponse: "Elsa", indices: ["Je suis reine", "Je fais de la glace"] },
       ],
     })) };
-    await page.locator("#bi-json").setInputFiles(fichier);
-    await page.locator("#builtin-status", { hasText: "2 personnages ajoutés (série « Super-héros ») ; 1 personnage était déjà dans le jeu ; 1 personnage ignoré (il faut sa réponse et au moins 2 indices)." }).waitFor();
+    // Le ZIP du pack (cedric, 25/10) : un aperçu, puis « Enregistrer le pack ».
+    const zipDe = (nom, ...entrees) => ({ name: nom, mimeType: "application/zip", buffer: Buffer.from(faireZip(entrees)) });
+    await page.locator("#bi-zip").setInputFiles(zipDe("heros.zip", ["heros/" + fichier.name, fichier.buffer]));
+    const apercuQui = page.locator("dialog[data-fenetre][open]");
+    await apercuQui.locator(".pack-apercu-pack[data-epreuve=quisuis]", { hasText: "Super-héros" }).waitFor();
+    assert.match(await apercuQui.innerText(), /Qui suis-je \? · 2 personnages nouveaux/);
+    assert.match(await apercuQui.innerText(), /1 personnage était déjà dans le jeu/);
+    assert.match(await apercuQui.innerText(), /Personnage 3 \(« Hulk »\) : il faut sa réponse et au moins 2 indices\./);
+    assert.equal(await repondreFenetre(page), "Importer « Super-héros » ?");
+    await page.locator("#builtin-status", { hasText: "✓ Importé : 2 personnages ajoutés à Qui suis-je ?." }).waitFor();
     assert.equal(await titre("Super-héros").textContent(), "📚 Série « Super-héros » · 2 personnages");
     let extra = (await library("contents")).quisuis.extra;
     assert.deepEqual(extra.map((x) => [x.answer, x.serie]), [["Elsa", "Disney"], ["Spider-Man", "Super-héros"], ["Batman", "Super-héros"]]);
     // Une simple liste : sa série prend le nom du fichier.
-    await page.locator("#bi-json").setInputFiles({ name: "Animaux.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify([
-      { answer: "Le panda", emoji: "🐼", clues: ["Je mange du bambou", "Je suis noir et blanc"] }])) });
-    await page.locator("#builtin-status", { hasText: "1 personnage ajouté (série « Animaux »)." }).waitFor();
-    // Un fichier illisible : dit.
-    await page.locator("#bi-json").setInputFiles({ name: "casse.json", mimeType: "application/json", buffer: Buffer.from("{ pas du json") });
-    await page.locator("#builtin-status", { hasText: "« casse.json » n'est pas un fichier JSON valable." }).waitFor();
+    await page.locator("#bi-zip").setInputFiles(zipDe("animaux.zip", ["Animaux.json", JSON.stringify([
+      { answer: "Le panda", emoji: "🐼", clues: ["Je mange du bambou", "Je suis noir et blanc"] }])]));
+    assert.equal(await repondreFenetre(page), "Importer « Animaux » ?");
+    await page.locator("#builtin-status", { hasText: "✓ Importé : 1 personnage ajouté à Qui suis-je ?." }).waitFor();
+    // Des données illisibles : expliqué, rien d'enregistré.
+    await page.locator("#bi-zip").setInputFiles(zipDe("casse.zip", ["casse.json", "{ pas du json"]));
+    assert.match(await repondreFenetre(page), /Ce pack ne peut pas être importé\.[\s\S]*« casse\.json »[\s\S]*mal écrites[\s\S]*Rien n'a été enregistré\./);
+    // Modifier un personnage importé (cedric, 25/10) : réponse, émoji, indices ; sa place dans le jeu le suit.
+    await page.locator('#builtin-items .content-item[data-key="batman"]').getByRole("button", { name: "Modifier ce personnage" }).click();
+    const modif = page.locator("dialog[data-fenetre][open] .personnage-edit");
+    await modif.getByLabel("Réponse").fill("Batman le justicier");
+    await modif.getByLabel("Émoji (facultatif)").fill("🌙");
+    await modif.getByLabel("Indice 3").fill("J'ai une Batmobile");
+    await page.locator("dialog[data-fenetre][open] [data-fenetre-ok]").click();
+    await page.locator("#builtin-status", { hasText: "« 🌙 Batman le justicier » est modifié." }).waitFor();
+    const batman = (await library("contents")).quisuis.extra.find((x) => x.answer === "Batman le justicier");
+    assert.deepEqual([batman.emoji, batman.clues, batman.serie], ["🌙", ["Je vis à Gotham", "Je porte une cape", "J'ai une Batmobile"], "Super-héros"]);
 
     // Renommer, supprimer d'un coup (fenêtres du site).
     await page.locator('#builtin-items .serie-biblio[data-serie="Super-héros"]').getByRole("button", { name: "Renommer" }).click();
@@ -6549,7 +6569,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator(".fenetre").getByRole("button", { name: "Supprimer" }).click();
     await page.locator("#builtin-status", { hasText: "Série « Animaux » supprimée." }).waitFor();
     extra = (await library("contents")).quisuis.extra;
-    assert.deepEqual(extra.map((x) => [x.answer, x.serie]), [["Elsa", "Disney"], ["Spider-Man", "Héros"], ["Batman", "Héros"]]);
+    assert.deepEqual(extra.map((x) => [x.answer, x.serie]), [["Elsa", "Disney"], ["Spider-Man", "Héros"], ["Batman le justicier", "Héros"]]);
     assert.equal(await page.locator('#builtin-items .serie-biblio[data-serie="Animaux"]').count(), 0);
     await capture(page, "qui-suis-je-series");
     await page.context().close();
@@ -8775,8 +8795,9 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator('[data-q="1"] .choice-thumb:not([hidden])').count(), 0);
     // Image de révélation associée à la question 1 ; la question 2 n'a pas d'illustration, c'est signalé sans bloquer.
     await page.locator('[data-q="0"] .q-image:not([hidden])').waitFor();
-    assert.equal(await page.locator('[data-q="0"] .tag.missing').isHidden(), true);
-    await page.locator('[data-q="1"] .tag.missing:not([hidden])', { hasText: "illustration manquante" }).waitFor();
+    assert.equal(await page.locator('[data-q="0"] .illustration .tag.missing').isHidden(), true);
+    await page.locator('[data-q="1"] .illustration .tag.missing:not([hidden])', { hasText: "Image manquante : ajoutez une illustration." }).waitFor();
+    assert.equal(await page.locator('[data-q="1"] .case-manquante:not([hidden])').count(), 0, "question en texte : pas d'alerte sur ses réponses");
     await page.click("#rv-validate-all");
     await page.click("#rv-save");
     await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
@@ -8889,10 +8910,11 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator(`.q-categories [data-categorie="${nomFamille}"].active`).waitFor();
     await page.locator("#q-list .q-item").first().waitFor();
 
-    // Mes packs : un fichier JSON avec deux packs, une image déposée avec lui, un autre fichier illisible.
+    // Mes packs : un seul ZIP (cedric, 25/10) avec deux packs et une image ; une image nommée manque.
     await page.click('#q-groups [data-groupe="packs"]');
     await page.locator("#pack-import:not([hidden])").waitFor();
-    assert.match(await page.locator("#pack-exemple").textContent(), /"illustration": "🐘"/);
+    assert.equal(await page.locator("#pack-import").getByText("📦 Importer un pack ZIP").count(), 1);
+    assert.doesNotMatch(await page.locator("#pack-import").innerText(), /JSON/, "plus de « JSON » dans les mots de l'import");
     const PACKS = { packs: [
       { title: "Les animaux de la savane", theme: "Animaux", questions: [
         { text: "Quel animal a une très longue trompe ?", choices: ["Éléphant", "Girafe", "Lion", "Zèbre"], correct: 0, illustration: "🐘" },
@@ -8903,12 +8925,23 @@ describe("bibliothèque de quiz et prestations", () => {
       ] },
       { title: "Espace", theme: "Sciences", questions: [{ text: "Quelle planète est rouge ?", choices: ["Mars", "Vénus"], correct: "Mars" }] },
     ] };
-    await page.setInputFiles("#pack-file", [
-      { name: "savane.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(PACKS)) },
-      { name: "lion.png", mimeType: "image/png", buffer: png([200, 160, 60]) },
-      { name: "casse.json", mimeType: "application/json", buffer: Buffer.from("{pas du json") },
-    ]);
-    await page.locator("#pack-status", { hasText: "2 packs importés : 5 questions, ⚠ 2 sans illustration, 1 ignorée (sans réponses). casse.json : Ce fichier n'est pas un JSON lisible." }).waitFor();
+    // D'abord un ZIP abîmé : expliqué, rien d'enregistré.
+    const avant = Object.keys(await library("quizzes")).length;
+    await page.setInputFiles("#pack-file", { name: "casse.zip", mimeType: "application/zip", buffer: Buffer.from("pas un zip du tout") });
+    assert.match(await repondreFenetre(page), /Ce ZIP ne peut pas être importé\.[\s\S]*pas un ZIP lisible[\s\S]*Rien n'a été enregistré\./);
+    assert.equal(Object.keys(await library("quizzes")).length, avant);
+    await page.setInputFiles("#pack-file", { name: "savane.zip", mimeType: "application/zip", buffer: Buffer.from(faireZip([
+      ["Savane/savane.json", JSON.stringify(PACKS)], ["Savane/lion.png", png([200, 160, 60]), { stocke: true }], ["Savane/liste.txt", "relecture"],
+    ])) });
+    const apercuPacks = page.locator("dialog[data-fenetre][open]");
+    await apercuPacks.locator(".pack-apercu-vignettes img").first().waitFor();
+    const texteApercu = await apercuPacks.innerText();
+    assert.match(texteApercu, /Les animaux de la savane\s+Quiz · Thème « Animaux » · 4 questions/);
+    assert.match(texteApercu, /Question 4 : Image manquante : ajoutez une illustration\./);
+    assert.match(texteApercu, /Question 5 : ni propositions ni nombre à trouver, elle n'est pas importée\./);
+    assert.match(texteApercu, /Laissé de côté : liste\.txt\./);
+    assert.equal(await repondreFenetre(page), "Importer ces 2 packs ?");
+    await page.locator("#pack-status", { hasText: "✓ Importé : « Les animaux de la savane » : 4 questions ; « Espace » : 1 question. 1 image manquante : ajoutez-les dans « Éditer »." }).waitFor();
     const quizzes = await library("quizzes");
     const [idSavane, savane] = Object.entries(quizzes).find(([, q]) => q.title === "Les animaux de la savane");
     const [idEspace, espace] = Object.entries(quizzes).find(([, q]) => q.title === "Espace");
@@ -8981,6 +9014,88 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(await repondreFenetre(page), /Supprimer le quiz « Espace » \?/);
     await waitFor(async () => (await library(`quizzes/${idEspace}`)) === null, "pack supprimé");
     await page.locator(`.pack[data-pack="${idEspace}"]`).waitFor({ state: "detached" });
+    await page.context().close();
+  });
+
+  test("Import d'un pack en un seul ZIP (cedric, 25/10) : Quiz illustré avec une image absente (simple alerte), série de photos sans données, tout modifiable et gardé", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.locator("#pack-import:not([hidden])").waitFor();
+    const zip = (nom, entrees) => ({ name: nom, mimeType: "application/zip", buffer: Buffer.from(faireZip(entrees)) });
+
+    // Quiz illustré, à la racine du ZIP (sans dossier) : la réponse C n'a pas son image.
+    const ILLUSTRE = { title: "Reine des neiges", theme: "Disney", ageMin: 5, ageMax: 8, questions: [
+      { text: "Qui est le bonhomme de neige ?", choices: [{ text: "Sven", image: "rdn-q01-sven.jpg" }, { text: "Olaf", image: "rdn-q01-olaf.jpg" }, { text: "Hans", image: "rdn-q01-hans.jpg" }], correct: 1 },
+    ] };
+    await page.setInputFiles("#pack-file", zip("reine.zip", [
+      ["pack.json", JSON.stringify(ILLUSTRE)], ["rdn-q01-sven.jpg", png([120, 90, 40])], ["rdn-q01-olaf.jpg", png([240, 240, 255])],
+    ]));
+    const fenetre = page.locator("dialog[data-fenetre][open]");
+    await fenetre.locator(".pack-apercu-vignettes img").nth(1).waitFor();
+    assert.match(await fenetre.innerText(), /Quiz illustré · 5 à 8 ans · Thème « Disney » · 1 question/);
+    assert.match(await fenetre.innerText(), /Question 1, réponse C : Image manquante : ajoutez une illustration\./);
+    assert.equal(await repondreFenetre(page), "Importer « Reine des neiges » ?");
+    await page.locator("#pack-status", { hasText: "✓ Importé : « Reine des neiges » : 1 question. 1 image manquante : ajoutez-les dans « Éditer »." }).waitFor();
+    let quizzes = await library("quizzes");
+    const [idReine, reine] = Object.entries(quizzes).find(([, q]) => q.title === "Reine des neiges");
+    assert.deepEqual([reine.kind, reine.source, reine.ageMin, reine.ageMax], ["photo", "json", 5, 8]);
+    const q0 = reine.questions[0];
+    assert.deepEqual([q0.choices, q0.correct, q0.status, q0.image], [["Sven", "Olaf", "Hans"], 1, "validee", undefined], "jamais d'émoji à la place");
+    assert.deepEqual(Object.keys(q0.choiceImages), ["0", "1"], "la case sans image reste vide");
+    assert.match(await library(`images/${q0.choiceImages[0]}`), /^data:image\//);
+
+    // Le même ZIP une seconde fois : un nouveau pack à côté, l'ancien ne change pas.
+    await page.setInputFiles("#pack-file", zip("reine.zip", [["pack.json", JSON.stringify(ILLUSTRE)]]));
+    assert.match(await fenetre.innerText(), /Un pack « Reine des neiges » existe déjà : celui-ci s'appellera « Reine des neiges \(2\) », l'ancien ne change pas\./);
+    assert.match(await fenetre.innerText(), /réponse A : Image manquante/);
+    await repondreFenetre(page, { accepter: false });
+    await page.locator("#pack-status", { hasText: "Import annulé : rien n'a été enregistré." }).waitFor();
+    assert.equal(Object.keys(await library("quizzes")).length, 1);
+
+    // Dans « Éditer » : la petite alerte sur la case C ; on y met une image, on en retire une autre, on enregistre.
+    await page.locator(`.pack[data-pack="${idReine}"]`).getByRole("button", { name: "Éditer" }).click();
+    await page.locator("#screen-review:not([hidden])").waitFor();
+    const cases = page.locator('#rv-list [data-q="0"] .choice-photo');
+    assert.deepEqual(await cases.locator(".case-manquante").evaluateAll((els) => els.map((e) => !e.hidden)), [false, false, true, false], "4e case vide : pas une réponse");
+    assert.equal(await page.locator('#rv-list [data-q="0"] .illustration .tag.missing:not([hidden])').count(), 0, "révélation facultative au Quiz illustré : pas d'alerte");
+    await cases.nth(2).locator("input[type=file]").setInputFiles({ name: "hans.png", mimeType: "image/png", buffer: png([20, 160, 90]) });
+    await cases.nth(2).locator("img.choice-thumb:not([hidden])").waitFor();
+    assert.equal(await cases.nth(2).locator(".case-manquante").isHidden(), true);
+    await cases.nth(0).getByRole("button", { name: "✕" }).click();
+    assert.equal(await cases.nth(0).locator(".case-manquante").isVisible(), true, "image retirée : la petite alerte, rien d'autre");
+    await page.locator('#rv-list [data-q="0"] .q-choice').nth(1).fill("Olaf le bonhomme");
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+    const apres = (await library(`quizzes/${idReine}`)).questions[0];
+    assert.deepEqual([apres.choices, Object.keys(apres.choiceImages)], [["Sven", "Olaf le bonhomme", "Hans"], ["1", "2"]]);
+    // Refermé puis rouvert : tout est là.
+    await page.goBack();
+    await page.locator("#library-questions:not([hidden])").waitFor();
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.locator(`.pack[data-pack="${idReine}"]`).getByRole("button", { name: "Éditer" }).click();
+    await page.locator("#screen-review:not([hidden])").waitFor();
+    assert.equal(await page.locator('#rv-list [data-q="0"] .q-choice').nth(1).inputValue(), "Olaf le bonhomme");
+    await cases.nth(2).locator('img.choice-thumb:not([hidden])[src^="data:image"]').waitFor();
+    assert.equal(await cases.nth(0).locator(".case-manquante").isVisible(), true);
+    await page.goBack();
+    await page.locator("#library-questions:not([hidden])").waitFor();
+
+    // Série de photos (Zoom mystère, Image floue), sans données, dans un dossier : la réponse vient du nom, liste.txt est laissé.
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.setInputFiles("#pack-file", zip("pack.zip", [
+      ["Disney zoom/olaf.jpg", png([250, 250, 250])], ["Disney zoom/chateau-de-cendrillon.jpg", png([90, 120, 220])], ["Disney zoom/liste.txt", "olaf.jpg → Olaf"],
+    ]));
+    assert.match(await fenetre.innerText(), /Disney zoom\s+Zoom mystère \/ Image floue · 2 photos/);
+    assert.match(await fenetre.innerText(), /Laissé de côté : liste\.txt\./);
+    await repondreFenetre(page);
+    await page.locator("#pack-status", { hasText: "✓ Importé : « Disney zoom » : 2 photos." }).waitFor();
+    quizzes = await library("quizzes");
+    const [, serie] = Object.entries(quizzes).find(([, q]) => q.title === "Disney zoom");
+    assert.deepEqual([serie.kind, serie.source, serie.questions.length], ["images", "photos", 2]);
+    assert.deepEqual(serie.questions.map((q) => q.choices[q.correct]), ["Chateau de cendrillon", "Olaf"]);
+    assert.ok(serie.questions.every((q) => /^[0-9a-f]{16}$/.test(q.imageId) && q.status === "validee"));
     await page.context().close();
   });
 
