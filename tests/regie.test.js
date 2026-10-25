@@ -8172,7 +8172,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator(".quiz-total", { hasText: "Total : 12 questions" }).waitFor();
     assert.equal(await compteur.textContent(), "12 questions, dont 3 en Super Finale, plus la question des bougies");
     await complet.locator(".quiz-complet-voir").click();
-    const tirees10 = lignesComplet.filter({ hasNotText: /Roi de la jungle|Combien de pattes|bougies/ });
+    // Sans les deux questions de Tom (au mot près : une question tirée peut aussi parler de pattes) ni celle des bougies.
+    const tirees10 = complet.locator(".quiz-complet-liste > li.quiz-complet-q:not(.quiz-complet-bougies)")
+      .filter({ hasNot: page.locator(".tirage-texte", { hasText: /^(Roi de la jungle \?|Combien de pattes a une araignée \?)$/ }) });
     assert.equal(await tirees10.count(), 10);
     // Des Juste Chiffre, une question sur quatre environ (10 → 2), jamais la première.
     const textes10 = await tirees10.locator(".tirage-texte").allTextContents();
@@ -8193,7 +8195,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await round.locator(".quiz-total").textContent(), "Total : 12 questions");
     assert.ok(!(await lignesComplet.locator(".tirage-texte").allTextContents()).includes(retiree));
     // Le Quiz de Tom : ✕ par question, pas de 🎲.
-    await lignesComplet.filter({ hasText: "Combien de pattes" }).locator(".tirage-retirer").click();
+    await lignesComplet.filter({ has: page.locator(".tirage-texte", { hasText: /^Combien de pattes a une araignée \?$/ }) }).locator(".tirage-retirer").click();
     assert.equal(await complet.locator(".quiz-complet-liste li.vide").count(), 0);
     // Moins de questions au dé : il refait sa série.
     await ligne.locator(".tirage-nombre").selectOption("8");
