@@ -48,8 +48,8 @@ import { niveauMime, niveauxPourProfil, etiquetteMime } from "./banque-mimes.js"
 import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from "./retour.js";
 import { confirmer, avertir, demanderTexte, apercu } from "./fenetre.js";
-import { lireZip } from "./zip.js";
-import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES } from "./pack-zip.js";
+import { lireZipEtSesZip } from "./zip.js";
+import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage } from "./pack-zip.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
@@ -5340,6 +5340,11 @@ $("rv-save").onclick = async () => {
       // Un pack importé le reste (ses images restent dans « Images des packs »), avec sa famille et son niveau.
       ...(draft.quiz.pack === true ? { pack: true } : {}),
       famille: lireFamille($("rv-famille").value), niveau: lireNiveau($("rv-niveau").value),
+      imagesHorsFormat: (() => {
+        const utilisees = new Set(questions.flatMap((q) => [q.imageId, ...(q.kind === "number" ? [] : Object.values(savedChoiceImages(q) ?? {}))]));
+        const gardees = Object.entries(draft.quiz.imagesHorsFormat ?? {}).filter(([id]) => utilisees.has(id));
+        return gardees.length ? Object.fromEntries(gardees) : null;
+      })(),
       createdAt: draft.quiz.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
       questions: questions.map((q) => ({
         text: q.text.slice(0, 300), choices: q.kind === "number" ? null : q.choices,
@@ -7947,6 +7952,20 @@ function epreuveDuQuiz(quiz) {
   return qs.length && qs.every(vraiFaux) ? "vraifaux" : "quiz";
 }
 
+/**
+ * Images hors format d'un pack (cedric, 25/10), notées à l'import : celles qu'il montre encore, à leur place
+ * (`{ q, case, message }`). Une image remplacée dans « Éditer » emporte son alerte.
+ */
+function horsFormatDu(quiz) {
+  const notes = quiz?.imagesHorsFormat ?? {};
+  if (!Object.keys(notes).length) return [];
+  return (quiz.questions ?? []).flatMap((q, i) => [
+    ...(notes[q?.imageId] ? [{ q: i, case: null, message: notes[q.imageId] }] : []),
+    ...Object.entries(q?.choiceImages ?? {}).filter(([, id]) => notes[id]).map(([k, id]) => ({ q: i, case: Number(k), message: notes[id] })),
+  ]);
+}
+const ouImage = (quiz, x) => (quizKind(quiz) === "images" ? `Photo ${x.q + 1}` : ouQuestion(x.q, x.case));
+
 /** Pastille de couleur d'un niveau (vert Facile, bleu Moyen, violet Difficile). */
 const pastilleNiveau = (niveau) => h("span", { class: "pastille-niveau", "data-niveau": niveau, "aria-hidden": "true" });
 
@@ -7987,6 +8006,7 @@ function cartePack(p) {
     h("span", { text: [p.theme && p.theme !== p.title ? p.theme : null, SOURCES[p.source] ?? ""].filter(Boolean).join(" · ") }),
     h("span", { text: `${plural(p.total, p.kind === "images" ? "photo" : "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
     p.sansIllustration ? h("span", { class: "q-alerte", text: `⚠ ${p.sansIllustration} sans illustration` }) : h("span", { class: "ok", text: "✓ Toutes illustrées" }),
+    horsFormatDu(quizzes[p.id]).length ? h("span", { class: "q-alerte hors-format", text: `⚠ ${plural(horsFormatDu(quizzes[p.id]).length, "image hors format", "images hors format")} : « Ouvrir » pour voir` }) : null,
     h("div", { class: "row" },
       h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { const y = window.scrollY; qPack = p.id; qSelection.clear(); status("q-status", ""); renderQuestions(); noterRubrique(y); } }),
       h("button", { class: "btn secondary", type: "button", text: "Éditer", onclick: () => review(p.id, quizzes[p.id]) }),
@@ -8039,6 +8059,8 @@ function dessinerQuestions() {
         h("button", { type: "button", class: "btn secondary", text: photos ? "Éditer la série" : "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
       h("h2", { text: p.title }),
       h("p", { class: "hint", text: [p.theme, plural(p.total, photos ? "photo" : "question"), p.sansIllustration ? `⚠ ${p.sansIllustration} sans ${photos ? "photo" : "illustration"}` : photos ? "✓ toutes avec leur photo" : "✓ toutes illustrées"].filter(Boolean).join(" · ") }),
+      horsFormatDu(quizzes[p.id]).length ? h("ul", { class: "pack-apercu-alertes hors-format-liste" },
+        ...horsFormatDu(quizzes[p.id]).map((x) => h("li", { class: "pack-alerte", text: `${ouImage(quizzes[p.id], x)} : ${x.message}` }))) : null,
       liste.length ? h("div", { class: "q-liste" }, ...liste.map(ligneQuestion)) : h("p", { class: "hint", text: "Aucune question ne correspond à cette recherche." }));
     return;
   }
@@ -8145,7 +8167,7 @@ async function importerPackZip(zip, statut = "pack-status") {
   status(statut, "Ouverture du ZIP…", true);
   let analyse, parNom;
   try {
-    const fichiers = await lireZip(zip);
+    const fichiers = await lireZipEtSesZip(zip);
     const lus = [];
     for (const f of fichiers) lus.push({ chemin: f.chemin, nom: f.nom, ...(/\.json$/i.test(f.nom) ? { texte: new TextDecoder("utf-8").decode(await f.lire()) } : {}) });
     analyse = analyserPack(lus, { nomZip: zip.name });
@@ -8164,6 +8186,12 @@ async function importerPackZip(zip, statut = "pack-status") {
   const aRanger = new Map();
   const prets = new Map();
   let n = 0;
+  const horsFormat = new Map();
+  // Une image hors format : notée sur son pack, à sa place (question, réponse).
+  const noterFormat = (p, id, q, k = null) => {
+    if (!id || !horsFormat.has(id)) return;
+    (p.horsFormat ??= []).push({ id, q, case: k, message: horsFormat.get(id) });
+  };
   const preparer = async (nom, pour, dossier = null) => {
     const f = parNom(nom, dossier);
     if (!f) return null;
@@ -8174,10 +8202,17 @@ async function importerPackZip(zip, statut = "pack-status") {
     try {
       const ext = f.nom.split(".").pop().toLowerCase();
       const blob = new Blob([await f.lire()], { type: TYPES_IMAGES[ext] ?? "image/jpeg" });
+      // Format, taille et poids de l'original, mesurés avant la réduction (cedric, 25/10 : une petite alerte, jamais bloquante).
+      const alerte = await createImageBitmap(blob).then((m) => {
+        const a = alerteImage({ largeur: m.width, hauteur: m.height, octets: blob.size }, pour);
+        m.close?.();
+        return a;
+      }, () => null);
       const data = pour === "case" ? await compressImage(blob, CHOICE_IMAGE.budget, CHOICE_IMAGE.width) : await compressImage(blob);
       id = await imageId(data);
       aRanger.set(id, data);
       imageCache[id] = data;
+      if (alerte) horsFormat.set(id, alerte);
     } catch (err) {
       console.error(err);
     }
@@ -8191,7 +8226,7 @@ async function importerPackZip(zip, statut = "pack-status") {
         const gardees = [];
         for (const q of p.questions) {
           const id = await preparer(q.photo, "photo", p.dossier);
-          if (id) gardees.push({ ...q, imageId: id });
+          if (id) { gardees.push({ ...q, imageId: id }); noterFormat(p, id, gardees.length - 1); }
           else p.ignorees.push(`« ${q.photo} » : photo illisible, elle n'est pas importée (essayez un JPEG).`);
         }
         p.questions = gardees;
@@ -8200,6 +8235,7 @@ async function importerPackZip(zip, statut = "pack-status") {
       for (const [i, q] of p.questions.entries()) {
         if (q.revealFile) {
           const id = await preparer(q.revealFile, "revelation", p.dossier);
+          noterFormat(p, id, i);
           if (id) q.imageId = id;
           else if (!p.manquantes.some((m) => m.q === i && m.case == null)) p.manquantes.push({ q: i, case: null, fichier: q.revealFile });
         }
@@ -8207,6 +8243,7 @@ async function importerPackZip(zip, statut = "pack-status") {
           q.choiceImages = [];
           for (const [k, nom] of q.imageFiles.slice(0, 4).entries()) {
             const id = nom ? await preparer(nom, "case", p.dossier) : null;
+            noterFormat(p, id, i, k);
             q.choiceImages[k] = id;
             if (nom && !id && !p.manquantes.some((m) => m.q === i && m.case === k)) p.manquantes.push({ q: i, case: k, fichier: nom });
           }
@@ -8318,7 +8355,9 @@ function quizDuPack(p) {
     title: p.titre, theme: p.theme || null, famille: p.famille, niveau: p.niveau,
     // Sans âges dans le pack, ceux de son niveau.
     ageMin: p.ageMin ?? AGES_NIVEAU[p.niveau]?.[0] ?? null, ageMax: p.ageMax ?? AGES_NIVEAU[p.niveau]?.[1] ?? null,
-    source: p.epreuve === "photos" ? "photos" : "json", pack: true, kind, createdAt: Date.now(), updatedAt: serverTimestamp(),
+    source: p.epreuve === "photos" ? "photos" : "json", pack: true, kind,
+    // Ses images hors format (par image : remplacée, son alerte s'en va avec elle).
+    imagesHorsFormat: p.horsFormat?.length ? Object.fromEntries(p.horsFormat.map((x) => [x.id, x.message.slice(0, 200)])) : null, createdAt: Date.now(), updatedAt: serverTimestamp(),
     questions: p.questions.map((q, i) => {
       const nombre = q.kind === "number";
       const choices = nombre ? null : q.choices.slice(0, 4);
@@ -8368,6 +8407,7 @@ function apercuDuPack(p) {
   const VIGNETTES = 24;
   const lignes = [
     ...p.manquantes.map((m) => [`${ouQuestion(m.q, m.case)} : ${IMAGE_MANQUANTE}`, "pack-alerte"]),
+    ...(p.horsFormat ?? []).map((x) => [`${p.epreuve === "photos" ? `Photo ${x.q + 1}` : ouQuestion(x.q, x.case)} : ${x.message}`, "pack-alerte hors-format"]),
     ...p.aCorriger.map((x) => [`${ouQuestion(x.q)} : ${x.messages.join(" ")} Elle arrive « À valider » : corrigez-la dans « Éditer ».`, "pack-erreur"]),
     ...p.ignorees.map((t) => [t, "pack-erreur"]),
   ];

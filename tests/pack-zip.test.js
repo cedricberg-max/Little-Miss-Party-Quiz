@@ -2,8 +2,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { faireZip } from "./zip-outil.js";
-import { lireZip, cheminSur, estFichierSysteme } from "../web/public/zip.js";
-import { analyserPack, IMAGE_MANQUANTE, MAX_PHOTOS_SERIE, lirePersonnages, chercheurImages } from "../web/public/pack-zip.js";
+import { lireZip, lireZipEtSesZip, cheminSur, estFichierSysteme } from "../web/public/zip.js";
+import { analyserPack, IMAGE_MANQUANTE, MAX_PHOTOS_SERIE, lirePersonnages, chercheurImages, alerteImage, FORMATS_IMAGES } from "../web/public/pack-zip.js";
 import { FAMILLES, NIVEAUX, lireFamille, lireNiveau, niveauDesAges, niveauDuQuiz, familleDuQuiz, parFamille } from "../web/public/rangement.js";
 
 const texte = async (f) => new TextDecoder().decode(await f.lire());
@@ -52,6 +52,28 @@ describe("lecture d'un ZIP", () => {
     assert.equal(cheminSur("a/../b.jpg"), null);
     assert.equal(estFichierSysteme("x/__MACOSX/y"), true);
     assert.equal(estFichierSysteme("x/olaf.jpg"), false);
+  });
+
+  test("un ZIP qui contient des ZIP (ChatGPT, 25/10) : chacun ouvert comme un dossier, sur un seul niveau, limites pour le tout", async () => {
+    const quiz = (niveau) => JSON.stringify({ title: "K-pop", famille: "Musique", niveau, questions: [{ text: `Question ${niveau} ?`, choices: ["Oui", "Non"], correct: 0 }] });
+    const zoom = faireZip([["kpop-zoom/pack.json", JSON.stringify({ title: "K-pop", famille: "Musique", niveau: "Facile" })], ["kpop-zoom/rumi.jpg", "x"], ["kpop-zoom/mira.jpg", "y"]]);
+    const fond = faireZip([["a.zip", "z"]]);
+    const zip = faireZip([
+      ["kpop/quiz-facile.zip", faireZip([["pack.json", quiz("Facile")]])], ["kpop/quiz-moyen.zip", faireZip([["pack.json", quiz("Moyen")]])],
+      ["kpop/zoom.zip", zoom], ["kpop/lisez-moi.txt", "x"], ["kpop/plus-loin.zip", fond], ["__MACOSX/kpop/._zoom.zip", "x"],
+    ]);
+    const fichiers = await lireZipEtSesZip(zip);
+    assert.deepEqual(fichiers.map((f) => f.chemin), ["kpop/quiz-facile/pack.json", "kpop/quiz-moyen/pack.json", "kpop/zoom/kpop-zoom/pack.json",
+      "kpop/zoom/kpop-zoom/rumi.jpg", "kpop/zoom/kpop-zoom/mira.jpg", "kpop/lisez-moi.txt", "kpop/plus-loin/a.zip"]);
+    assert.equal(await texte(fichiers[0]), quiz("Facile"));
+    const lus = await Promise.all(fichiers.map(async (f) => ({ chemin: f.chemin, nom: f.nom, ...(/\.json$/.test(f.nom) ? { texte: await texte(f) } : {}) })));
+    const { packs, erreurs, laisses } = analyserPack(lus);
+    assert.deepEqual(erreurs, []);
+    assert.deepEqual(packs.map((p) => [p.epreuve, p.niveau, p.questions.length]).sort(), [["photos", "Facile", 2], ["quiz", "Facile", 1], ["quiz", "Moyen", 1]]);
+    assert.deepEqual(laisses.sort(), ["a.zip", "lisez-moi.txt"], "un ZIP dans un ZIP intérieur n'est pas ouvert");
+    // Les limites comptent tous les fichiers, intérieurs compris ; un ZIP intérieur abîmé est nommé.
+    await assert.rejects(() => lireZipEtSesZip(zip, { zip: 1e9, fichiers: 4, fichier: 1e9, total: 1e9 }), /plus de 4 fichiers/);
+    await assert.rejects(() => lireZipEtSesZip(faireZip([["casse.zip", "pas un zip"]])), /Dans « casse\.zip » : Ce fichier n'est pas un ZIP lisible/);
   });
 
   test("un fichier dont la taille décompressée dépasse l'annonce est refusé (archive piégée)", async () => {
@@ -250,5 +272,22 @@ describe("rangement des packs : famille et niveau (cedric, 25/10)", () => {
     const zooms = packs.filter((p) => p.epreuve === "photos");
     assert.deepEqual(zooms.map((p) => p.questions.map((q) => q.choices[q.correct])), [["Mira", "Rumi"], ["Derby", "Jinu", "Rumi"]]);
     assert.deepEqual(laisses, ["liste.txt"], "toutes les images servent, rien d'autre n'est laissé");
+  });
+});
+
+describe("images hors format (alerte, jamais bloquante)", () => {
+  test("le bon format passe ; mauvais format, trop petite, trop forte ou trop lourde donnent une alerte claire", () => {
+    assert.equal(alerteImage({ largeur: 800, hauteur: 600, octets: 70_000 }, "revelation"), null);
+    assert.equal(alerteImage({ largeur: 1024, hauteur: 768, octets: 200_000 }, "photo"), null, "jusqu'au double et 4 fois le poids : acceptable");
+    assert.equal(alerteImage({ largeur: 480, hauteur: 480, octets: 30_000 }, "case"), null);
+    assert.match(alerteImage({ largeur: 1600, hauteur: 900, octets: 90_000 }, "revelation"), /^Image panoramique \(1600 × 900\) : attendu paysage 4:3, 800 × 600\. Elle sera recadrée/);
+    assert.match(alerteImage({ largeur: 600, hauteur: 800, octets: 50_000 }, "photo"), /^Image en hauteur/);
+    assert.match(alerteImage({ largeur: 640, hauteur: 480, octets: 30_000 }, "case"), /^Image paysage .* carré, 480 × 480/);
+    assert.match(alerteImage({ largeur: 400, hauteur: 300, octets: 20_000 }, "revelation"), /^Image trop petite \(400 × 300\) : floue sur la TV/);
+    assert.match(alerteImage({ largeur: 4000, hauteur: 3000, octets: 2_500_000 }, "photo"), /^Résolution trop forte \(4000 × 3000, 2500 Ko\)/);
+    assert.match(alerteImage({ largeur: 800, hauteur: 600, octets: 900_000 }, "revelation"), /^Fichier trop lourd \(900 Ko\) : attendu 80 Ko au plus/);
+    assert.equal(alerteImage({ largeur: 0, hauteur: 0, octets: 10 }, "photo"), null, "image non mesurée : pas d'alerte");
+    assert.equal(alerteImage({ largeur: 800, hauteur: 600, octets: 10 }, "inconnu"), null);
+    assert.deepEqual(Object.keys(FORMATS_IMAGES).sort(), ["case", "photo", "revelation"]);
   });
 });

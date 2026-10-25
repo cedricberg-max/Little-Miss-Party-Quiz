@@ -216,3 +216,35 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
   laisses.push(...inutiles.map((f) => f.nom));
   return { packs: erreurs.length ? [] : packs, erreurs, laisses };
 }
+
+/**
+ * Formats attendus des images d'un pack (ceux du prompt ChatGPT) : révélation du Quiz et photo de Zoom mystère /
+ * Image floue en paysage 4:3, 800 × 600 ; réponse du Quiz illustré en carré, 480 × 480.
+ */
+export const FORMATS_IMAGES = {
+  revelation: { largeur: 800, hauteur: 600, octets: 80_000, nom: "paysage 4:3, 800 × 600" },
+  photo: { largeur: 800, hauteur: 600, octets: 80_000, nom: "paysage 4:3, 800 × 600" },
+  case: { largeur: 480, hauteur: 480, octets: 35_000, nom: "carré, 480 × 480" },
+};
+
+const ko = (n) => `${Math.round(n / 1000)} Ko`;
+
+/**
+ * Alerte d'une image hors des règles (cedric, 25/10), sinon null ; jamais bloquante. Acceptable : le bon format à 10 %
+ * près, au moins 60 % de la taille attendue, au plus le double, et un fichier d'au plus 4 fois le poids attendu
+ * (la Régie réduit de toute façon chaque image à l'import : la place reste maîtrisée, l'alerte vise la qualité).
+ */
+export function alerteImage({ largeur, hauteur, octets }, usage) {
+  const f = FORMATS_IMAGES[usage];
+  if (!f || !largeur || !hauteur) return null;
+  const taille = `${largeur} × ${hauteur}`;
+  const ecart = (largeur / hauteur) / (f.largeur / f.hauteur);
+  if (ecart > 1.1 || ecart < 1 / 1.1) {
+    const forme = largeur / hauteur > 1.1 ? (largeur / hauteur > 1.5 ? "panoramique" : "paysage") : largeur / hauteur < 1 / 1.1 ? "en hauteur" : "carrée";
+    return `Image ${forme} (${taille}) : attendu ${f.nom}. Elle sera recadrée sur la TV.`;
+  }
+  if (largeur < f.largeur * 0.6) return `Image trop petite (${taille}) : floue sur la TV. Attendu ${f.nom}.`;
+  if (largeur > f.largeur * 2) return `Résolution trop forte (${taille}${octets ? `, ${ko(octets)}` : ""}) : attendu ${f.nom}. La Régie la réduit, mais demandez la bonne taille.`;
+  if (octets > f.octets * 4) return `Fichier trop lourd (${ko(octets)}) : attendu ${ko(f.octets)} au plus. La Régie le réduit, mais demandez la bonne taille.`;
+  return null;
+}

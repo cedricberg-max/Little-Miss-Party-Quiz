@@ -775,6 +775,9 @@ button.media-tile:hover { border-color: var(--violet); }
 .pack-apercu-liste, .pack-apercu-alertes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
 .pack-apercu-alertes .pack-alerte { color: var(--bad); font-weight: 700; }
 .pack-apercu-alertes .pack-erreur { color: var(--bad); }
+/* Image hors format : une petite alerte, pas une erreur (cedric, 25/10). */
+.pack-apercu-alertes .pack-alerte.hors-format, .hors-format-liste .pack-alerte { color: var(--warn); font-weight: 600; }
+.item .q-alerte.hors-format { color: var(--warn); }
 .personnage-edit { display: flex; flex-direction: column; gap: 10px; }
 .personnage-edit label { display: flex; flex-direction: column; gap: 4px; }
 /* Un ZIP glissé sur le cadre « Importer un pack ». */
