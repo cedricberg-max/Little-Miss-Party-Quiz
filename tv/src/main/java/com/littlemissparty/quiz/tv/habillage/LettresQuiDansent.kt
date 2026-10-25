@@ -28,13 +28,13 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.sin
 
-/** Couleurs des lettres, dans l'ordre (proposition T3 du 24 octobre). */
+/** Couleurs des lettres, dans l'ordre. */
 private val TEINTES_DANSE = listOf(GS.Rose, GS.Jaune, GS.Cyan, GS.Vert, GS.Orange, Color(0xFFB56BFF))
 private val PENCHE = floatArrayOf(-6f, 4f, -3f, 7f, -5f, 2f)
 private val DECALE = floatArrayOf(-6f, 6f, -2f, 8f, -8f, 3f)
 
 /**
- * Titre de question festif (proposition T3, « Quel est ce titre ? » du Quiz musical) : chaque lettre a sa couleur
+ * Mot festif (« DANSEZ ! » des Statues musicales ; né de la proposition T3 du 24/10) : chaque lettre a sa couleur
  * néon, cernée de blanc, penchée et décalée ; elles dansent doucement au tempo des musiques (120 BPM). Une seule ligne :
  * pour un titre court seulement. Léger : chaque lettre est un calque qui tourne et monte, rien n'est recomposé.
  */

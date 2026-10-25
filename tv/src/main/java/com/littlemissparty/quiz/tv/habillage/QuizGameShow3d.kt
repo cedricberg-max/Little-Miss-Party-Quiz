@@ -368,8 +368,8 @@ internal fun QuestionPanneau3d(p: PlanchesQuiz3d, texte: String, modifier: Modif
                 Triple(t, t * 1.125f, mesure.lignes(texte, styleBaloo3d(t), larg, 3))
             }
         }
-        // Quiz musical (cedric, 24/10 : « trop sage », proposition T3) : un titre court, en lettres de couleur qui dansent.
-        if (festif && lignes.size == 1) LettresQuiDansent(texte, 40.sp, Modifier.padding(vertical = 14.dp))
+        // Quiz musical (cedric, 24/10 : « trop sage » ; proposition T1 choisie le 25/10) : un titre court, un néon de couleur par mot.
+        if (festif && lignes.size == 1) MotsNeon(texte, 40.sp, Modifier.padding(vertical = 14.dp))
         else LignesAPas(
             texte, lignes, styleBaloo3d(taille, Color.White, Shadow(Color(0xB39678FF), Offset.Zero, 24f * k)), pas, centre = true,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = if (lignes.size == 1) 16.dp else 11.dp).offset(y = (-2).dp),
