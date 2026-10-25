@@ -5665,8 +5665,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#nav button[data-screen=library]");
     await page.click('#library-tabs [data-lib-tab="questions"]');
     await page.locator('#q-groups [data-groupe="photos"]', { hasText: "🔍 Mes séries de photos (3)" }).click();
-    // Rangée par famille (cedric, 25/10) : faite à la main, sans famille ni niveau, elle attend dans Divers.
-    await page.locator('#q-list .q-famille[data-famille="Divers"] .q-plier', { hasText: "📦 Divers (1)" }).click();
+    // Rangée par thème (cedric, 25/10) : faite à la main sans thème, son nom en fait un.
+    await page.locator('#q-list .q-theme[data-theme="Monuments et animaux"] .q-plier', { hasText: "🎨 Monuments et animaux (1)" }).click();
     await page.locator(`#q-list .pack[data-pack="${id}"]`, { hasText: "3 photos" }).waitFor();
     await page.locator(`#q-list .pack[data-pack="${id}"] .pack-niveau.sans`, { hasText: "Niveau à choisir dans « Éditer »" }).waitFor();
     assert.equal(await page.locator("#q-list .photos-nouvelle").textContent(), "📷 Nouvelle série de photos");
@@ -5680,6 +5680,74 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator(`.quiz-biblio-item[data-quiz="${id}"]`, { hasText: "3 photos" }).click();
     await round.locator(".round-head > .quiz-compteur", { hasText: "3 photos" }).waitFor();
     assert.equal(await round.locator(".quiz-series .serie-voir").textContent(), "▸ 📚 Série de photos « Monuments et animaux » : 3 photos");
+    await page.context().close();
+  });
+
+  test("🎨 Mes thèmes (cedric, 25/10) : au Quiz, trois dés piochent dans les packs (hasard, thème principal à moitié, recherche) ; une question retirée laisse deux dés", async () => {
+    const pack = (title, niveau, n, theme = null) => ({ title, niveau, famille: "Divers", pack: true, kind: "classique", source: "json", updatedAt: 1, ...(theme ? { theme } : {}),
+      questions: Array.from({ length: n }, (_, k) => ({ text: `${title} ${k + 1} ?`, choices: ["A", "B", "C", "D"], correct: k % 4, status: "validee" })) });
+    await seedLibrary("quizzes", { kpop: pack("K-pop Demon Hunters", "Facile", 8), mario: pack("Mario", "Facile", 8, "Jeux vidéo"), poke: pack("Pokémon", "Difficile", 8) });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "6");
+    await ajouterJeu(page, "quiz");
+    const round = page.locator("#show-rounds .round").nth(0);
+    // Les packs d'abord : la ligne « 🎨 Mes thèmes » est la première des outils, la banque libre dessous.
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((els) => els.slice(0, 2).map((e) => e.className)), ["packs-ligne", "tirage-ligne"]);
+    const serie = round.locator('.quiz-series > li.serie[data-origine="reprise"]');
+    const textes = () => serie.locator(".tirage-q:not(.vide) .tirage-texte").allTextContents();
+
+    // 1. Tout au hasard : 6 ans, des packs Facile seulement (il y en a assez).
+    await round.locator(".packs-nombre").selectOption("6");
+    await round.locator(".packs-de-hasard").click();
+    await serie.locator(".serie-voir", { hasText: "🎨 6 questions de mes thèmes (tous mes thèmes au hasard)" }).waitFor();
+    assert.ok((await textes()).every((t) => /^(K-pop|Mario)/.test(t)), "niveau de la prestation d'abord");
+
+    // 2. Thème principal, en direct dans son champ : la moitié sur K-pop, le reste ailleurs.
+    await round.locator(".packs-theme").fill("kpop");
+    await round.locator(".packs-suggestion", { hasText: "K-pop Demon Hunters" }).click();
+    assert.equal(await round.locator(".packs-theme").inputValue(), "K-pop Demon Hunters");
+    await round.locator(".packs-de-theme").click();
+    await serie.locator(".serie-voir", { hasText: "thème principal « K-pop Demon Hunters »" }).waitFor();
+    assert.equal((await textes()).filter((t) => t.startsWith("K-pop")).length, 3);
+    assert.equal(await round.locator('.quiz-series > li.serie[data-origine="reprise"]').count(), 1, "le dé refait la série, il n'en ajoute pas");
+
+    // 3. Recherche : seulement ce qui se rapporte au mot (le thème du pack compte), même dans une seule série.
+    await round.locator(".packs-recherche").fill("jeux video");
+    await round.locator(".packs-de-recherche").click();
+    await serie.locator(".serie-voir", { hasText: "🎨 6 questions de mes thèmes (« jeux video »)" }).waitFor();
+    assert.ok((await textes()).every((t) => t.startsWith("Mario")));
+
+    // ✕ : deux dés à sa place ; la question retirée ne revient jamais.
+    const retiree = (await textes())[0];
+    await serie.locator(".tirage-q:not(.vide) .tirage-retirer").first().click();
+    await serie.locator(".packs-case").waitFor();
+    assert.equal(await serie.locator(".packs-case-theme").inputValue(), "jeux video", "le petit champ part du thème de la série");
+    await serie.locator(".packs-case").scrollIntoViewIfNeeded();
+    await capture(page, "quiz-mes-themes-case", { pleinePage: false });
+    await round.locator(".packs-ligne").scrollIntoViewIfNeeded();
+    await capture(page, "quiz-mes-themes-des", { pleinePage: false });
+    await serie.locator(".packs-case-theme").fill("demon");
+    await serie.locator(".packs-case-theme-de").click();
+    await serie.locator(".packs-case").waitFor({ state: "detached" });
+    const apres = await textes();
+    assert.equal(apres.filter((t) => t.startsWith("K-pop")).length, 1);
+    assert.ok(!apres.includes(retiree));
+    await serie.locator(".tirage-q:not(.vide) .tirage-retirer").first().click();
+    await serie.locator(".packs-case-hasard").click();
+    await serie.locator(".packs-case").waitFor({ state: "detached" });
+    assert.equal(new Set(await textes()).size, 6);
+    await capture(page, "quiz-mes-themes", { pleinePage: false });
+
+    // Enregistrée : une série reprise (la TV la joue comme les autres) qui garde son dé et son mot.
+    await aVenir(page);
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    const [manche] = Object.values(await library("shows"))[0].rounds;
+    const gardee = manche.seriesQuiz.find((x) => x.origine === "reprise");
+    assert.deepEqual([gardee.pioche, gardee.questions.length], [{ mode: "recherche", terme: "jeux video" }, 6]);
+    assert.ok(gardee.questions.every((q) => q.choices.length === 4 && Number.isInteger(q.correct)));
     await page.context().close();
   });
 
@@ -6544,10 +6612,10 @@ describe("bibliothèque de quiz et prestations", () => {
     let extra = (await library("contents")).quisuis.extra;
     assert.deepEqual(extra.map((x) => [x.answer, x.serie, x.famille, x.niveau]), [["Elsa", "Disney", undefined, undefined],
       ["Spider-Man", "Super-héros", "Films et séries", "Moyen"], ["Batman", "Super-héros", "Films et séries", "Moyen"]]);
-    // Une simple liste : sa série prend le nom du fichier ; sans famille ni niveau, l'aperçu les demande (cedric, 25/10).
+    // Une simple liste : sa série prend le nom du fichier ; sans niveau, l'aperçu le demande (cedric, 25/10).
     await page.locator("#bi-zip").setInputFiles(zipDe("animaux.zip", ["Animaux.json", JSON.stringify([
       { answer: "Le panda", emoji: "🐼", clues: ["Je mange du bambou", "Je suis noir et blanc"] }])]));
-    await apercuQui.locator("select.pack-famille").selectOption("Animaux et nature");
+    assert.equal(await apercuQui.locator("select.pack-theme").count(), 0, "Qui suis-je ? : pas de thème, ses personnages vont dans le jeu");
     await apercuQui.locator("select.pack-niveau").selectOption("Facile");
     assert.equal(await repondreFenetre(page), "Importer « Animaux » ?");
     await page.locator("#builtin-status", { hasText: "✓ Importé : 1 personnage ajouté à Qui suis-je ?." }).waitFor();
@@ -6565,7 +6633,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const batman = (await library("contents")).quisuis.extra.find((x) => x.answer === "Batman le justicier");
     assert.deepEqual([batman.emoji, batman.clues, batman.serie], ["🌙", ["Je vis à Gotham", "Je porte une cape", "J'ai une Batmobile"], "Super-héros"]);
     assert.deepEqual([batman.famille, batman.niveau], ["Films et séries", "Moyen"], "modifié, il garde sa famille et son niveau");
-    assert.deepEqual((await library("contents")).quisuis.extra.filter((x) => x.answer === "Le panda").map((x) => [x.famille, x.niveau]), [["Animaux et nature", "Facile"]]);
+    assert.deepEqual((await library("contents")).quisuis.extra.filter((x) => x.answer === "Le panda").map((x) => [x.famille ?? null, x.niveau]), [[null, "Facile"]]);
 
     // Renommer, supprimer d'un coup (fenêtres du site).
     await page.locator('#builtin-items .serie-biblio[data-serie="Super-héros"]').getByRole("button", { name: "Renommer" }).click();
@@ -7011,7 +7079,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const choix = page.locator(".choix-boite");
     await choix.waitFor();
     assert.equal(await choix.locator(".label").textContent(), "🖼️ Images à mimer pour l'équipe Rose");
-    assert.deepEqual(await choix.locator(".chips:not(.choix-cats) .chip").evaluateAll((xs) => xs.map((x) => x.dataset.groupe)), ["tout", "photos", "emojis", "miennes", "packs"]);
+    assert.deepEqual(await choix.locator(".chips:not(.choix-cats) .chip").evaluateAll((xs) => xs.map((x) => x.dataset.groupe)), ["tout", "packs", "photos", "emojis", "miennes"]);
     assert.ok(await choix.locator(".choix-ajouter").isDisabled());
     await choix.locator('.chip[data-groupe="miennes"]').click();
     await choix.locator('.media-tile[data-media="8888888888888888"]').click();
@@ -7957,7 +8025,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)),
       ["quiz-outils", "check bougies quiz-bougies", "quiz-finale"]);
     assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)),
-      ["tirage-ligne", "quiz-ajouts quiz-rappel", "quiz-ajouts quiz-biblio"]);
+      ["packs-ligne", "tirage-ligne", "quiz-ajouts quiz-rappel", "quiz-ajouts quiz-biblio"]);
     assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "btn tirage-de"]);
     // « Rappeler un de vos quiz » : une case à gauche (pas un champ), une recherche à droite.
     const ajouts = round.locator(".quiz-rappel");
@@ -8956,22 +9024,32 @@ describe("bibliothèque de quiz et prestations", () => {
     const apercuPacks = page.locator("dialog[data-fenetre][open]");
     await apercuPacks.locator(".pack-apercu-vignettes img").first().waitFor();
     const texteApercu = await apercuPacks.innerText();
-    assert.match(texteApercu, /Les animaux de la savane\s+Quiz · Thème « Animaux » · 4 questions/);
+    assert.match(texteApercu, /Les animaux de la savane\s+Quiz · 4 questions/);
+    // Deux thèmes différents : le choix global laisse le thème de chaque pack.
+    assert.equal(await apercuPacks.locator(".pack-theme-global select.pack-theme option:checked").textContent(), "— Le thème de chaque pack —");
+    assert.equal(await apercuPacks.locator(".pack-theme-global .pack-theme-etat").isHidden(), true);
     assert.match(texteApercu, /Question 4 : Image manquante : ajoutez une illustration\./);
     assert.match(texteApercu, /Question 5 : ni propositions ni nombre à trouver, elle n'est pas importée\./);
     assert.match(texteApercu, /Laissé de côté : liste\.txt\./);
-    // Famille et niveau (cedric, 25/10) : lus dans le pack ; « Espace » ne les dit pas, l'import les demande.
+    // Thème et niveau (cedric, 25/10) : la Régie propose un de ses thèmes (« Animaux » existe déjà) ou un nouveau
+    // (« Sciences »), modifiable ; « Espace » ne dit pas son niveau, l'import le demande.
     const etiquettesDe = (titre) => apercuPacks.locator(".pack-apercu-pack").filter({ has: page.locator("h3", { hasText: new RegExp(`^${titre}$`) }) });
-    assert.equal(await etiquettesDe("Les animaux de la savane").locator("select.pack-famille").inputValue(), "Animaux et nature");
-    assert.equal(await etiquettesDe("Les animaux de la savane").locator("select.pack-niveau").inputValue(), "Facile");
-    assert.equal(await etiquettesDe("Espace").locator("select.pack-famille").inputValue(), "");
-    await etiquettesDe("Espace").locator(".pack-etiquettes-manque", { hasText: "Le pack ne dit pas la famille ni le niveau : choisissez-les ici." }).waitFor();
+    const savaneTheme = etiquettesDe("Les animaux de la savane");
+    assert.deepEqual([await savaneTheme.locator("select.pack-theme").inputValue(), await savaneTheme.locator(".pack-theme-etat").textContent()], ["Animaux", "existant"]);
+    assert.equal(await savaneTheme.locator(".pack-theme-nom").isHidden(), true);
+    assert.equal(await savaneTheme.locator("select.pack-niveau").inputValue(), "Facile");
+    const espaceTheme = etiquettesDe("Espace");
+    assert.deepEqual([await espaceTheme.locator(".pack-theme-nom").inputValue(), await espaceTheme.locator(".pack-theme-etat").textContent()], ["Sciences", "nouveau"]);
+    // La Régie s'est trompée ? Un nouveau thème au nom d'un thème déjà là y range le pack ; ici on garde « Sciences ».
+    await espaceTheme.locator(".pack-theme-nom").fill("animaux");
+    assert.equal(await espaceTheme.locator(".pack-theme-etat").textContent(), "existant");
+    await espaceTheme.locator(".pack-theme-nom").fill("Sciences");
+    await espaceTheme.locator(".pack-etiquettes-manque", { hasText: "Le pack ne dit pas le niveau : choisissez-le ici." }).waitFor();
+    await capture(page, "pack-theme-apercu", { pleinePage: false });
     await apercuPacks.locator("[data-fenetre-ok]").click();
-    await apercuPacks.locator(".fenetre-manque", { hasText: "Choisissez la famille et le niveau de « Espace » avant d'enregistrer." }).waitFor();
-    assert.equal(await apercuPacks.isVisible(), true, "rien n'est enregistré tant qu'il manque une étiquette");
+    await apercuPacks.locator(".fenetre-manque", { hasText: "Choisissez le niveau de « Espace » avant d'enregistrer." }).waitFor();
+    assert.equal(await apercuPacks.isVisible(), true, "rien n'est enregistré tant qu'il manque le niveau");
     assert.equal(Object.keys(await library("quizzes")).length, avant);
-    await etiquettesDe("Espace").locator("select.pack-famille").selectOption("Sciences et espace");
-    await etiquettesDe("Espace").locator(".pack-etiquettes-manque", { hasText: "Le pack ne dit pas le niveau : choisissez-le ici." }).waitFor();
     await etiquettesDe("Espace").locator("select.pack-niveau").selectOption("Moyen");
     await etiquettesDe("Espace").locator(".pack-etiquettes-manque").waitFor({ state: "hidden" });
     assert.equal(await repondreFenetre(page), "Importer ces 2 packs ?");
@@ -8987,23 +9065,31 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(savane.questions[3].imageId, undefined);
     assert.ok(savane.questions.every((q) => q.status === "validee"));
     assert.deepEqual([espace.theme, espace.questions[0].correct, espace.questions[0].status], ["Sciences", 0, "validee"]);
-    assert.deepEqual([savane.famille, savane.niveau, savane.ageMin, savane.ageMax], ["Animaux et nature", "Facile", 5, 8]);
-    assert.deepEqual([espace.famille, espace.niveau, espace.ageMin, espace.ageMax], ["Sciences et espace", "Moyen", 9, 11]);
+    assert.deepEqual([savane.famille, savane.niveau, savane.ageMin, savane.ageMax], ["Animaux et nature", "Facile", 5, 8], "sa famille gardée, sans rien ranger");
+    assert.deepEqual([espace.famille ?? null, espace.niveau, espace.ageMin, espace.ageMax], [null, "Moyen", 9, 11]);
     assert.deepEqual(quizzes.animaux, ANIMAUX, "les autres quiz ne bougent pas");
-    // Les packs importés à l'instant sont encadrés, leurs familles ouvertes ; les packs sont rangés par famille, les
-    // dix toujours dans le même ordre (un ancien pack sans famille va dans Divers), avec leurs pastilles de niveau.
+    // Les packs importés à l'instant sont encadrés, leurs thèmes ouverts ; les packs sont rangés par thème (cedric,
+    // 25/10), dans l'ordre alphabétique, avec leurs pastilles de niveau : l'ancien quiz « Animaux » et la savane ensemble.
     await page.locator(`.pack.copie-recente[data-pack="${idSavane}"]`).waitFor();
-    assert.deepEqual(await page.locator(".q-famille .q-plier h2").allInnerTexts(), ["🎮 Jeux vidéo (0)", "🎨 Dessins animés et mangas (0)", "🎬 Films et séries (0)",
-      "🎵 Musique (0)", "⚽ Sport (0)", "🦁 Animaux et nature (1)", "🚀 Sciences et espace (1)", "🏛️ Histoire et monde (0)", "⭐ Célébrités et YouTubeurs (0)", "📦 Divers (1)"]);
-    await page.locator(`.q-famille[data-famille="Animaux et nature"] .pack[data-pack="${idSavane}"] .pack-niveau[data-niveau="Facile"]`).waitFor();
-    await page.locator(`.q-famille[data-famille="Sciences et espace"] .pack[data-pack="${idEspace}"] .pack-niveau[data-niveau="Moyen"]`).waitFor();
-    assert.equal(await page.locator('.q-famille[data-famille="Divers"].replie').count(), 1, "les autres familles restent repliées");
-    await page.locator('.q-famille[data-famille="Divers"] .q-plier').click();
-    await page.locator('.q-famille[data-famille="Divers"] .pack[data-pack="animaux"]').waitFor();
-    await capture(page, "packs-par-famille");
-    // Une puce par niveau : « Facile » garde la savane et l'ancien pack de 5 à 8 ans (son niveau vient de ses âges).
+    assert.deepEqual(await page.locator(".q-theme .q-plier h2").allInnerTexts(), ["🎨 Animaux (2)", "🎨 Sciences (1)"]);
+    await page.locator(`.q-theme[data-theme="Animaux"] .pack[data-pack="${idSavane}"] .pack-niveau[data-niveau="Facile"]`).waitFor();
+    await page.locator(`.q-theme[data-theme="Animaux"] .pack[data-pack="animaux"]`).waitFor();
+    await page.locator(`.q-theme[data-theme="Sciences"] .pack[data-pack="${idEspace}"] .pack-niveau[data-niveau="Moyen"]`).waitFor();
+    await capture(page, "packs-par-theme");
+    // ✎ Renommer : « sciences et espace » devient le thème ; puis le nom d'un autre thème l'y range (fusion).
+    await page.locator('.q-theme[data-theme="Sciences"] .theme-renommer').click();
+    await repondreFenetre(page, { texte: "Sciences et espace" });
+    await page.locator('.q-theme[data-theme="Sciences et espace"]').waitFor();
+    assert.equal((await library(`quizzes/${idEspace}`)).theme, "Sciences et espace");
+    await page.locator('.q-theme[data-theme="Sciences et espace"] .theme-renommer').click();
+    await repondreFenetre(page, { texte: "ANIMAUX" });
+    await page.locator('.q-theme[data-theme="Animaux"] .q-plier h2', { hasText: "🎨 Animaux (3)" }).waitFor();
+    assert.equal((await library(`quizzes/${idEspace}`)).theme, "Animaux");
+    await page.locator('.q-theme[data-theme="Animaux"] .theme-renommer').click();
+    await repondreFenetre(page, { accepter: false });
+    // Une puce par niveau : « Facile » garde la savane et l'ancien quiz de 6 à 8 ans (son niveau vient de ses âges).
     await page.click('.q-niveaux-packs [data-niveau="Facile"]');
-    assert.deepEqual(await page.locator(".q-famille:not(.vide) .q-plier h2").allInnerTexts(), ["🦁 Animaux et nature (1)", "📦 Divers (1)"]);
+    assert.deepEqual(await page.locator(".q-theme .q-plier h2").allInnerTexts(), ["🎨 Animaux (2)"]);
     await page.click('.q-niveaux-packs [data-niveau="tous"]');
     await page.locator(`.pack[data-pack="${idEspace}"]`).waitFor();
 
@@ -9049,8 +9135,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.getByRole("button", { name: "Éditer le pack" }).click();
     await page.locator("#screen-review:not([hidden])").waitFor();
     assert.equal(await page.locator("#rv-title").inputValue(), "Les animaux de la savane");
-    // Sa famille et son niveau se corrigent ici (cedric, 25/10).
-    assert.equal(await page.locator("#rv-famille").inputValue(), "Animaux et nature");
+    // Son thème et son niveau se corrigent ici (cedric, 25/10) ; plus de famille à choisir.
+    assert.equal(await page.locator("#rv-theme").inputValue(), "Animaux");
+    assert.equal(await page.locator("#rv-famille-champ").isHidden(), true);
     assert.equal(await page.locator("#rv-niveau").inputValue(), "Facile");
     await page.goBack();
     await page.locator("#library-questions:not([hidden])").waitFor();
@@ -9084,7 +9171,9 @@ describe("bibliothèque de quiz et prestations", () => {
     ]));
     const fenetre = page.locator("dialog[data-fenetre][open]");
     await fenetre.locator(".pack-apercu-vignettes img").nth(1).waitFor();
-    assert.match(await fenetre.innerText(), /Quiz illustré · 5 à 8 ans · Thème « Disney » · 1 question/);
+    assert.match(await fenetre.innerText(), /Quiz illustré · 5 à 8 ans · 1 question/);
+    assert.equal(await fenetre.locator(".pack-theme-nom").inputValue(), "Disney");
+    assert.equal(await fenetre.locator(".pack-theme-global").count(), 0, "un seul pack : pas de thème global");
     assert.match(await fenetre.innerText(), /Question 1, réponse C : Image manquante : ajoutez une illustration\./);
     await capture(page, "pack-zip-apercu", { pleinePage: false });
     assert.equal(await repondreFenetre(page), "Importer « Reine des neiges » ?");
@@ -9158,11 +9247,12 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#media-groups [data-groupe="packs"]', { hasText: "📦 Images des packs (4)" }).waitFor();
     assert.match(await page.locator('#media-groups [data-groupe="miennes"]').innerText(), /\(0\)/);
     await page.click('#media-groups [data-groupe="packs"]');
-    assert.deepEqual(await page.locator("#media-list h3.content-series").allInnerTexts(), ["Disney · 2", "Sans thème · 2"]);
+    // « Disney zoom » (sans thème) : la Régie l'a rangé dans le thème proche « Disney ».
+    assert.deepEqual(await page.locator("#media-list h3.content-series").allInnerTexts(), ["Disney · 4"]);
     assert.equal(await page.locator("#media-list .media-card select.media-cat").count(), 0, "rangées par thème du pack, sans catégorie à choisir");
     await capture(page, "images-des-packs");
 
-    // Trois niveaux dans un seul ZIP (cedric, 25/10) : même nom, même famille ; un même nom à un autre niveau n'est pas un doublon.
+    // Trois niveaux dans un seul ZIP (cedric, 25/10) : même nom, même thème ; un même nom à un autre niveau n'est pas un doublon.
     await page.click('#library-tabs [data-lib-tab="questions"]');
     await page.click('#q-groups [data-groupe="packs"]');
     const hp = (niveau, ageMin, ageMax, choices = ["Oui", "Non"]) => JSON.stringify({ title: "Harry Potter", famille: "Films et séries", niveau, ageMin, ageMax,
@@ -9175,18 +9265,42 @@ describe("bibliothèque de quiz et prestations", () => {
     ]));
     await fenetre.locator(".pack-apercu-pack h3").nth(3).waitFor();
     assert.equal(await fenetre.locator(".pack-apercu-pack h3").evaluateAll((els) => els.map((e) => e.textContent).join(" | ")), "Harry Potter | Harry Potter | Harry Potter | Harry Potter");
+    // Le thème de tous les packs (cedric, 25/10), tout en haut : proposé d'après les packs, il règle chaque série ;
+    // chacune garde son menu pour changer la sienne.
+    const global = fenetre.locator(".pack-theme-global");
+    const themesDesSeries = () => fenetre.locator(".pack-apercu-pack").evaluateAll((els) => els.map((e) => {
+      const menu = e.querySelector("select.pack-theme");
+      return menu.value.startsWith("\u0000") ? `+${e.querySelector(".pack-theme-nom").value}` : menu.value;
+    }));
+    assert.deepEqual([await global.locator("select.pack-theme option:checked").textContent(), await global.locator(".pack-theme-nom").inputValue(), await global.locator(".pack-theme-etat").textContent()],
+      ["＋ Nouveau thème…", "Harry Potter", "nouveau"]);
+    assert.deepEqual(await themesDesSeries(), ["+Harry Potter", "+Harry Potter", "+Harry Potter", "+Harry Potter"]);
+    const unDesSiens = await global.locator("select.pack-theme option").evaluateAll((els) => els.map((e) => e.value).find((v) => !v.startsWith("\u0000")));
+    await global.locator("select.pack-theme").selectOption(unDesSiens);
+    assert.equal(await global.locator(".pack-theme-etat").textContent(), "existant");
+    assert.deepEqual(await themesDesSeries(), [unDesSiens, unDesSiens, unDesSiens, unDesSiens]);
+    await global.locator("select.pack-theme").selectOption({ label: "＋ Nouveau thème…" });
+    assert.deepEqual(await themesDesSeries(), ["+Harry Potter", "+Harry Potter", "+Harry Potter", "+Harry Potter"]);
+    // Une seule série change, puis revient.
+    const serie2 = fenetre.locator(".pack-apercu-pack").nth(1);
+    await serie2.locator("select.pack-theme").selectOption(unDesSiens);
+    assert.deepEqual(await themesDesSeries(), ["+Harry Potter", unDesSiens, "+Harry Potter", "+Harry Potter"]);
+    await capture(page, "pack-theme-global", { pleinePage: false });
+    await serie2.locator("select.pack-theme").selectOption({ label: "＋ Nouveau thème…" });
+    assert.equal(await serie2.locator(".pack-theme-nom").inputValue(), "Harry Potter");
     assert.match(await fenetre.innerText(), /Zoom mystère \/ Image floue · 2 photos/);
     assert.equal(await repondreFenetre(page), "Importer ces 4 packs ?");
     await page.locator("#pack-status", { hasText: "✓ Importé" }).waitFor();
     const hps = Object.values(await library("quizzes")).filter((q) => q.title.startsWith("Harry Potter") && q.kind !== "images");
     const zoomHp = Object.values(await library("quizzes")).find((q) => q.title === "Harry Potter" && q.kind === "images");
     assert.deepEqual([zoomHp.niveau, zoomHp.questions.map((q) => q.choices[q.correct]).join(", ")], ["Facile", "Hedwige, Poudlard"]);
-    assert.deepEqual(hps.map((q) => [q.title, q.famille, q.niveau]).sort((a, b) => a[2].localeCompare(b[2])),
-      [["Harry Potter", "Films et séries", "Difficile"], ["Harry Potter", "Films et séries", "Facile"], ["Harry Potter", "Films et séries", "Moyen"]]);
-    await page.locator('.q-famille[data-famille="Films et séries"] .q-plier h2', { hasText: "🎬 Films et séries (3)" }).waitFor();
-    assert.deepEqual(await page.locator('.q-famille[data-famille="Films et séries"] .pack .pack-niveau').allInnerTexts(), ["Facile", "Moyen", "Difficile"]);
+    // Un pack fait avec l'ancien prompt (famille, sans thème) : son thème vient de son nom ; sa famille reste gardée.
+    assert.deepEqual(hps.map((q) => [q.title, q.theme, q.famille, q.niveau]).sort((a, b) => a[3].localeCompare(b[3])),
+      [["Harry Potter", "Harry Potter", "Films et séries", "Difficile"], ["Harry Potter", "Harry Potter", "Films et séries", "Facile"], ["Harry Potter", "Harry Potter", "Films et séries", "Moyen"]]);
+    await page.locator('.q-theme[data-theme="Harry Potter"] .q-plier h2', { hasText: "🎨 Harry Potter (3)" }).waitFor();
+    assert.deepEqual(await page.locator('.q-theme[data-theme="Harry Potter"] .pack .pack-niveau').allInnerTexts(), ["Facile", "Moyen", "Difficile"]);
     // Chaque carte dit son jeu, reconnu à l'import : c'est ce jeu-là qui le propose dans une prestation.
-    assert.deepEqual(await page.locator('.q-famille[data-famille="Films et séries"] .pack .pill').allInnerTexts(), ["📝 Quiz classique", "📝 Quiz classique", "✅ Vrai ou Faux express"]);
+    assert.deepEqual(await page.locator('.q-theme[data-theme="Harry Potter"] .pack .pill').allInnerTexts(), ["📝 Quiz classique", "📝 Quiz classique", "✅ Vrai ou Faux express"]);
 
     // Un ZIP qui contient des ZIP (ChatGPT, 25/10) : tout dans le même aperçu. Une image panoramique : petite alerte, pas un refus.
     const kpop = (niveau, image) => JSON.stringify({ title: "K-pop", famille: "Musique", niveau,
@@ -9207,6 +9321,31 @@ describe("bibliothèque de quiz et prestations", () => {
     await carteKpop.locator(".q-alerte.hors-format", { hasText: "⚠ 1 image hors format : « Ouvrir » pour voir" }).waitFor();
     await carteKpop.getByRole("button", { name: "Ouvrir" }).click();
     await page.locator(".hors-format-liste li", { hasText: "Question 1 : Image panoramique (1600 × 900)" }).waitFor();
+
+    // Bibliothèque › Questions (cedric, 25/10) : le gros bouton d'import à gauche de « ← Retour », « 🎨 Mes thèmes » en premier.
+    assert.deepEqual(await page.locator("#screen-library > .retour-barre.haut > *").evaluateAll((xs) => xs.map((x) => x.textContent)), ["📦 Importer un pack ZIP", "← Retour"]);
+    assert.deepEqual(await page.locator("#q-groups .chip").evaluateAll((xs) => xs.slice(0, 2).map((x) => x.dataset.groupe)), ["tout", "packs"]);
+    assert.match(await page.locator('#q-groups [data-groupe="packs"]').textContent(), /^🎨 Mes thèmes \(/);
+    // Les thèmes de ses packs dans les puces des banques toutes prêtes, chacun dans le jeu qui lui va.
+    await page.click('#q-groups [data-groupe="classiques"]');
+    assert.equal(await page.locator(".q-categories .theme-pack").evaluateAll((xs) => xs.map((x) => x.textContent).join(" | ")), "🎨 Harry Potter (2) | 🎨 K-pop (2)");
+    assert.equal(await page.locator(".q-liste .q-item .q-niveau:not(select)").first().textContent(), "Facile · 5-8 ans", "banque de l'appli : niveau affiché, fixe");
+    await page.click('.q-categories .theme-pack[data-categorie="K-pop"]');
+    const niveaux = page.locator(".q-liste .q-item select.q-niveau-choix");
+    await waitFor(async () => (await niveaux.count()) === 2, "les 2 questions K-pop");
+    assert.deepEqual(await niveaux.evaluateAll((xs) => xs.map((x) => x.value)), ["Facile", "Moyen"]);
+    // Le niveau d'une question se change à la main, et reste.
+    await niveaux.first().selectOption("Difficile");
+    await waitFor(async () => (await library(`quizzes/${idKpop}/questions/0/niveau`)) === "Difficile", "niveau enregistré");
+    await capture(page, "questions-themes-niveaux", { pleinePage: false });
+    await page.click('#q-groups [data-groupe="vraifaux"]');
+    assert.equal(await page.locator(".q-categories .theme-pack").evaluateAll((xs) => xs.map((x) => x.textContent).join(" | ")), "🎨 Harry Potter (1)");
+    // Bibliothèque › Images : les images des packs d'abord.
+    await page.click('#library-tabs [data-lib-tab="images"]');
+    assert.equal(await page.locator("#q-importer-haut").isHidden(), true, "le bouton d'import est celui des questions");
+    assert.deepEqual(await page.locator("#media-groups .chip").evaluateAll((xs) => xs.slice(0, 2).map((x) => x.dataset.groupe)), ["tout", "packs"]);
+    await page.click('#media-groups [data-groupe="tout"]');
+    assert.equal(await page.locator("#media-list .media-group").first().getAttribute("data-groupe"), "packs");
     await page.context().close();
   });
 

@@ -2387,12 +2387,12 @@ describe("bibliothèque d'images de la Régie PC (émojis, photos libres, ses im
     assert.deepEqual(mes.map((x) => x.id).sort(), [MIENNE, RANGEE].sort(), "aucune image de pack dans « Mes images »");
     const dePacks = B.mesImagesDePacks(medias, packs, u, new Map());
     assert.deepEqual(dePacks.map((x) => [x.id, x.groupe, x.cat, x.nom, x.retiree]), [
-      [P1, "packs", "Harry Potter", "Hedwige", false], [P2, "packs", "Harry Potter", "Ron", true], [P3, "packs", "Sans thème", "A", false],
+      [P1, "packs", "Harry Potter", "Hedwige", false], [P2, "packs", "Harry Potter", "Ron", true], [P3, "packs", "Vieux pack", "A", false],
     ]);
     assert.ok(B.correspond(dePacks[0], "harry potter"), "le nom du pack et son thème se cherchent");
     assert.equal(B.estQuizPack(quizzes.mien), false);
     assert.equal(B.GROUPES_IMAGES.packs, "📦 Images des packs");
-    assert.deepEqual(Object.keys(B.GROUPES_IMAGES), ["emojis", "photos", "miennes", "packs", "pochettes"]);
+    assert.deepEqual(Object.keys(B.GROUPES_IMAGES), ["packs", "emojis", "photos", "miennes", "pochettes"], "les images des packs d'abord (cedric, 25/10)");
   });
 
   test("la recherche : chaque mot dans le nom, la catégorie ou les mots-clés, sans accents ni majuscules", () => {
@@ -2687,7 +2687,7 @@ describe("Mes questions : supprimer, en vrac par thème, packs rangés par thèm
       ["Animaux", ["p7"]], ["disney", ["p2", "p4"]], ["Éléphants", ["p6"]], ["Musique", ["p1"]], [Q.SANS_THEME, ["p3", "p5"]],
     ]);
     assert.deepEqual(Q.packsParTheme([]), []);
-    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📝 Quiz classique tout prêt", "🖼️ Quiz illustré tout prêt", "✅ Vrai ou Faux tout prêt", "✍️ Mes questions en vrac", "📥 Mes packs", "🔍 Mes séries de photos", "🧪 Questions de test"]);
+    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["🎨 Mes thèmes", "📝 Quiz classique tout prêt", "🖼️ Quiz illustré tout prêt", "✅ Vrai ou Faux tout prêt", "✍️ Mes questions en vrac", "🔍 Mes séries de photos", "🧪 Questions de test"]);
   });
 
   test("questions de test : celles des prestations de test (clés « test-… ») sont à part, en vrac comme en pack", () => {

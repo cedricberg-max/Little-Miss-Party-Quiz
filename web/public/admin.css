@@ -918,7 +918,7 @@ button.media-tile:hover { border-color: var(--violet); }
 .tirage-rep-img.emoji { display: grid; place-items: center; font-size: 28px; line-height: 1; }
 .tirage-rep-mot { max-width: 100%; }
 .tirage-q-ligne .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
-.tirage-q-ligne .tirage-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }
+.tirage-q-ligne .tirage-de.petit, .tirage-q-ligne .packs-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }
 @media (max-width: 640px) { .tirage-ligne > select { flex: 1 1 100%; } }
 /* Un Quiz = une seule manche (cedric, 23/10) : le compteur (en majuscules, sur la ligne du numéro du jeu), les outils
    de création ensemble, les séries, la Super Finale, puis le « Quiz complet » ; un peu d'air entre chaque partie. */
@@ -1193,3 +1193,36 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
   .q-famille > .cards { margin-left: 0; }
   .famille-resume { display: none; }
 }
+/* « 🎨 Mes thèmes » (cedric, 25/10) : les trois dés des packs, au-dessus des autres outils du Quiz. */
+.packs-ligne { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding-bottom: 12px; border-bottom: 1px dashed var(--line-2); }
+.packs-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.packs-tete > select { width: auto; flex: 0 1 auto; }
+.packs-des { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.packs-de-ligne { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.packs-de-ligne .packs-de { flex: none; font-size: 26px; line-height: 1; padding: 8px 22px; }
+.packs-de-texte { font-weight: 700; color: var(--ink); }
+.packs-case .tirage-q-ligne { flex-wrap: wrap; }
+.packs-case-theme { flex: 1 1 140px; min-width: 0; max-width: 260px; }
+/* Bibliothèque › Questions (cedric, 25/10) : le gros bouton d'import, à gauche de « ← Retour ». */
+.retour-barre.haut .importer-haut { font-size: 18px; padding: 12px 22px; }
+.retour-barre.haut .importer-haut[hidden] { display: none; }
+/* Un thème de ses packs parmi les puces d'une banque toute prête. */
+.chip.theme-pack:not(.active) { border-color: var(--violet); color: var(--violet); font-weight: 800; }
+/* Niveau d'une question (cedric, 25/10) : une pastille de couleur ; sur ses questions, un choix qui le change. */
+.q-niveau { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 800; color: #fff; background: var(--soft); white-space: nowrap; }
+.q-niveau[data-niveau="Facile"] { background: #22a35a; }
+.q-niveau[data-niveau="Moyen"] { background: #2f7fd8; }
+.q-niveau[data-niveau="Difficile"] { background: #8a4fd8; }
+select.q-niveau-choix { width: auto; min-width: 0; min-height: 0; border: 0; padding: 3px 26px 3px 10px; cursor: pointer; }
+select.q-niveau-choix option { color: var(--ink); background: var(--card); }
+/* Thème d'un pack à importer : un de ses thèmes (existant) ou un nouveau, au choix. */
+.pack-theme-etat { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.pack-theme-etat[data-etat="existant"] { background: var(--good-pale); color: var(--good); }
+.pack-theme-etat[data-etat="nouveau"] { background: var(--gold-pale); color: var(--warn); }
+.pack-theme-nom[hidden], .pack-theme-etat[hidden] { display: none; }
+/* Le thème de tous les packs, tout en haut de l'aperçu d'import. */
+.pack-theme-global { margin: 0 0 4px; padding: 12px 14px; border-radius: 16px; background: var(--violet-pale); border: 2px solid var(--violet); }
+.pack-theme-global .pack-etiquette { font-size: 17px; }
+.pack-theme-global .hint { margin: 6px 0 0; }
+.q-theme > .title-row { flex-wrap: nowrap; }
+.q-theme > .title-row > .q-plier { flex: 1 1 auto; min-width: 0; }

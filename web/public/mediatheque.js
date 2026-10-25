@@ -7,8 +7,10 @@ import { PHOTOS_BANQUE, BANQUE } from "./banque-photos.js";
 import { DISPARU_THEMES } from "./buzz-cards.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import { ROUND_TYPES } from "./show.js";
+import { themeDuQuiz } from "./rangement.js";
 
-export const GROUPES_IMAGES = { emojis: "😀 Émojis", photos: "📷 Photos libres", miennes: "⭐ Mes images", packs: "📦 Images des packs", pochettes: "💿 Pochettes" };
+// Les images des packs d'abord : ce sont ses images principales (cedric, 25/10).
+export const GROUPES_IMAGES = { packs: "📦 Images des packs", emojis: "😀 Émojis", photos: "📷 Photos libres", miennes: "⭐ Mes images", pochettes: "💿 Pochettes" };
 
 /**
  * Images des packs importés (cedric, 25/10 : les images avec droits d'auteur à part des photos libres et des siennes),
@@ -152,7 +154,8 @@ export function imagesDesPacks(quizzes = {}) {
   const out = new Map();
   for (const qz of Object.values(quizzes)) {
     if (!qz?.title || !estQuizPack(qz)) continue;
-    const theme = `${qz.theme ?? ""}`.trim() || "Sans thème";
+    // Rangées par thème du pack (cedric, 25/10), comme dans Bibliothèque › Questions.
+    const theme = themeDuQuiz(qz);
     for (const q of Object.values(qz.questions ?? {})) {
       if (!q) continue;
       const choix = Object.values(q.choices ?? {});
