@@ -764,6 +764,22 @@ button.media-tile:hover { border-color: var(--violet); }
   font: inherit; box-shadow: 0 20px 60px rgba(40, 20, 60, .35);
 }
 .fenetre[open] { display: flex; flex-direction: column; gap: 18px; }
+/* Fenêtre avec un contenu (aperçu d'un pack, modifier un personnage) : plus large. */
+.fenetre.fenetre-large { width: min(92vw, 720px); max-width: min(92vw, 720px); }
+.pack-apercu { display: flex; flex-direction: column; gap: 14px; }
+.pack-apercu-pack { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; }
+.pack-apercu-pack h3 { margin: 0; }
+.pack-apercu-infos { margin: 0; }
+.pack-apercu-vignettes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pack-apercu-vignettes img { width: 64px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.pack-apercu-liste, .pack-apercu-alertes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.pack-apercu-alertes .pack-alerte { color: var(--bad); font-weight: 700; }
+.pack-apercu-alertes .pack-erreur { color: var(--bad); }
+.personnage-edit { display: flex; flex-direction: column; gap: 10px; }
+.personnage-edit label { display: flex; flex-direction: column; gap: 4px; }
+/* Un ZIP glissé sur le cadre « Importer un pack ». */
+.pack-import.depot { outline: 3px dashed var(--violet); outline-offset: 4px; }
+.choice-photo .case-manquante { white-space: normal; }
 .fenetre:focus { outline: none; }
 .fenetre::backdrop { background: rgba(40, 20, 60, .55); }
 .fenetre-message { display: flex; flex-direction: column; gap: 10px; min-width: 0; }

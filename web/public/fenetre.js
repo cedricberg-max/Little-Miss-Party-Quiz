@@ -21,7 +21,7 @@ const paragraphes = (message) => `${message ?? ""}`.split(/\n[ \t]*\n/).map((p) 
  * Ouvre une fenêtre et attend la réponse : { ok, texte }. [annuler] : texte du second bouton (aucun s'il est nul) ;
  * [texte] : valeur de départ d'un champ à remplir (aucun champ s'il est nul).
  */
-function ouvrir(message, { ok, annuler = null, danger = false, texte = null, maxlength = null, premier = null }) {
+function ouvrir(message, { ok, annuler = null, danger = false, texte = null, maxlength = null, premier = null, contenu = null }) {
   const tour = file.then(() => new Promise((resolve) => {
     const lignes = paragraphes(message);
     const champ = texte === null ? null : el("input", { type: "text", className: "fenetre-texte", value: texte, autocomplete: "off" });
@@ -40,9 +40,11 @@ function ouvrir(message, { ok, annuler = null, danger = false, texte = null, max
     const d = el("dialog", { className: "fenetre", tabIndex: -1 },
       el("div", { className: "fenetre-message", id: "fenetre-message" },
         ...lignes.map((p, i) => el("p", { className: i === 0 ? "fenetre-titre" : "", textContent: p }))),
+      contenu,
       champ,
       el("div", { className: "fenetre-boutons" }, boutonPremier, boutonOk, boutonAnnuler));
     d.dataset.fenetre = "";
+    if (contenu) d.classList.add("fenetre-large");
     d.setAttribute("role", annuler ? "alertdialog" : "dialog");
     d.setAttribute("aria-labelledby", "fenetre-message");
 
@@ -88,4 +90,12 @@ export async function avertir(message, { ok = "OK" } = {}) {
 export async function demanderTexte(message, valeur = "", { ok = "OK", annuler = "Annuler", maxlength } = {}) {
   const r = await ouvrir(message, { ok, annuler, texte: `${valeur ?? ""}`, maxlength });
   return r.ok ? r.texte : null;
+}
+
+/**
+ * Fenêtre avec un contenu à regarder avant de choisir (aperçu d'un pack, cedric 25/10) : [contenu] (un élément) sous le
+ * message. Vrai si on choisit [ok] ; sans [annuler], un simple bouton pour fermer.
+ */
+export async function apercu(message, contenu, { ok = "OK", annuler = "Annuler", danger = false } = {}) {
+  return (await ouvrir(message, { ok, annuler, danger, contenu })).ok === true;
 }

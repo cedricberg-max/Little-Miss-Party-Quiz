@@ -51,7 +51,9 @@ const emojiDeLaBanque = (mot) => motBanque(motSeul(mot))?.emoji ?? null;
  * Un Juste Chiffre a toujours son visuel sur la TV, le compteur qui tourne (validé par cedric le 22/10) : jamais d'alerte.
  */
 export function illustration(q, kind) {
+  // Juste Chiffre et Vrai ou Faux : jamais d'image attendue (cedric, 25/10).
   if (q?.kind === "number") return { ok: true, manque: null };
+  if (kind !== "photo" && q?.choices?.length === 2 && q.choices.join("/").toLowerCase() === "vrai/faux") return { ok: true, manque: null };
   if (kind === "photo") {
     const choix = q?.choices ?? [];
     const sans = choix.filter((_, k) => !IMAGE_ID.test(q?.choiceImages?.[k] ?? "")).length;
