@@ -54,7 +54,7 @@ import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
 import {
-  GROUPES_IMAGES, A_RANGER, POCHETTES, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, pochettesUtilisees, mesPochettes, nomPochette,
+  GROUPES_IMAGES, A_RANGER, POCHETTES, PACKS, imagesDesPacks, mesImagesDePacks, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, pochettesUtilisees, mesPochettes, nomPochette,
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
@@ -1235,7 +1235,7 @@ function mancheMimes(r) {
     const autres = roundCtx.elsewhere?.(r) ?? new Map();
     const ici = new Map(mimeEquipesBrutes(r).flatMap((l, j) => l.filter((c) => !c.vide).flatMap((c) => conceptsMime(c).map((x) => [x, `ces Mimes (équipe ${nom(j)})`]))));
     const choisies = await choisirDansBibliotheque({
-      titre: `Images à mimer pour l'équipe ${nom(k)}`, groupes: ["photos", "emojis", "miennes"], plusieurs: true,
+      titre: `Images à mimer pour l'équipe ${nom(k)}`, groupes: ["photos", "emojis", "miennes", "packs"], plusieurs: true,
       deja: (x) => { const c = imageDeMime(x); const hit = c && conceptsMime(c).find((y) => ici.has(y) || autres.has(y)); return hit ? ici.get(hit) ?? autres.get(hit) : null; },
     });
     const cartes = choisies.map(imageDeMime).filter(Boolean);
@@ -1458,7 +1458,7 @@ function mancheDessins(r) {
     const autres = roundCtx.elsewhere?.(r) ?? new Map();
     const ici = new Map(pictoToursBruts(r).flatMap((ps, j) => ps.flat().filter((m) => !m.vide).flatMap((m) => concepts(m).map((x) => [x, `ce Pictionary (équipe ${nom(j)})`]))));
     const choisies = await choisirDansBibliotheque({
-      titre: `Mots à dessiner pour l'équipe ${nom(k)} (${N} par passage)`, groupes: ["photos", "emojis", "miennes"], plusieurs: true,
+      titre: `Mots à dessiner pour l'équipe ${nom(k)} (${N} par passage)`, groupes: ["photos", "emojis", "miennes", "packs"], plusieurs: true,
       deja: (x) => { const m = imageDeDessin(x); const hit = m && concepts(m).find((y) => ici.has(y) || autres.has(y)); return hit ? ici.get(hit) ?? autres.get(hit) : null; },
     });
     const mots = choisies.map(imageDeDessin).filter(Boolean);
@@ -2176,7 +2176,8 @@ function ligneGrilleVosImages(r, ajouterGrille, changer) {
   });
   if (!panneau) return h("div", { class: "quiz-ajouts vos-images grille-images" }, titre,
     h("span", { class: "hint small", text: `De ${GRILLE_MIN} à ${GRILLE_MAX} de vos images (« Mes images ») pour une grille ; le nom de chaque image est le mot à trouver.` }));
-  const images = groupesImages().miennes;
+  const { miennes: siennes, packs: desPacks } = groupesImages();
+  const images = [...siennes, ...desPacks];
   const cherche = h("input", { type: "search", class: "vos-images-cherche", "aria-label": "Chercher dans vos images", value: panneau.recherche, placeholder: "Nom, catégorie, mot-clé…" });
   const grille = h("div", { class: "media-grid vos-images-grille" });
   const ajouter = h("button", { type: "button", class: "btn vos-images-ajouter grille-images-ajouter" });
@@ -3661,7 +3662,7 @@ function ligneVosImages(r, changer) {
     h("span", { class: "hint small", text: "Toute la bibliothèque : « Mes images » et les photos libres ; le nom de chaque photo est la réponse à trouver." }));
 
   const groupes = groupesImages();
-  const images = [...groupes.miennes, ...groupes.photos];
+  const images = [...groupes.miennes, ...groupes.packs, ...groupes.photos];
   const idImage = (q) => q?.imageId ?? (q?.banque ? `${BANQUE}${q.banque}` : null);
   const dansCeJeu = new Set(questionsDesSeries(r, quizzes).map(idImage).filter(Boolean));
   const dansLaComposition = new Set((seriesDe(r).find((x) => x.origine === "images")?.questions ?? []).map(idImage).filter(Boolean));
@@ -3710,7 +3711,7 @@ function ligneVosImages(r, changer) {
     const serie = seriesDe(r).find((x) => x.origine === "images");
     // Les autres propositions des pupitres : les réponses de la série, puis ses autres images, puis des mots de la banque.
     const motsBanque = banqueItems().map((x) => x.value?.choices?.[x.value.correct]).filter(Boolean);
-    const miennes = photosDeMesImages(groupes.miennes.filter((x) => panneau.cochees.has(x.id)), {
+    const miennes = photosDeMesImages([...groupes.miennes, ...groupes.packs].filter((x) => panneau.cochees.has(x.id)), {
       voisines: (serie?.questions ?? []).filter(Boolean).map(reponsePhoto), secours: [...groupes.miennes, ...motsBanque], deja: [...dansLaComposition],
     });
     // Dans l'ordre des clics ; une photo libre garde les propositions de son mot dans la banque.
@@ -4826,10 +4827,10 @@ function choicePhoto(q, slots, k) {
   return h("span", { class: "choice-photo" }, thumb, remove, manque,
     h("button", { type: "button", class: "icon", title: "Mettre une image à la place du texte", text: "📷", onclick: (e) => { e.preventDefault(); file.click(); } }),
     h("button", {
-      type: "button", class: "icon", title: "Choisir l'image dans la bibliothèque (photos libres, vos images, pochettes)", text: "🖼️",
+      type: "button", class: "icon", title: "Choisir l'image dans la bibliothèque (photos libres, vos images, images des packs, pochettes)", text: "🖼️",
       onclick: async (e) => {
         e.preventDefault();
-        const x = await choisirDansBibliotheque({ titre: `Image de la réponse ${LETTERS[k]}`, groupes: ["photos", "miennes", "pochettes"], recherche: slots[k].replace(/^[^\p{L}\p{N}]+/u, "").trim() });
+        const x = await choisirDansBibliotheque({ titre: `Image de la réponse ${LETTERS[k]}`, groupes: ["photos", "miennes", "packs", "pochettes"], recherche: slots[k].replace(/^[^\p{L}\p{N}]+/u, "").trim() });
         if (x) await poserReponse(x);
       },
     }),
@@ -5325,6 +5326,8 @@ $("rv-save").onclick = async () => {
       title, theme: $("rv-theme").value.trim() || null,
       ageMin: num($("rv-age-min").value), ageMax: num($("rv-age-max").value),
       source: draft.quiz.source ?? "saisie", kind: draft.kind,
+      // Un pack importé le reste (ses images restent dans « Images des packs »).
+      ...(draft.quiz.pack === true ? { pack: true } : {}),
       createdAt: draft.quiz.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
       questions: questions.map((q) => ({
         text: q.text.slice(0, 300), choices: q.kind === "number" ? null : q.choices,
@@ -7650,6 +7653,7 @@ const RETIREES = "retirees";
 const APERCU = 20;
 const MAX_FICHES = 120;
 const NOUVELLE_CAT = "＋ Nouvelle catégorie…";
+const AUCUNE_IMAGE_PACK = "Aucune image de pack pour l'instant : elles arrivent toutes seules avec les packs importés (Bibliothèque › ❓ Questions, « 📦 Importer un pack ZIP »).";
 const AUCUNE_POCHETTE = "Aucune pochette pour l'instant : elles arrivent toutes seules avec les chansons (Bibliothèque › 🎵 Sons).";
 
 function openLibrary(tab) {
@@ -8240,7 +8244,7 @@ function quizDuPack(p) {
   const kind = p.epreuve === "illustre" ? "photo" : p.epreuve === "photos" ? "images" : "classique";
   return {
     title: p.titre, theme: p.theme || null, ageMin: p.ageMin ?? null, ageMax: p.ageMax ?? null,
-    source: p.epreuve === "photos" ? "photos" : "json", kind, createdAt: Date.now(), updatedAt: serverTimestamp(),
+    source: p.epreuve === "photos" ? "photos" : "json", pack: true, kind, createdAt: Date.now(), updatedAt: serverTimestamp(),
     questions: p.questions.map((q, i) => {
       const nombre = q.kind === "number";
       const choices = nombre ? null : q.choices.slice(0, 4);
@@ -8303,17 +8307,19 @@ function deposeZip(zone, faire) {
 function groupesImages() {
   const utilisees = imagesUtilisees({ quizzes, mimes, contents, songs, playlists });
   const couvertures = pochettesUtilisees({ songs, playlists });
-  const miennes = mesImages(medias, utilisees, couvertures);
+  const desPacks = imagesDesPacks(quizzes);
+  const miennes = mesImages(medias, utilisees, couvertures, desPacks);
+  const packs = mesImagesDePacks(medias, desPacks, utilisees, couvertures);
   const pochettes = mesPochettes(medias, couvertures, utilisees);
   return {
     emojis: emojisBibliotheque(), photos: photosLibres(),
-    miennes: miennes.filter((x) => !x.retiree), pochettes: pochettes.filter((x) => !x.retiree),
-    [RETIREES]: { miennes: miennes.filter((x) => x.retiree), pochettes: pochettes.filter((x) => x.retiree) },
+    miennes: miennes.filter((x) => !x.retiree), packs: packs.filter((x) => !x.retiree), pochettes: pochettes.filter((x) => !x.retiree),
+    [RETIREES]: { miennes: miennes.filter((x) => x.retiree), packs: packs.filter((x) => x.retiree), pochettes: pochettes.filter((x) => x.retiree) },
   };
 }
 
 /** Image déjà rangée dans la base (une des siennes, une pochette) : choisie telle quelle, sans nouvelle copie. */
-const dansLaBase = (x) => x.groupe === "miennes" || x.groupe === "pochettes";
+const dansLaBase = (x) => x.groupe === "miennes" || x.groupe === "packs" || x.groupe === "pochettes";
 
 /** Ce que la recherche lit d'une image : son nom d'abord, puis sa catégorie, ses mots-clés et où elle sert. */
 const nomMedia = (x) => x.nom;
@@ -8359,7 +8365,7 @@ function renderMedias(force = false) {
           k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { const y = window.scrollY; mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); noterRubrique(y); } }) : null,
           k === "photos" && !recherche && motsSansPhoto().length ? h("button", { type: "button", class: "btn small secondary pm-ouvrir", text: `🧰 Photos manquantes (${motsSansPhoto().length})`, onclick: () => { const y = window.scrollY; mediaGroupe = "photos"; mediaCat = null; renderMedias(true); noterRubrique(y); } }) : null),
         list.length ? h("div", { class: "media-grid" }, ...list.slice(0, APERCU).map((x, i, l) => vignetteMedia(x, i, l)))
-          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune image à vous pour l'instant : « ＋ Ajouter mes images »." : k === "pochettes" ? AUCUNE_POCHETTE : "" }));
+          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune image à vous pour l'instant : « ＋ Ajouter mes images »." : k === "pochettes" ? AUCUNE_POCHETTE : k === "packs" ? AUCUNE_IMAGE_PACK : "" }));
     }));
     return;
   }
@@ -8378,10 +8384,10 @@ function renderMedias(force = false) {
     retirees.length ? catChip(RETIREES, "🚫 Retirées", retirees.length) : null] : []).filter(Boolean));
   const list = mediaCat === RETIREES ? retirees : mediaCat ? tout.filter((x) => x.cat === mediaCat) : tout;
   if (!list.length) {
-    box.replaceChildren(h("p", { class: "hint", text: recherche ? "Aucune image ne correspond à cette recherche." : mediaGroupe === "miennes" ? "Aucune image à vous pour l'instant : ajoutez-en avec « Choisir des images sur le PC… »." : mediaGroupe === "pochettes" ? AUCUNE_POCHETTE : "Aucune image." }));
+    box.replaceChildren(h("p", { class: "hint", text: recherche ? "Aucune image ne correspond à cette recherche." : mediaGroupe === "miennes" ? "Aucune image à vous pour l'instant : ajoutez-en avec « Choisir des images sur le PC… »." : mediaGroupe === "pochettes" ? AUCUNE_POCHETTE : mediaGroupe === "packs" ? AUCUNE_IMAGE_PACK : "Aucune image." }));
     return;
   }
-  const fiches = mediaGroupe === "miennes" || mediaGroupe === "pochettes";
+  const fiches = mediaGroupe === "miennes" || mediaGroupe === "packs" || mediaGroupe === "pochettes";
   const montrees = fiches ? list.slice(0, MAX_FICHES) : list;
   const parCat = mediaCat ? [[mediaCat === RETIREES ? "🚫 Retirées" : mediaCat, montrees]] : categoriesDe(montrees).map((c) => [c, montrees.filter((x) => x.cat === c)]);
   box.replaceChildren(...parCat.flatMap(([c, items]) => [
@@ -8488,8 +8494,10 @@ $("visionneuse").addEventListener("click", (e) => { if (e.target === $("visionne
  */
 function ficheMedia(x, toutes, liste = [x], i = 0) {
   const pochette = x.groupe === "pochettes";
+  // Image d'un pack : rangée par thème du pack, sa fiche garde la catégorie réservée (sinon elle passerait dans ses images).
+  const dePack = x.groupe === "packs";
   const enregistrer = async (champs, message) => {
-    const f = ficheImage({ nom: x.nom, cat: x.cat, tags: x.tags, retiree: x.retiree, ...champs }, medias[x.id]);
+    const f = ficheImage({ nom: x.nom, cat: dePack ? PACKS : x.cat, tags: x.tags, retiree: x.retiree, ...champs }, medias[x.id]);
     if (!f) return status("media-note", "Donnez un nom à l'image.");
     fichesEnregistrement++;
     try {
@@ -8512,7 +8520,7 @@ function ficheMedia(x, toutes, liste = [x], i = 0) {
   });
   const options = [...(x.cat === A_RANGER ? [A_RANGER] : []), ...categoriesPerso(toutes)];
   if (!options.includes(x.cat)) options.unshift(x.cat);
-  const cat = pochette ? null : h("select", {
+  const cat = pochette || dePack ? null : h("select", {
     class: "media-cat", "aria-label": "Catégorie",
     onchange: async (e) => {
       const choix = e.target;
@@ -8529,7 +8537,7 @@ function ficheMedia(x, toutes, liste = [x], i = 0) {
     class: "media-tags", value: x.tags.join(", "), maxlength: 300, "aria-label": "Mots-clés", placeholder: "Mots-clés…", title: "Mots-clés, séparés par des virgules (princesse, Disney…)",
     onchange: (e) => enregistrer({ tags: motsCles(e.target.value) }),
   });
-  const ici = pochette ? "les pochettes" : "vos images";
+  const ici = pochette ? "les pochettes" : dePack ? "les images des packs" : "vos images";
   const bouton = x.retiree
     ? h("button", { type: "button", class: "btn small", text: "Remettre", onclick: () => enregistrer({ retiree: false }, `« ${x.nom} » est remise dans ${ici}.`) })
     : h("button", { type: "button", class: "btn small secondary", text: "Retirer", title: `Elle disparaît de ${ici} ; les chansons, les quiz et les jeux qui l'utilisent la gardent.`, onclick: () => enregistrer({ retiree: true }, `« ${x.nom} » est retirée : retrouvez-la dans « 🚫 Retirées ». Les chansons, les quiz et les jeux qui l'utilisent la gardent.`) });

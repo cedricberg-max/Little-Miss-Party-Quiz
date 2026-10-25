@@ -1,5 +1,5 @@
-// Bibliothèque d'images de la Régie PC : quatre groupes (émojis, photos libres de la banque, images de Sarah, pochettes
-// des chansons) et une seule recherche, par nom, catégorie ou mot-clé, sans tenir compte des accents ni des majuscules.
+// Bibliothèque d'images de la Régie PC : cinq groupes (émojis, photos libres de la banque, images de Sarah, images des
+// packs importés, pochettes des chansons) et une seule recherche, par nom, catégorie ou mot-clé, sans tenir compte des accents ni des majuscules.
 // Les images de Sarah restent dans library/images (une seule copie par image) ; leur fiche (nom, catégorie, mots-clés,
 // retirée ou non) vit à côté, dans library/medias, sous le même identifiant.
 import { BANQUE_MOTS, FAMILLES_PETITS } from "./banque-petits.js";
@@ -8,7 +8,16 @@ import { DISPARU_THEMES } from "./buzz-cards.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import { ROUND_TYPES } from "./show.js";
 
-export const GROUPES_IMAGES = { emojis: "😀 Émojis", photos: "📷 Photos libres", miennes: "⭐ Mes images", pochettes: "💿 Pochettes" };
+export const GROUPES_IMAGES = { emojis: "😀 Émojis", photos: "📷 Photos libres", miennes: "⭐ Mes images", packs: "📦 Images des packs", pochettes: "💿 Pochettes" };
+
+/**
+ * Images des packs importés (cedric, 25/10 : les images avec droits d'auteur à part des photos libres et des siennes),
+ * rangées par thème du pack. Une image qu'elle range elle-même dans une de ses catégories passe dans « Mes images » ;
+ * sa fiche garde cette catégorie réservée tant qu'elle reste ici. Jamais tirées au hasard.
+ */
+export const PACKS = "Images des packs";
+/** Un quiz venu d'un pack : importé d'un ZIP, ou d'un ancien fichier de pack (source « json »). */
+export const estQuizPack = (qz) => qz?.pack === true || qz?.source === "json";
 
 /**
  * Pochettes d'album (cedric, 22/10) : à part de ses images. Celles des chansons arrivent toutes seules ; une chanson
@@ -138,6 +147,45 @@ export function imagesUtilisees({ quizzes = {}, mimes = {}, contents = {}, songs
   return out;
 }
 
+/** Images des packs : identifiant → { nom, theme, pack } (le premier pack qui s'en sert). */
+export function imagesDesPacks(quizzes = {}) {
+  const out = new Map();
+  for (const qz of Object.values(quizzes)) {
+    if (!qz?.title || !estQuizPack(qz)) continue;
+    const theme = `${qz.theme ?? ""}`.trim() || "Sans thème";
+    for (const q of Object.values(qz.questions ?? {})) {
+      if (!q) continue;
+      const choix = Object.values(q.choices ?? {});
+      const noter = (id, nom) => { if (typeof id === "string" && IMAGE_ID.test(id) && !out.has(id)) out.set(id, { nom: nomPropre(nom) || "Image", theme, pack: qz.title }); };
+      noter(q.imageId, choix[q.correct] ?? q.text);
+      Object.entries(q.choiceImages ?? {}).forEach(([k, id]) => noter(id, choix[k]));
+    }
+  }
+  return out;
+}
+
+/** Une image est une image de pack si sa fiche est rangée dans « Images des packs », ou si un pack s'en sert sans qu'elle l'ait rangée ailleurs. */
+const estImagePack = (id, fiche, packs) => fiche?.cat === PACKS || (!fiche?.cat && packs.has(id));
+
+/**
+ * Les images des packs, par thème de pack puis par nom (pas les pochettes) ; une fiche donne son nom, ses mots-clés et
+ * « retirée ».
+ */
+export function mesImagesDePacks(medias = {}, packs = new Map(), utilisees = new Map(), pochettes = new Map()) {
+  const out = [];
+  const ids = new Set([...Object.keys(medias), ...packs.keys()]);
+  for (const id of ids) {
+    const f = medias[id];
+    if (!IMAGE_ID.test(id) || estPochette(id, f, pochettes) || !estImagePack(id, f, packs)) continue;
+    const p = packs.get(id);
+    out.push({
+      groupe: "packs", id, nom: f?.name ?? p?.nom ?? "Image", cat: p?.theme ?? "Sans thème", tags: f ? motsCles(f.tags) : p ? motsCles(p.pack) : [],
+      retiree: f?.hidden === true, ou: utilisees.get(id)?.ou ?? [], fiche: !!f,
+    });
+  }
+  return out.sort((a, b) => a.cat.localeCompare(b.cat, "fr") || a.nom.localeCompare(b.nom, "fr"));
+}
+
 /** Nom d'une pochette : « Artiste – Titre », ou le titre seul. */
 export const nomPochette = (t) => [t?.artist, t?.title].map((x) => `${x ?? ""}`.trim()).filter(Boolean).join(" – ").slice(0, FICHE.nom);
 
@@ -161,12 +209,13 @@ const estPochette = (id, fiche, pochettes) => fiche?.cat === POCHETTES || (!fich
 
 /**
  * Ses images : celles qui ont une fiche (envoyées dans la bibliothèque, ou déjà rangées), puis celles déjà utilisées
- * sans fiche (« À ranger »), les plus récentes d'abord. Jamais les pochettes ([pochettes] : celles des chansons).
+ * sans fiche (« À ranger »), les plus récentes d'abord. Jamais les pochettes ([pochettes] : celles des chansons) ni les
+ * images des packs ([packs], voir imagesDesPacks).
  */
-export function mesImages(medias = {}, utilisees = new Map(), pochettes = new Map()) {
+export function mesImages(medias = {}, utilisees = new Map(), pochettes = new Map(), packs = new Map()) {
   const out = [];
   for (const [id, f] of Object.entries(medias)) {
-    if (!f || !IMAGE_ID.test(id) || estPochette(id, f, pochettes)) continue;
+    if (!f || !IMAGE_ID.test(id) || estPochette(id, f, pochettes) || estImagePack(id, f, packs)) continue;
     out.push({
       groupe: "miennes", id, nom: f.name ?? utilisees.get(id)?.nom ?? "", cat: f.cat || A_RANGER, tags: motsCles(f.tags),
       retiree: f.hidden === true, ou: utilisees.get(id)?.ou ?? [], fiche: true, date: f.createdAt ?? f.updatedAt ?? 0,
@@ -174,7 +223,7 @@ export function mesImages(medias = {}, utilisees = new Map(), pochettes = new Ma
   }
   out.sort((a, b) => b.date - a.date);
   for (const [id, x] of utilisees) {
-    if (!medias[id] && !pochettes.has(id)) out.push({ groupe: "miennes", id, nom: x.nom, cat: A_RANGER, tags: [], retiree: false, ou: x.ou, fiche: false, date: 0 });
+    if (!medias[id] && !pochettes.has(id) && !packs.has(id)) out.push({ groupe: "miennes", id, nom: x.nom, cat: A_RANGER, tags: [], retiree: false, ou: x.ou, fiche: false, date: 0 });
   }
   return out;
 }

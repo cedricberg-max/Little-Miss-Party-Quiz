@@ -6696,7 +6696,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const choix = page.locator(".choix-boite");
     await choix.waitFor();
     assert.equal(await choix.locator(".label").textContent(), "🖼️ Images à mimer pour l'équipe Rose");
-    assert.deepEqual(await choix.locator(".chips:not(.choix-cats) .chip").evaluateAll((xs) => xs.map((x) => x.dataset.groupe)), ["tout", "photos", "emojis", "miennes"]);
+    assert.deepEqual(await choix.locator(".chips:not(.choix-cats) .chip").evaluateAll((xs) => xs.map((x) => x.dataset.groupe)), ["tout", "photos", "emojis", "miennes", "packs"]);
     assert.ok(await choix.locator(".choix-ajouter").isDisabled());
     await choix.locator('.chip[data-groupe="miennes"]').click();
     await choix.locator('.media-tile[data-media="8888888888888888"]').click();
@@ -8802,6 +8802,16 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual([serie.kind, serie.source, serie.questions.length], ["images", "photos", 2]);
     assert.deepEqual(serie.questions.map((q) => q.choices[q.correct]), ["Chateau de cendrillon", "Olaf"]);
     assert.ok(serie.questions.every((q) => /^[0-9a-f]{16}$/.test(q.imageId) && q.status === "validee"));
+    assert.equal(serie.pack, true);
+
+    // Bibliothèque › Images (cedric, 25/10) : les images des packs ont leur rubrique, à part de « Mes images ».
+    await page.click('#library-tabs [data-lib-tab="images"]');
+    await page.locator('#media-groups [data-groupe="packs"]', { hasText: "📦 Images des packs (4)" }).waitFor();
+    assert.match(await page.locator('#media-groups [data-groupe="miennes"]').innerText(), /\(0\)/);
+    await page.click('#media-groups [data-groupe="packs"]');
+    assert.deepEqual(await page.locator("#media-list h3.content-series").allInnerTexts(), ["Disney · 2", "Sans thème · 2"]);
+    assert.equal(await page.locator("#media-list .media-card select.media-cat").count(), 0, "rangées par thème du pack, sans catégorie à choisir");
+    await capture(page, "images-des-packs");
     await page.context().close();
   });
 

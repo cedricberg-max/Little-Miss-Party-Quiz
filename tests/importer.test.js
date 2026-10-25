@@ -2365,6 +2365,36 @@ describe("bibliothèque d'images de la Régie PC (émojis, photos libres, ses im
     assert.equal(B.GROUPES_IMAGES.pochettes, "💿 Pochettes");
   });
 
+  test("Images des packs (cedric, 25/10) : à part de « Mes images » et des photos libres, rangées par thème du pack", () => {
+    const [P1, P2, P3, MIENNE, RANGEE] = ["a1a1a1a1a1a1a1a1", "a2a2a2a2a2a2a2a2", "a3a3a3a3a3a3a3a3", "b1b1b1b1b1b1b1b1", "a4a4a4a4a4a4a4a4"];
+    const quizzes = {
+      hp: { title: "Harry Potter – Moyen", theme: "Harry Potter", source: "json", pack: true, questions: [
+        { text: "La chouette ?", choices: ["Croûtard", "Hedwige"], correct: 1, imageId: P1 },
+        { text: "Qui ?", choices: ["Ron", "Harry"], correct: 0, choiceImages: { 0: P2, 1: RANGEE } }] },
+      // Ancien pack importé avant le ZIP (source « json ») : aussi un pack.
+      vieux: { title: "Vieux pack", source: "json", questions: [{ text: "?", choices: ["A", "B"], correct: 0, imageId: P3 }] },
+      // Son quiz à elle : ses images restent les siennes.
+      mien: { title: "Mon quiz", source: "saisie", questions: [{ text: "?", choices: ["A", "B"], correct: 0, imageId: MIENNE }] },
+    };
+    const lib = { quizzes };
+    const u = B.imagesUtilisees(lib);
+    const packs = B.imagesDesPacks(quizzes);
+    assert.deepEqual([...packs.keys()].sort(), [P1, P2, P3, RANGEE].sort());
+    assert.deepEqual(packs.get(P1), { nom: "Hedwige", theme: "Harry Potter", pack: "Harry Potter – Moyen" });
+    // Une image de pack qu'elle range dans une de ses catégories passe dans « Mes images ».
+    const medias = { [RANGEE]: { name: "Harry", cat: "Films et séries", createdAt: 1 }, [P2]: { name: "Ron", cat: B.PACKS, hidden: true, createdAt: 2 } };
+    const mes = B.mesImages(medias, u, new Map(), packs);
+    assert.deepEqual(mes.map((x) => x.id).sort(), [MIENNE, RANGEE].sort(), "aucune image de pack dans « Mes images »");
+    const dePacks = B.mesImagesDePacks(medias, packs, u, new Map());
+    assert.deepEqual(dePacks.map((x) => [x.id, x.groupe, x.cat, x.nom, x.retiree]), [
+      [P1, "packs", "Harry Potter", "Hedwige", false], [P2, "packs", "Harry Potter", "Ron", true], [P3, "packs", "Sans thème", "A", false],
+    ]);
+    assert.ok(B.correspond(dePacks[0], "harry potter"), "le nom du pack et son thème se cherchent");
+    assert.equal(B.estQuizPack(quizzes.mien), false);
+    assert.equal(B.GROUPES_IMAGES.packs, "📦 Images des packs");
+    assert.deepEqual(Object.keys(B.GROUPES_IMAGES), ["emojis", "photos", "miennes", "packs", "pochettes"]);
+  });
+
   test("la recherche : chaque mot dans le nom, la catégorie ou les mots-clés, sans accents ni majuscules", () => {
     const elsa = { nom: "Elsa", cat: "Dessins animés", tags: ["princesse", "Reine des neiges"], ou: [] };
     assert.ok(B.correspond(elsa, ""));
