@@ -38,9 +38,10 @@ import kotlin.math.sin
  * doré, rayons qui tournent derrière, et son nom en grand sur une ligne. Sans image ni émoji, le nom seul, plus
  * grand : jamais de visuel de remplacement qui pourrait faire croire à une autre réponse.
  * N'affiche que ce qu'on lui donne et ne joue aucun son (la révélation a déjà le sien).
+ * [avecNom] = false : le médaillon seul, quand le nom est déjà écrit à côté (Game Show, révélation en néon).
  */
 @Composable
-fun RevelationPersonnage(nom: String, emoji: String?, image: ImageBitmap?, modifier: Modifier = Modifier) {
+fun RevelationPersonnage(nom: String, emoji: String?, image: ImageBitmap?, modifier: Modifier = Modifier, avecNom: Boolean = true) {
     val t = remember(nom) { Animatable(0f) }
     LaunchedEffect(nom) { t.animateTo(1_200f, tween(1_200, easing = LinearEasing)) }
     val visuel = image != null || !emoji.isNullOrBlank()
@@ -74,22 +75,24 @@ fun RevelationPersonnage(nom: String, emoji: String?, image: ImageBitmap?, modif
                             Text(emoji.orEmpty(), fontSize = 110.sp)
                         }
                     }
-                    Spacer(Modifier.height(18.dp))
+                    if (avecNom) Spacer(Modifier.height(18.dp))
                 }
-                Text(
-                    "C'ÉTAIT…",
-                    style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, fontSize = if (visuel) 20.sp else 26.sp, fontWeight = FontWeight.Black, letterSpacing = 5.sp),
-                    modifier = Modifier.graphicsLayer { alpha = ((t.value - 250f) / 300f).coerceIn(0f, 1f) },
-                )
-                Box(
-                    Modifier.graphicsLayer {
-                        val p = ((t.value - 350f) / 450f).coerceIn(0f, 1f)
-                        val s = 0.6f + 0.4f * p + 0.1f * sin(p * PI.toFloat())
-                        scaleX = s; scaleY = s
-                        alpha = p
-                    },
-                ) {
-                    NomUneLigne(nom.ifBlank { "?" }, Neon.OrClair, if (visuel) 64f else 88f, 520.dp)
+                if (avecNom || !visuel) {
+                    Text(
+                        "C'ÉTAIT…",
+                        style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, fontSize = if (visuel) 20.sp else 26.sp, fontWeight = FontWeight.Black, letterSpacing = 5.sp),
+                        modifier = Modifier.graphicsLayer { alpha = ((t.value - 250f) / 300f).coerceIn(0f, 1f) },
+                    )
+                    Box(
+                        Modifier.graphicsLayer {
+                            val p = ((t.value - 350f) / 450f).coerceIn(0f, 1f)
+                            val s = 0.6f + 0.4f * p + 0.1f * sin(p * PI.toFloat())
+                            scaleX = s; scaleY = s
+                            alpha = p
+                        },
+                    ) {
+                        NomUneLigne(nom.ifBlank { "?" }, Neon.OrClair, if (visuel) 64f else 88f, 520.dp)
+                    }
                 }
             }
         }
