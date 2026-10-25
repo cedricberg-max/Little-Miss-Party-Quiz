@@ -791,7 +791,8 @@ class RegieTest : TestTv() {
         ecran.voit("DANSEZ !")
         // Premier arrêt de la musique entre 6 et 10 s.
         ecran.voit("STATUE !", 20_000)
-        ecran.capture("statues-musicales-statue")
+        // « STATUE ! » claque en 0,2 s puis se fend et givre : capturé une fois posé.
+        ecran.capture("statues-musicales-statue", attente = 900)
         ecran.voit("DANSEZ !", 15_000)
         assertEquals("applied", regie.commande(code, "statues_win", mapOf("team" to dragons.uid)))
         ecran.voit("Bravo Dragons !")
