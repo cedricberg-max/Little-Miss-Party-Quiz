@@ -787,7 +787,8 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(statues) + avant))
 
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("STATUES MUSICALES")
+        // Game Show : le nom du jeu est dans le bandeau du haut de l'écran.
+        ecran.voit(if (Look.gs) "Statues musicales" else "STATUES MUSICALES")
         ecran.voit("DANSEZ !")
         // Premier arrêt de la musique entre 6 et 10 s.
         ecran.voit("STATUE !", 20_000)

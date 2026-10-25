@@ -2,7 +2,6 @@ package com.littlemissparty.quiz.tv.habillage
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -58,7 +57,6 @@ private val BARRES = listOf(GS.Rose, GS.Jaune, GS.Cyan, GS.Vert, GS.Orange, Colo
 internal fun StatuesGameShow(state: UiState.Playing, danse: Boolean, modifier: Modifier = Modifier) {
     val enCours = state.phase == Phase.QUESTION
     EchelleSansCoupe(LARGEUR, HAUTEUR, modifier) {
-        PastilleJeu("STATUES MUSICALES", Modifier.align(Alignment.TopCenter).padding(top = 6.dp))
         val centre = Modifier.align(Alignment.Center).padding(top = 40.dp)
         when {
             enCours && danse -> Dansez(centre)
@@ -70,20 +68,6 @@ internal fun StatuesGameShow(state: UiState.Playing, danse: Boolean, modifier: M
             }
         }
     }
-}
-
-/** Petite étiquette du jeu, en tube cyan. */
-@Composable
-private fun PastilleJeu(texte: String, modifier: Modifier = Modifier) {
-    Text(
-        texte, maxLines = 1, softWrap = false,
-        modifier = modifier.border(2.dp, GS.Cyan, RoundedCornerShape(50)).background(GS.Noir.copy(alpha = 0.55f), RoundedCornerShape(50))
-            .padding(horizontal = 22.dp, vertical = 6.dp),
-        style = TextStyle(
-            fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = 20.sp, letterSpacing = 5.sp, color = GS.CyanClair,
-            shadow = Shadow(GS.Cyan, Offset.Zero, 12f),
-        ),
-    )
 }
 
 /** S1 : DANSEZ ! qui rebondit sur la mesure, un égaliseur qui bat, la consigne en dessous. */
