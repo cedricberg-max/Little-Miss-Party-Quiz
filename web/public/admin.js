@@ -58,7 +58,8 @@ import {
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
-import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, questionsVraiFauxPretes, mesQuestions, mesPacks, mesSeriesDePhotos, questionsDeTest, questionCorrespond, illustration, retirerQuestions, packsParTheme, estQuizDeTest } from "./questions.js";
+import { FAMILLES, NIVEAUX, EMOJI_FAMILLE, AGES_NIVEAU, parFamille, lireFamille, lireNiveau, niveauDuQuiz } from "./rangement.js";
+import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, questionsVraiFauxPretes, mesQuestions, mesPacks, mesSeriesDePhotos, questionsDeTest, questionCorrespond, illustration, retirerQuestions, estQuizDeTest } from "./questions.js";
 import { NIVEAUX_CHIFFRES, libelleNiveau, niveauPourAge, tirerChiffres } from "./banque-chiffres.js";
 import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 
@@ -4568,6 +4569,16 @@ function review(id, quiz) {
   $("rv-theme").value = quiz.theme ?? "";
   $("rv-age-min").value = quiz.ageMin ?? "";
   $("rv-age-max").value = quiz.ageMax ?? "";
+  // Un pack (ou une série de photos) : sa famille et son niveau, à corriger ici (cedric, 25/10).
+  const pack = estPackOuSerie(quiz);
+  $("rv-famille-champ").hidden = !pack;
+  $("rv-niveau-champ").hidden = !pack;
+  const options = (sel, valeurs, valeur, libelle) => sel.replaceChildren(h("option", { value: "", text: "— À choisir —" }),
+    ...valeurs.map((v) => h("option", { value: v, text: libelle(v) })));
+  options($("rv-famille"), FAMILLES, null, (v) => `${EMOJI_FAMILLE[v]} ${v}`);
+  options($("rv-niveau"), NIVEAUX, null, (v) => `${v} (${AGES_NIVEAU[v][0]} à ${AGES_NIVEAU[v][1]} ans)`);
+  $("rv-famille").value = pack ? lireFamille(quiz.famille) ?? "Divers" : lireFamille(quiz.famille) ?? "";
+  $("rv-niveau").value = niveauDuQuiz(quiz) ?? "";
   // Quiz illustré : questions de la banque et photo par réponse ; quiz classique : Vrai / Faux et Juste Chiffre.
   $("rv-kind").textContent = QUIZ_KINDS[draft.kind];
   $("rv-banque").hidden = draft.kind !== "photo";
@@ -5326,8 +5337,9 @@ $("rv-save").onclick = async () => {
       title, theme: $("rv-theme").value.trim() || null,
       ageMin: num($("rv-age-min").value), ageMax: num($("rv-age-max").value),
       source: draft.quiz.source ?? "saisie", kind: draft.kind,
-      // Un pack importé le reste (ses images restent dans « Images des packs »).
+      // Un pack importé le reste (ses images restent dans « Images des packs »), avec sa famille et son niveau.
       ...(draft.quiz.pack === true ? { pack: true } : {}),
+      famille: lireFamille($("rv-famille").value), niveau: lireNiveau($("rv-niveau").value),
       createdAt: draft.quiz.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
       questions: questions.map((q) => ({
         text: q.text.slice(0, 300), choices: q.kind === "number" ? null : q.choices,
@@ -7786,6 +7798,9 @@ function renderPlaylistsSons() {
 let qGroupe = null;
 /** Rubriques dépliées dans l'aperçu de Bibliothèque › Questions (toutes repliées à l'ouverture de la page). */
 const qOuverts = new Set();
+/** Mes packs, Mes séries de photos (cedric, 25/10) : familles dépliées, et le niveau choisi (null : tous). */
+const qFamillesOuvertes = new Set();
+let qNiveauPack = null;
 let qPack = null;
 let qCategorie = null;
 /** Quiz classique tout prêt : toutes, les questions à 4 réponses (« qcm ») ou les Juste Chiffre (« nombre ») ; un niveau. */
@@ -7910,11 +7925,47 @@ async function supprimerQuestions(liste) {
   renderQuestions();
 }
 
+/** Un pack importé ou une série de photos : rangé par famille et par niveau dans la Bibliothèque. */
+const estPackOuSerie = (quiz) => quiz?.pack === true || quiz?.source === "json" || quiz?.source === "photos" || quizKind(quiz ?? {}) === "images";
+
+/** Pastille de couleur d'un niveau (vert Facile, bleu Moyen, violet Difficile). */
+const pastilleNiveau = (niveau) => h("span", { class: "pastille-niveau", "data-niveau": niveau, "aria-hidden": "true" });
+
+/**
+ * Packs (ou séries de photos) rangés par famille (cedric, 25/10) : une puce par niveau, puis une ligne repliée par
+ * famille (les dix, toujours dans le même ordre), avec son nombre et ses pastilles de niveau ; ▸ la déplie.
+ */
+function packsParFamille(cartes, recherche, vide) {
+  const parNiveau = (n) => cartes.filter((c) => c.niveau === n).length;
+  const choisies = qNiveauPack ? cartes.filter((c) => c.niveau === qNiveauPack) : cartes;
+  const puces = h("div", { class: "chips q-niveaux-packs" },
+    h("button", { type: "button", class: `chip${qNiveauPack ? "" : " active"}`, "data-niveau": "tous", text: `Tous les niveaux (${cartes.length})`, onclick: () => { qNiveauPack = null; renderQuestions(); } }),
+    ...NIVEAUX.map((n) => h("button", {
+      type: "button", class: `chip${qNiveauPack === n ? " active" : ""}`, "data-niveau": n, onclick: () => { qNiveauPack = n; renderQuestions(); },
+    }, pastilleNiveau(n), ` ${n} (${parNiveau(n)})`)));
+  if (!cartes.length) return [puces, h("p", { class: "hint", text: vide })];
+  const familles = parFamille(choisies).map(([f, liste]) => {
+    // Une recherche déplie les familles où elle trouve quelque chose.
+    const ouvert = liste.length > 0 && (qFamillesOuvertes.has(f) || !!recherche);
+    const resume = NIVEAUX.map((n) => [n, liste.filter((c) => c.niveau === n).length]).filter(([, k]) => k)
+      .map(([n, k]) => h("span", { class: "famille-niveau" }, pastilleNiveau(n), `${k}`));
+    const plier = h("button", {
+      type: "button", class: "q-plier", "aria-expanded": ouvert ? "true" : "false", disabled: !liste.length,
+      title: ouvert ? "Replier cette famille" : "Déplier cette famille",
+      onclick: () => { if (qFamillesOuvertes.has(f)) qFamillesOuvertes.delete(f); else qFamillesOuvertes.add(f); renderQuestions(); },
+    }, h("span", { class: "q-plier-fleche", text: ouvert ? "▾" : "▸" }), h("h2", { text: `${EMOJI_FAMILLE[f]} ${f} (${liste.length})` }), h("span", { class: "famille-resume" }, ...resume));
+    return h("section", { class: `q-groupe q-famille${ouvert ? " ouvert" : " replie"}${liste.length ? "" : " vide"}`, "data-famille": f },
+      plier, ouvert ? h("div", { class: "cards" }, ...liste.map(cartePack)) : null);
+  });
+  return [puces, h("div", { class: "q-familles" }, ...familles)];
+}
+
 function cartePack(p) {
   return h("div", { class: `item pack${packsNouveaux.has(p.id) ? " copie-recente" : ""}`, "data-pack": p.id },
     h("span", { class: "pill", text: QUIZ_KINDS[p.kind] ?? "📝 Quiz classique" }),
     h("b", { text: p.title }),
-    h("span", { text: [p.theme, SOURCES[p.source] ?? ""].filter(Boolean).join(" · ") }),
+    p.niveau ? h("span", { class: "pack-niveau", "data-niveau": p.niveau }, pastilleNiveau(p.niveau), p.niveau) : h("span", { class: "pack-niveau sans", text: "Niveau à choisir dans « Éditer »" }),
+    h("span", { text: [p.theme && p.theme !== p.title ? p.theme : null, SOURCES[p.source] ?? ""].filter(Boolean).join(" · ") }),
     h("span", { text: `${plural(p.total, p.kind === "images" ? "photo" : "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
     p.sansIllustration ? h("span", { class: "q-alerte", text: `⚠ ${p.sansIllustration} sans illustration` }) : h("span", { class: "ok", text: "✓ Toutes illustrées" }),
     h("div", { class: "row" },
@@ -7994,28 +8045,20 @@ function dessinerQuestions() {
     return;
   }
 
-  // Mes séries de photos (cedric, 23/10) : par thème, comme les packs ; « 📷 Nouvelle série de photos » : vos photos
+  // Mes séries de photos (cedric, 23/10) : par famille, comme les packs (cedric, 25/10) ; « 📷 Nouvelle série de photos » : vos photos
   // d'un coup, le nom de chaque fichier devient sa réponse.
   if (qGroupe === "photos") {
     box.replaceChildren(
       h("div", { class: "title-row" },
-        h("p", { class: "hint small grow", text: "Pour le Zoom mystère et l'Image floue : une série par thème (« Disney », « Animaux »…). Le nom de chaque photo devient sa réponse, à corriger avant d'enregistrer." }),
+        h("p", { class: "hint small grow", text: "Pour le Zoom mystère et l'Image floue : une série par thème (« Disney », « Animaux »…), rangée par famille et par niveau. Le nom de chaque photo devient sa réponse, à corriger avant d'enregistrer." }),
         h("button", { type: "button", class: "btn photos-nouvelle", text: "📷 Nouvelle série de photos", onclick: () => $("quiz-photos").click() })),
-      seriesTrouvees.length
-        ? h("div", { class: "q-themes" }, ...packsParTheme(seriesTrouvees).map(([theme, series]) => h("section", { class: "q-theme", "data-theme": theme },
-          h("h3", { text: `${theme} · ${plural(series.length, "série")}` }),
-          h("div", { class: "cards" }, ...series.map(cartePack)))))
-        : h("p", { class: "hint", text: recherche ? "Aucune série de photos ne correspond à cette recherche." : "Aucune série de photos pour l'instant." }));
+      ...packsParFamille(seriesTrouvees, recherche, recherche ? "Aucune série de photos ne correspond à cette recherche." : "Aucune série de photos pour l'instant."));
     return;
   }
 
-  // Mes packs par thème : un titre par thème (« Disney », « Musique »…), ses packs dessous.
+  // Mes packs (cedric, 25/10) : une ligne par famille, ses packs dessous, rangés Facile, Moyen, Difficile.
   if (qGroupe === "packs") {
-    box.replaceChildren(packsTrouves.length
-      ? h("div", { class: "q-themes" }, ...packsParTheme(packsTrouves).map(([theme, packs]) => h("section", { class: "q-theme", "data-theme": theme },
-        h("h3", { text: `${theme} · ${plural(packs.length, "pack")}` }),
-        h("div", { class: "cards" }, ...packs.map(cartePack)))))
-      : h("p", { class: "hint", text: recherche ? "Aucun pack ne correspond à cette recherche." : "Aucun pack pour l'instant : importez votre premier fichier JSON." }));
+    box.replaceChildren(...packsParFamille(packsTrouves, recherche, recherche ? "Aucun pack ne correspond à cette recherche." : "Aucun pack pour l'instant : « 📦 Importer un pack ZIP »."));
     return;
   }
 
@@ -8161,16 +8204,18 @@ async function importerPackZip(zip, statut = "pack-status") {
   }
   const packs = analyse.packs.filter((p) => !vides.includes(p));
 
-  // Noms déjà pris : le pack s'ajoute à côté, l'ancien ne change pas.
-  const pris = new Set(Object.values(quizzes ?? {}).map((q) => `${q?.title ?? ""}`.trim().toLowerCase()));
+  // Noms déjà pris : le pack s'ajoute à côté, l'ancien ne change pas. Un même nom à un autre niveau n'est pas un
+  // doublon (cedric, 25/10 : « Harry Potter » en Facile, Moyen et Difficile dans un seul ZIP).
+  const cleNom = (titre, niveau) => `${`${titre ?? ""}`.trim().toLowerCase()}|${niveau ?? ""}`;
+  const pris = new Set(Object.values(quizzes ?? {}).map((q) => cleNom(q?.title, niveauDuQuiz(q))));
   for (const p of packs) {
     if (p.epreuve === "quisuis") continue;
     const base = p.titre.slice(0, 110);
     let titre = base;
-    for (let k = 2; pris.has(titre.toLowerCase()); k++) titre = `${base} (${k})`;
+    for (let k = 2; pris.has(cleNom(titre, p.niveau)); k++) titre = `${base} (${k})`;
     if (titre !== base) p.renomme = base;
     p.titre = titre;
-    pris.add(titre.toLowerCase());
+    pris.add(cleNom(titre, p.niveau));
   }
   // Qui suis-je ? : un personnage déjà dans le jeu reste tel quel.
   const jeuQui = CONTENT_GAMES.quisuis;
@@ -8186,7 +8231,12 @@ async function importerPackZip(zip, statut = "pack-status") {
     analyse.laisses.length ? h("p", { class: "hint small", text: `Laissé${analyse.laisses.length > 1 ? "s" : ""} de côté : ${analyse.laisses.join(", ")}.` }) : null);
   if (!aEnregistrer.length) return apercu("Rien de nouveau dans ce pack.", contenu, { ok: "Fermer", annuler: null });
   const titre = aEnregistrer.length > 1 ? `Importer ces ${aEnregistrer.length} packs ?` : `Importer « ${aEnregistrer[0].titre} » ?`;
-  if (!(await apercu(titre, contenu, { ok: aEnregistrer.length > 1 ? "Enregistrer les packs" : "Enregistrer le pack" }))) return status(statut, "Import annulé : rien n'a été enregistré.");
+  // Famille et niveau obligatoires (cedric, 25/10) : ce que le pack ne dit pas se choisit dans l'aperçu.
+  const valider = () => {
+    const sans = aEnregistrer.filter((p) => !p.famille || !p.niveau);
+    return sans.length ? `Choisissez la famille et le niveau de ${sans.length > 1 ? "chaque pack" : `« ${sans[0].titre} »`} avant d'enregistrer.` : null;
+  };
+  if (!(await apercu(titre, contenu, { ok: aEnregistrer.length > 1 ? "Enregistrer les packs" : "Enregistrer le pack", valider }))) return status(statut, "Import annulé : rien n'a été enregistré.");
 
   // Enregistrement : les images d'abord (invisibles tant qu'aucun pack ne les nomme), les packs ensuite.
   status(statut, "Enregistrement…", true);
@@ -8209,7 +8259,7 @@ async function importerPackZip(zip, statut = "pack-status") {
     if (qui.length) {
       ecritures["library/contents/quisuis"] = {
         off: etatQui.off.length ? etatQui.off : null,
-        extra: [...etatQui.extra, ...qui.flatMap((p) => p.personnages)].map(({ level, ...x }) => x),
+        extra: [...etatQui.extra, ...qui.flatMap((p) => p.personnages.map((x) => ({ ...x, famille: p.famille, niveau: p.niveau })))].map(({ level, ...x }) => x),
         images: Object.keys(etatQui.images).length ? etatQui.images : null,
         updatedAt: serverTimestamp(),
       };
@@ -8226,6 +8276,8 @@ async function importerPackZip(zip, statut = "pack-status") {
   if (builtinType === "quisuis") renderBuiltin();
   if (faits.length) {
     packsNouveaux = new Set(faits);
+    // Leurs familles s'ouvrent, pour les voir tout de suite.
+    for (const p of aEnregistrer) if (p.famille) qFamillesOuvertes.add(p.famille);
     setTimeout(() => { packsNouveaux = new Set(); if (libTab === "questions" && !$("screen-library").hidden) renderQuestions(); }, 6000);
     if (libTab === "questions" && !$("screen-library").hidden) {
       const y = window.scrollY;
@@ -8243,7 +8295,9 @@ function quizDuPack(p) {
   const aCorriger = new Set(p.aCorriger.map((x) => x.q));
   const kind = p.epreuve === "illustre" ? "photo" : p.epreuve === "photos" ? "images" : "classique";
   return {
-    title: p.titre, theme: p.theme || null, ageMin: p.ageMin ?? null, ageMax: p.ageMax ?? null,
+    title: p.titre, theme: p.theme || null, famille: p.famille, niveau: p.niveau,
+    // Sans âges dans le pack, ceux de son niveau.
+    ageMin: p.ageMin ?? AGES_NIVEAU[p.niveau]?.[0] ?? null, ageMax: p.ageMax ?? AGES_NIVEAU[p.niveau]?.[1] ?? null,
     source: p.epreuve === "photos" ? "photos" : "json", pack: true, kind, createdAt: Date.now(), updatedAt: serverTimestamp(),
     questions: p.questions.map((q, i) => {
       const nombre = q.kind === "number";
@@ -8256,6 +8310,33 @@ function quizDuPack(p) {
       };
     }),
   };
+}
+
+/**
+ * Famille et niveau d'un pack à importer (cedric, 25/10) : lus dans le pack et modifiables ici ; s'il ne les dit pas,
+ * « À choisir », et l'enregistrement attend.
+ */
+function etiquettesAImporter(p) {
+  const alerte = h("p", { class: "pack-alerte pack-etiquettes-manque" });
+  const majAlerte = () => {
+    const manque = [!p.famille ? "la famille" : null, !p.niveau ? "le niveau" : null].filter(Boolean);
+    alerte.textContent = manque.length ? `Le pack ne dit pas ${manque.join(" ni ")} : choisissez-${manque.length > 1 ? "les" : p.famille ? "le" : "la"} ici.` : "";
+    alerte.hidden = !manque.length;
+  };
+  const menu = (classe, label, valeurs, valeur, poser) => h("label", { class: "pack-etiquette" }, label,
+    h("select", {
+      class: classe, "aria-label": `${label} de « ${p.titre} »`,
+      onchange: (e) => { poser(e.target.value || null); majAlerte(); },
+    },
+    h("option", { value: "", text: "— À choisir —", selected: !valeur }),
+    ...valeurs.map((v) => h("option", { value: v, text: `${classe === "pack-famille" ? `${EMOJI_FAMILLE[v]} ` : ""}${v}`, selected: v === valeur }))));
+  majAlerte();
+  return h("div", { class: "pack-etiquettes" },
+    h("div", { class: "row" },
+      menu("pack-famille", "Famille", FAMILLES, p.famille, (v) => { p.famille = v; }),
+      menu("pack-niveau", "Niveau", NIVEAUX, p.niveau, (v) => { p.niveau = v; p.niveauDeduit = false; })),
+    p.niveauDeduit ? h("p", { class: "hint small", text: `Niveau déduit des âges du pack (${p.ageMin ?? "?"} à ${p.ageMax ?? "?"} ans) : vérifiez-le.` }) : null,
+    alerte);
 }
 
 /** Récapitulatif d'un pack avant de l'enregistrer : nom, épreuve, âges, nombre, vignettes, alertes. */
@@ -8274,7 +8355,8 @@ function apercuDuPack(p) {
     h("h3", { text: p.titre }),
     h("p", { class: "pack-apercu-infos" },
       h("b", { text: EPREUVES[p.epreuve] }), ages ? ` · ${ages}` : "", p.theme && p.theme !== p.titre ? ` · Thème « ${p.theme} »` : "", ` · ${nombre}`),
-    p.renomme ? h("p", { class: "hint small", text: `Un pack « ${p.renomme} » existe déjà : celui-ci s'appellera « ${p.titre} », l'ancien ne change pas.` }) : null,
+    etiquettesAImporter(p),
+    p.renomme ? h("p", { class: "hint small", text: `Un pack « ${p.renomme} » existe déjà${p.niveau ? ` en ${p.niveau}` : ""} : celui-ci s'appellera « ${p.titre} », l'ancien ne change pas.` }) : null,
     p.deja ? h("p", { class: "hint small", text: `${plural(p.deja, "personnage était", "personnages étaient")} déjà dans le jeu : laissé${p.deja > 1 ? "s" : ""} tel${p.deja > 1 ? "s" : ""} quel${p.deja > 1 ? "s" : ""}.` }) : null,
     p.epreuve === "quisuis" ? h("ul", { class: "pack-apercu-liste" }, ...p.personnages.slice(0, 12).map((x) => h("li", { text: `${x.emoji ? `${x.emoji} ` : ""}${x.answer} · ${plural(x.clues.length, "indice")}` })),
       ...(p.personnages.length > 12 ? [h("li", { text: `… et ${p.personnages.length - 12} autres` })] : [])) : null,
@@ -8967,7 +9049,7 @@ async function modifierPersonnage(item) {
   for (;;) {
     if (!(await apercu(`Modifier « ${item.answer} »`, formulaire, { ok: "Enregistrer" }))) return;
     const [reponse, emoji, serie] = [...formulaire.children].slice(0, 3).map(lire);
-    const neuf = game.clean({ answer: reponse, emoji: cleanEmoji(emoji) || "", serie, clues: indices.map(lire).filter(Boolean), ...(item.imageId ? { imageId: item.imageId } : {}) });
+    const neuf = game.clean({ answer: reponse, emoji: cleanEmoji(emoji) || "", serie, clues: indices.map(lire).filter(Boolean), ...(item.imageId ? { imageId: item.imageId } : {}), famille: item.famille, niveau: item.niveau });
     const { off, extra, images } = builtinState(type);
     const ancienne = game.key(item);
     if (!neuf) { await avertir("Il faut la réponse et au moins 2 indices."); continue; }

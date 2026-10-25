@@ -5358,7 +5358,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#nav button[data-screen=library]");
     await page.click('#library-tabs [data-lib-tab="questions"]');
     await page.locator('#q-groups [data-groupe="photos"]', { hasText: "🔍 Mes séries de photos (3)" }).click();
+    // Rangée par famille (cedric, 25/10) : faite à la main, sans famille ni niveau, elle attend dans Divers.
+    await page.locator('#q-list .q-famille[data-famille="Divers"] .q-plier', { hasText: "📦 Divers (1)" }).click();
     await page.locator(`#q-list .pack[data-pack="${id}"]`, { hasText: "3 photos" }).waitFor();
+    await page.locator(`#q-list .pack[data-pack="${id}"] .pack-niveau.sans`, { hasText: "Niveau à choisir dans « Éditer »" }).waitFor();
     assert.equal(await page.locator("#q-list .photos-nouvelle").textContent(), "📷 Nouvelle série de photos");
     await page.locator('#q-groups [data-groupe="miennes"]', { hasText: "(0)" }).waitFor();
     // Image floue (cedric, 23/10 : comme le Quiz) : la série de photos s'intègre par sa recherche, avec ses 3 photos.
@@ -6212,7 +6215,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await titre("Disney").textContent(), "📚 Série « Disney » · 1 personnage");
     // En JSON : une série par fichier ; un personnage sans assez d'indices est laissé, un déjà là aussi.
     const fichier = { name: "heros.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({
-      serie: "Super-héros",
+      serie: "Super-héros", famille: "Films et séries", niveau: "Moyen",
       personnages: [
         { reponse: "Spider-Man", emoji: "🕷️", indices: ["Je grimpe aux murs", "Une araignée m'a piqué", "Je lance des toiles"] },
         { reponse: "Batman", emoji: "🦇", indices: ["Je vis à Gotham", "Je porte une cape"] },
@@ -6232,10 +6235,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#builtin-status", { hasText: "✓ Importé : 2 personnages ajoutés à Qui suis-je ?." }).waitFor();
     assert.equal(await titre("Super-héros").textContent(), "📚 Série « Super-héros » · 2 personnages");
     let extra = (await library("contents")).quisuis.extra;
-    assert.deepEqual(extra.map((x) => [x.answer, x.serie]), [["Elsa", "Disney"], ["Spider-Man", "Super-héros"], ["Batman", "Super-héros"]]);
-    // Une simple liste : sa série prend le nom du fichier.
+    assert.deepEqual(extra.map((x) => [x.answer, x.serie, x.famille, x.niveau]), [["Elsa", "Disney", undefined, undefined],
+      ["Spider-Man", "Super-héros", "Films et séries", "Moyen"], ["Batman", "Super-héros", "Films et séries", "Moyen"]]);
+    // Une simple liste : sa série prend le nom du fichier ; sans famille ni niveau, l'aperçu les demande (cedric, 25/10).
     await page.locator("#bi-zip").setInputFiles(zipDe("animaux.zip", ["Animaux.json", JSON.stringify([
       { answer: "Le panda", emoji: "🐼", clues: ["Je mange du bambou", "Je suis noir et blanc"] }])]));
+    await apercuQui.locator("select.pack-famille").selectOption("Animaux et nature");
+    await apercuQui.locator("select.pack-niveau").selectOption("Facile");
     assert.equal(await repondreFenetre(page), "Importer « Animaux » ?");
     await page.locator("#builtin-status", { hasText: "✓ Importé : 1 personnage ajouté à Qui suis-je ?." }).waitFor();
     // Des données illisibles : expliqué, rien d'enregistré.
@@ -6251,6 +6257,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#builtin-status", { hasText: "« 🌙 Batman le justicier » est modifié." }).waitFor();
     const batman = (await library("contents")).quisuis.extra.find((x) => x.answer === "Batman le justicier");
     assert.deepEqual([batman.emoji, batman.clues, batman.serie], ["🌙", ["Je vis à Gotham", "Je porte une cape", "J'ai une Batmobile"], "Super-héros"]);
+    assert.deepEqual([batman.famille, batman.niveau], ["Films et séries", "Moyen"], "modifié, il garde sa famille et son niveau");
+    assert.deepEqual((await library("contents")).quisuis.extra.filter((x) => x.answer === "Le panda").map((x) => [x.famille, x.niveau]), [["Animaux et nature", "Facile"]]);
 
     // Renommer, supprimer d'un coup (fenêtres du site).
     await page.locator('#builtin-items .serie-biblio[data-serie="Super-héros"]').getByRole("button", { name: "Renommer" }).click();
@@ -8621,7 +8629,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#pack-import").getByText("📦 Importer un pack ZIP").count(), 1);
     assert.doesNotMatch(await page.locator("#pack-import").innerText(), /JSON/, "plus de « JSON » dans les mots de l'import");
     const PACKS = { packs: [
-      { title: "Les animaux de la savane", theme: "Animaux", questions: [
+      { title: "Les animaux de la savane", theme: "Animaux", famille: "Animaux et nature", niveau: "Facile", questions: [
         { text: "Quel animal a une très longue trompe ?", choices: ["Éléphant", "Girafe", "Lion", "Zèbre"], correct: 0, illustration: "🐘" },
         { text: "Quel animal est le roi de la savane ?", choices: ["Hippopotame", "Lion", "Gazelle", "Autruche"], correct: 1, illustration: "lion.png" },
         { text: "Combien de pattes a une girafe ?", correct: 4, illustration: "🦒" },
@@ -8645,6 +8653,20 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(texteApercu, /Question 4 : Image manquante : ajoutez une illustration\./);
     assert.match(texteApercu, /Question 5 : ni propositions ni nombre à trouver, elle n'est pas importée\./);
     assert.match(texteApercu, /Laissé de côté : liste\.txt\./);
+    // Famille et niveau (cedric, 25/10) : lus dans le pack ; « Espace » ne les dit pas, l'import les demande.
+    const etiquettesDe = (titre) => apercuPacks.locator(".pack-apercu-pack").filter({ has: page.locator("h3", { hasText: new RegExp(`^${titre}$`) }) });
+    assert.equal(await etiquettesDe("Les animaux de la savane").locator("select.pack-famille").inputValue(), "Animaux et nature");
+    assert.equal(await etiquettesDe("Les animaux de la savane").locator("select.pack-niveau").inputValue(), "Facile");
+    assert.equal(await etiquettesDe("Espace").locator("select.pack-famille").inputValue(), "");
+    await etiquettesDe("Espace").locator(".pack-etiquettes-manque", { hasText: "Le pack ne dit pas la famille ni le niveau : choisissez-les ici." }).waitFor();
+    await apercuPacks.locator("[data-fenetre-ok]").click();
+    await apercuPacks.locator(".fenetre-manque", { hasText: "Choisissez la famille et le niveau de « Espace » avant d'enregistrer." }).waitFor();
+    assert.equal(await apercuPacks.isVisible(), true, "rien n'est enregistré tant qu'il manque une étiquette");
+    assert.equal(Object.keys(await library("quizzes")).length, avant);
+    await etiquettesDe("Espace").locator("select.pack-famille").selectOption("Sciences et espace");
+    await etiquettesDe("Espace").locator(".pack-etiquettes-manque", { hasText: "Le pack ne dit pas le niveau : choisissez-le ici." }).waitFor();
+    await etiquettesDe("Espace").locator("select.pack-niveau").selectOption("Moyen");
+    await etiquettesDe("Espace").locator(".pack-etiquettes-manque").waitFor({ state: "hidden" });
     assert.equal(await repondreFenetre(page), "Importer ces 2 packs ?");
     await page.locator("#pack-status", { hasText: "✓ Importé : « Les animaux de la savane » : 4 questions ; « Espace » : 1 question. 1 image manquante : ajoutez-les dans « Éditer »." }).waitFor();
     const quizzes = await library("quizzes");
@@ -8658,12 +8680,25 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(savane.questions[3].imageId, undefined);
     assert.ok(savane.questions.every((q) => q.status === "validee"));
     assert.deepEqual([espace.theme, espace.questions[0].correct, espace.questions[0].status], ["Sciences", 0, "validee"]);
+    assert.deepEqual([savane.famille, savane.niveau, savane.ageMin, savane.ageMax], ["Animaux et nature", "Facile", 5, 8]);
+    assert.deepEqual([espace.famille, espace.niveau, espace.ageMin, espace.ageMax], ["Sciences et espace", "Moyen", 9, 11]);
     assert.deepEqual(quizzes.animaux, ANIMAUX, "les autres quiz ne bougent pas");
-    // Les packs importés à l'instant sont encadrés ; les packs sont rangés par thème (sans thème à la fin).
+    // Les packs importés à l'instant sont encadrés, leurs familles ouvertes ; les packs sont rangés par famille, les
+    // dix toujours dans le même ordre (un ancien pack sans famille va dans Divers), avec leurs pastilles de niveau.
     await page.locator(`.pack.copie-recente[data-pack="${idSavane}"]`).waitFor();
-    assert.deepEqual(await page.locator(".q-theme h3").allInnerTexts(), ["ANIMAUX · 1 PACK", "SCIENCES · 1 PACK", "SANS THÈME · 1 PACK"]);
-    await page.locator(`.q-theme[data-theme="Animaux"] .pack[data-pack="${idSavane}"]`).waitFor();
-    await page.locator('.q-theme[data-theme="Sans thème"] .pack[data-pack="animaux"]').waitFor();
+    assert.deepEqual(await page.locator(".q-famille .q-plier h2").allInnerTexts(), ["🎮 Jeux vidéo (0)", "🎨 Dessins animés et mangas (0)", "🎬 Films et séries (0)",
+      "🎵 Musique (0)", "⚽ Sport (0)", "🦁 Animaux et nature (1)", "🚀 Sciences et espace (1)", "🏛️ Histoire et monde (0)", "⭐ Célébrités et YouTubeurs (0)", "📦 Divers (1)"]);
+    await page.locator(`.q-famille[data-famille="Animaux et nature"] .pack[data-pack="${idSavane}"] .pack-niveau[data-niveau="Facile"]`).waitFor();
+    await page.locator(`.q-famille[data-famille="Sciences et espace"] .pack[data-pack="${idEspace}"] .pack-niveau[data-niveau="Moyen"]`).waitFor();
+    assert.equal(await page.locator('.q-famille[data-famille="Divers"].replie').count(), 1, "les autres familles restent repliées");
+    await page.locator('.q-famille[data-famille="Divers"] .q-plier').click();
+    await page.locator('.q-famille[data-famille="Divers"] .pack[data-pack="animaux"]').waitFor();
+    await capture(page, "packs-par-famille");
+    // Une puce par niveau : « Facile » garde la savane et l'ancien pack de 5 à 8 ans (son niveau vient de ses âges).
+    await page.click('.q-niveaux-packs [data-niveau="Facile"]');
+    assert.deepEqual(await page.locator(".q-famille:not(.vide) .q-plier h2").allInnerTexts(), ["🦁 Animaux et nature (1)", "📦 Divers (1)"]);
+    await page.click('.q-niveaux-packs [data-niveau="tous"]');
+    await page.locator(`.pack[data-pack="${idEspace}"]`).waitFor();
 
     // Un pack s'ouvre sur ses questions : illustration là, ou l'alerte.
     await page.locator(`.pack[data-pack="${idSavane}"]`, { hasText: "⚠ 1 sans illustration" }).getByRole("button", { name: "Ouvrir" }).click();
@@ -8707,6 +8742,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.getByRole("button", { name: "Éditer le pack" }).click();
     await page.locator("#screen-review:not([hidden])").waitFor();
     assert.equal(await page.locator("#rv-title").inputValue(), "Les animaux de la savane");
+    // Sa famille et son niveau se corrigent ici (cedric, 25/10).
+    assert.equal(await page.locator("#rv-famille").inputValue(), "Animaux et nature");
+    assert.equal(await page.locator("#rv-niveau").inputValue(), "Facile");
     await page.goBack();
     await page.locator("#library-questions:not([hidden])").waitFor();
 
@@ -8731,7 +8769,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const zip = (nom, entrees) => ({ name: nom, mimeType: "application/zip", buffer: Buffer.from(faireZip(entrees)) });
 
     // Quiz illustré, à la racine du ZIP (sans dossier) : la réponse C n'a pas son image.
-    const ILLUSTRE = { title: "Reine des neiges", theme: "Disney", ageMin: 5, ageMax: 8, questions: [
+    const ILLUSTRE = { title: "Reine des neiges", theme: "Disney", famille: "Dessins animés et mangas", niveau: "Facile", ageMin: 5, ageMax: 8, questions: [
       { text: "Qui est le bonhomme de neige ?", choices: [{ text: "Sven", image: "rdn-q01-sven.jpg" }, { text: "Olaf", image: "rdn-q01-olaf.jpg" }, { text: "Hans", image: "rdn-q01-hans.jpg" }], correct: 1 },
     ] };
     await page.setInputFiles("#pack-file", zip("reine.zip", [
@@ -8746,7 +8784,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#pack-status", { hasText: "✓ Importé : « Reine des neiges » : 1 question. 1 image manquante : ajoutez-les dans « Éditer »." }).waitFor();
     let quizzes = await library("quizzes");
     const [idReine, reine] = Object.entries(quizzes).find(([, q]) => q.title === "Reine des neiges");
-    assert.deepEqual([reine.kind, reine.source, reine.ageMin, reine.ageMax], ["photo", "json", 5, 8]);
+    assert.deepEqual([reine.kind, reine.source, reine.ageMin, reine.ageMax, reine.famille, reine.niveau], ["photo", "json", 5, 8, "Dessins animés et mangas", "Facile"]);
     const q0 = reine.questions[0];
     assert.deepEqual([q0.choices, q0.correct, q0.status, q0.image], [["Sven", "Olaf", "Hans"], 1, "validee", undefined], "jamais d'émoji à la place");
     assert.deepEqual(Object.keys(q0.choiceImages), ["0", "1"], "la case sans image reste vide");
@@ -8754,7 +8792,7 @@ describe("bibliothèque de quiz et prestations", () => {
 
     // Le même ZIP une seconde fois : un nouveau pack à côté, l'ancien ne change pas.
     await page.setInputFiles("#pack-file", zip("reine.zip", [["pack.json", JSON.stringify(ILLUSTRE)]]));
-    assert.match(await fenetre.innerText(), /Un pack « Reine des neiges » existe déjà : celui-ci s'appellera « Reine des neiges \(2\) », l'ancien ne change pas\./);
+    assert.match(await fenetre.innerText(), /Un pack « Reine des neiges » existe déjà en Facile : celui-ci s'appellera « Reine des neiges \(2\) », l'ancien ne change pas\./);
     assert.match(await fenetre.innerText(), /réponse A : Image manquante/);
     await repondreFenetre(page, { accepter: false });
     await page.locator("#pack-status", { hasText: "Import annulé : rien n'a été enregistré." }).waitFor();
@@ -8792,7 +8830,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click('#q-groups [data-groupe="packs"]');
     await page.setInputFiles("#pack-file", zip("pack.zip", [
       ["Disney zoom/olaf.jpg", png([250, 250, 250])], ["Disney zoom/chateau-de-cendrillon.jpg", png([90, 120, 220])], ["Disney zoom/liste.txt", "olaf.jpg → Olaf"],
+      // Sa fiche (cedric, 25/10) : famille et niveau, sans questions.
+      ["Disney zoom/pack.json", JSON.stringify({ title: "Disney zoom", famille: "Dessins animés et mangas", niveau: "Moyen" })],
     ]));
+    assert.equal(await fenetre.locator("select.pack-niveau").inputValue(), "Moyen");
     assert.match(await fenetre.innerText(), /Disney zoom\s+Zoom mystère \/ Image floue · 2 photos/);
     assert.match(await fenetre.innerText(), /Laissé de côté : liste\.txt\./);
     await repondreFenetre(page);
@@ -8803,6 +8844,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(serie.questions.map((q) => q.choices[q.correct]), ["Chateau de cendrillon", "Olaf"]);
     assert.ok(serie.questions.every((q) => /^[0-9a-f]{16}$/.test(q.imageId) && q.status === "validee"));
     assert.equal(serie.pack, true);
+    assert.deepEqual([serie.famille, serie.niveau], ["Dessins animés et mangas", "Moyen"]);
 
     // Bibliothèque › Images (cedric, 25/10) : les images des packs ont leur rubrique, à part de « Mes images ».
     await page.click('#library-tabs [data-lib-tab="images"]');
@@ -8812,6 +8854,24 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await page.locator("#media-list h3.content-series").allInnerTexts(), ["Disney · 2", "Sans thème · 2"]);
     assert.equal(await page.locator("#media-list .media-card select.media-cat").count(), 0, "rangées par thème du pack, sans catégorie à choisir");
     await capture(page, "images-des-packs");
+
+    // Trois niveaux dans un seul ZIP (cedric, 25/10) : même nom, même famille ; un même nom à un autre niveau n'est pas un doublon.
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.click('#q-groups [data-groupe="packs"]');
+    const hp = (niveau, ageMin, ageMax) => JSON.stringify({ title: "Harry Potter", famille: "Films et séries", niveau, ageMin, ageMax,
+      questions: [{ text: `Question ${niveau} ?`, choices: ["Oui", "Non"], correct: 0 }] });
+    await page.setInputFiles("#pack-file", zip("harry-potter.zip", [
+      ["harry-potter/pack-facile.json", hp("Facile", 5, 8)], ["harry-potter/pack-moyen.json", hp("Moyen", 9, 11)], ["harry-potter/pack-difficile.json", hp("Difficile", 12, 15)],
+    ]));
+    await fenetre.locator(".pack-apercu-pack h3").nth(2).waitFor();
+    assert.equal(await fenetre.locator(".pack-apercu-pack h3").evaluateAll((els) => els.map((e) => e.textContent).join(" | ")), "Harry Potter | Harry Potter | Harry Potter");
+    assert.equal(await repondreFenetre(page), "Importer ces 3 packs ?");
+    await page.locator("#pack-status", { hasText: "✓ Importé" }).waitFor();
+    const hps = Object.values(await library("quizzes")).filter((q) => q.title.startsWith("Harry Potter"));
+    assert.deepEqual(hps.map((q) => [q.title, q.famille, q.niveau]).sort((a, b) => a[2].localeCompare(b[2])),
+      [["Harry Potter", "Films et séries", "Difficile"], ["Harry Potter", "Films et séries", "Facile"], ["Harry Potter", "Films et séries", "Moyen"]]);
+    await page.locator('.q-famille[data-famille="Films et séries"] .q-plier h2', { hasText: "🎬 Films et séries (3)" }).waitFor();
+    assert.deepEqual(await page.locator('.q-famille[data-famille="Films et séries"] .pack .pack-niveau').allInnerTexts(), ["Facile", "Moyen", "Difficile"]);
     await page.context().close();
   });
 

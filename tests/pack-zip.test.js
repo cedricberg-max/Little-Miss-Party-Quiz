@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { faireZip } from "./zip-outil.js";
 import { lireZip, cheminSur, estFichierSysteme } from "../web/public/zip.js";
 import { analyserPack, IMAGE_MANQUANTE, MAX_PHOTOS_SERIE, lirePersonnages } from "../web/public/pack-zip.js";
+import { FAMILLES, NIVEAUX, lireFamille, lireNiveau, niveauDesAges, niveauDuQuiz, familleDuQuiz, parFamille } from "../web/public/rangement.js";
 
 const texte = async (f) => new TextDecoder().decode(await f.lire());
 
@@ -158,5 +159,52 @@ describe("analyse d'un pack", () => {
     const pack = { title: "T", questions: [{ text: "Bonne ?", choices: ["A", "B"], correct: 1 }, { text: "Mauvaise ?", choices: ["A", "B"], correct: 5 }] };
     const { packs } = analyserPack([fichier("p.json", JSON.stringify(pack))]);
     assert.deepEqual(packs[0].aCorriger.map((x) => x.q), [1]);
+  });
+});
+
+describe("rangement des packs : famille et niveau (cedric, 25/10)", () => {
+  test("dix familles et trois niveaux fixes ; lus sans tenir compte des majuscules ni des accents, sinon null", () => {
+    assert.deepEqual(FAMILLES, ["Jeux vidéo", "Dessins animés et mangas", "Films et séries", "Musique", "Sport", "Animaux et nature",
+      "Sciences et espace", "Histoire et monde", "Célébrités et YouTubeurs", "Divers"]);
+    assert.deepEqual(NIVEAUX, ["Facile", "Moyen", "Difficile"]);
+    assert.equal(lireFamille("jeux video"), "Jeux vidéo");
+    assert.equal(lireFamille("  CÉLÉBRITÉS et youtubeurs "), "Célébrités et YouTubeurs");
+    assert.equal(lireFamille("Mangas"), null, "pas de famille inventée");
+    assert.equal(lireFamille(undefined), null);
+    assert.equal(lireNiveau("moyen"), "Moyen");
+    assert.equal(lireNiveau("DIFFICILE"), "Difficile");
+    assert.equal(lireNiveau("Très dur"), null);
+    assert.deepEqual([niveauDesAges(5, 8), niveauDesAges(9, 11), niveauDesAges(12, 15), niveauDesAges(null, null)], ["Facile", "Moyen", "Difficile", null]);
+    // Un quiz enregistré : son niveau, sinon ses âges ; sa famille, sinon Divers.
+    assert.equal(niveauDuQuiz({ niveau: "Facile", ageMin: 12, ageMax: 15 }), "Facile");
+    assert.equal(niveauDuQuiz({ ageMin: 9, ageMax: 11 }), "Moyen");
+    assert.equal(familleDuQuiz({}), "Divers");
+    // Rangés par famille (les dix, dans l'ordre), puis Facile, Moyen, Difficile, puis par nom.
+    const r = parFamille([{ title: "PSG", famille: "Sport", niveau: "Difficile" }, { title: "Foot", famille: "Sport", niveau: "Moyen" }, { title: "Mario", famille: "Jeux vidéo", niveau: "Facile" }, { title: "Sans", famille: null }]);
+    assert.deepEqual(r.map(([f]) => f), FAMILLES);
+    assert.deepEqual(r.find(([f]) => f === "Sport")[1].map((c) => c.title), ["Foot", "PSG"]);
+    assert.deepEqual(r.find(([f]) => f === "Divers")[1].map((c) => c.title), ["Sans"]);
+  });
+
+  test("lus dans le pack : quiz, plusieurs packs, Qui suis-je ?, série de photos avec pack.json ; absents = null (l'import les demande)", () => {
+    const quiz = { title: "Monster Hunter", famille: "Jeux vidéo", niveau: "Difficile", ageMin: 12, ageMax: 15, questions: [{ text: "Arme ?", choices: ["Épée", "Fleur"], correct: 0 }] };
+    let { packs, erreurs } = analyserPack([fichier("pack.json", JSON.stringify(quiz))]);
+    assert.deepEqual(erreurs, []);
+    assert.deepEqual([packs[0].famille, packs[0].niveau, packs[0].niveauDeduit], ["Jeux vidéo", "Difficile", false]);
+    // Sans niveau : celui des âges, à vérifier ; sans famille ni âges : rien.
+    ({ packs } = analyserPack([fichier("pack.json", JSON.stringify({ ...quiz, famille: undefined, niveau: undefined, ageMin: 5, ageMax: 8 }))]));
+    assert.deepEqual([packs[0].famille, packs[0].niveau, packs[0].niveauDeduit], [null, "Facile", true]);
+    ({ packs } = analyserPack([fichier("pack.json", JSON.stringify({ title: "T", questions: quiz.questions }))]));
+    assert.deepEqual([packs[0].famille, packs[0].niveau], [null, null]);
+    // { packs: [...] } : chacun les siens, ou ceux du haut du fichier.
+    ({ packs } = analyserPack([fichier("pack.json", JSON.stringify({ famille: "Sport", niveau: "Moyen", packs: [{ title: "Foot", questions: quiz.questions }, { title: "PSG", niveau: "Difficile", questions: quiz.questions }] }))]));
+    assert.deepEqual(packs.map((p) => [p.titre, p.famille, p.niveau]), [["Foot", "Sport", "Moyen"], ["PSG", "Sport", "Difficile"]]);
+    // Qui suis-je ? : en haut de la série.
+    ({ packs } = analyserPack([fichier("pack.json", JSON.stringify({ serie: "Marvel", famille: "films et séries", niveau: "moyen", personnages: [{ reponse: "Hulk", indices: ["Vert", "Fort"] }] }))]));
+    assert.deepEqual([packs[0].epreuve, packs[0].famille, packs[0].niveau], ["quisuis", "Films et séries", "Moyen"]);
+    // Zoom mystère / Image floue : pack.json sans questions = la fiche de la série (nom, famille, niveau).
+    ({ packs, erreurs } = analyserPack([fichier("savane/pack.json", JSON.stringify({ title: "Animaux de la savane", famille: "Animaux et nature", niveau: "Facile" })), fichier("savane/lion.jpg"), fichier("savane/zebre.jpg")]));
+    assert.deepEqual(erreurs, []);
+    assert.deepEqual([packs[0].epreuve, packs[0].titre, packs[0].famille, packs[0].niveau, packs[0].questions.length], ["photos", "Animaux de la savane", "Animaux et nature", "Facile", 2]);
   });
 });

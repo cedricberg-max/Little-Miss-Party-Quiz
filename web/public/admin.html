@@ -212,7 +212,7 @@
       <div id="library-questions" hidden>
         <p class="hint">
           Toutes les questions des quiz : celles toutes prêtes de l'appli (quiz classique et quiz illustré, séparés), les
-          vôtres écrites en vrac (tous thèmes mélangés) et vos packs importés, rangés par thème. Une question sans
+          vôtres écrites en vrac (tous thèmes mélangés) et vos packs importés, rangés par famille et par niveau. Une question sans
           illustration est signalée par « ⚠ » (quiz classique : une image pour la révélation ; quiz illustré : une par réponse).
           Vos questions se suppriment une par une (« Supprimer ») ou plusieurs à la fois (cochez-les).
         </p>
@@ -579,6 +579,8 @@
       <div class="panel grid">
         <label class="wide">Titre du quiz<input id="rv-title" maxlength="120"></label>
         <label>Thème<input id="rv-theme" maxlength="80"></label>
+        <label id="rv-famille-champ" hidden>Famille<select id="rv-famille"></select></label>
+        <label id="rv-niveau-champ" hidden>Niveau<select id="rv-niveau"></select></label>
         <label>Âge minimum<input id="rv-age-min" type="number" min="3" max="99"></label>
         <label>Âge maximum<input id="rv-age-max" type="number" min="3" max="99"></label>
       </div>

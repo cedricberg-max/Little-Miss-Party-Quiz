@@ -2687,7 +2687,7 @@ describe("Mes questions : supprimer, en vrac par thème, packs rangés par thèm
       ["Animaux", ["p7"]], ["disney", ["p2", "p4"]], ["Éléphants", ["p6"]], ["Musique", ["p1"]], [Q.SANS_THEME, ["p3", "p5"]],
     ]);
     assert.deepEqual(Q.packsParTheme([]), []);
-    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📝 Quiz classique tout prêt", "🖼️ Quiz illustré tout prêt", "✅ Vrai ou Faux tout prêt", "✍️ Mes questions en vrac", "📥 Mes packs par thème", "🔍 Mes séries de photos", "🧪 Questions de test"]);
+    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📝 Quiz classique tout prêt", "🖼️ Quiz illustré tout prêt", "✅ Vrai ou Faux tout prêt", "✍️ Mes questions en vrac", "📥 Mes packs", "🔍 Mes séries de photos", "🧪 Questions de test"]);
   });
 
   test("questions de test : celles des prestations de test (clés « test-… ») sont à part, en vrac comme en pack", () => {

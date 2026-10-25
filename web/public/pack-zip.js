@@ -8,6 +8,7 @@
 import { lirePacks } from "./questions.js";
 import { checkQuestions, imageKey, photoQuestions, LETTERS } from "./importer.js";
 import { CONTENT_GAMES } from "./show.js";
+import { etiquettes, niveauDesAges } from "./rangement.js";
 
 /** Phrase de l'alerte d'une image attendue mais absente (cedric, 25/10), au mot près. */
 export const IMAGE_MANQUANTE = "Image manquante : ajoutez une illustration.";
@@ -69,6 +70,26 @@ function nomDuDossier(fichiers, nomZip) {
   return nom.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+const corpsJson = (texte) => `${texte ?? ""}`.replace(/^\uFEFF/, "").replace(/```(?:json)?/gi, "").trim();
+/** Les données d'un fichier .json, ou undefined s'il est mal écrit. */
+function lireJson(texte) {
+  try { return JSON.parse(corpsJson(texte)); } catch { return undefined; }
+}
+/** Fiche seule d'une série de photos (pack.json) : un objet avec un nom, une famille ou un niveau, sans questions ni personnages. */
+const estFicheSeule = (x) => !!x && typeof x === "object" && !Array.isArray(x)
+  && !["questions", "personnages", "characters", "items", "series", "packs"].some((k) => k in x)
+  && ["title", "titre", "nom", "famille", "niveau"].some((k) => k in x);
+
+/**
+ * Les deux étiquettes d'un pack (cedric, 25/10) : `{ famille, niveau, niveauDeduit }`. Sans niveau écrit, celui de ses
+ * âges (niveauDeduit vrai) ; null quand rien ne le dit : l'aperçu d'import le demande alors.
+ */
+function etiquettesDu(x, parent = null) {
+  const { famille, niveau } = etiquettes(x, parent);
+  const deduit = niveau ? null : niveauDesAges(x?.ageMin ?? null, x?.ageMax ?? null);
+  return { famille, niveau: niveau ?? deduit, niveauDeduit: !niveau && !!deduit };
+}
+
 /** « Question 3 », « Question 3, réponse B », pour retrouver l'endroit d'une alerte. */
 export const ouQuestion = (i, k = null) => `Question ${i + 1}${k == null ? "" : `, réponse ${LETTERS[k] ?? k + 1}`}`;
 
@@ -88,24 +109,29 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
   const laisses = autres.map((f) => f.nom);
   const packs = [];
 
+  // Fiche seule (pack.json d'une série de photos, cedric 25/10) : un nom, une famille, un niveau, sans questions.
+  const lues = donnees.map((f) => ({ f, data: lireJson(f.texte) }));
+  const fiches = lues.filter(({ data }) => estFicheSeule(data));
+  const fiche = fiches[0]?.data ?? null;
+  const avecContenu = lues.filter((x) => !fiches.includes(x));
+
   // Pas de données : une série de photos (Zoom mystère, Image floue), la réponse dans le nom de chaque photo.
-  if (!donnees.length) {
+  if (!avecContenu.length) {
     if (!images.length) return { packs, erreurs: ["Ce ZIP ne contient ni données de pack ni photos. Vérifiez que vous avez choisi le bon fichier."], laisses };
     if (images.length > MAX_PHOTOS_SERIE) {
       return { packs, erreurs: [`Ce ZIP contient ${images.length} photos : ${MAX_PHOTOS_SERIE} au plus par série. Faites deux ZIP.`], laisses };
     }
     const triees = [...images].sort((a, b) => a.nom.localeCompare(b.nom, "fr", { numeric: true }));
     const questions = photoQuestions(triees.map((f) => f.nom)).map((q, i) => ({ ...q, photo: triees[i].nom }));
-    packs.push({ epreuve: "photos", titre: nomDuDossier(fichiers, nomZip) || "Mes photos", theme: "", ageMin: null, ageMax: null, questions, manquantes: [], aCorriger: [], ignorees: [] });
+    const titre = [fiche?.title, fiche?.titre, fiche?.nom].find((v) => typeof v === "string" && v.trim())?.trim();
+    packs.push({ epreuve: "photos", titre: titre || nomDuDossier(fichiers, nomZip) || "Mes photos", theme: "", ageMin: null, ageMax: null, ...etiquettesDu(fiche), questions, manquantes: [], aCorriger: [], ignorees: [] });
     return { packs, erreurs, laisses };
   }
 
   const trouver = chercheurImages(images);
   const servies = new Set();
-  for (const f of donnees) {
-    const corps = `${f.texte ?? ""}`.replace(/^﻿/, "").replace(/```(?:json)?/gi, "").trim();
-    let data;
-    try { data = JSON.parse(corps); } catch {
+  for (const { f, data } of avecContenu) {
+    if (data === undefined) {
       erreurs.push(`Les données du pack (« ${f.nom} ») sont mal écrites : il manque sans doute une virgule, un guillemet ou une accolade. Faites-les réécrire, puis refaites le ZIP.`);
       continue;
     }
@@ -122,10 +148,11 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
       }));
       if (!personnages.length) { erreurs.push(`Aucun personnage complet dans « ${f.nom} » : chacun a besoin de sa réponse et d'au moins 2 indices.`); continue; }
       const noms = [...new Set(personnages.map((p) => p.serie).filter(Boolean))];
-      packs.push({ epreuve: "quisuis", titre: noms.join(", ") || "Mes personnages", theme: "", ageMin: null, ageMax: null, personnages, manquantes: [], aCorriger: [], ignorees, fichierDonnees: f.nom });
+      const parent = Array.isArray(data?.series) ? data.series.find((x) => x?.famille || x?.niveau) : null;
+      packs.push({ epreuve: "quisuis", titre: noms.join(", ") || "Mes personnages", theme: "", ageMin: null, ageMax: null, ...etiquettesDu(data, parent), personnages, manquantes: [], aCorriger: [], ignorees, fichierDonnees: f.nom });
       continue;
     }
-    const lu = lirePacks(corps);
+    const lu = lirePacks(corpsJson(f.texte));
     if (lu.erreur) { erreurs.push(`« ${f.nom} » : aucune question ni personnage trouvé. Vérifiez que c'est bien un pack de la Régie PC.`); continue; }
     for (const p of lu.packs) {
       const ignorees = [];
@@ -151,7 +178,7 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
         : questions.filter((q) => q.kind !== "number").length && questions.every((q) => q.kind === "number" || estVraiFaux(q)) ? "vraifaux" : "quiz";
       packs.push({
         epreuve, titre: p.title || p.theme || nomDuDossier(fichiers, nomZip) || "Pack sans titre", theme: p.theme || "",
-        ageMin: p.ageMin ?? null, ageMax: p.ageMax ?? null, questions, manquantes, aCorriger, ignorees, fichierDonnees: f.nom,
+        ageMin: p.ageMin ?? null, ageMax: p.ageMax ?? null, ...etiquettesDu(p), questions, manquantes, aCorriger, ignorees, fichierDonnees: f.nom,
       });
     }
   }
