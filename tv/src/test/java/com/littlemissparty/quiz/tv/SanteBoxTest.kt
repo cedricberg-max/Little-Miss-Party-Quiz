@@ -14,7 +14,7 @@ class SanteBoxTest {
     )
 
     @Test
-    fun `tout va bien : une ligne sans alerte`() {
+    fun `tout va bien, une ligne sans alerte`() {
         assertEquals(emptyList<String>(), normal.alertes())
         assertEquals(
             "RAM libre 812/1945 Mo · appli 95/192 Mo · disque 1,3 Go · boucles 1, sons 0, incidents 3 · " +
