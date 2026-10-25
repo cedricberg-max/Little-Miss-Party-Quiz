@@ -164,7 +164,7 @@ fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
             AlerteBuzz(ms, couleur, { 1f }, Modifier.fillMaxSize())
             // Lu d'un seul bloc (lecteur d'écran, tests) : la pastille et la ligne disent « X a buzzé ! ».
             Column(
-                Modifier.align(Alignment.Center).clearAndSetSemantics { contentDescription = "$equipe a buzzé ! On écoute sa réponse" },
+                Modifier.align(Alignment.Center).clearAndSetSemantics { contentDescription = "$equipe a buzzé ! On attend sa réponse…" },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 StopGlitch(ms, 120.sp)
