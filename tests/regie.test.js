@@ -9181,6 +9181,39 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Image à fond transparent (cedric, 25/10) : rangée en 4:3 (carrée pour une case), le sujet en grand, sur un fond Game Show qui contraste ; une photo opaque ne change pas", async () => {
+    const page = await admin();
+    const r = await page.evaluate(async () => {
+      const { compressImage, CHOICE_IMAGE } = await import("/illustration.js");
+      // Une petite étoile jaune dans un coin d'une grande image transparente ; une photo opaque.
+      const dessin = (w, h, f) => { const c = Object.assign(document.createElement("canvas"), { width: w, height: h }); f(c.getContext("2d")); return new Promise((ok) => c.toBlob(ok, "image/png")); };
+      const etoile = await dessin(1600, 900, (x) => { x.fillStyle = "#ffe600"; x.fillRect(1000, 200, 200, 200); });
+      const opaque = await dessin(600, 300, (x) => { x.fillStyle = "#3080c0"; x.fillRect(0, 0, 600, 300); });
+      const lire = async (url) => {
+        const b = await createImageBitmap(await (await fetch(url)).blob());
+        const c = Object.assign(document.createElement("canvas"), { width: b.width, height: b.height });
+        const x = c.getContext("2d");
+        x.drawImage(b, 0, 0);
+        const px = (u, v) => [...x.getImageData(Math.round(u * b.width), Math.round(v * b.height), 1, 1).data.slice(0, 3)];
+        return { taille: [b.width, b.height], centre: px(0.5, 0.5), coin: px(0.02, 0.02), gauche: px(0.25, 0.5) };
+      };
+      return { grande: await lire(await compressImage(etoile)), cas: await lire(await compressImage(etoile, CHOICE_IMAGE.budget, CHOICE_IMAGE.width)), opaque: await lire(await compressImage(opaque)) };
+    });
+    const jaune = ([r, g, b]) => r > 200 && g > 180 && b < 90;
+    const sombre = (c) => Math.max(...c) < 90;
+    assert.deepEqual(r.grande.taille, [800, 600]);
+    assert.deepEqual(r.cas.taille, [480, 480]);
+    // L'étoile, agrandie et centrée, occupe le milieu ; autour, la nuit violette du décor (plus de blanc).
+    for (const x of [r.grande, r.cas]) {
+      assert.ok(jaune(x.centre), `le sujet au centre : ${x.centre}`);
+      assert.ok(sombre(x.coin), `un coin du fond : ${x.coin}`);
+    }
+    assert.ok(jaune(r.grande.gauche), "l'étoile occupe presque toute la hauteur (elle est carrée : sa largeur suit)");
+    assert.deepEqual(r.opaque.taille, [600, 300], "une photo opaque garde son format");
+    assert.ok(Math.abs(r.opaque.coin[2] - 192) < 12 && Math.abs(r.opaque.centre[0] - 48) < 12, `et ses couleurs : ${r.opaque.coin}`);
+    await page.context().close();
+  });
+
   test("Import d'un pack en un seul ZIP (cedric, 25/10) : Quiz illustré avec une image absente (simple alerte), série de photos sans données, tout modifiable et gardé", async () => {
     const page = await admin();
     await page.click("#nav button[data-screen=library]");
