@@ -144,6 +144,8 @@ fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
                 emoji = q.emoji?.takeIf { it.isNotBlank() },
                 image = imagePersonnage(q, state),
                 modifier = Modifier.weight(1f).fillMaxWidth(),
+                // Game Show : le nom est déjà en néon dans la révélation à côté, pas deux fois à l'écran.
+                avecNom = !Look.gs,
             )
             return@Column
         }
