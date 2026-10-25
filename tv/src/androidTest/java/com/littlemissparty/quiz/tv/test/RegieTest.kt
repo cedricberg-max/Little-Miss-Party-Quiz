@@ -852,7 +852,11 @@ class RegieTest : TestTv() {
             "id" to "d1", "text" to "Qui a disparu ?", "choices" to listOf("Téléphérique"), "correct" to 0, "image" to "🚡",
             "duration" to 30, "kind" to "disparu", "double" to false, "round" to "Qui a disparu ?", "cards" to objets,
         )
-        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(disparu) + avant))
+        // Deuxième tour : un nom en deux mots que personne ne trouve (révélation « Personne n'a trouvé »).
+        val transports = listOf("TGV" to "🚄", "Bateau à moteur" to "🚤", "Métro" to "🚇", "Hélicoptère" to "🚁")
+            .map { (w, e) -> mapOf("word" to w, "image" to e) }
+        val disparu2 = disparu + mapOf("id" to "d2", "choices" to listOf("Bateau à moteur"), "image" to "🚤", "cards" to transports)
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(disparu, disparu2) + avant))
 
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("MÉMORISEZ !")
@@ -877,7 +881,22 @@ class RegieTest : TestTv() {
         ecran.motsEntiers("Téléphérique")
         ecran.motsEntiers("Bateau à voile")
         ecran.motsEntiers("Bravo Licornes")
-        ecran.capture("qui-a-disparu-revelation")
+        ecran.capture("qui-a-disparu-revelation", attente = Ecran.APRES_REVELATION)
+
+        // Personne ne trouve : le nom en deux mots et la phrase de consolation tiennent en entier.
+        assertEquals("applied", regie.commande(code, "next"))
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("deuxième tour ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "d2" } }
+        ecran.voit("Buzzez dès que vous savez quel objet a disparu !", 30_000)
+        // L'écran change un instant avant l'état publié : sinon la commande part sur l'étape d'avant (« stale »).
+        attendreQue("buzzer du deuxième tour ouvert") { licornes.etat(code).takeIf { it.child("buzzOpen").value == true } }
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Temps écoulé !")
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Personne n'a trouvé, ce n'est pas grave !")
+        ecran.motsEntiers("Personne n'a trouvé, ce n'est pas grave !")
+        ecran.motsEntiers("Bateau à moteur")
+        ecran.capture("qui-a-disparu-personne", attente = Ecran.APRES_REVELATION)
     }
 
     @Test

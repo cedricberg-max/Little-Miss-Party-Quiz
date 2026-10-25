@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.MimeCard
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
 
@@ -75,18 +76,23 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
         modifier.panneauJeu().padding(horizontal = 24.dp, vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            when (etape) {
-                EtapeDisparu.MEMORISER -> "MÉMORISEZ !"
-                EtapeDisparu.MAGIE -> "ABRACADABRA…"
-                EtapeDisparu.CHERCHER -> "QUI A DISPARU ?"
-                EtapeDisparu.REPONSE -> "QUI A DISPARU ?"
-            },
-            color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
-            modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp)
-                .apparition(0, etape),
-        )
-        Spacer(Modifier.height(10.dp))
+        // Game Show : plus d'étiquette « QUI A DISPARU ? » au-dessus des objets, le titre le dit déjà (cedric, 25/10 au
+        // soir : « n'a même pas lieu d'être ») ; « MÉMORISEZ ! » et « ABRACADABRA… » restent, ils disent l'étape.
+        val repete = etape == EtapeDisparu.CHERCHER || etape == EtapeDisparu.REPONSE
+        if (!(Look.gs && repete)) {
+            Text(
+                when (etape) {
+                    EtapeDisparu.MEMORISER -> "MÉMORISEZ !"
+                    EtapeDisparu.MAGIE -> "ABRACADABRA…"
+                    EtapeDisparu.CHERCHER -> "QUI A DISPARU ?"
+                    EtapeDisparu.REPONSE -> "QUI A DISPARU ?"
+                },
+                color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp)
+                    .apparition(0, etape),
+            )
+            Spacer(Modifier.height(10.dp))
+        }
         // Colonnes choisies pour remplir les lignes ; une dernière ligne incomplète est centrée, jamais un trou d'un côté.
         val colonnes = when (q.cards.size) {
             in 1..4 -> 2

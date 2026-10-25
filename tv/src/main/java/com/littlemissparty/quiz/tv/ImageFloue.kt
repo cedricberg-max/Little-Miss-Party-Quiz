@@ -39,6 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.GS
+import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.RevelationNeon
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import kotlinx.coroutines.delay
@@ -149,6 +152,20 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         when {
+            // Game Show : la révélation en néon, le mot dans son tube (cedric, 25/10 au soir : « plus festif, plus néon »).
+            (state.phase == Phase.REVEAL || state.phase == Phase.SCORES) && Look.gs -> RevelationNeon(
+                etiquette = if (q.isChante) "Le mot :" else "C'était :",
+                mot = q.choices.getOrNull(q.correct).orEmpty(),
+                phrase = when {
+                    gagnant != null && q.isChante -> "Bravo ${gagnant.name}, quelle voix !"
+                    gagnant != null -> "Bravo ${gagnant.name} !"
+                    q.isChante -> "Personne n'a chanté, ce n'est pas grave !"
+                    else -> "Personne n'a trouvé, ce n'est pas grave !"
+                },
+                teinte = gagnant?.color?.toColor() ?: GS.Rose,
+                cle = state.question?.id,
+                modifier = Modifier.fillMaxSize(),
+            )
             state.phase == Phase.REVEAL || state.phase == Phase.SCORES -> {
                 Text(if (q.isChante) "Le mot :" else "C'était :", color = Palette.InkSoft, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
