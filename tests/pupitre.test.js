@@ -186,6 +186,32 @@ describe("pupitre", () => {
     for (const p of pages) await p.context().close();
   });
 
+  test("« 🏁 Fin de la fête » (cedric, 25/10) : les tablettes suivent seules la nouvelle partie de la TV, sans rescanner", async () => {
+    const equipe = await openPupitre();
+    await joinTeam(equipe, "Les Roses");
+    const attente = await openPupitre();
+    await waitingDevice(attente);
+    const SUITE = "SUIT2";
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${SUITE}`), {
+      hostUid: HOST, regieActive: true, state: { phase: "lobby", round: 1, buzzOpen: true, total: 3, scores: {} },
+    }));
+    // La TV quitte la fête : l'ancienne partie est terminée et pointe vers la nouvelle.
+    await hostState({ phase: "ended", round: 1, total: 3, scores: {}, leftAt: Date.now(), suite: SUITE });
+    const suit = async (p) => {
+      await p.waitForURL((u) => u.searchParams.get("g") === SUITE, { timeout: 8000 });
+      assert.equal(new URL(p.url()).searchParams.get("emu"), "1");
+      await p.locator("#screen-waiting.active").waitFor({ timeout: 8000 });
+      const device = await p.locator("#screen-waiting").getAttribute("data-device");
+      await waitFor(async () => (await get(ref(hostDb(), `games/${SUITE}/joinRequests/${device}`))).val(), "demande sur la nouvelle partie");
+    };
+    await suit(equipe);
+    await suit(attente);
+    // Une tablette ouverte plus tard sur l'ancien QR va aussi sur la nouvelle partie.
+    const tard = await openPupitre();
+    await suit(tard);
+    for (const p of [equipe, attente, tard]) await p.context().close();
+  });
+
   test("entrée (cedric, 24/10) : rien à taper ni à choisir ; avant la régie, seulement le code régie ; ensuite la demande part seule", async () => {
     await set(ref(hostDb(), `games/${CODE}/regieActive`), false);
     const page = await openPupitre();

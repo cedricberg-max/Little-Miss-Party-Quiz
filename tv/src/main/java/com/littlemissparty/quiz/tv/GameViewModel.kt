@@ -424,7 +424,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Termine la partie active (elle reste archivée dans Firebase) et en crée une nouvelle. La partie quittée est marquée
-     * (`state/leftAt`) : une régie encore ouverte dessus sait que la TV est revenue à l'accueil.
+     * (`state/leftAt`) et pointe vers la nouvelle (`state/suite`) : la régie du téléphone et les tablettes la suivent
+     * seules, sans rescanner ni retaper le mot de passe (cedric, 25/10 : « il faut que ça suive tout seul »).
      */
     fun newGame() {
         countdown?.cancel()
@@ -436,19 +437,47 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val db = connect()
-                if (previous != null) {
-                    db.getReference("games/$previous/state").updateChildren(
-                        mapOf("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP, "leftAt" to ServerValue.TIMESTAMP)
-                    )
-                }
                 activeCode = null
                 val uid = FirebaseAuth.getInstance().currentUser!!.uid
-                if (!boxMayPlay(db, uid)) return@launch
-                open(db, createGame(db, uid))
+                var nouveau: String? = null
+                try {
+                    if (boxMayPlay(db, uid)) nouveau = createGame(db, uid)
+                } finally {
+                    // Même sans nouvelle partie (box à activer, base muette), l'ancienne est quittée.
+                    if (previous != null) quitter(db, previous, nouveau)
+                }
+                nouveau?.let { open(db, it) }
             } catch (e: Exception) {
                 fail(e)
             }
         }
+    }
+
+    /**
+     * Marque [ancien] terminée et quittée. Avec une [suite] : les téléphones reliés à la régie de l'ancienne partie le
+     * sont d'abord à la nouvelle (la box est hôte des deux), puis `state/suite` est écrit, pour que la régie qui bascule
+     * soit déjà reliée.
+     */
+    private suspend fun quitter(db: FirebaseDatabase, ancien: String, suite: String?) {
+        val fin = mutableMapOf<String, Any>("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP, "leftAt" to ServerValue.TIMESTAMP)
+        if (suite != null) {
+            try {
+                val regies = db.getReference("games/$ancien/regie").readOnce()?.children.orEmpty()
+                    .mapNotNull { r -> r.key?.let { it to (r.child("via").getValue(String::class.java) ?: "pin") } }
+                if (regies.isNotEmpty()) {
+                    withTimeoutOrNull(8000L) {
+                        db.getReference("games/$suite").updateChildren(
+                            regies.associate { (cle, via) -> "regie/$cle" to mapOf("pairedAt" to ServerValue.TIMESTAMP, "via" to via) }
+                        ).await()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "régie non recopiée vers $suite", e)
+            }
+            fin["suite"] = suite
+        }
+        // Sans attendre : hors ligne, l'écriture part au retour du réseau.
+        db.getReference("games/$ancien/state").updateChildren(fin)
     }
 
     // ---------- Activation de la box ----------

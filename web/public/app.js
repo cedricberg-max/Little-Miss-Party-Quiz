@@ -288,7 +288,10 @@ async function start() {
     if (mine) { teamId = mine; return play(); }
     // Partie commencée : un nouvel appareil n'entre que si la régie l'accepte (nouvelle équipe ou remplaçant).
     const phase = (await get(ref(db, `games/${code}/state/phase`))).val() ?? "lobby";
-    if (phase === "ended") return fail("Cette partie est terminée. Merci d'avoir joué !");
+    if (phase === "ended") {
+      if (suivreLaSuite((await get(ref(db, `games/${code}/state/suite`))).val())) return;
+      return fail("Cette partie est terminée. Merci d'avoir joué !");
+    }
     if (takeover && !regieDirect && Object.keys(teams).length) return showTakeover();
     if (phase === "lobby" && Object.keys(teams).length >= MAX_TEAMS) {
       fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`);
@@ -328,6 +331,7 @@ function showReplaced(team) {
 function showGate() {
   stopListening();
   ecouterBienvenue();
+  listen(`games/${code}/state/suite`, (s) => { suivreLaSuite(s.val()); });
   let demande = false;
   listen(`games/${code}/regieActive`, (s) => {
     // QR « Reconnecter la régie » : ce téléphone est celui de l'animatrice, il ne demande jamais à entrer.
@@ -403,6 +407,7 @@ function waitForAdmission(text = "L'animatrice vous fait entrer dans la partie d
   $("screen-waiting").dataset.device = uid;
   show("waiting");
   ecouterBienvenue();
+  listen(`games/${code}/state/suite`, (s) => { suivreLaSuite(s.val()); });
   let teams = {};
   let refusal = null;
   let done = false;
@@ -472,7 +477,28 @@ function play() {
     }
   });
   listen(`games/${code}/teams`, (s) => { game.teams = s.val() ?? {}; game.teamsLoaded = true; render(); });
-  listen(`games/${code}/state`, (s) => { game.state = s.val(); watchMyAnswer(); render(); });
+  listen(`games/${code}/state`, (s) => {
+    game.state = s.val();
+    if (suivreLaSuite(game.state?.suite)) return;
+    watchMyAnswer();
+    render();
+  });
+}
+
+/**
+ * « 🏁 Fin de la fête » : la TV a ouvert une nouvelle partie et l'écrit sur l'ancienne (`state/suite`). La tablette la
+ * suit seule, sans rescanner (cedric, 25/10 : « il faut que ça suive tout seul »). true : la page part vers la suite.
+ */
+function suivreLaSuite(suite) {
+  if (typeof suite !== "string" || !/^[A-Z0-9]{4,8}$/.test(suite) || suite === code) return false;
+  if (document.body.classList.contains("regie-mode")) return false;
+  stopListening();
+  const p = new URLSearchParams(location.search);
+  p.set("g", suite);
+  p.delete("reprise");
+  p.delete("regie");
+  location.replace(`${location.pathname}?${p}`);
+  return true;
 }
 
 function watchMyAnswer() {
