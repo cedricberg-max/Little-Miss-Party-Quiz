@@ -8,14 +8,14 @@
 
 /** Limites raisonnables d'une archive de pack. */
 export const LIMITES_ZIP = {
-  /** Taille du fichier ZIP. */
-  zip: 150 * 1024 * 1024,
+  /** Taille du fichier ZIP (cedric, 25/10 : les packs et tout le dossier d'images téléchargé, 300 images et plus). */
+  zip: 600 * 1024 * 1024,
   /** Fichiers dans l'archive (dossiers non comptés). */
-  fichiers: 500,
+  fichiers: 2000,
   /** Taille d'un fichier une fois décompressé. */
   fichier: 30 * 1024 * 1024,
-  /** Taille de tous les fichiers décompressés. */
-  total: 300 * 1024 * 1024,
+  /** Taille de tous les fichiers décompressés (seules les images citées le sont vraiment, une à une). */
+  total: 1500 * 1024 * 1024,
 };
 
 const Mo = (n) => `${Math.round(n / 1024 / 1024)} Mo`;

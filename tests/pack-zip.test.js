@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { faireZip } from "./zip-outil.js";
 import { lireZip, lireZipEtSesZip, cheminSur, estFichierSysteme } from "../web/public/zip.js";
-import { analyserPack, IMAGE_MANQUANTE, MAX_PHOTOS_SERIE, lirePersonnages, chercheurImages, alerteImage, FORMATS_IMAGES } from "../web/public/pack-zip.js";
+import { analyserPack, IMAGE_MANQUANTE, MAX_PHOTOS_SERIE, lirePersonnages, chercheurImages, alerteImage, FORMATS_IMAGES, estImage } from "../web/public/pack-zip.js";
 import { FAMILLES, NIVEAUX, lireFamille, lireNiveau, niveauDesAges, niveauDuQuiz, familleDuQuiz, parFamille } from "../web/public/rangement.js";
 
 const texte = async (f) => new TextDecoder().decode(await f.lire());
@@ -101,7 +101,7 @@ const fichier = (chemin, texteJson) => ({ chemin, nom: chemin.split("/").pop(), 
 
 describe("analyse d'un pack", () => {
   test("Quiz avec ses images : Juste Chiffre compris, une image absente = simple alerte, rien de bloquant", () => {
-    const { packs, erreurs, laisses } = analyserPack([
+    const { packs, erreurs, laisses, imagesInutiles } = analyserPack([
       fichier("hp/pack.json", JSON.stringify(QUIZ)), fichier("hp/HP-Q01-Revelation.JPG"), fichier("hp/en-trop.jpg"), fichier("hp/liste.txt"),
     ]);
     assert.deepEqual(erreurs, []);
@@ -112,7 +112,8 @@ describe("analyse d'un pack", () => {
     assert.equal(p.questions[2].correct, 7);
     assert.deepEqual(p.manquantes, [{ q: 1, case: null, fichier: "hp-q02-revelation.jpg" }]);
     assert.deepEqual(p.aCorriger, []);
-    assert.deepEqual(laisses.sort(), ["en-trop.jpg", "liste.txt"]);
+    assert.deepEqual(laisses.sort(), ["liste.txt"]);
+    assert.equal(imagesInutiles, 1, "en-trop.jpg : comptée, jamais téléversée");
     assert.equal(IMAGE_MANQUANTE, "Image manquante : ajoutez une illustration.");
   });
 
@@ -265,7 +266,7 @@ describe("rangement des packs : famille et niveau (cedric, 25/10)", () => {
     assert.deepEqual(erreurs, []);
     assert.deepEqual(packs.map((p) => [p.epreuve, p.titre, p.niveau, p.dossier]).sort((a, b) => `${a[3]}`.localeCompare(`${b[3]}`)), [
       ["quiz", "K-pop Demon Hunters", "Facile", "kdh/quiz-facile"],
-      ["quisuis", "K-pop Demon Hunters", "Difficile", undefined],
+      ["quisuis", "K-pop Demon Hunters", "Difficile", "kdh/quisuis-difficile"],
       ["vraifaux", "K-pop Demon Hunters", "Moyen", "kdh/vraifaux-moyen"],
       ["photos", "K-pop Demon Hunters", "Facile", "kdh/zoom-facile"],
       ["photos", "K-pop Demon Hunters", "Moyen", "kdh/zoom-moyen"],
@@ -273,6 +274,51 @@ describe("rangement des packs : famille et niveau (cedric, 25/10)", () => {
     const zooms = packs.filter((p) => p.epreuve === "photos");
     assert.deepEqual(zooms.map((p) => p.questions.map((q) => q.choices[q.correct])), [["Mira", "Rumi"], ["Derby", "Jinu", "Rumi"]]);
     assert.deepEqual(laisses, ["liste.txt"], "toutes les images servent, rien d'autre n'est laissé");
+  });
+});
+
+describe("un seul fichier packs.json et le dossier d'images téléchargé (cedric, 25/10)", () => {
+  const fichiers = () => [
+    fichier("kdh/packs.json", JSON.stringify({ theme: "KPop Demon Hunters", niveau: "Moyen", packs: [
+      { title: "KPop Demon Hunters", niveau: "Facile", questions: [{ text: "Qui chante ?", choices: ["Rumi", "Mira", "Zoey", "Jinu"], correct: 0, image: "Rumi Scène (2).PNG" }] },
+      { title: "KPop Demon Hunters", questions: [{ text: "Qui est-ce ?", choices: ["Rumi", "Mira", "Zoey", "Jinu"], correct: 1, images: ["rumi_kdh.png", "mira-kdh.webp", "zoey.jpg", "absente.jpg"] }] },
+      { serie: "KPop Demon Hunters", personnages: [{ reponse: "Jinu", indices: ["Je suis un démon", "Je chante"], image: "jinu.jpg" }, { reponse: "Derpy", indices: ["Je suis un tigre", "Je suis bleu"], image: "pas-la.png" }] },
+      { title: "KPop Demon Hunters", niveau: "Difficile", photos: [{ image: "rumi_kdh.png", reponse: "Rumi" }, { image: "Mira-KDH.webp", reponse: "Mira" }, { image: "fantome.jpg", reponse: "Bobby" }] },
+    ] })),
+    ...["rumi scene (2).png", "rumi_kdh.png", "mira-kdh.webp", "zoey.jpg", "jinu.jpg", "inutile-1.jpg", "inutile 2.jpg", "IMG_0042.jpeg"].map((n) => fichier(`kdh/images/${n}`)),
+  ];
+
+  test("chaque pack de la liste est lu comme seul dans son fichier, avec le thème et le niveau du haut s'il n'a pas les siens", () => {
+    const { packs, erreurs } = analyserPack(fichiers());
+    assert.deepEqual(erreurs, []);
+    assert.deepEqual(packs.map((p) => [p.epreuve, p.theme, p.niveau]).sort(), [
+      ["illustre", "KPop Demon Hunters", "Moyen"], ["photos", "KPop Demon Hunters", "Difficile"], ["quisuis", "", "Moyen"], ["quiz", "KPop Demon Hunters", "Facile"]].sort());
+  });
+
+  test("les images sont trouvées dans le dossier d'images par leur nom (majuscules, accents, espaces, tirets, parenthèses tolérés) ; les autres comptées, jamais téléversées", () => {
+    const f = fichiers();
+    const { packs, imagesInutiles, laisses } = analyserPack(f);
+    assert.equal(imagesInutiles, 3, "inutile-1, inutile 2, IMG_0042");
+    assert.deepEqual(laisses, []);
+    const trouver = chercheurImages(f.filter((x) => estImage(x.nom)));
+    assert.equal(trouver("Rumi Scène (2).PNG", "kdh").chemin, "kdh/images/rumi scene (2).png");
+    assert.equal(trouver("Mira_KDH", "kdh").chemin, "kdh/images/mira-kdh.webp");
+    const illus = packs.find((p) => p.epreuve === "illustre");
+    assert.deepEqual(illus.manquantes, [{ q: 0, case: 3, fichier: "absente.jpg" }], "image absente : simple alerte");
+    // Série de photos listée : la réponse écrite à côté de chaque image ; une image absente, la photo n'est pas importée.
+    const zoom = packs.find((p) => p.epreuve === "photos");
+    assert.deepEqual(zoom.questions.map((q) => [q.photo, q.choices[q.correct]]), [["rumi_kdh.png", "Rumi"], ["Mira-KDH.webp", "Mira"]]);
+    assert.deepEqual(zoom.ignorees, ["« fantome.jpg » (Bobby) : image absente du ZIP, cette photo n'est pas importée."]);
+    // Qui suis-je ? : l'image du personnage, facultative ; absente, une alerte.
+    const qui = packs.find((p) => p.epreuve === "quisuis");
+    assert.deepEqual(qui.personnages.map((x) => [x.answer, x.fichierImage ?? null]), [["Jinu", "jinu.jpg"], ["Derpy", null]]);
+    assert.deepEqual(qui.manquantes.map((m) => [m.nom, m.fichier]), [["Derpy", "pas-la.png"]]);
+  });
+
+  test("une image de la banque n'est signalée que trop petite (ses proportions sont libres)", () => {
+    assert.equal(alerteImage({ largeur: 1920, hauteur: 600, octets: 900_000 }, "revelation", { banque: true }), null);
+    assert.match(alerteImage({ largeur: 200, hauteur: 150, octets: 9_000 }, "revelation", { banque: true }), /trop petite/);
+    assert.match(alerteImage({ largeur: 1920, hauteur: 600, octets: 900_000 }, "revelation"), /panoramique/);
   });
 });
 

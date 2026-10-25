@@ -6,7 +6,7 @@
  */
 
 import { lirePacks } from "./questions.js";
-import { checkQuestions, imageKey, photoQuestions, LETTERS } from "./importer.js";
+import { checkQuestions, imageKey, photoQuestions, questionsDePhotos, LETTERS } from "./importer.js";
 import { CONTENT_GAMES } from "./show.js";
 import { etiquettes, niveauDesAges } from "./rangement.js";
 
@@ -24,6 +24,10 @@ export const EPREUVES = {
 export const estImage = (nom) => /\.(jpe?g|png|webp|gif)$/i.test(nom ?? "");
 const estDonnees = (nom) => /\.json$/i.test(nom ?? "");
 const sansExtension = (cle) => cle.replace(/\.[a-z0-9]+$/, "");
+/** Le nom serré : sans extension, ni espaces, tirets, soulignés, parenthèses… (« Rumi (1).PNG » = « rumi_1.png »). */
+const serre = (cle) => sansExtension(cle).replace(/[^a-z0-9]/g, "");
+/** Le premier texte non vide parmi [valeurs]. */
+const texteDe = (...valeurs) => valeurs.find((v) => typeof v === "string" && v.trim())?.trim() ?? null;
 
 /**
  * Personnages de Qui suis-je ? lus dans des données de pack (cedric, 24/10) : une série ({ serie, personnages }),
@@ -32,7 +36,9 @@ const sansExtension = (cle) => cle.replace(/\.[a-z0-9]+$/, "");
  */
 export function lirePersonnages(data, nomFichier) {
   const liste = (x) => x?.personnages ?? x?.characters ?? x?.items;
-  const perso = (p) => ({ answer: p?.reponse ?? p?.["réponse"] ?? p?.answer ?? p?.nom ?? p?.name, emoji: p?.emoji, clues: p?.indices ?? p?.clues, serie: p?.serie ?? p?.["série"] });
+  const perso = (p) => ({ answer: p?.reponse ?? p?.["réponse"] ?? p?.answer ?? p?.nom ?? p?.name, emoji: p?.emoji, clues: p?.indices ?? p?.clues, serie: p?.serie ?? p?.["série"],
+    // Son image de révélation (cedric, 25/10), par son nom dans le dossier d'images du ZIP : facultative.
+    image: texteDe(p?.image, p?.photo, p?.fichier, p?.file) });
   const serieDe = (x) => ({
     serie: [x?.serie, x?.["série"], x?.titre, x?.title, x?.nom, x?.name].find((v) => typeof v === "string" && v.trim()) ?? nomFichier,
     personnages: liste(x).map(perso),
@@ -46,18 +52,21 @@ export function lirePersonnages(data, nomFichier) {
 }
 
 /**
- * Retrouve une image par son nom, sans tenir compte des majuscules, des accents, du dossier ni de l'extension
- * (« Q1-Lion.PNG » trouve « q1-lion.jpg »). [images] : les fichiers images du ZIP.
+ * Retrouve une image par son nom, dans tout le ZIP (cedric, 25/10 : le dossier d'images téléchargé à côté des packs),
+ * sans tenir compte des majuscules, des accents, du dossier ni de l'extension (« Q1-Lion.PNG » trouve « q1-lion.jpg »),
+ * en dernier recours ni des espaces, tirets, soulignés ou parenthèses. [images] : les fichiers images du ZIP.
  */
 export function chercheurImages(images) {
   const exacts = new Map();
   const sans = new Map();
+  const serres = new Map();
   const garder = (map, cle, f) => { if (!map.has(cle)) map.set(cle, f); };
   for (const f of images) {
     const cle = imageKey(f.nom);
     const dossier = dossierDe(f.chemin);
     garder(exacts, cle, f);
     garder(sans, sansExtension(cle), f);
+    if (serre(cle)) garder(serres, serre(cle), f);
     garder(exacts, `${dossier}\u0000${cle}`, f);
     garder(sans, `${dossier}\u0000${sansExtension(cle)}`, f);
   }
@@ -66,7 +75,7 @@ export function chercheurImages(images) {
   return (nom, dossier = null) => {
     const cle = imageKey(nom);
     const ici = dossier == null ? null : exacts.get(`${dossier}\u0000${cle}`) ?? sans.get(`${dossier}\u0000${sansExtension(cle)}`);
-    return ici ?? exacts.get(cle) ?? sans.get(sansExtension(cle)) ?? null;
+    return ici ?? exacts.get(cle) ?? sans.get(sansExtension(cle)) ?? (serre(cle) ? serres.get(serre(cle)) : null) ?? null;
   };
 }
 
@@ -112,7 +121,8 @@ export const ouQuestion = (i, k = null) => `Question ${i + 1}${k == null ? "" : 
  * - packs : `{ epreuve, titre, theme, ageMin, ageMax, questions | personnages, manquantes, aCorriger, ignorees, fichierDonnees }`,
  *   chaque question gardant ses noms d'images attendus (revealFile, imageFiles) ou, en série de photos, `photo` ;
  * - erreurs : ce qui empêche de lire le pack (rien ne sera enregistré) ;
- * - laisses : fichiers laissés de côté (liste.txt de relecture, images qui ne servent à rien…).
+ * - laisses : fichiers laissés de côté (liste.txt de relecture…) ;
+ * - imagesInutiles : le nombre d'images du ZIP qui ne servent à aucun pack (jamais téléversées).
  */
 export function analyserPack(fichiers, { nomZip = "" } = {}) {
   const images = fichiers.filter((f) => estImage(f.nom));
@@ -123,10 +133,22 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
   const packs = [];
 
   // Fiche seule (pack.json d'une série de photos, cedric 25/10) : un nom, une famille, un niveau, sans questions.
-  const lues = donnees.map((f) => ({ f, data: lireJson(f.texte) }));
+  // Un seul fichier pour tout un thème (cedric, 25/10 : packs.json = { theme, packs: [ … ] }) : chaque pack de la
+  // liste est lu comme s'il était seul dans son fichier (Quiz, Quiz illustré, Vrai / Faux, Qui suis-je ?, série de
+  // photos), avec le thème et le niveau du haut du fichier s'il n'a pas les siens.
+  const lues = donnees.flatMap((f) => {
+    const data = lireJson(f.texte);
+    if (!Array.isArray(data?.packs) || !data.packs.some((x) => x && typeof x === "object")) return [{ f, data }];
+    const haut = Object.fromEntries(["theme", "thème", "niveau", "famille"].filter((k) => typeof data[k] === "string" && data[k].trim()).map((k) => [k, data[k]]));
+    return data.packs.filter((x) => x && typeof x === "object" && !Array.isArray(x)).map((x) => {
+      const pack = { ...haut, ...x };
+      return { f: { ...f, texte: JSON.stringify(pack) }, data: pack };
+    });
+  });
   const fiches = lues.filter(({ data }) => estFicheSeule(data));
   const avecContenu = lues.filter((x) => !fiches.includes(x));
   const servies = new Set();
+  const trouver = chercheurImages(images);
 
   // Série de photos (Zoom mystère, Image floue) : la réponse dans le nom de chaque photo. Sans aucune donnée, toutes
   // les photos du ZIP ; dans un ZIP global (cedric, 25/10), chaque dossier qui a sa fiche pack.json, avec ses photos.
@@ -146,19 +168,52 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
       ageMin: null, ageMax: null, ...etiquettesDu(fiche), dossier, questions, manquantes: [], aCorriger: [], ignorees: [],
     });
   };
-  if (!avecContenu.length && fiches.length <= 1) {
-    if (!images.length) return { packs, erreurs: ["Ce ZIP ne contient ni données de pack ni photos. Vérifiez que vous avez choisi le bon fichier."], laisses };
+  // Série de photos listée dans sa fiche (cedric, 25/10 : les images dans un dossier téléchargé à part, aux noms
+  // d'origine) : chaque photo par son nom, sa réponse écrite à côté ; une photo absente du ZIP n'est pas importée.
+  const photosListees = (fiche) => {
+    const liste = fiche?.photos ?? fiche?.images;
+    return Array.isArray(liste) ? liste : null;
+  };
+  const serieListee = (liste, fiche, dossier) => {
+    const titre = texteDe(fiche?.title, fiche?.titre, fiche?.nom) ?? "Mes photos";
+    if (liste.length > MAX_PHOTOS_SERIE) {
+      erreurs.push(`« ${titre} » : ${liste.length} photos : ${MAX_PHOTOS_SERIE} au plus par série. Faites deux séries.`);
+      return;
+    }
+    const ignorees = [];
+    const gardees = [];
+    liste.forEach((p, i) => {
+      const nom = texteDe(p?.image, p?.fichier, p?.photo, p?.file);
+      const reponse = texteDe(p?.reponse, p?.["réponse"], p?.answer, p?.nom, p?.name);
+      if (!nom || !reponse) { ignorees.push(`Photo ${i + 1} : il faut le nom de son image et sa réponse, elle n'est pas importée.`); return; }
+      const f = trouver(nom, dossier);
+      if (!f) { ignorees.push(`« ${nom} » (${reponse}) : image absente du ZIP, cette photo n'est pas importée.`); return; }
+      servies.add(f.chemin);
+      gardees.push({ nom, reponse });
+    });
+    const questions = questionsDePhotos(gardees.map((x) => x.reponse)).map((q, i) => ({ ...q, photo: gardees[i].nom }));
+    packs.push({
+      epreuve: "photos", titre, theme: typeof fiche?.theme === "string" ? fiche.theme.trim().slice(0, 80) : "",
+      ageMin: null, ageMax: null, ...etiquettesDu(fiche), dossier, questions, manquantes: [], aCorriger: [], ignorees,
+    });
+  };
+  const fin = () => {
+    const inutiles = images.filter((f) => !servies.has(f.chemin)).length;
+    return { packs: erreurs.length ? [] : packs, erreurs, laisses, imagesInutiles: inutiles };
+  };
+  if (!avecContenu.length && fiches.length <= 1 && !photosListees(fiches[0]?.data)) {
+    if (!images.length) return { packs, erreurs: ["Ce ZIP ne contient ni données de pack ni photos. Vérifiez que vous avez choisi le bon fichier."], laisses, imagesInutiles: 0 };
     serieDePhotos(images, fiches[0]?.data ?? null, fiches[0] ? dossierDe(fiches[0].f.chemin) : null);
-    return { packs: erreurs.length ? [] : packs, erreurs, laisses };
+    return fin();
   }
   for (const { f, data } of fiches) {
     const dossier = dossierDe(f.chemin);
+    if (photosListees(data)) { serieListee(photosListees(data), data, dossier); continue; }
     const photos = images.filter((x) => dossierDe(x.chemin) === dossier);
     if (photos.length) serieDePhotos(photos, data, dossier);
     else laisses.push(f.nom);
   }
 
-  const trouver = chercheurImages(images);
   for (const { f, data } of avecContenu) {
     if (data === undefined) {
       erreurs.push(`Les données du pack (« ${f.nom} ») sont mal écrites : il manque sans doute une virgule, un guillemet ou une accolade. Faites-les réécrire, puis refaites le ZIP.`);
@@ -170,15 +225,21 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
       const jeu = CONTENT_GAMES.quisuis;
       const personnages = [];
       const ignorees = [];
+      const manquantes = [];
       series.forEach(({ serie, personnages: ps }) => ps.forEach((p, i) => {
         const item = jeu.clean({ ...p, serie: p.serie || serie });
+        // Son image, par son nom : trouvée, elle sera téléversée ; absente, une simple alerte.
+        if (item && p.image) {
+          const img = trouver(p.image, dossierDe(f.chemin));
+          if (img) { servies.add(img.chemin); item.fichierImage = p.image; } else manquantes.push({ q: personnages.length, case: null, fichier: p.image, nom: item.answer });
+        }
         if (item) personnages.push(item);
         else ignorees.push(`Personnage ${i + 1}${p.answer ? ` (« ${p.answer} »)` : ""} : il faut sa réponse et au moins 2 indices.`);
       }));
       if (!personnages.length) { erreurs.push(`Aucun personnage complet dans « ${f.nom} » : chacun a besoin de sa réponse et d'au moins 2 indices.`); continue; }
       const noms = [...new Set(personnages.map((p) => p.serie).filter(Boolean))];
       const parent = Array.isArray(data?.series) ? data.series.find((x) => x?.famille || x?.niveau) : null;
-      packs.push({ epreuve: "quisuis", titre: noms.join(", ") || "Mes personnages", theme: "", ageMin: null, ageMax: null, ...etiquettesDu(data, parent), personnages, manquantes: [], aCorriger: [], ignorees, fichierDonnees: f.nom });
+      packs.push({ epreuve: "quisuis", titre: noms.join(", ") || "Mes personnages", theme: "", ageMin: null, ageMax: null, ...etiquettesDu(data, parent), dossier: dossierDe(f.chemin), personnages, manquantes, aCorriger: [], ignorees, fichierDonnees: f.nom });
       continue;
     }
     const lu = lirePacks(corpsJson(f.texte));
@@ -213,9 +274,7 @@ export function analyserPack(fichiers, { nomZip = "" } = {}) {
       });
     }
   }
-  const inutiles = images.filter((f) => !servies.has(f.chemin));
-  laisses.push(...inutiles.map((f) => f.nom));
-  return { packs: erreurs.length ? [] : packs, erreurs, laisses };
+  return fin();
 }
 
 /**
@@ -235,10 +294,13 @@ const ko = (n) => `${Math.round(n / 1000)} Ko`;
  * près, au moins 60 % de la taille attendue, au plus le double, et un fichier d'au plus 4 fois le poids attendu
  * (la Régie réduit de toute façon chaque image à l'import : la place reste maîtrisée, l'alerte vise la qualité).
  */
-export function alerteImage({ largeur, hauteur, octets }, usage) {
+export function alerteImage({ largeur, hauteur, octets }, usage, { banque = false } = {}) {
   const f = FORMATS_IMAGES[usage];
   if (!f || !largeur || !hauteur) return null;
   const taille = `${largeur} × ${hauteur}`;
+  // Une image de la banque téléchargée à part (cedric, 25/10) : prise telle quelle, de toutes les tailles ; seule une
+  // image trop petite (floue sur la TV) est signalée.
+  if (banque) return largeur < f.largeur * 0.6 && hauteur < f.hauteur * 0.6 ? `Image trop petite (${taille}) : floue sur la TV. Attendu ${f.nom}.` : null;
   const ecart = (largeur / hauteur) / (f.largeur / f.hauteur);
   if (ecart > 1.1 || ecart < 1 / 1.1) {
     const forme = largeur / hauteur > 1.1 ? (largeur / hauteur > 1.5 ? "panoramique" : "paysage") : largeur / hauteur < 1 / 1.1 ? "en hauteur" : "carrée";

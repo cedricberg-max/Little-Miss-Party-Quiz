@@ -9214,6 +9214,45 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Import « ZIP de l'IA + dossier d'images » (cedric, 25/10) : un seul packs.json, les images retrouvées par leur nom dans le dossier téléchargé, seules celles qui servent sont téléversées", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.locator("#pack-import:not([hidden])").waitFor();
+    const PACKS = { theme: "KPop Demon Hunters", niveau: "Moyen", packs: [
+      { title: "KPop Demon Hunters", questions: [{ text: "Qui chante Golden ?", choices: ["Rumi", "Mira", "Zoey", "Jinu"], correct: 0, image: "Rumi Scène (2).PNG" }] },
+      { title: "KPop Demon Hunters", photos: [{ image: "rumi_kdh.png", reponse: "Rumi" }, { image: "Mira-KDH.png", reponse: "Mira" }] },
+      { serie: "KPop Demon Hunters", personnages: [{ reponse: "Jinu le démon", indices: ["Je suis un démon", "Je chante"], image: "jinu.png" }] },
+    ] };
+    // Le ZIP de l'IA (ses données seules) et le dossier d'images téléchargé, avec des images qui ne servent à rien.
+    const ia = Buffer.from(faireZip([["kdh/packs.json", JSON.stringify(PACKS)]]));
+    const images = [["rumi scene (2).png", [200, 40, 90]], ["rumi_kdh.png", [40, 200, 90]], ["mira-kdh.png", [40, 90, 200]], ["jinu.png", [220, 220, 40]], ["inutile.png", [10, 10, 10]], ["IMG_0042.png", [90, 90, 90]]];
+    await page.setInputFiles("#pack-file", { name: "kdh-tout.zip", mimeType: "application/zip",
+      buffer: Buffer.from(faireZip([["ia.zip", ia], ...images.map(([n, c]) => [`images/${n}`, png(c)])])) });
+    const fenetre = page.locator("dialog[data-fenetre][open]");
+    await fenetre.locator(".pack-images-inutiles").waitFor();
+    assert.equal(await fenetre.locator(".pack-images-inutiles").textContent(), "2 images du ZIP ne servent à aucun pack : elles ne sont pas téléversées.");
+    assert.deepEqual((await fenetre.locator(".pack-apercu-pack").evaluateAll((xs) => xs.map((x) => x.dataset.epreuve))).sort(), ["photos", "quisuis", "quiz"]);
+    assert.doesNotMatch(await fenetre.innerText(), /Image manquante|image absente/);
+    await repondreFenetre(page);
+    await page.locator("#pack-status", { hasText: "✓ Importé" }).waitFor();
+    const quizzes = Object.values(await library("quizzes"));
+    const quiz = quizzes.find((q) => q.kind !== "images");
+    const zoom = quizzes.find((q) => q.kind === "images");
+    assert.match(quiz.questions[0].imageId, /^[0-9a-f]{16}$/);
+    assert.deepEqual(zoom.questions.map((q) => q.choices[q.correct]), ["Rumi", "Mira"]);
+    const qui = (await library("contents")).quisuis;
+    assert.equal(qui.extra.find((x) => x.answer === "Jinu le démon").serie, "KPop Demon Hunters");
+    const idJinu = qui.images["jinu le démon"];
+    assert.match(idJinu, /^[0-9a-f]{16}$/, "l'image du personnage, à sa place");
+    // Téléversées : les 4 images citées, jamais les 2 qui ne servent à rien.
+    const rangees = Object.keys(await library("images"));
+    assert.deepEqual(new Set(rangees), new Set([quiz.questions[0].imageId, ...zoom.questions.map((q) => q.imageId), idJinu]));
+    assert.equal(rangees.length, 4);
+    await page.context().close();
+  });
+
   test("Import d'un pack en un seul ZIP (cedric, 25/10) : Quiz illustré avec une image absente (simple alerte), série de photos sans données, tout modifiable et gardé", async () => {
     const page = await admin();
     await page.click("#nav button[data-screen=library]");

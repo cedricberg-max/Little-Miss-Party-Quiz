@@ -50,7 +50,7 @@ import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from
 import { confirmer, avertir, demanderTexte, apercu } from "./fenetre.js";
 import { lireZipEtSesZip } from "./zip.js";
 import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks } from "./pioche-packs.js";
-import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage } from "./pack-zip.js";
+import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage, dossierDe } from "./pack-zip.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
@@ -8362,8 +8362,10 @@ async function importerPackZip(zip, statut = "pack-status") {
       const ext = f.nom.split(".").pop().toLowerCase();
       const blob = new Blob([await f.lire()], { type: TYPES_IMAGES[ext] ?? "image/jpeg" });
       // Format, taille et poids de l'original, mesurés avant la réduction (cedric, 25/10 : une petite alerte, jamais bloquante).
+      // Hors du dossier du pack : une image de la banque téléchargée à part, aux formats variés.
+      const banque = dossier != null && dossierDe(f.chemin) !== dossier;
       const alerte = await createImageBitmap(blob).then((m) => {
-        const a = alerteImage({ largeur: m.width, hauteur: m.height, octets: blob.size }, pour);
+        const a = alerteImage({ largeur: m.width, hauteur: m.height, octets: blob.size }, pour, { banque });
         m.close?.();
         return a;
       }, () => null);
@@ -8380,7 +8382,17 @@ async function importerPackZip(zip, statut = "pack-status") {
   };
   try {
     for (const p of analyse.packs) {
-      if (p.epreuve === "quisuis") continue;
+      if (p.epreuve === "quisuis") {
+        // L'image de chaque personnage (cedric, 25/10), carrée comme celles choisies dans la page du jeu.
+        for (const x of p.personnages) {
+          if (!x.fichierImage) continue;
+          const id = await preparer(x.fichierImage, "case", p.dossier);
+          if (id) x.imageId = id;
+          else p.manquantes.push({ q: null, case: null, fichier: x.fichierImage, nom: x.answer });
+          delete x.fichierImage;
+        }
+        continue;
+      }
       if (p.epreuve === "photos") {
         const gardees = [];
         for (const q of p.questions) {
@@ -8448,7 +8460,9 @@ async function importerPackZip(zip, statut = "pack-status") {
   const contenu = h("div", { class: "pack-apercu" },
     themeDeTousLesPacks(fixeurs, existants),
     ...apercus,
-    analyse.laisses.length ? h("p", { class: "hint small", text: `Laissé${analyse.laisses.length > 1 ? "s" : ""} de côté : ${analyse.laisses.join(", ")}.` }) : null);
+    analyse.laisses.length ? h("p", { class: "hint small", text: `Laissé${analyse.laisses.length > 1 ? "s" : ""} de côté : ${analyse.laisses.join(", ")}.` }) : null,
+    // Le dossier d'images téléchargé à côté des packs (cedric, 25/10) : seules les images citées sont téléversées.
+    analyse.imagesInutiles ? h("p", { class: "hint small pack-images-inutiles", text: `${plural(analyse.imagesInutiles, "image du ZIP ne sert", "images du ZIP ne servent")} à aucun pack : ${analyse.imagesInutiles > 1 ? "elles ne sont pas téléversées" : "elle n'est pas téléversée"}.` }) : null);
   if (!aEnregistrer.length) return apercu("Rien de nouveau dans ce pack.", contenu, { ok: "Fermer", annuler: null });
   const titre = aEnregistrer.length > 1 ? `Importer ces ${aEnregistrer.length} packs ?` : `Importer « ${aEnregistrer[0].titre} » ?`;
   // Le niveau est obligatoire (cedric, 25/10) : s'il manque au pack, il se choisit dans l'aperçu ; le thème a toujours
@@ -8481,8 +8495,13 @@ async function importerPackZip(zip, statut = "pack-status") {
     if (qui.length) {
       ecritures["library/contents/quisuis"] = {
         off: etatQui.off.length ? etatQui.off : null,
-        extra: [...etatQui.extra, ...qui.flatMap((p) => p.personnages.map((x) => ({ ...x, famille: p.famille, niveau: p.niveau })))].map(({ level, ...x }) => x),
-        images: Object.keys(etatQui.images).length ? etatQui.images : null,
+        extra: [...etatQui.extra, ...qui.flatMap((p) => p.personnages.map((x) => ({ ...x, famille: p.famille, niveau: p.niveau })))].map(({ level, imageId, ...x }) => x),
+        // Leurs images (cedric, 25/10) : à côté de celles choisies dans la page du jeu.
+        images: (() => {
+          const toutes = { ...etatQui.images };
+          for (const p of qui) for (const x of p.personnages) if (x.imageId) toutes[contentSlot(jeuQui.key(x))] = x.imageId;
+          return Object.keys(toutes).length ? toutes : null;
+        })(),
         updatedAt: serverTimestamp(),
       };
     }
@@ -8635,7 +8654,7 @@ function apercuDuPack(p, existants = [], fixeurs = null) {
   const ids = p.epreuve === "quisuis" ? [] : p.questions.flatMap((q) => [q.imageId, ...(q.choiceImages ?? [])]).filter((id) => id && imageCache[id]);
   const VIGNETTES = 24;
   const lignes = [
-    ...p.manquantes.map((m) => [`${ouQuestion(m.q, m.case)} : ${IMAGE_MANQUANTE}`, "pack-alerte"]),
+    ...p.manquantes.map((m) => [`${m.nom ? `« ${m.nom} » (image « ${m.fichier} »)` : ouQuestion(m.q, m.case)} : ${m.nom ? "image absente du ZIP, il se révélera sans image." : IMAGE_MANQUANTE}`, "pack-alerte"]),
     ...(p.horsFormat ?? []).map((x) => [`${p.epreuve === "photos" ? `Photo ${x.q + 1}` : ouQuestion(x.q, x.case)} : ${x.message}`, "pack-alerte hors-format"]),
     ...p.aCorriger.map((x) => [`${ouQuestion(x.q)} : ${x.messages.join(" ")} Elle arrive « À valider » : corrigez-la dans « Éditer ».`, "pack-erreur"]),
     ...p.ignorees.map((t) => [t, "pack-erreur"]),
