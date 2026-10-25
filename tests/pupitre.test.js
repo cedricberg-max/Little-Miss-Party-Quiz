@@ -582,6 +582,24 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("image floue : après une erreur, l'équipe peut rebuzzer 3 s après le verdict (règle 2)", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const uid = Object.entries(await read("teams")).find(([, t]) => t.name === "Les Roses")[0];
+    const rebuzzAt = Date.now() + 1_500;
+    await hostState(question({
+      qid: "f9", kind: "flou", choices: null, text: "Qu'est-ce qui se cache sous le flou ?", round: "f9-1000-1", buzzOpen: true,
+      buzz: { blocked: [uid], rebuzzAt }, buzzBlocked: { [uid]: rebuzzAt },
+    }));
+    await page.locator("#play-status", { hasText: "vous pourrez retenter votre chance dans un instant" }).waitFor();
+    assert.equal(await page.locator("#buzz").isDisabled(), true, "bouton grisé pendant les 3 s");
+    await page.locator("#play-status", { hasText: "Vous pouvez retenter votre chance" }).waitFor({ timeout: 5_000 });
+    assert.equal(await page.locator("#buzz").isDisabled(), false);
+    await page.click("#buzz");
+    await waitFor(async () => (await read("buzz/f9-1000-1"))?.team === uid, "rebuzz accepté par la base");
+    await page.context().close();
+  });
+
   test("Game Show : au buzz, la tablette joue le mot de Daft Punk de son équipe, comme la TV ; en Classique, le petit air", async () => {
     const espion = (ctx) => ctx.addInitScript(() => {
       window.__sons = [];

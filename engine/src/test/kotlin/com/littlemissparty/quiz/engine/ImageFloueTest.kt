@@ -34,17 +34,17 @@ class ImageFloueTest {
     }
 
     @Test
-    fun `mauvaise réponse, équipe bloquée, la photo reprend, le rebond vaut 100`() {
+    fun `mauvaise réponse, équipe bloquée 3 s, la photo reprend, le rebond vaut 100`() {
         val g = game()
         val key = Codec.buzzKey(g)
         g.buzz("rose", t0 + 10_000)
         g.judgeBuzz(false, t0 + 14_000)
         assertEquals(Phase.QUESTION, g.state.phase)
         assertEquals(listOf("rose"), g.state.buzz!!.blocked)
-        assertEquals(mapOf("rose" to true), Codec.publicState(g)["buzzBlocked"], "les règles de la base refusent son buzz")
+        assertEquals(mapOf("rose" to t0 + 14_000 + REBUZZ_DELAY_MS), Codec.publicState(g)["buzzBlocked"], "les règles de la base refusent son buzz pendant 3 s")
         assertNotEquals(key, Codec.buzzKey(g), "nouvelle clé : la place du premier buzz est libérée")
         assertEquals(t0 + 14_000 + 30_000, g.deadline(), "le chrono repart où il s'était arrêté")
-        assertNull(g.buzz("rose", t0 + 15_000), "l'équipe bloquée ne rebuzze pas")
+        assertNull(g.buzz("rose", t0 + 15_000), "l'équipe qui s'est trompée attend 3 s")
         g.buzz("bleu", t0 + 16_000)
         g.judgeBuzz(true, t0 + 18_000)
         assertEquals(mapOf("bleu" to Scoring.BUZZ_REBOUND), g.state.scores())

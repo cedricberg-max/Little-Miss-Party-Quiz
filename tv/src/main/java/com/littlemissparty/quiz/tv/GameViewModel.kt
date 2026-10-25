@@ -1111,12 +1111,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // puis écoute l'envoi de la tablette de l'équipe qui tient la bombe.
         if (g.needsPotato() && teams().size >= 2) act { it.lightPotato(teams().map { t -> t.uid }, serverNow()) }
         watchPotato(Codec.potatoKey(g)?.takeIf { !s.paused })
-        val blocked = s.buzz?.blocked.orEmpty()
-        val teamIds = teams().map { it.uid }
-        // Blind test : rien ne se ferme seul, la relance réautorise tout le monde.
-        if (s.phase == Phase.QUESTION && !s.paused && !s.buzzHeld && q?.isBlind != true && teamIds.isNotEmpty() && blocked.containsAll(teamIds)) {
-            act { it.takeIf { g -> g.state.phase == Phase.QUESTION && g.state.buzz?.blocked.orEmpty().containsAll(teamIds) }?.close(serverNow()) }
-        }
+        // Jeux au buzzer : la question ne se ferme plus quand toutes les équipes se sont trompées, elles rebuzzent 3 s après
+        // le verdict (cedric, 25/10, règle 2) ; le chrono, ou l'animatrice, la termine.
         // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
         // première) : la révélation, ou le Zoom mystère, ne l'attend jamais. Bilan d'un jeu quitté : le jeu choisi.
         val suivante = g.quiz.questions.getOrNull(g.leaveTarget ?: (s.index + 1))

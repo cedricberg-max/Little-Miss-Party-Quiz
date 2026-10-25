@@ -250,8 +250,8 @@ object Codec {
             s.buzz?.let {
                 val rebuzz = game.rebuzzAt()
                 out["buzz"] = mapOf("team" to it.team, "blocked" to it.blocked, "rebuzzAt" to rebuzz)
-                // Même liste en table : les règles de la base refusent le buzz d'une équipe déjà bloquée. Au blind test,
-                // l'heure (serveur) à partir de laquelle elle peut rebuzzer sur le même morceau.
+                // Même liste en table : les règles de la base refusent le buzz d'une équipe déjà bloquée avant l'heure
+                // (serveur) à partir de laquelle elle peut rebuzzer sur la même question.
                 out["buzzBlocked"] = it.blocked.associateWith { rebuzz ?: true }.ifEmpty { null }
             }
         }

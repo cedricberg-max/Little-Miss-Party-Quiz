@@ -650,7 +650,7 @@ function renderNumber(st) {
 
 /**
  * Image floue : un seul grand BUZZ. La première équipe qui buzze répond à voix haute, l'animatrice valide ;
- * après une erreur, cette équipe ne rebuzze plus sur cette image et les autres peuvent tenter leur chance.
+ * après une erreur, cette équipe peut rebuzzer 3 s plus tard (cedric, 25/10, règle 2).
  */
 function renderFlou(st) {
   clearInterval(timerHandle);
@@ -659,9 +659,9 @@ function renderFlou(st) {
   buzz.hidden = false;
   const b = st.buzz ?? {};
   const tried = (b.blocked ?? []).includes(teamId);
-  // Blind test : une équipe qui s'est trompée peut rebuzzer sur le même morceau, 3 s après la reprise de la musique
-  // (petite marge pour que la base, à l'heure du serveur, l'accepte à coup sûr).
-  const rebuzzIn = tried && st.kind === "blind" && typeof b.rebuzzAt === "number" ? b.rebuzzAt + 300 - (Date.now() + serverOffset) : null;
+  // Une équipe qui s'est trompée peut rebuzzer 3 s après la reprise (blind test : de la musique ; autres jeux : le
+  // verdict). Petite marge pour que la base, à l'heure du serveur, l'accepte à coup sûr.
+  const rebuzzIn = tried && typeof b.rebuzzAt === "number" ? b.rebuzzAt + 300 - (Date.now() + serverOffset) : null;
   if (rebuzzIn != null && rebuzzIn > 0) rebuzzHandle = setTimeout(render, rebuzzIn);
   const blocked = tried && !(rebuzzIn != null && rebuzzIn <= 0);
   const open = st.phase === "question" && st.buzzOpen === true && !st.paused && !counting(st) && !b.team && !blocked;
