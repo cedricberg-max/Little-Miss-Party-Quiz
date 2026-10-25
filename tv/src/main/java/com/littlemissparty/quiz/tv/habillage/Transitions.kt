@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -155,7 +157,10 @@ private fun Rideau(a: Annonce, fini: () -> Unit) {
     }
     val titre = { rebond(((ms() - 250f) / 450f).coerceIn(0f, 1f)) }
     val eclat by remember { derivedStateOf { t.value >= Tempo.TRANSITION_IMPACT - 150 } }
-    Box(Modifier.fillMaxSize().clearAndSetSemantics {}) {
+    BoxWithConstraints(Modifier.fillMaxSize().clearAndSetSemantics {}) {
+        // Game Show : le nom du jeu tient sur une ligne dans le cadre néon des portes (cedric, 24/10 : rien ne déborde).
+        val largeurCadre = constraints.maxWidth * CADRE_PORTES_LARGEUR
+        val mesure = rememberTextMeasurer()
         Row(Modifier.fillMaxSize()) {
             if (portes != null) {
                 Battant(portes.first, Modifier.weight(1f).graphicsLayer { translationX = -(1f - fermeture()) * size.width })
@@ -182,10 +187,14 @@ private fun Rideau(a: Annonce, fini: () -> Unit) {
                 Filet(Modifier.graphicsLayer { scaleX = titre().coerceIn(0f, 1f); transformOrigin = TransformOrigin(0f, 0.5f) }, gs)
             }
             Spacer(Modifier.height(14.dp))
-            val taille = when {
+            val tailleDepart = when {
                 a.titre.length <= 16 -> 88.sp
                 a.titre.length <= 26 -> 64.sp
                 else -> 48.sp
+            }
+            val taille = if (!gs) tailleDepart else remember(a.titre, largeurCadre) {
+                val l = mesure.measure(a.titre, styleTitreNeon(tailleDepart, GS.Rose), maxLines = 1, softWrap = false).size.width
+                tailleTitreDansCadre(tailleDepart.value, l.toFloat(), largeurCadre).sp
             }
             Text(
                 a.titre,
@@ -194,7 +203,7 @@ private fun Rideau(a: Annonce, fini: () -> Unit) {
                     fontSize = taille, lineHeight = taille * 1.1f, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     shadow = Shadow(Neon.Or.copy(alpha = 0.6f), blurRadius = 30f),
                 ),
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                maxLines = 2, overflow = TextOverflow.Ellipsis, softWrap = !gs || taille.value <= TITRE_RIDEAU_MIN_SP,
                 modifier = Modifier.padding(horizontal = 60.dp).graphicsLayer {
                     val s = 0.6f + 0.4f * titre()
                     scaleX = s; scaleY = s
@@ -368,6 +377,19 @@ private fun Bandeau(team: Team, fini: () -> Unit) {
         }
     }
 }
+
+/**
+ * Taille du nom du jeu sur les portes du Game Show : réduite pour que la ligne, rebond compris (+4 %), tienne dans
+ * [largeurCadre] ; jamais sous [TITRE_RIDEAU_MIN_SP] (au-delà, le titre passe sur deux lignes).
+ */
+internal fun tailleTitreDansCadre(taille: Float, largeurLigne: Float, largeurCadre: Float): Float {
+    val utile = largeurCadre / 1.04f
+    return if (largeurLigne <= utile || largeurLigne <= 0f) taille else maxOf(TITRE_RIDEAU_MIN_SP, taille * utile / largeurLigne)
+}
+
+/** Intérieur du cadre néon dessiné sur les portes, en part de la largeur de l'écran (marge comprise). */
+internal const val CADRE_PORTES_LARGEUR = 0.74f
+internal const val TITRE_RIDEAU_MIN_SP = 40f
 
 private const val FERMETURE_MS = 280f
 private const val OUVERTURE_MS = 400f
