@@ -193,10 +193,15 @@ function caleSurLeBas() {
   document.documentElement.style.setProperty("--bas-regie", `${Math.round(bas)}px`);
 }
 
+// Le bas de la régie grandit parfois feuille ouverte (une ligne d'aide, une tablette coupée) : la feuille suit.
+let suiviDuBas = null;
+
 function ouvrirPlus() {
   $("plus").hidden = false;
   $("plus-fond").hidden = false;
   caleSurLeBas();
+  const actions = document.querySelector(".regie .actions");
+  if (!suiviDuBas && actions && typeof ResizeObserver === "function") (suiviDuBas = new ResizeObserver(caleSurLeBas)).observe(actions);
 }
 
 function fermerPlus() {

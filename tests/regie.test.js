@@ -1236,10 +1236,18 @@ describe("régie", () => {
     for (const id of ["c-next", "c-pause", "c-plus"]) assert.ok(await dansLEcran(id), `#${id} visible et touchable, « ☰ Plus » ouvert`);
     assert.equal(await page.locator("#c-next").textContent(), "Lancer la fête !");
     assert.equal(await page.locator("#c-next").isDisabled(), false, "une tablette hors ligne ne bloque jamais le lancement");
+    // La feuille monte de 24 px en s'ouvrant : on la mesure une fois arrivée (CI lente).
+    await page.waitForFunction(() => document.getElementById("plus").getAnimations({ subtree: true }).every((a) => a.playState === "finished" || a.effect?.getTiming().iterations === Infinity));
     const feuille = await page.locator("#plus").boundingBox();
     const bas = await page.locator(".regie .actions").boundingBox();
     assert.ok(feuille.y + feuille.height <= bas.y + 1, `la feuille s'arrête au-dessus des boutons : ${JSON.stringify({ feuille, bas })}`);
-    await page.waitForTimeout(300); // fin de l'animation, pour la capture
+    // Le bas grandit feuille ouverte (une ligne de plus) : la feuille remonte avec lui.
+    await page.evaluate(() => { const l = document.createElement("p"); l.id = "ligne-test"; l.style.height = "40px"; l.style.margin = "0"; document.querySelector(".regie .actions").prepend(l); });
+    await page.waitForFunction(() => {
+      const f = document.getElementById("plus").getBoundingClientRect(), b = document.querySelector(".regie .actions").getBoundingClientRect();
+      return f.bottom <= b.top + 1;
+    }, null, { timeout: 3000 });
+    await page.evaluate(() => document.getElementById("ligne-test").remove());
     await capture(page, "cockpit-plus-lancer-360x640", { pleinePage: false });
     // « ☰ Plus » touché une seconde fois : la feuille se referme.
     await page.click("#c-plus");
