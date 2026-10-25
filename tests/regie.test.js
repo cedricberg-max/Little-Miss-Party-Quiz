@@ -3474,7 +3474,7 @@ describe("bibliothèque de quiz et prestations", () => {
 
     // « ← Retour » sans rien changer : pareil.
     avant = await regler("Chanson 012");
-    await page.locator("#screen-playlist-edit .retour-barre.haut").getByRole("button", { name: "← Retour" }).click();
+    await page.locator("#screen-playlist-edit .retour-barre.bas").getByRole("button", { name: "← Retour" }).click();
     await page.locator("#library-sons:not([hidden])").waitFor();
     await page.waitForFunction((d) => Math.abs(window.scrollY - d) <= 4, avant.defilement);
     assert.ok(Math.abs((await haut("Chanson 012")) - avant.haut) <= 4);
@@ -5186,8 +5186,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#mime-new");
     const bar = page.locator("#screen-mime-edit .retour-barre.bas");
     const count = () => page.locator("#mime-count").textContent();
-    // En haut et en bas : « ← Retour » (page précédente) et « Annuler les modifications », rien à annuler pour l'instant.
-    assert.deepEqual(await page.locator("#screen-mime-edit .retour-barre.haut button").allInnerTexts(), ["← Retour", "Annuler les modifications"]);
+    // Plus de barre en haut des pages de modification (cedric, 25/10).
+    assert.equal(await page.locator("#screen-mime-edit .retour-barre.haut").count(), 0);
     // En bas (cedric, 24/10) : Enregistrer · Annuler les modifications · ← Retour, une barre qui suit l'écran dès
     // l'ouverture ; « Supprimer » reste à sa place en bas de la page, et le message d'enregistrement passe dans la barre.
     assert.deepEqual(await bar.locator("button:visible").allInnerTexts(), ["Enregistrer le paquet", "Annuler les modifications", "← Retour"]);
@@ -5319,9 +5319,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.waitForTimeout(300);
     assert.equal(await page.locator("#screen-show-edit").isVisible(), true);
     assert.equal(await page.inputValue("#show-age"), "8");
-    // « ← Retour » en haut, puis « Quitter » : la liste, et rien n'est enregistré.
+    // « ← Retour », puis « Quitter » : la liste, et rien n'est enregistré.
     question = repondreFenetre(page);
-    await page.locator("#screen-show-edit .retour-barre.haut .retour-page").click();
+    await page.locator("#screen-show-edit .retour-barre.bas .retour-page").click();
     await question;
     await page.locator("#screen-shows:not([hidden])").waitFor();
     assert.equal((await library("shows/lea")).age, 7);
@@ -5335,7 +5335,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
     await deplierJeux(page);
     await page.fill("#show-age", "9");
-    await page.locator("#screen-show-edit .retour-barre.haut .retour-page").click();
+    await page.locator("#screen-show-edit .retour-barre.bas .retour-page").click();
     const fenetre = page.locator("dialog[data-fenetre][open]");
     assert.deepEqual(await fenetre.locator(".fenetre-boutons button").allTextContents(), ["Enregistrer", "Quitter sans enregistrer", "Rester"]);
     await fenetre.locator("[data-fenetre-premier]").click();
@@ -5383,7 +5383,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#mime-catalog .mime-card", { hasText: "Chat" }).click();
     await page.click("#mime-save");
     await page.locator("#mime-status", { hasText: "Enregistré" }).waitFor();
-    await page.locator("#screen-mime-edit .retour-barre.haut .retour-page").click();
+    await page.locator("#screen-mime-edit .retour-barre.bas .retour-page").click();
     await page.locator("#screen-mimes:not([hidden])").waitFor();
     await page.locator("#mime-list .item", { hasText: "Animaux" }).getByRole("button", { name: "Dupliquer" }).click();
     await page.locator("#mime-list .item.copie-recente", { hasText: "Copie de Animaux" }).waitFor();
@@ -5549,7 +5549,8 @@ describe("bibliothèque de quiz et prestations", () => {
     const barreBas = page.locator("#screen-show-edit .retour-barre.bas");
     assert.deepEqual(await barreBas.locator(".btn").allInnerTexts(), ["Enregistrer", "Annuler les modifications", "← Retour"]);
     assert.equal(await barreBas.evaluate((b) => b.classList.contains("flottante")), true);
-    assert.equal(await page.locator("#screen-show-edit button", { hasText: /^Enregistrer$/ }).count(), 2, "en haut et dans la barre du bas, pas une de plus");
+    assert.equal(await page.locator("#screen-show-edit button", { hasText: /^Enregistrer$/ }).count(), 1, "seulement dans la barre du bas (cedric, 25/10)");
+    assert.equal(await page.locator("#screen-show-edit .retour-barre.haut").count(), 0, "plus de barre en haut (cedric, 25/10)");
     const retirerJeu = page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] button[title="Retirer ce jeu"]');
     await retirerJeu.click();
     assert.match(await repondreFenetre(page, { accepter: false }), /^Retirer « .+ » de la prestation \?$/);
@@ -7649,9 +7650,9 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.inputValue("#show-child"), "");
     assert.equal(await page.locator("#show-themes").count(), 0, "Plus de case « Thèmes » (cedric, 23/10)");
     await page.fill("#show-notes", "Pour qui ?");
-    // Avec « Enregistrer » en haut de la fiche, le message se voit sans descendre (cedric, 23/10).
+    // « Enregistrer » dans la barre du bas qui suit l'écran : le message se voit sans descendre (cedric, 23/10 et 25/10).
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.click("#show-save-haut");
+    await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
     await page.locator("#annonce.ok", { hasText: "✓ Enregistrée." }).waitFor();
     const annonce = await page.locator("#annonce").boundingBox();
@@ -7774,10 +7775,11 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#show-list [data-show="remise"]').getByRole("button", { name: "Ouvrir" }).click();
     await deplierJeux(page);
     // Reprogrammée et remise « À venir » : le lendemain de la nouvelle date, elle s'archivera de nouveau.
-    // « Enregistrer » est aussi en haut de la fiche (cedric, 21/10) : il enregistre comme celui du bas.
+    // Un seul « Enregistrer », dans la barre du bas qui suit l'écran (cedric, 25/10).
     await page.fill("#show-date", day(5));
     await page.selectOption("#show-status", "publiee");
-    await page.click("#screen-show-edit .retour-barre.haut #show-save-haut");
+    assert.equal(await page.locator("#screen-show-edit .retour-barre.haut").count(), 0);
+    await page.click("#screen-show-edit .retour-barre.bas #show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor();
     const reprogrammee = await library("shows/remise");
     assert.deepEqual([reprogrammee.status, reprogrammee.keepActive ?? null], ["publiee", null]);

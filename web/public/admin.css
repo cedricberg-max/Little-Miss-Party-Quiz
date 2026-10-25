@@ -424,7 +424,6 @@ body.essai::before {
 /* En haut de l'écran, sous le fil d'Ariane : les mêmes boutons, à portée sans descendre. */
 .retour-barre.haut { justify-content: flex-start; flex-wrap: wrap; margin: 0 0 14px; }
 /* « Enregistrer » du haut de la fiche d'une prestation, à droite, loin d'« Annuler les modifications ». */
-.retour-barre.haut #show-save-haut { margin-left: auto; }
 .retour-barre.haut .btn { box-shadow: none; }
 
 /* Copie que l'on vient de faire (Dupliquer) : en tête de sa liste, mise en avant un moment. */

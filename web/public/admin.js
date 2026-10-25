@@ -945,9 +945,6 @@ const histPrestation = historique({
   // « Enregistrer » dans la fenêtre « Des modifications ne sont pas enregistrées » (cedric, 24/10).
   enregistrer: () => ($("show-form").reportValidity() ? enregistrerPrestation() : false),
 });
-// « Enregistrer » aussi en haut de la fiche (cedric, 21/10) : une retouche de dernière minute sans descendre tout en bas.
-$("screen-show-edit").querySelector(".retour-barre.haut")
-  .append(h("button", { id: "show-save-haut", class: "btn", type: "button", onclick: () => $("show-save").click(), text: "Enregistrer" }));
 // En bas, « Enregistrer » ouvre la barre qui suit l'écran : Enregistrer · Annuler les modifications · ← Retour, de gauche
 // à droite (cedric, 24/10). Le bouton garde son formulaire (attribut form).
 $("screen-show-edit").querySelector(".retour-barre.bas").prepend($("show-save"));
