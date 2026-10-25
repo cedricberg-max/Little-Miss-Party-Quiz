@@ -9336,6 +9336,65 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Images en double (cedric, 25/10) : à l'import, la même image sous deux noms de fichier n'est gardée qu'une fois ; « 🧹 Fusionner les doublons » nettoie ce qui est déjà importé", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.locator("#pack-import:not([hidden])").waitFor();
+    const ROUGE = [220, 30, 30], NOIR = [5, 5, 5], BLEU = [20, 40, 220];
+    // bill.png et bill-copie.png : la même image, à deux tailles ; bobomb.png : une autre sur le même fond.
+    const PACKS = { theme: "Mario", niveau: "Facile",
+      images: [{ fichier: "bill.png", nom: "Bill Balle" }, { fichier: "bill-copie.png", nom: "Bill Balle dans le ciel" }, { fichier: "bobomb.png", nom: "Bob-omb" }],
+      packs: [
+        { title: "Quiz Mario 1", questions: [{ text: "Qui est-ce ?", choices: ["Bill Balle", "Bob-omb"], correct: 0, image: "bill.png" }] },
+        { title: "Quiz Mario 2", questions: [{ text: "Et lui ?", choices: ["Bill Balle", "Bob-omb"], correct: 0, image: "bill-copie.png" }] },
+      ] };
+    await page.setInputFiles("#pack-file", { name: "mario.zip", mimeType: "application/zip", buffer: Buffer.from(faireZip([["packs.json", JSON.stringify(PACKS)],
+      ["images/bill.png", pngHalves(160, 120, ROUGE, NOIR)], ["images/bill-copie.png", pngHalves(80, 60, ROUGE, NOIR)], ["images/bobomb.png", pngHalves(160, 120, BLEU, NOIR)]])) });
+    const fenetre = page.locator("dialog[data-fenetre][open]");
+    await fenetre.locator(".pack-doublons").waitFor();
+    assert.equal(await fenetre.locator(".pack-doublons").textContent(), "🧹 1 image en double (la même image sous un autre nom de fichier ou à une autre taille) : une seule est gardée, la plus grande.");
+    assert.match(await fenetre.locator(".pack-images-nommees").textContent(), /^🖼 2 images nommées \(Bill Balle, Bob-omb\)/);
+    await repondreFenetre(page);
+    await page.locator("#pack-status", { hasText: "✓ Importé" }).waitFor();
+    const quizzes = Object.values(await library("quizzes"));
+    const [id1, id2] = ["Quiz Mario 1", "Quiz Mario 2"].map((t) => quizzes.find((q) => q.title === t).questions[0].imageId);
+    assert.equal(id1, id2, "les deux packs citent la même image, la plus grande");
+    assert.equal(Object.keys(await library("images")).length, 2);
+    assert.deepEqual(Object.values(await library("medias")).map((f) => f.name).sort(), ["Bill Balle", "Bob-omb"]);
+
+    // Déjà importés (avant ce tri) : une copie plus petite, citée par un pack et une prestation, avec sa fiche.
+    const grande = await library(`images/${id1}`);
+    const COPIE = "e".repeat(16);
+    const petite = `data:image/png;base64,${pngHalves(80, 60, ROUGE, NOIR).toString("base64")}`;
+    await seedLibrary(`images/${COPIE}`, petite);
+    await seedLibrary(`medias/${COPIE}`, { name: "Bill Balle fond noir", cat: "📦 Mario", tags: "", createdAt: 1, updatedAt: 1 });
+    await seedLibrary("quizzes/vieux", { title: "Quiz Mario 3", theme: "Mario", niveau: "Moyen", pack: true, kind: "classique", source: "json", updatedAt: 1,
+      questions: [{ text: "Encore lui ?", choices: ["Bill Balle", "Bob-omb"], correct: 0, status: "validee", imageId: COPIE }] });
+    await seedLibrary("shows/fete", { childName: "Léo", status: "brouillon", updatedAt: 1,
+      rounds: [{ type: "zoom", seriesQuiz: [{ id: "s1", origine: "reprise", questions: [{ text: "Qu'est-ce que c'est ?", choices: ["Bill", "Toad"], correct: 0, status: "validee", imageId: COPIE }] }] }] });
+    await page.click('#library-tabs [data-lib-tab="images"]');
+    await page.locator('#media-groups [data-groupe="packs"]', { hasText: "📦 Images des packs (3)" }).waitFor();
+    await page.click('#media-groups [data-groupe="packs"]');
+    await page.click(".doublons-fusionner");
+    await fenetre.locator(".doublons-groupe").waitFor();
+    assert.equal(await fenetre.locator(".doublons-groupe").count(), 1, "Bob-omb, sur le même fond, n'est pas un doublon");
+    assert.deepEqual(await fenetre.locator(".doublons-groupe figcaption").allTextContents(), ["✓ Bill Balle", "✕ Bill Balle fond noir"]);
+    assert.equal(await repondreFenetre(page), "Fusionner 1 groupe de doublons (1 copie effacée) ?");
+    await page.locator("#annonce", { hasText: "✓ 1 doublon fusionné" }).waitFor();
+    assert.equal(await library(`images/${COPIE}`), null);
+    assert.equal(await library(`medias/${COPIE}`), null);
+    assert.equal(await library(`images/${id1}`), grande, "la gardée ne change pas");
+    assert.equal((await library("quizzes/vieux")).questions[0].imageId, id1);
+    assert.equal((await library("shows/fete")).rounds[0].seriesQuiz[0].questions[0].imageId, id1, "les prestations aussi");
+    await page.locator('#media-groups [data-groupe="packs"]', { hasText: "📦 Images des packs (2)" }).waitFor();
+    // Plus rien à fusionner.
+    await page.click(".doublons-fusionner");
+    await page.locator("#annonce", { hasText: "Aucune image en double dans les images des packs." }).waitFor();
+    await page.context().close();
+  });
+
   test("Import d'un pack en un seul ZIP (cedric, 25/10) : Quiz illustré avec une image absente (simple alerte), série de photos sans données, tout modifiable et gardé", async () => {
     const page = await admin();
     await page.click("#nav button[data-screen=library]");

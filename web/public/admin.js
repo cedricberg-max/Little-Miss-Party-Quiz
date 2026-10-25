@@ -43,6 +43,7 @@ import { garderFichier, fichierGarde, oublierFichier } from "./sons-locaux.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
+import { empreinteImage, groupesDeDoublons, repointer } from "./doublons.js";
 import { panneauPhotosManquantes, motsSansPhoto } from "./photos-manquantes.js";
 import { niveauMime, niveauxPourProfil, etiquetteMime } from "./banque-mimes.js";
 import { afficherMotsDePasse } from "./oeil.js";
@@ -8419,10 +8420,15 @@ async function importerPackZip(zip, statut = "pack-status") {
   // Images préparées en mémoire (réduites comme partout ailleurs), rangées seulement après confirmation.
   const aRanger = new Map();
   const prets = new Map();
+  // Copie en double → image gardée.
+  const doublons = new Map();
   // Images nommées par "images" (cedric, 25/10) : par chemin dans le ZIP, puis par image préparée (citée ou non).
   const nomDuChemin = new Map(analyse.nommees.map((x) => [x.chemin, x]));
   const nommes = new Map();
   const preparees = new Set();
+  // Pour repérer les doublons : l'usage de chaque image préparée et la taille de son original.
+  const pourDe = new Map();
+  const tailleDe = new Map();
   let n = 0;
   const horsFormat = new Map();
   // Une image hors format : notée sur son pack, à sa place (question, réponse).
@@ -8443,8 +8449,10 @@ async function importerPackZip(zip, statut = "pack-status") {
       // Format, taille et poids de l'original, mesurés avant la réduction (cedric, 25/10 : une petite alerte, jamais bloquante).
       // Hors du dossier du pack : une image de la banque téléchargée à part, aux formats variés.
       const banque = dossier != null && dossierDe(f.chemin) !== dossier;
+      let taille = 0;
       const alerte = await createImageBitmap(blob).then((m) => {
         const a = alerteImage({ largeur: m.width, hauteur: m.height, octets: blob.size }, pour, { banque });
+        taille = m.width * m.height;
         m.close?.();
         return a;
       }, () => null);
@@ -8455,6 +8463,8 @@ async function importerPackZip(zip, statut = "pack-status") {
       if (alerte) horsFormat.set(id, alerte);
       if (nomDuChemin.has(f.chemin) && !nommes.has(id)) nommes.set(id, nomDuChemin.get(f.chemin));
       preparees.add(f.chemin);
+      pourDe.set(id, pour);
+      if (!tailleDe.has(id) || taille > tailleDe.get(id)) tailleDe.set(id, taille);
     } catch (err) {
       console.error(err);
     }
@@ -8505,6 +8515,34 @@ async function importerPackZip(zip, statut = "pack-status") {
     }
     // Les images nommées qu'aucune question ne cite : importées aussi, en photo (pour « ⭐ Composer avec vos images »).
     for (const x of analyse.nommees) if (!preparees.has(x.chemin)) await preparer(x.fichier, "photo");
+    // Doublons (cedric, 25/10) : la même image sous deux noms de fichier (ou à deux tailles) ; une seule est gardée,
+    // la plus grande à l'origine, et chaque question pointe vers elle.
+    status(statut, "Recherche des images en double…", true);
+    const empreintes = [];
+    for (const [id, data] of aRanger) {
+      try { empreintes.push({ id, empreinte: { ...(await empreinteImage(data)), taille: tailleDe.get(id) ?? 0 } }); } catch { /* illisible : gardée telle quelle */ }
+    }
+    for (const [garde, ...copies] of groupesDeDoublons(empreintes, (a, b) => pourDe.get(a.id) === pourDe.get(b.id))) {
+      for (const c of copies) {
+        doublons.set(c.id, garde.id);
+        aRanger.delete(c.id);
+        if (nommes.has(c.id) && !nommes.has(garde.id)) nommes.set(garde.id, nommes.get(c.id));
+        nommes.delete(c.id);
+      }
+    }
+    if (doublons.size) {
+      const vers = (id) => doublons.get(id) ?? id;
+      for (const p of analyse.packs) {
+        if (p.epreuve === "quisuis") { for (const x of p.personnages) if (x.imageId) x.imageId = vers(x.imageId); continue; }
+        for (const q of p.questions) {
+          if (q.imageId) q.imageId = vers(q.imageId);
+          if (q.choiceImages) q.choiceImages = q.choiceImages.map((id) => (id ? vers(id) : id));
+        }
+        // Une série de photos ne montre jamais deux fois la même image.
+        if (p.epreuve === "photos") { const vues = new Set(); p.questions = p.questions.filter((q) => !vues.has(q.imageId) && vues.add(q.imageId)); }
+        for (const x of p.horsFormat ?? []) x.id = vers(x.id);
+      }
+    }
   } finally {
     status(statut, "");
   }
@@ -8548,6 +8586,7 @@ async function importerPackZip(zip, statut = "pack-status") {
     // Le dossier d'images téléchargé à côté des packs (cedric, 25/10) : seules les images citées sont téléversées.
     // Les images nommées (cedric, 25/10) : rangées sous leur nom, citées ou non, pour les retrouver en tapant.
     nommes.size ? h("p", { class: "hint small pack-images-nommees", text: `🖼 ${plural(nommes.size, "image nommée", "images nommées")} (${[...nommes.values()].slice(0, 4).map((x) => x.nom).join(", ")}${nommes.size > 4 ? "…" : ""}) : ${nommes.size > 1 ? "rangées" : "rangée"} sous ce nom dans Bibliothèque › Images › 📦 Images des packs, au thème du pack. Il suffit de taper le nom pour la retrouver.` }) : null,
+    doublons.size ? h("p", { class: "hint small pack-doublons", text: `🧹 ${plural(doublons.size, "image en double", "images en double")} (la même image sous un autre nom de fichier ou à une autre taille) : une seule est gardée, la plus grande.` }) : null,
     analyse.nomsAbsents.length ? h("p", { class: "hint small pack-noms-absents", text: `${plural(analyse.nomsAbsents.length, "image nommée absente", "images nommées absentes")} du ZIP : ${analyse.nomsAbsents.slice(0, 5).join(", ")}${analyse.nomsAbsents.length > 5 ? "…" : ""}.` }) : null,
     analyse.imagesInutiles ? h("p", { class: "hint small pack-images-inutiles", text: `${plural(analyse.imagesInutiles, "image du ZIP ne sert", "images du ZIP ne servent")} à aucun pack${analyse.nommees.length || analyse.nomsAbsents.length ? (analyse.imagesInutiles > 1 ? " et n'ont pas de nom" : " et n'a pas de nom") : ""} : ${analyse.imagesInutiles > 1 ? "elles ne sont pas téléversées" : "elle n'est pas téléversée"}.` }) : null);
   if (!aEnregistrer.length && !nommes.size) return apercu("Rien de nouveau dans ce pack.", contenu, { ok: "Fermer", annuler: null });
@@ -8896,6 +8935,64 @@ function renderMedias(force = false) {
   if (list.length > montrees.length) box.append(h("p", { class: "hint small", text: `… et ${list.length - montrees.length} autres : précisez la recherche.` }));
   // Menu temporaire (cedric, 24/10) : les mots de la banque sans vraie photo, à compléter avec ses photos.
   if (mediaGroupe === "photos" && !recherche && !mediaCat) { const pm = panneauPhotosManquantes(h, annonce); if (pm) box.prepend(pm); }
+  // Les doublons des images des packs (cedric, 25/10) : à fusionner, après un aperçu.
+  if (mediaGroupe === "packs" && !recherche && mediaCat !== RETIREES && g.packs.length + g[RETIREES].packs.length > 1) {
+    box.prepend(h("div", { class: "doublons-outil" },
+      h("button", { type: "button", class: "btn small secondary doublons-fusionner", text: "🧹 Fusionner les doublons", onclick: fusionnerDoublonsPacks }),
+      h("span", { class: "hint small", text: "La même image importée deux fois (autre nom de fichier, autre taille) : une seule est gardée, chaque question pointe vers elle." })));
+  }
+}
+
+/**
+ * « 🧹 Fusionner les doublons » (cedric, 25/10) : parmi les images des packs, la même image importée deux fois (sous
+ * deux noms de fichier, ou à deux tailles). Aperçu des groupes, puis, après confirmation, un seul envoi : chaque quiz,
+ * prestation (archivées comprises), manche, jeu qui citait une copie cite l'image gardée (la plus grande), puis les
+ * copies, que plus rien ne cite, sont effacées avec leur fiche. Ses images à elle (« Mes images ») ne sont jamais touchées.
+ */
+async function fusionnerDoublonsPacks() {
+  // Le bouton est dans la liste : sans le quitter, la liste attendrait pour se redessiner.
+  document.activeElement?.blur?.();
+  const g = groupesImages();
+  const toutes = [...g.packs, ...g[RETIREES].packs];
+  const liste = [];
+  let n = 0;
+  for (const x of toutes) {
+    status("media-note", `Recherche des doublons… (${++n} / ${toutes.length})`, true);
+    try {
+      const data = imageCache[x.id] ?? (await get(ref(db, `library/images/${x.id}`))).val();
+      if (typeof data !== "string") continue;
+      imageCache[x.id] = data;
+      liste.push({ ...x, empreinte: await empreinteImage(data) });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  status("media-note", "");
+  const groupes = groupesDeDoublons(liste);
+  if (!groupes.length) return annonce("Aucune image en double dans les images des packs.", true);
+  const copies = groupes.reduce((t, gr) => t + gr.length - 1, 0);
+  const contenu = h("div", { class: "doublons-apercu" },
+    h("p", { class: "hint small", text: "Dans chaque groupe, la première (✓) est gardée : la plus grande. Les autres (✕) sont effacées ; ce qui les utilisait utilise la gardée." }),
+    ...groupes.map((gr) => h("div", { class: "doublons-groupe" }, ...gr.map((x, i) => h("figure", { class: `doublon${i ? "" : " gardee"}` },
+      h("img", { src: imageCache[x.id], alt: "" }),
+      h("figcaption", { text: `${i ? "✕" : "✓"} ${x.nom}`, title: x.ou?.join(", ") || "" }))))));
+  if (!(await apercu(`Fusionner ${plural(groupes.length, "groupe")} de doublons (${plural(copies, "copie effacée", "copies effacées")}) ?`, contenu, { ok: "Fusionner" }))) return;
+  const vers = new Map();
+  for (const [garde, ...autres] of groupes) for (const c of autres) vers.set(c.id, garde.id);
+  const ecritures = repointer({ quizzes, shows, manches, mimes, contents, songs, playlists }, vers, { horodatage: serverTimestamp() });
+  for (const [garde, ...autres] of groupes) {
+    // Sa fiche : la sienne, sinon celle d'une copie (son nom, son thème).
+    const fiche = medias[garde.id] ?? autres.map((c) => medias[c.id]).find(Boolean);
+    if (fiche && !medias[garde.id]) ecritures[`library/medias/${garde.id}`] = { ...fiche, updatedAt: serverTimestamp() };
+    for (const c of autres) { ecritures[`library/medias/${c.id}`] = null; ecritures[`library/images/${c.id}`] = null; }
+  }
+  try {
+    await update(ref(db), ecritures);
+    annonce(`✓ ${plural(copies, "doublon fusionné", "doublons fusionnés")} : chaque question utilise l'image gardée.`, true);
+  } catch (err) {
+    console.error(err);
+    annonce("La fusion n'a pas pu se faire : vérifiez la connexion. Rien n'a été changé.");
+  }
 }
 $("media-search").oninput = () => renderMedias(true);
 
