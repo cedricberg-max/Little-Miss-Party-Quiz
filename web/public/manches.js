@@ -389,7 +389,11 @@ function serieNettoyee(x) {
   if (!questions.length) return null;
   // Le réglage du 🎲 : le profil (Quiz) ou le thème (Quiz illustré).
   return { ...base, ...(x.origine === "de" && PROFILES[x.profil] ? { profil: x.profil } : {}),
-    ...(x.origine === "de" && typeof x.famille === "string" && /^[a-z]{2,20}$/.test(x.famille) ? { famille: x.famille } : {}), questions };
+    ...(x.origine === "de" && typeof x.famille === "string" && /^[a-z]{2,20}$/.test(x.famille) ? { famille: x.famille } : {}),
+    // Série piochée dans les packs (« 🎨 Mes thèmes », cedric 25/10) : son dé et le mot tapé, pour la refaire.
+    ...(x.origine === "reprise" && ["hasard", "theme", "recherche"].includes(x.pioche?.mode)
+      ? { pioche: { mode: x.pioche.mode, ...(typeof x.pioche.terme === "string" && x.pioche.terme.trim() ? { terme: x.pioche.terme.trim().slice(0, 80) } : {}) } } : {}),
+    questions };
 }
 
 /**

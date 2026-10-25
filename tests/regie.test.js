@@ -5376,6 +5376,74 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("🎨 Mes thèmes (cedric, 25/10) : au Quiz, trois dés piochent dans les packs (hasard, thème principal à moitié, recherche) ; une question retirée laisse deux dés", async () => {
+    const pack = (title, niveau, n, theme = null) => ({ title, niveau, famille: "Divers", pack: true, kind: "classique", source: "json", updatedAt: 1, ...(theme ? { theme } : {}),
+      questions: Array.from({ length: n }, (_, k) => ({ text: `${title} ${k + 1} ?`, choices: ["A", "B", "C", "D"], correct: k % 4, status: "validee" })) });
+    await seedLibrary("quizzes", { kpop: pack("K-pop Demon Hunters", "Facile", 8), mario: pack("Mario", "Facile", 8, "Jeux vidéo"), poke: pack("Pokémon", "Difficile", 8) });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "6");
+    await ajouterJeu(page, "quiz");
+    const round = page.locator("#show-rounds .round").nth(0);
+    // Les packs d'abord : la ligne « 🎨 Mes thèmes » est la première des outils, la banque libre dessous.
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((els) => els.slice(0, 2).map((e) => e.className)), ["packs-ligne", "tirage-ligne"]);
+    const serie = round.locator('.quiz-series > li.serie[data-origine="reprise"]');
+    const textes = () => serie.locator(".tirage-q:not(.vide) .tirage-texte").allTextContents();
+
+    // 1. Tout au hasard : 6 ans, des packs Facile seulement (il y en a assez).
+    await round.locator(".packs-nombre").selectOption("6");
+    await round.locator(".packs-de-hasard").click();
+    await serie.locator(".serie-voir", { hasText: "🎨 6 questions de mes thèmes (tous mes thèmes au hasard)" }).waitFor();
+    assert.ok((await textes()).every((t) => /^(K-pop|Mario)/.test(t)), "niveau de la prestation d'abord");
+
+    // 2. Thème principal, en direct dans son champ : la moitié sur K-pop, le reste ailleurs.
+    await round.locator(".packs-theme").fill("kpop");
+    await round.locator(".packs-suggestion", { hasText: "K-pop Demon Hunters" }).click();
+    assert.equal(await round.locator(".packs-theme").inputValue(), "K-pop Demon Hunters");
+    await round.locator(".packs-de-theme").click();
+    await serie.locator(".serie-voir", { hasText: "thème principal « K-pop Demon Hunters »" }).waitFor();
+    assert.equal((await textes()).filter((t) => t.startsWith("K-pop")).length, 3);
+    assert.equal(await round.locator('.quiz-series > li.serie[data-origine="reprise"]').count(), 1, "le dé refait la série, il n'en ajoute pas");
+
+    // 3. Recherche : seulement ce qui se rapporte au mot (le thème du pack compte), même dans une seule série.
+    await round.locator(".packs-recherche").fill("jeux video");
+    await round.locator(".packs-de-recherche").click();
+    await serie.locator(".serie-voir", { hasText: "🎨 6 questions de mes thèmes (« jeux video »)" }).waitFor();
+    assert.ok((await textes()).every((t) => t.startsWith("Mario")));
+
+    // ✕ : deux dés à sa place ; la question retirée ne revient jamais.
+    const retiree = (await textes())[0];
+    await serie.locator(".tirage-q:not(.vide) .tirage-retirer").first().click();
+    await serie.locator(".packs-case").waitFor();
+    assert.equal(await serie.locator(".packs-case-theme").inputValue(), "jeux video", "le petit champ part du thème de la série");
+    await serie.locator(".packs-case").scrollIntoViewIfNeeded();
+    await capture(page, "quiz-mes-themes-case", { pleinePage: false });
+    await round.locator(".packs-ligne").scrollIntoViewIfNeeded();
+    await capture(page, "quiz-mes-themes-des", { pleinePage: false });
+    await serie.locator(".packs-case-theme").fill("demon");
+    await serie.locator(".packs-case-theme-de").click();
+    await serie.locator(".packs-case").waitFor({ state: "detached" });
+    const apres = await textes();
+    assert.equal(apres.filter((t) => t.startsWith("K-pop")).length, 1);
+    assert.ok(!apres.includes(retiree));
+    await serie.locator(".tirage-q:not(.vide) .tirage-retirer").first().click();
+    await serie.locator(".packs-case-hasard").click();
+    await serie.locator(".packs-case").waitFor({ state: "detached" });
+    assert.equal(new Set(await textes()).size, 6);
+    await capture(page, "quiz-mes-themes", { pleinePage: false });
+
+    // Enregistrée : une série reprise (la TV la joue comme les autres) qui garde son dé et son mot.
+    await aVenir(page);
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    const [manche] = Object.values(await library("shows"))[0].rounds;
+    const gardee = manche.seriesQuiz.find((x) => x.origine === "reprise");
+    assert.deepEqual([gardee.pioche, gardee.questions.length], [{ mode: "recherche", terme: "jeux video" }, 6]);
+    assert.ok(gardee.questions.every((q) => q.choices.length === 4 && Number.isInteger(q.correct)));
+    await page.context().close();
+  });
+
   test("Vrai ou Faux express : manche choisie dans l'admin, affirmations seules, ajout en direct, TV trop ancienne prévenue", async () => {
     const SCIENCES = {
       title: "Sciences", source: "tableur", updatedAt: 1,
@@ -7650,7 +7718,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)),
       ["quiz-outils", "check bougies quiz-bougies", "quiz-finale"]);
     assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)),
-      ["tirage-ligne", "quiz-ajouts quiz-rappel", "quiz-ajouts quiz-biblio"]);
+      ["packs-ligne", "tirage-ligne", "quiz-ajouts quiz-rappel", "quiz-ajouts quiz-biblio"]);
     assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "btn tirage-de"]);
     // « Rappeler un de vos quiz » : une case à gauche (pas un champ), une recherche à droite.
     const ajouts = round.locator(".quiz-rappel");

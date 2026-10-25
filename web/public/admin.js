@@ -49,6 +49,7 @@ import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from "./retour.js";
 import { confirmer, avertir, demanderTexte, apercu } from "./fenetre.js";
 import { lireZipEtSesZip } from "./zip.js";
+import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks } from "./pioche-packs.js";
 import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage } from "./pack-zip.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
@@ -3335,7 +3336,7 @@ function compteurQuiz(r) {
   const total = questionsDesSeries(r, quizzes).length;
   const finale = hasFinale(r.type) && r.finale > 0 ? Math.min(r.finale, total) : 0;
   const unite = estJeuDePhotos(r.type) ? "photo" : r.type === "express" ? "affirmation" : "question";
-  const aTirer = casesDuTirage(r).filter(caseVide).length;
+  const aTirer = casesDuTirage(r).filter(caseVide).length + casesPioche(seriePioche(r)).filter(caseVide).length;
   const aFinir = seriesDe(r).filter((x) => x.origine === "main").flatMap((x) => x.questions ?? []).filter((q) => q && !questionJouable(q)).length;
   const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r && questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r);
   return [
@@ -3343,6 +3344,114 @@ function compteurQuiz(r) {
     finale ? `dont ${finale > 1 ? `${finale}` : "la dernière"} en Super Finale` : "",
     bougies && total ? "plus la question des bougies" : "",
   ].filter(Boolean).join(", ") + [aTirer ? ` · ${aTirer} à tirer` : "", aFinir ? ` · ${aFinir} à compléter` : ""].join("");
+}
+
+/**
+ * « 🎨 Mes thèmes » (cedric, 25/10) : la série piochée dans les packs importés (une seule, refaite par chacun des
+ * trois dés) ; gardée comme une série reprise (`pioche` : le dé et le mot tapé), la TV la joue comme les autres.
+ */
+const seriePioche = (r) => seriesDe(r).find((x) => x.pioche && x.origine === "reprise") ?? null;
+const casesPioche = (x) => (Array.isArray(x?.questions) ? x.questions : Object.values(x?.questions ?? {})).filter(Boolean);
+/** Le catalogue des packs jouables au Quiz (sans les quiz des prestations de test). */
+const catalogueQuiz = () => catalogueDesPacks(quizzes, estQuizDeTest);
+/** Ce que dit le titre d'une série piochée : « au hasard », « thème principal « Mario » », « « K-pop » ». */
+const sortePioche = (p) => (p?.mode === "theme" ? `thème principal « ${p.terme} »` : p?.mode === "recherche" ? `« ${p.terme} »` : "tous mes thèmes au hasard");
+
+/**
+ * Un champ de thème (cedric, 25/10) : à droite de son 🎲 ; en tapant, les packs qui répondent (filtre en direct, ceux
+ * qui commencent par le mot d'abord) ; un clic met leur nom dans le champ.
+ */
+function champThemePacks({ classe, placeholder, label, valeur = "", catalogue, exclus, entree }) {
+  const champ = h("input", { type: "search", class: `quiz-ajout-cherche ${classe}`, placeholder, "aria-label": label, value: valeur, maxlength: "80" });
+  const liste = h("div", { class: "quiz-ajout-liste packs-suggestions" });
+  liste.hidden = true;
+  liste.addEventListener("mousedown", (e) => e.preventDefault());
+  const dessiner = () => {
+    const trouves = packsQuiRepondent(catalogue, champ.value, exclus).slice(0, QUIZ_AJOUT_MAX);
+    if (!champ.value.trim()) { liste.hidden = true; liste.replaceChildren(); return; }
+    liste.replaceChildren(...(trouves.length ? trouves.map((p) => h("button", { type: "button", class: "quiz-ajout-item packs-suggestion", onclick: () => { champ.value = p.titre; liste.hidden = true; } },
+      h("b", { text: p.titre }), h("span", { class: "small", text: [plural(p.n, "question libre", "questions libres"), p.theme && p.theme !== p.titre ? p.theme : ""].filter(Boolean).join(" · ") })))
+      : [h("p", { class: "hint small", text: "Aucun pack de ce nom : le 🎲 cherche aussi le mot dans les questions et les réponses." })]));
+    liste.hidden = false;
+  };
+  champ.addEventListener("input", dessiner);
+  champ.addEventListener("focus", dessiner);
+  champ.addEventListener("blur", () => { liste.hidden = true; });
+  champ.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); liste.hidden = true; entree?.(); } });
+  return { champ, bloc: h("div", { class: "quiz-ajout-champ" }, champ, liste) };
+}
+
+/**
+ * Ligne « 🎨 Mes thèmes » d'un Quiz (cedric, 25/10), au-dessus des autres outils (les packs d'abord) : le nombre de
+ * questions et trois dés. 1. tout au hasard dans les packs ; 2. un thème principal (la moitié des questions), le reste
+ * au hasard dans les autres packs ; 3. un mot (thème, personnage…) : seulement ce qui s'y rapporte. Le niveau est
+ * celui de la prestation d'abord ; jamais une question déjà dans la prestation ni retirée.
+ */
+function lignePacks(r, profil, changer) {
+  const catalogue = catalogueQuiz();
+  const actuelle = seriePioche(r);
+  const p = actuelle?.pioche ?? {};
+  const n = casesPioche(actuelle).length || r.nbPioche || TIRAGE_DEFAUT;
+  const nombre = h("select", { class: "tirage-nombre packs-nombre", "aria-label": "Nombre de questions à piocher dans mes thèmes", onchange: (e) => { r.nbPioche = Number(e.target.value); } },
+    ...[...new Set([...TIRAGE_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: plural(k, "question") })));
+  // Sans la série piochée en cours (le dé la refait) : ses questions peuvent revenir, jamais celles retirées.
+  const exclusSansElle = () => {
+    const toutes = seriesDe(r);
+    r.seriesQuiz = toutes.filter((x) => x !== seriePioche(r));
+    try { return textesPris(r); } finally { r.seriesQuiz = toutes; }
+  };
+  const piocher = (mode, champ) => {
+    const terme = champ?.value.trim() ?? "";
+    if (mode !== "hasard" && !terme) { annonce(mode === "theme" ? "Tapez le thème principal à droite du 🎲." : "Tapez un thème, un personnage ou un mot à droite du 🎲."); champ.focus(); return; }
+    const k = Number(nombre.value);
+    const trouvees = piocherDansLesPacks(catalogue, k, { mode, terme, niveau: niveauDesPacks(NIVEAU_DU_PROFIL[profil]), exclus: exclusSansElle() });
+    if (!trouvees.length) { annonce(mode === "hasard" ? "Plus aucune question libre dans vos packs." : `Aucune question libre ne se rapporte à « ${terme} » dans vos packs.`); return; }
+    if (trouvees.length < k) annonce(`Seulement ${plural(trouvees.length, "question libre", "questions libres")}${mode === "recherche" ? ` sur « ${terme} »` : ""} : les voici.`);
+    let x = seriePioche(r);
+    if (!x) { x = { id: "packs", origine: "reprise" }; seriesDe(r).unshift(x); }
+    x.pioche = { mode, ...(mode === "hasard" ? {} : { terme }) };
+    x.titre = `Mes thèmes : ${sortePioche(x.pioche)}`;
+    x.questions = trouvees.map((y) => versQuestionDePack(y));
+    seriesDepliees.add(x);
+    r.nbPioche = k;
+    changer();
+  };
+  const theme = champThemePacks({ classe: "packs-theme", placeholder: "Thème principal", label: "Thème principal (la moitié des questions)", valeur: p.mode === "theme" ? p.terme : "",
+    catalogue, exclus: exclusSansElle(), entree: () => piocher("theme", theme.champ) });
+  const cherche = champThemePacks({ classe: "packs-recherche", placeholder: "Thème, personnage…", label: "Piocher seulement sur ce thème", valeur: p.mode === "recherche" ? p.terme : "",
+    catalogue, exclus: exclusSansElle(), entree: () => piocher("recherche", cherche.champ) });
+  const de = (mode, titre, champ = null) => h("button", { type: "button", class: `btn packs-de packs-de-${mode}`, text: "🎲", "aria-label": titre, title: titre, onclick: () => piocher(mode, champ) });
+  return h("div", { class: "packs-ligne", "data-packs": String(catalogue.length) },
+    h("div", { class: "packs-tete" },
+      h("span", { class: "quiz-ajout-titre packs-titre", text: "🎨 Mes thèmes" }),
+      nombre,
+      catalogue.length ? null : h("span", { class: "hint small", text: "Aucun pack de quiz importé : Bibliothèque › Questions › Mes packs." })),
+    h("div", { class: "packs-des" },
+      h("div", { class: "packs-de-ligne" }, de("hasard", "Piocher au hasard dans tous mes thèmes"), h("span", { class: "packs-de-texte", text: "Tout au hasard dans mes packs" })),
+      h("div", { class: "packs-de-ligne" }, de("theme", "Piocher : la moitié sur le thème principal, le reste au hasard", theme.champ), theme.bloc),
+      h("div", { class: "packs-de-ligne" }, de("recherche", "Piocher seulement sur ce thème", cherche.champ), cherche.bloc)));
+}
+
+/**
+ * Une question retirée d'une série piochée (cedric, 25/10) : deux dés à sa place, l'un au hasard dans tous les packs,
+ * l'autre sur le thème tapé dans son petit champ (d'office celui de la série).
+ */
+function caseVidePioche(r, x, i, profil, changer) {
+  const catalogue = catalogueQuiz();
+  const remplir = (mode, terme = "") => {
+    if (mode === "recherche" && !terme) { annonce("Tapez un thème à droite du second 🎲."); champ.focus(); return; }
+    const [y] = piocherDansLesPacks(catalogue, 1, { mode, terme, niveau: niveauDesPacks(NIVEAU_DU_PROFIL[profil]), exclus: textesPris(r) });
+    if (!y) { annonce(mode === "hasard" ? "Plus aucune question libre dans vos packs." : `Plus aucune question libre sur « ${terme} » dans vos packs.`); return; }
+    x.questions = casesPioche(x).map((q, k) => (k === i ? versQuestionDePack(y) : q));
+    changer();
+  };
+  const champ = h("input", { type: "search", class: "packs-case-theme", placeholder: "Thème…", "aria-label": "Thème de la question à piocher", maxlength: "80",
+    value: x.pioche?.terme ?? "", onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); remplir("recherche", champ.value.trim()); } } });
+  return h("li", { class: "tirage-q vide packs-case" }, h("div", { class: "tirage-q-ligne" },
+    h("button", { type: "button", class: "btn packs-de petit packs-case-hasard", text: "🎲", "aria-label": "Piocher une question au hasard dans mes thèmes", title: "Une question au hasard, n'importe quel thème", onclick: () => remplir("hasard") }),
+    h("span", { class: "hint small", text: "ou" }),
+    h("button", { type: "button", class: "btn packs-de petit packs-case-theme-de", text: "🎲", "aria-label": "Piocher une question sur ce thème", title: "Une question sur le thème tapé à droite", onclick: () => remplir("recherche", champ.value.trim()) }),
+    champ));
 }
 
 /**
@@ -3461,7 +3570,9 @@ function mancheQuiz(r) {
     choisir: (x) => { series.push({ id: nouvelId("q"), origine: "quiz", quizId: x.id }); changer(); },
   });
   // Quatrième ligne (Zoom mystère, Image floue) : composer avec ses propres images de « Mes images ».
-  const outils = h("div", { class: "quiz-outils" }, ligne, rappel, biblio, photos ? ligneVosImages(r, changer) : null);
+  // « 🎨 Mes thèmes » (cedric, 25/10) : au Quiz, les packs importés d'abord, au-dessus de la banque libre.
+  const packs = !photos && !illustre && !express ? lignePacks(r, profil, changer) : null;
+  const outils = h("div", { class: "quiz-outils" }, packs, ligne, rappel, biblio, photos ? ligneVosImages(r, changer) : null);
 
   // Les séries, dans l'ordre choisi ; les questions de la Super Finale y sont marquées.
   const ligneQuestion = (x, q, retirer, extra = null) => {
@@ -3520,6 +3631,15 @@ function mancheQuiz(r) {
       // Quiz rappelé : ✕ retire une question (gardée de côté, « ↺ » la remet) ; le quiz de la bibliothèque ne change pas.
       return questionsDeLaSerie(x, quizzes, r.type).map((q) => ligneQuestion(x, q, () => { x.sans = [...(x.sans ?? []), sig(q)]; changer(); }));
     }
+    if (x.pioche) {
+      // Série de mes thèmes : ✕ retire une question (jamais reproposée) et laisse deux dés à sa place.
+      return casesPioche(x).map((q, i) => (caseVide(q) ? caseVidePioche(r, x, i, profil, changer)
+        : ligneQuestion(x, q, () => {
+          r.ecartees = [...(r.ecartees ?? []), sig(q)];
+          x.questions = casesPioche(x).map((y, k) => (k === i ? { vide: true } : y));
+          changer();
+        })));
+    }
     if (x.origine === "main") {
       return (x.questions ?? []).filter(Boolean).map((q) => questionEcrite(r, x, q, majCompteur, questionJouable(q) && clesFinale.has(cleQuestion(x, q, r.type))));
     }
@@ -3540,6 +3660,10 @@ function mancheQuiz(r) {
       return `✍ ${nq} écrite${k > 1 ? "s" : ""} à la main${aFinir ? `, ${aFinir} à compléter` : ""}`;
     }
     if (x.origine === "images") return `⭐ ${nq} choisie${k > 1 ? "s" : ""} dans la bibliothèque`;
+    if (x.pioche) {
+      const vides = casesPioche(x).filter(caseVide).length;
+      return `🎨 ${nq} de mes thèmes (${sortePioche(x.pioche)})${vides ? `, ${vides} à piocher` : ""}`;
+    }
     return `📅 ${x.titre ?? (photos ? "Photos reprises" : express ? "Affirmations reprises" : "Questions reprises")} : ${nq}`;
   };
   const deplacer = (i, d) => {

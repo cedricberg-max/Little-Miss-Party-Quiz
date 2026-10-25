@@ -918,7 +918,7 @@ button.media-tile:hover { border-color: var(--violet); }
 .tirage-rep-img.emoji { display: grid; place-items: center; font-size: 28px; line-height: 1; }
 .tirage-rep-mot { max-width: 100%; }
 .tirage-q-ligne .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
-.tirage-q-ligne .tirage-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }
+.tirage-q-ligne .tirage-de.petit, .tirage-q-ligne .packs-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }
 @media (max-width: 640px) { .tirage-ligne > select { flex: 1 1 100%; } }
 /* Un Quiz = une seule manche (cedric, 23/10) : le compteur (en majuscules, sur la ligne du numéro du jeu), les outils
    de création ensemble, les séries, la Super Finale, puis le « Quiz complet » ; un peu d'air entre chaque partie. */
@@ -1193,3 +1193,13 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
   .q-famille > .cards { margin-left: 0; }
   .famille-resume { display: none; }
 }
+/* « 🎨 Mes thèmes » (cedric, 25/10) : les trois dés des packs, au-dessus des autres outils du Quiz. */
+.packs-ligne { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding-bottom: 12px; border-bottom: 1px dashed var(--line-2); }
+.packs-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.packs-tete > select { width: auto; flex: 0 1 auto; }
+.packs-des { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.packs-de-ligne { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.packs-de-ligne .packs-de { flex: none; font-size: 26px; line-height: 1; padding: 8px 22px; }
+.packs-de-texte { font-weight: 700; color: var(--ink); }
+.packs-case .tirage-q-ligne { flex-wrap: wrap; }
+.packs-case-theme { flex: 1 1 140px; min-width: 0; max-width: 260px; }
