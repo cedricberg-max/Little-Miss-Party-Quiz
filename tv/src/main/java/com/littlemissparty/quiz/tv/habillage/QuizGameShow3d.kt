@@ -377,7 +377,10 @@ internal fun QuestionPanneau3d(p: PlanchesQuiz3d, texte: String, modifier: Modif
     }
 }
 
-/** L'onglet « Question 4 / 10 » : plaque néon cyan, texte blanc à lueur cyan, réduit (jusqu'à 12 sp) plutôt que coupé. */
+/**
+ * L'onglet « Question 4 / 10 » : plaque néon cyan, texte blanc à lueur cyan, réduit (jusqu'à 12 sp) plutôt que coupé ;
+ * encore trop long (« Quiz musical · Comptines · question 1 / 10 »), il passe sur deux lignes, jamais de « … ».
+ */
 @Composable
 internal fun OngletQuiz3d(p: PlanchesQuiz3d, texte: String, modifier: Modifier) {
     val k = LocalDensity.current.density / 2f
@@ -392,8 +395,9 @@ internal fun OngletQuiz3d(p: PlanchesQuiz3d, texte: String, modifier: Modifier) 
             while (t > 12f && mesure.measure(texte, style(t), maxLines = 1, softWrap = false).size.width > dispo) t -= 0.5f
             t
         }
+        val tient = remember(texte, dispo, taille) { mesure.measure(texte, style(taille), maxLines = 1, softWrap = false).size.width <= dispo }
         Text(
-            texte, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, style = style(taille),
+            texte, maxLines = if (tient) 1 else 2, softWrap = !tient, style = style(taille),
             modifier = Modifier
                 .drawBehind { neufParts(p.onglet, -60f * k, -60f * k, size.width + 120f * k, size.height + 120f * k, 140, 98, k) }
                 .padding(horizontal = 22.dp, vertical = 9.dp),

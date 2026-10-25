@@ -355,5 +355,6 @@ private fun NomQuiTient(nom: String, max: TextUnit, modifier: Modifier) {
 @Composable
 internal fun EtapeGs(texte: String, modifier: Modifier = Modifier) {
     planchesQuiz3d()?.let { return OngletQuiz3d(it, texte, modifier) }
-    Text(texte, style = styleEtiquetteGs(17.sp, GS.Cyan, 3.sp), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
+    // Trop long pour une ligne : deux lignes plutôt qu'un « … » (le texte n'est jamais coupé).
+    Text(texte, style = styleEtiquetteGs(17.sp, GS.Cyan, 3.sp), maxLines = 2, modifier = modifier)
 }
