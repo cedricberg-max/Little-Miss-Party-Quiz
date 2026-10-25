@@ -80,11 +80,15 @@ fun LaParole(nom: String, couleur: Color, visible: Boolean, modifier: Modifier =
 
     Box(modifier.fillMaxSize().clearAndSetSemantics {}) {
         // Voile pendant l'annonce au centre ; il s'efface quand le nom part en bandeau.
+        // Game Show : voile plein, la scène de l'alerte ne laisse rien voir du jeu dessous (captures du 25/10).
         Box(
             Modifier.fillMaxSize().graphicsLayer {
                 val ms = t.value
-                alpha = presence.value * 0.6f * (ms / PAROLE_ENTREE_MS).coerceIn(0f, 1f) * (1f - glissementParole(ms.toLong()))
-            }.background(Brush.radialGradient(listOf(couleur.copy(alpha = 0.35f), Neon.Nuit.copy(alpha = 0.92f)))),
+                alpha = presence.value * (if (Look.gs) 0.97f else 0.6f) * (ms / PAROLE_ENTREE_MS).coerceIn(0f, 1f) * (1f - glissementParole(ms.toLong()))
+            }.background(
+                if (Look.gs) Brush.radialGradient(listOf(lerpVers(GS.Noir, couleur, 0.22f), GS.Noir))
+                else Brush.radialGradient(listOf(couleur.copy(alpha = 0.35f), Neon.Nuit.copy(alpha = 0.92f))),
+            ),
         )
         Echelle(960.dp, 540.dp) {
             if (Look.gs) {
