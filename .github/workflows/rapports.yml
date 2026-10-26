@@ -14,6 +14,12 @@ on:
       captures:
         description: "Numéro d'un passage « Tests Android (émulateur TV) » dont afficher les captures (vide = les rapports)"
         default: ""
+      audit:
+        description: "« packs » : vérifie les images de tous les packs et d'une prestation (champ « prestation »), sans rien modifier"
+        default: ""
+      prestation:
+        description: "Avec audit : un mot du nom de la prestation à vérifier (ses questions à réponses en images)"
+        default: ""
       noms:
         description: "Captures à afficher, séparées par des virgules"
         default: "question-1,question-8-equipes,revelation,revelation-8-equipes,question-fermee,reponses-en-images,reponses-en-images-revelation,express-affirmation,zoom-mystere-question,zoom-mystere-revelation,image-floue-buzz,image-floue-revelation,juste-chiffre-question,juste-chiffre-revelation,quiz-musical-revelation,mimes-tour,mimes-6-equipes-tour"
@@ -60,8 +66,51 @@ jobs:
             [ -n "$trouve" ] || echo "=== ABSENTE $nom"
           done
 
+  # Audit des images des packs (test Mi Box du 26/10 : questions Marvel du Quiz illustré sans images). Lecture seule ;
+  # le journal étant public, rien que des titres de packs, des comptes et des identifiants d'images.
+  audit:
+    if: inputs.audit == 'packs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      PRESTATION: ${{ inputs.prestation }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vérifier les images des packs
+        run: |
+          project=$(jq -r .projectId firebase-config.json)
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          get() { npx --yes firebase-tools@13 database:get "$@" --project "$project"; }
+          get /library/quizzes > "$RUNNER_TEMP/quizzes.json"
+          get /library/images --shallow > "$RUNNER_TEMP/images.json"
+          get /library/shows > "$RUNNER_TEMP/shows.json"
+          echo "== $(jq 'keys | length' "$RUNNER_TEMP/images.json") images dans library/images =="
+          echo "== Packs : questions, réponses en images, images introuvables =="
+          jq -r --slurpfile img "$RUNNER_TEMP/images.json" '
+            def ids: [.. | strings | select(test("^[0-9a-f]{16}$"))];
+            def qs: (.questions // {}) | if type == "array" then . else [.[]] end | map(select(. != null));
+            to_entries | map(select(.value.pack == true)) | sort_by(.value.title) | .[] | .key as $id | .value as $p
+            | ($p | qs) as $q
+            | ($q | map(select(.choiceImages != null and ([.choiceImages[]?] | map(select(test("^[0-9a-f]{16}$"))) | length) > 0)) | length) as $avec
+            | ($q | map(.choiceImages // {} | [.[]?]) | flatten | map(select(type == "string" and test("^[0-9a-f]{16}$")))) as $ci
+            | ($ci | map(select($img[0][.] == null))) as $manque
+            | "\($p.kind // "?")  \($p.title)  [\($p.theme // "")]  questions \($q | length) · à réponses en images \($avec) · images de réponses \($ci | length), introuvables \($manque | length)\(if ($manque | length) > 0 then " ex. " + ($manque[0:3] | join(",")) else "" end) · id \($id)"
+          ' "$RUNNER_TEMP/quizzes.json"
+          if [ -n "$PRESTATION" ]; then
+            echo
+            echo "== Prestation contenant « $PRESTATION » : questions à propositions, avec ou sans images =="
+            jq -r --arg mot "$PRESTATION" --slurpfile img "$RUNNER_TEMP/images.json" '
+              to_entries | map(select((.value | tostring | ascii_downcase) | contains($mot | ascii_downcase))) | .[] | .value
+              | [paths(objects) as $p | {p: $p, v: getpath($p)} | select(.v.choices? != null and .v.text? != null)] | .[]
+              | (.v.choiceImages // null) as $c
+              | "\(.p | map(tostring) | join("/") | .[0:60])  « \(.v.text | .[0:60]) »  choiceImages: \(if $c == null then "AUCUNE" else ([$c[]?] | map(if type == "string" and test("^[0-9a-f]{16}$") then (if $img[0][.] == null then "MANQUE" else "ok" end) else "-" end) | join(",")) end)"
+            ' "$RUNNER_TEMP/shows.json" | head -200
+          fi
+
   lire:
-    if: inputs.captures == ''
+    if: inputs.captures == '' && inputs.audit == ''
     runs-on: ubuntu-latest
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
