@@ -8755,9 +8755,12 @@ async function importerPackZip(zip, statut = "pack-status") {
     console.error(err);
     return status(statut, "Enregistrement refusé : vérifiez Internet ou reconnectez-vous, puis réimportez le ZIP. Rien n'a été enregistré.");
   }
-  const bilan = aEnregistrer.map((p) => (p.epreuve === "quisuis" ? `${plural(p.personnages.length, "personnage ajouté", "personnages ajoutés")} à Qui suis-je ?`
-    : `« ${p.titre} » : ${plural(p.questions.length, p.epreuve === "photos" ? "photo" : "question")}`));
-  if (nommes.size) bilan.push(`${plural(nommes.size, "image nommée", "images nommées")} dans les images des packs`);
+  // Le bilan en une ligne courte, qui s'en va toute seule (cedric, 26/10 : le détail pack par pack était « inutile »).
+  const nbPacks = aEnregistrer.filter((p) => p.epreuve !== "quisuis").length;
+  const personnages = aEnregistrer.filter((p) => p.epreuve === "quisuis").reduce((t, p) => t + p.personnages.length, 0);
+  const images = new Set([...aRanger.keys(), ...nommes.keys()]).size;
+  const bilan = [nbPacks ? plural(nbPacks, "pack importé", "packs importés") : "", personnages ? `${plural(personnages, "personnage")} pour Qui suis-je ?` : "",
+    images ? plural(images, "image") : ""].filter(Boolean);
   const manquantes = aEnregistrer.reduce((t, p) => t + p.manquantes.length, 0);
   if (builtinType === "quisuis") renderBuiltin();
   if (faits.length) {
@@ -8773,7 +8776,10 @@ async function importerPackZip(zip, statut = "pack-status") {
       noterRubrique(y);
     }
   }
-  status(statut, `✓ Importé : ${bilan.join(" ; ")}.${manquantes ? ` ${plural(manquantes, "image manquante")} : ajoutez-les dans « Éditer ».` : ""}`, true);
+  const message = `✓ ${bilan.join(", ") || "Importé"}.${manquantes ? ` ${plural(manquantes, "image manquante")} : ajoutez-les dans « Éditer ».` : ""}`;
+  status(statut, message, true);
+  // Une image manquante reste dite ; sinon la ligne s'efface au bout de 10 s.
+  if (!manquantes) setTimeout(() => { if ($(statut).textContent === message) status(statut, ""); }, 10000);
 }
 
 /** Le quiz enregistré d'un pack (mêmes champs qu'un quiz fait dans la Régie). */

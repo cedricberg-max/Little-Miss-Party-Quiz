@@ -6933,7 +6933,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(await apercuQui.innerText(), /1 personnage était déjà dans le jeu/);
     assert.match(await apercuQui.innerText(), /Personnage 3 \(« Hulk »\) : il faut sa réponse et au moins 2 indices\./);
     assert.equal(await repondreFenetre(page), "Importer « Super-héros » ?");
-    await page.locator("#builtin-status", { hasText: "✓ Importé : 2 personnages ajoutés à Qui suis-je ?." }).waitFor();
+    await page.locator("#builtin-status", { hasText: /^✓ 2 personnages pour Qui suis-je \?(, \d+ images?)?\.$/ }).waitFor();
     assert.equal(await titre("Super-héros").textContent(), "📚 Série « Super-héros » · 2 personnages");
     let extra = (await library("contents")).quisuis.extra;
     assert.deepEqual(extra.map((x) => [x.answer, x.serie, x.famille, x.niveau]), [["Elsa", "Disney", undefined, undefined],
@@ -6944,7 +6944,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await apercuQui.locator("select.pack-theme").count(), 0, "Qui suis-je ? : pas de thème, ses personnages vont dans le jeu");
     await apercuQui.locator("select.pack-niveau").selectOption("Facile");
     assert.equal(await repondreFenetre(page), "Importer « Animaux » ?");
-    await page.locator("#builtin-status", { hasText: "✓ Importé : 1 personnage ajouté à Qui suis-je ?." }).waitFor();
+    await page.locator("#builtin-status", { hasText: /^✓ 1 personnage pour Qui suis-je \?(, \d+ images?)?\.$/ }).waitFor();
     // Des données illisibles : expliqué, rien d'enregistré.
     await page.locator("#bi-zip").setInputFiles(zipDe("casse.zip", ["casse.json", "{ pas du json"]));
     assert.match(await repondreFenetre(page), /Ce pack ne peut pas être importé\.[\s\S]*« casse\.json »[\s\S]*mal écrites[\s\S]*Rien n'a été enregistré\./);
@@ -9336,7 +9336,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await etiquettesDe("Espace").locator("select.pack-niveau").selectOption("Moyen");
     await etiquettesDe("Espace").locator(".pack-etiquettes-manque").waitFor({ state: "hidden" });
     assert.equal(await repondreFenetre(page), "Importer ces 2 packs ?");
-    await page.locator("#pack-status", { hasText: "✓ Importé : « Les animaux de la savane » : 4 questions ; « Espace » : 1 question. 1 image manquante : ajoutez-les dans « Éditer »." }).waitFor();
+    await page.locator("#pack-status", { hasText: /^✓ 2 packs importés(, \d+ images?)?\. 1 image manquante : ajoutez-les dans « Éditer »\.$/ }).waitFor();
     const quizzes = await library("quizzes");
     const [idSavane, savane] = Object.entries(quizzes).find(([, q]) => q.title === "Les animaux de la savane");
     const [idEspace, espace] = Object.entries(quizzes).find(([, q]) => q.title === "Espace");
@@ -9494,7 +9494,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual((await fenetre.locator(".pack-apercu-pack").evaluateAll((xs) => xs.map((x) => x.dataset.epreuve))).sort(), ["photos", "quisuis", "quiz"]);
     assert.doesNotMatch(await fenetre.innerText(), /Image manquante|image absente/);
     await repondreFenetre(page);
-    await page.locator("#pack-status", { hasText: "✓ Importé" }).waitFor();
+    await page.locator("#pack-status", { hasText: /^✓ \d+ packs? importés?/ }).waitFor();
     const quizzes = Object.values(await library("quizzes"));
     const quiz = quizzes.find((q) => q.kind !== "images");
     const zoom = quizzes.find((q) => q.kind === "images");
@@ -9559,7 +9559,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await fenetre.locator(".pack-noms-absents").textContent(), "1 image nommée absente du ZIP : absente.png.");
     assert.equal(await fenetre.locator(".pack-images-inutiles").textContent(), "1 image du ZIP ne sert à aucun pack et n'a pas de nom : elle n'est pas téléversée.");
     assert.equal(await repondreFenetre(page), "Importer « Zoom Mario » ?");
-    await page.locator("#pack-status", { hasText: "✓ Importé : « Zoom Mario » : 1 photo ; 3 images nommées dans les images des packs." }).waitFor();
+    await page.locator("#pack-status", { hasText: "✓ 1 pack importé, 3 images." }).waitFor();
     // Téléversées : la photo citée et les deux nommées, jamais IMG_004 ; chacune sa fiche, son nom, son thème.
     const [zoom] = Object.values(await library("quizzes"));
     const medias = await library("medias");
@@ -9572,7 +9572,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.setInputFiles("#pack-file", { name: "noms.zip", mimeType: "application/zip",
       buffer: Buffer.from(faireZip([["noms-images.json", JSON.stringify({ theme: "mario", images: [{ fichier: "img_004.PNG", nom: "Bowser" }] })], ["images/IMG_004.png", png([20, 20, 20])]])) });
     assert.equal(await repondreFenetre(page), "Ranger cette image ?");
-    await page.locator("#pack-status", { hasText: "✓ Importé : 1 image nommée dans les images des packs." }).waitFor();
+    await page.locator("#pack-status", { hasText: "✓ 1 image." }).waitFor();
+    // La ligne du bilan s'en va toute seule (cedric, 26/10).
+    await page.locator("#pack-status:empty").waitFor({ state: "attached", timeout: 13000 });
 
     // Bibliothèque › Images : les 4 dans « Mario », et on tape le nom pour la retrouver.
     await page.click('#library-tabs [data-lib-tab="images"]');
@@ -9787,7 +9789,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await fenetre.locator(".pack-doublons").textContent(), "🧹 1 image en double (la même image sous un autre nom de fichier ou à une autre taille) : une seule est gardée, la plus grande.");
     assert.match(await fenetre.locator(".pack-images-nommees").textContent(), /^🖼 2 images nommées \(Bill Balle, Bob-omb\)/);
     await repondreFenetre(page);
-    await page.locator("#pack-status", { hasText: "✓ Importé" }).waitFor();
+    await page.locator("#pack-status", { hasText: /^✓ \d+ packs? importés?/ }).waitFor();
     const quizzes = Object.values(await library("quizzes"));
     const [id1, id2] = ["Quiz Mario 1", "Quiz Mario 2"].map((t) => quizzes.find((q) => q.title === t).questions[0].imageId);
     assert.equal(id1, id2, "les deux packs citent la même image, la plus grande");
@@ -9848,7 +9850,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(await fenetre.innerText(), /Question 1, réponse C : Image manquante : ajoutez une illustration\./);
     await capture(page, "pack-zip-apercu", { pleinePage: false });
     assert.equal(await repondreFenetre(page), "Importer « Reine des neiges » ?");
-    await page.locator("#pack-status", { hasText: "✓ Importé : « Reine des neiges » : 1 question. 1 image manquante : ajoutez-les dans « Éditer »." }).waitFor();
+    await page.locator("#pack-status", { hasText: /^✓ 1 pack importé(, \d+ images?)?\. 1 image manquante : ajoutez-les dans « Éditer »\.$/ }).waitFor();
     let quizzes = await library("quizzes");
     const [idReine, reine] = Object.entries(quizzes).find(([, q]) => q.title === "Reine des neiges");
     assert.deepEqual([reine.kind, reine.source, reine.ageMin, reine.ageMax, reine.famille, reine.niveau], ["photo", "json", 5, 8, "Dessins animés et mangas", "Facile"]);
@@ -9904,7 +9906,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(await fenetre.innerText(), /Disney zoom\s+Zoom mystère \/ Image floue · 2 photos/);
     assert.match(await fenetre.innerText(), /Laissé de côté : liste\.txt\./);
     await repondreFenetre(page);
-    await page.locator("#pack-status", { hasText: "✓ Importé : « Disney zoom » : 2 photos." }).waitFor();
+    await page.locator("#pack-status", { hasText: /^✓ 1 pack importé(, \d+ images?)?\.$/ }).waitFor();
     quizzes = await library("quizzes");
     const [, serie] = Object.entries(quizzes).find(([, q]) => q.title === "Disney zoom");
     assert.deepEqual([serie.kind, serie.source, serie.questions.length], ["images", "photos", 2]);
@@ -9961,7 +9963,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await serie2.locator(".pack-theme-nom").inputValue(), "Harry Potter");
     assert.match(await fenetre.innerText(), /Zoom mystère \/ Image floue · 2 photos/);
     assert.equal(await repondreFenetre(page), "Importer ces 4 packs ?");
-    await page.locator("#pack-status", { hasText: "✓ Importé" }).waitFor();
+    await page.locator("#pack-status", { hasText: /^✓ \d+ packs? importés?/ }).waitFor();
     const hps = Object.values(await library("quizzes")).filter((q) => q.title.startsWith("Harry Potter") && q.kind !== "images");
     const zoomHp = Object.values(await library("quizzes")).find((q) => q.title === "Harry Potter" && q.kind === "images");
     assert.deepEqual([zoomHp.niveau, zoomHp.questions.map((q) => q.choices[q.correct]).join(", ")], ["Facile", "Hedwige, Poudlard"]);
@@ -9985,7 +9987,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await fenetre.locator(".pack-alerte.hors-format").count(), 1, "l'image au bon format ne dit rien");
     await capture(page, "pack-zip-hors-format", { pleinePage: false });
     assert.equal(await repondreFenetre(page), "Importer ces 2 packs ?");
-    await page.locator("#pack-status", { hasText: "✓ Importé" }).waitFor();
+    await page.locator("#pack-status", { hasText: /^✓ \d+ packs? importés?/ }).waitFor();
     const [idKpop, kpopFacile] = Object.entries(await library("quizzes")).find(([, q]) => q.title === "K-pop" && q.niveau === "Facile");
     assert.deepEqual(Object.values(kpopFacile.imagesHorsFormat ?? {}).length, 1);
     const carteKpop = page.locator(`.pack[data-pack="${idKpop}"]`);
