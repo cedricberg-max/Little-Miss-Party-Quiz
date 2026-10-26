@@ -1050,7 +1050,7 @@ function renderResult(st) {
   if (st.kind === "portes") return renderPortesResult(st, award);
   showPortesReveal(null);
   if (st.kind === "patate") {
-    // La dernière bombe : chez qui elle a explosé, ce qu'elle a coûté ou rapporté ; puis le total des trois bombes.
+    // La dernière bombe : chez qui elle a explosé, ce qu'elle a coûté ou rapporté ; puis le total de toutes les bombes.
     const booms = liste(st.potato?.booms);
     const derniere = booms[booms.length - 1];
     const boom = derniere?.holder ?? Object.keys(st.awards ?? {}).find((t) => st.awards[t] && !st.awards[t].correct);
@@ -1369,7 +1369,7 @@ function renderPatate(st) {
   if (patate.cle !== (p.key ?? null)) { patate.cle = p.key ?? null; patate.envoye = null; patate.message = null; }
   const nom = (id) => game.teams[id]?.name ?? "une équipe";
   const now = Date.now() + serverOffset;
-  // Trois bombes par partie : la dernière explosion se montre le temps que la TV la joue (et tant que la suivante n'est
+  // Plusieurs bombes par partie (3 d'office, réglé dans la Régie PC) : la dernière explosion se montre le temps que la TV la joue (et tant que la suivante n'est
   // pas allumée), puis la bombe suivante s'annonce avant de partir.
   const booms = liste(p.booms);
   const boom = booms[booms.length - 1];

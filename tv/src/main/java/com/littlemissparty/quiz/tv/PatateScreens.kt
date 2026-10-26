@@ -33,8 +33,9 @@ import kotlinx.coroutines.delay
 /*
  * « Ça va exploser ! » sur la TV. L'écran ne décide rien : la box allume la mèche (durée tirée au sort, jamais
  * affichée), les tablettes envoient la bombe, la partie la fait exploser. Ici : la scène de la bombe
- * (habillage/Patate.kt) avec une tension qui monte d'après le temps de mèche écoulé, puis l'explosion. Trois bombes par
- * partie : après chaque explosion sauf la dernière, « Bombe 2 sur 3 », et la nouvelle bombe part. Une équipe qui garde
+ * (habillage/Patate.kt) avec une tension qui monte d'après le temps de mèche écoulé, puis l'explosion. Plusieurs bombes
+ * par partie (3 d'office, de 1 à 6 réglé dans la Régie PC) : après chaque explosion sauf la dernière, « Bombe 2 sur 3 »,
+ * et la nouvelle bombe part. Une équipe qui garde
  * la bombe plus de 3 secondes la voit exploser chez elle (le bas de l'écran compte 3, 2, 1).
  */
 
