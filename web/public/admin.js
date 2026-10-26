@@ -3512,8 +3512,12 @@ function uneAuDe(r, terme) {
 /** Les clés du « complet » d'un Quiz dans l'ordre : ses questions, ses cases vides, les bougies si rangées à la main. */
 const clesDuComplet = (r) => ordreAvecCasesVides(r, quizzes).map((x) => x.cle);
 
-/** Miniature de l'image de la révélation (cedric, 23/10 : vérifier qu'elle va avec la réponse) : photo, sinon émoji. */
+/**
+ * Miniature de l'image de la révélation (cedric, 23/10 : vérifier qu'elle va avec la réponse) : photo, sinon émoji. Une
+ * image de la bibliothèque (questions des packs) : sa vraie miniature (cedric, 26/10 : pas un cadre 🖼).
+ */
 const miniature = (q) => (q.banque ? h("img", { class: "tirage-mini", src: cheminPhotoBanque(q.banque), alt: "", loading: "lazy", title: "Image montrée à la révélation" })
+  : IMAGE_ID.test(q.imageId ?? "") ? photoBibliotheque(q.imageId, { class: "tirage-mini", loading: "lazy", title: "Image montrée à la révélation" })
   : q.emoji || (typeof q.image === "string" && q.image && !q.imageId) ? h("span", { class: "tirage-mini emoji", text: q.emoji ?? q.image, title: "Image montrée à la révélation" })
   : q.imageId ? h("span", { class: "tirage-mini emoji", text: "🖼", title: "Une de vos images, montrée à la révélation" }) : null);
 
@@ -4183,13 +4187,14 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
     changer();
     noterEcran();
   };
+  // Le même champ que le 🎲 du Quiz (cedric, 26/10 : « le champ semble inactif » sans sa petite liste) : mêmes règles.
   const caseVideQuiz = (x, k) => {
-    const champ = h("input", { type: "search", class: "packs-case-theme quiz-case-champ", placeholder: "Au hasard, ou un thème", "aria-label": "Thème de la question à tirer (vide : au hasard)", maxlength: "80",
-      onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); remplirCase(x, champ.value.trim()); } } });
+    const { champ, bloc } = champSourceQuiz({ classe: "quiz-case-champ", catalogue: catalogueDuJeu(r), exclus: prisesDuJeu(r), placeholder: "Au hasard, ou un thème", entree: () => remplirCase(x, champ.value.trim()) });
+    bloc.classList.add("quiz-case-source");
     return h("li", { class: "tirage-q vide packs-case quiz-case-vide", "data-cle": x.cle }, h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
-      h("button", { type: "button", class: "btn packs-de petit quiz-case-de", text: "🎲", "aria-label": "Tirer une autre question", title: "Une autre question : au hasard, ou sur le thème tapé à côté", onclick: () => remplirCase(x, champ.value.trim()) }),
-      champ,
+      h("button", { type: "button", class: "btn packs-de petit quiz-case-de", text: "🎲", "aria-label": "Tirer une autre question", title: "Une autre question : au hasard, ou sur ce qui est tapé à côté", onclick: () => remplirCase(x, champ.value.trim()) }),
+      bloc,
       h("button", { type: "button", class: "icon tirage-retirer quiz-case-retirer", text: "✕", title: "Supprimer cette place", "aria-label": "Supprimer cette place", onclick: () => enleverDuQuiz(x) })));
   };
   const melanger = () => {

@@ -1257,5 +1257,9 @@ select.q-niveau-choix option { color: var(--ink); background: var(--card); }
 .quiz-rappel.fine .quiz-ajout-cherche { min-height: 38px; font-size: 14px; padding: 6px 12px; }
 .round-body > .quiz-complet + .quiz-finale { margin-top: 10px; }
 .quiz-finale > .quiz-bougies { margin-left: auto; }
-.quiz-case-vide .quiz-case-champ { flex: 0 1 300px; }
+.quiz-case-vide .quiz-case-source { flex: 1 1 140px; max-width: 300px; }
+/* Sur le téléphone, le « Quiz complet » tient dans l'écran : le texte se replie, ↑ ↓ ✕ restent visibles. */
+.round-body > .quiz-complet { min-width: 0; max-width: 100%; }
+.quiz-complet-q .tirage-q-ligne { flex-wrap: wrap; row-gap: 6px; }
+.quiz-complet-q .tirage-texte { flex: 1 1 160px; overflow-wrap: anywhere; }
 .quiz-case-vide .quiz-case-retirer { margin-left: auto; }

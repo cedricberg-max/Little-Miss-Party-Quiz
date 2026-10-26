@@ -5932,7 +5932,12 @@ describe("bibliothèque de quiz et prestations", () => {
   test("Le Quiz (cedric, 26/10) : l'âge sur la ligne du numéro, une seule ligne de 🎲 (vide : au hasard partout ; « libre » ; « mes packs » ; un thème), le « Quiz complet » ouvert, une question retirée garde sa place", async () => {
     const pack = (title, niveau, n, theme = null) => ({ title, niveau, famille: "Divers", pack: true, kind: "classique", source: "json", updatedAt: 1, ...(theme ? { theme } : {}),
       questions: Array.from({ length: n }, (_, k) => ({ text: `${title} ${k + 1} ?`, choices: ["A", "B", "C", "D"], correct: k % 4, status: "validee" })) });
-    await seedLibrary("quizzes", { kpop: pack("K-pop Demon Hunters", "Facile", 16), mario: pack("Mario", "Facile", 16, "Jeux vidéo"), poke: pack("Pokémon", "Difficile", 8) });
+    // Les questions de Mario montrent une image de la bibliothèque à la révélation.
+    const MARIO_IMG = "a1b2c3d4e5f60718";
+    const mario16 = pack("Mario", "Facile", 16, "Jeux vidéo");
+    mario16.questions.forEach((q) => { q.imageId = MARIO_IMG; });
+    await seedLibrary("images", { [MARIO_IMG]: `data:image/png;base64,${png([200, 40, 40]).toString("base64")}` });
+    await seedLibrary("quizzes", { kpop: pack("K-pop Demon Hunters", "Facile", 16), mario: mario16, poke: pack("Pokémon", "Difficile", 8) });
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
@@ -6002,6 +6007,10 @@ describe("bibliothèque de quiz et prestations", () => {
     const mario = (await textes()).slice(14);
     assert.ok(mario.length === 5 && mario.every((x) => x.startsWith("Mario")));
     assert.equal(new Set(await textes()).size, 19, "jamais deux fois la même");
+    // Leur vraie miniature (cedric, 26/10 : pas un cadre 🖼).
+    const lignesMario = complet.locator(".quiz-complet-q", { has: page.locator(".tirage-texte", { hasText: /^Mario/ }) });
+    await waitFor(async () => (await lignesMario.locator('img.tirage-mini[src^="data:image/png"]').count()) === 5, "miniatures des questions de Mario");
+    assert.equal(await lignesMario.locator(".tirage-mini.emoji").count(), 0);
     await champ.fill("zzz");
     await round.locator(".de-unique").click();
     await page.locator("#annonce", { hasText: "Aucune question libre ne se rapporte à « zzz »" }).waitFor();
@@ -6016,7 +6025,9 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(await compteur.textContent(), /^18 questions.* · 1 à tirer$/);
     assert.match(await complet.locator(".quiz-complet-voir").textContent(), /19 questions, dans l'ordre de passage \(1 à tirer\)$/);
     await capture(page, "quiz-carte-case", { pleinePage: false });
+    // Son champ propose les mêmes sources que le grand 🎲 (cedric, 26/10 : « le champ semble inactif »).
     await caseVide.locator(".quiz-case-champ").fill("demon");
+    await caseVide.locator(".packs-suggestion", { hasText: "K-pop Demon Hunters" }).waitFor();
     await caseVide.locator(".quiz-case-de").click();
     await lignes.nth(place).locator(".tirage-texte", { hasText: /^K-pop/ }).waitFor();
     assert.equal((await textes()).length, 19);
