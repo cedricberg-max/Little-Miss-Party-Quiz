@@ -6716,6 +6716,54 @@ describe("bibliothèque de quiz et prestations", () => {
       floue.seriesQuiz[0].questions.map((q) => [cleTv(q), q.choices[q.correct]]));
   });
 
+  test("Régie PC (cedric, 26/10) : au Zoom mystère, ✎ renomme une photo dans son « complet » : la réponse du jeu, sa fiche et ses packs dans la bibliothèque ; Échap annule ; une photo libre ne change que dans le jeu", async () => {
+    const PNG = `data:image/png;base64,${png([200, 120, 40]).toString("base64")}`;
+    const LION = "a7a7a7a7a7a7a7a7";
+    await seedLibrary("images", { [LION]: PNG });
+    await seedLibrary("medias", { [LION]: { name: "Lion", cat: "Animaux", createdAt: 1, updatedAt: 1 } });
+    // Un pack de photos qui montre la même image sous un nom qui ne colle pas.
+    await seedLibrary("quizzes", { savane: { title: "Savane", pack: true, kind: "classique", source: "json", updatedAt: 1, theme: "Savane",
+      questions: [{ text: "Qui est-ce ?", choices: ["Lion", "Simba", "Tigre", "Ours"], correct: 0, imageId: LION, status: "validee" }] } });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await ajouterJeu(page, "zoom");
+    const round = page.locator("#show-rounds .round").nth(0);
+    await round.locator(".vos-images-cherche").fill("lion");
+    await round.locator(`.vos-images-tuile[data-image="${LION}"]`).click();
+    await round.locator(".vos-images-cherche").fill("panda");
+    await round.locator('.vos-images-tuile[data-image="banque:panda"]').click();
+    const complet = round.locator(".quiz-complet");
+    const noms = () => complet.locator(".quiz-complet-q .tirage-texte").allTextContents();
+    await waitFor(async () => (await noms()).join() === "Lion,Panda", "deux photos");
+    // Échap : rien ne change.
+    await complet.locator(".quiz-complet-q").first().locator(".photo-renommer").click();
+    await complet.locator(".photo-nom").fill("Mufasa");
+    await complet.locator(".photo-nom").press("Escape");
+    await waitFor(async () => (await noms()).join() === "Lion,Panda", "annulé");
+    // ✎ puis Entrée : la réponse du jeu, et dans la bibliothèque sa fiche et la bonne réponse du pack (le « Simba » qui
+    // s'écrivait déjà ainsi prend l'ancien nom).
+    await complet.locator(".quiz-complet-q").first().locator(".photo-renommer").click();
+    await complet.locator(".photo-nom").fill("Simba");
+    await complet.locator(".photo-nom").press("Enter");
+    await waitFor(async () => (await noms()).join() === "Simba,Panda", "renommée dans le jeu");
+    await waitFor(async () => (await library(`medias/${LION}`))?.name === "Simba", "fiche renommée");
+    await waitFor(async () => (await library("quizzes/savane/questions/0/choices"))?.[0] === "Simba", "pack renommé");
+    assert.deepEqual(await library("quizzes/savane/questions/0/choices"), ["Simba", "Lion", "Tigre", "Ours"]);
+    // Une photo libre : seulement dans ce jeu.
+    await complet.locator(".quiz-complet-q").nth(1).locator(".photo-renommer").click();
+    await complet.locator(".photo-nom").fill("Panda géant");
+    await complet.locator(".photo-nom").press("Enter");
+    await waitFor(async () => (await noms()).join() === "Simba,Panda géant", "photo libre renommée");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+    const qs = zoe.rounds[0].seriesQuiz.flatMap((x) => x.questions ?? []).filter((q) => q && !q.vide);
+    assert.deepEqual(qs.map((q) => q.choices[q.correct]), ["Simba", "Panda géant"]);
+    assert.equal(new Set(qs[0].choices).size, qs[0].choices.length, "jamais deux propositions pareilles");
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 24/10) : Chante le mot ! se construit comme le Quiz : 🎲 au nombre de mots choisi, un mot écrit à la main, « Chante le mot ! complet » (↑ ↓ ✕ 🔀) ; jamais de manche ; un mot déjà dans la fête en rouge, mais possible", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const { CHANTE_WORDS } = await import("../web/public/buzz-cards.js");
