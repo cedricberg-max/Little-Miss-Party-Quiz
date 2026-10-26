@@ -817,8 +817,7 @@ function renderMimeResult(st) {
   $("r-icon").className = `result-icon ${n ? "ok" : "ko"}`;
   $("r-title").textContent = n ? `Bravo ! ${n} ${what}${n > 1 ? "s" : ""} trouvé${n > 1 ? "s" : ""}` : `Pas de ${what} trouvé cette fois !`;
   $("r-detail").textContent = n ? `+${n * (st.mime?.points ?? 50)} points` : "";
-  const { mine, rank } = rankOf(st.scores);
-  $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+  $("r-total").textContent = totalEtPlace(st);
 }
 
 // ---------- Pictionary ----------
@@ -1023,6 +1022,16 @@ function runTimer(st, el = $("q-timer")) {
   timerHandle = setInterval(tick, 200);
 }
 
+/**
+ * « 250 points · 2e place » sous un résultat. Au dernier jeu de la fête, rien du classement : il se découvre sur la TV,
+ * jauges au bout et gagnant annoncé (cedric, 26/10).
+ */
+function totalEtPlace(st) {
+  if (Number.isInteger(st.index) && Number.isInteger(st.total) && st.index >= st.total - 1) return "Le classement, c'est sur la télé !";
+  const { mine, rank } = rankOf(st.scores);
+  return `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+}
+
 function rankOf(scores) {
   const mine = scores?.[teamId] ?? 0;
   const others = Object.keys(game.teams).filter((t) => (scores?.[t] ?? 0) > mine).length;
@@ -1058,8 +1067,7 @@ function renderResult(st) {
       plusieurs ? `Sur les ${booms.length} bombes : ${pts < 0 ? "−" : "+"}${Math.abs(pts)} points.` : "",
     ].filter(Boolean).join(" ");
     $("r-image").hidden = true;
-    const { mine, rank } = rankOf(st.scores);
-    $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+    $("r-total").textContent = totalEtPlace(st);
     return;
   }
   if (st.kind === "gonfleur") {
@@ -1070,8 +1078,7 @@ function renderResult(st) {
       : award?.points ? `Bien gonflé ! +${award.points} points` : "Bien gonflé !";
     $("r-detail").textContent = !ok && winner ? `Le ballon des ${game.teams[winner]?.name ?? "autres"} a gagné.` : "";
     $("r-image").hidden = true;
-    const { mine, rank } = rankOf(st.scores);
-    $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+    $("r-total").textContent = totalEtPlace(st);
     return;
   }
   if (st.kind === "statues") {
@@ -1095,8 +1102,7 @@ function renderResult(st) {
   $("r-detail").textContent = (ok && award.bonus > 0 ? `dont ${award.bonus} de ${bonusLabel}. ` : "") + (correct ? `${said} : ${correct}${st.artist ? ` (${st.artist})` : ""}` : "");
   $("r-image").textContent = st.image ?? "";
   $("r-image").hidden = !st.image;
-  const { mine, rank } = rankOf(st.scores);
-  $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+  $("r-total").textContent = totalEtPlace(st);
 }
 
 /** Équipe de cet appareil, pour les écrans des Portes mystères. */
@@ -1173,8 +1179,7 @@ function renderPortesResult(st, award) {
     $("r-detail").textContent = `Votre score ne descend jamais sous 0 : ${award.points < 0 ? "−" : "+"}${Math.abs(award.points)} points pour vous.`;
   }
   if (all) {
-    const { mine, rank } = rankOf(st.scores);
-    $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+    $("r-total").textContent = totalEtPlace(st);
   } else $("r-total").textContent = "Classement à la fin des portes !";
 }
 
@@ -1233,7 +1238,7 @@ function renderCoffres(st) {
   const gains = c.gains ?? {};
   const bilan = fini ? Object.keys(gains).map((id) => ({ ...equipe(id), gain: gains[id] ?? 0, moi: id === teamId })).sort((a, b) => b.gain - a.gain) : null;
   let total = "";
-  if (fini) { const { mine, rank } = rankOf(st.scores); total = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`; }
+  if (fini) total = totalEtPlace(st);
   coffres.ctl.maj({
     pret, cle: c.key ?? null, count: c.count ?? 0, ouverts, joue, aMoi, peutOuvrir, envoye: coffres.envoi,
     titre, texte, danger: c.danger === true, bilan, total,
@@ -1441,9 +1446,27 @@ async function envoyerPatate(to) {
   }
 }
 
+/**
+ * Fin de la fête : la place et les points n'arrivent sur la tablette qu'une fois le gagnant annoncé à la TV (jauges au
+ * bout, solo de Digital Love en Game Show ; impact en Classique), pas avant (cedric, 26/10). D'ici là : du suspense.
+ */
+const ANNONCE_GAGNANT_MS = { gs: 15_444, classique: 7_000 };
+const MARGE_ANNONCE_MS = 1_500;
+let finHandle = null;
 function renderEnded(st) {
   clearInterval(timerHandle);
+  clearTimeout(finHandle);
   show("ended");
+  const annonce = (st.endedAt ?? 0) + (lookGs ? ANNONCE_GAGNANT_MS.gs : ANNONCE_GAGNANT_MS.classique) + MARGE_ANNONCE_MS;
+  const reste = annonce - (Date.now() + serverOffset);
+  const attente = st.endedAt != null && reste > 0;
+  $("screen-ended").classList.toggle("suspense", attente);
+  if (attente) {
+    $("e-rank").textContent = "Le grand gagnant est…";
+    $("e-total").textContent = "Regardez la télé !";
+    finHandle = setTimeout(() => { if (game.state === st) renderEnded(st); }, reste + 50);
+    return;
+  }
   const { mine, rank } = rankOf(st.scores);
   $("e-rank").textContent = rank === 1 ? "Vous avez gagné !" : `${rank}e place`;
   $("e-total").textContent = `${mine} points`;

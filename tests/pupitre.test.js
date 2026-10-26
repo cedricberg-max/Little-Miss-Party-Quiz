@@ -626,6 +626,28 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("Fin de la fête : ni place ni points sur la tablette avant que la TV annonce le gagnant ; rien du classement au dernier jeu", async () => {
+    // cedric, 26/10 : la place s'affichait sur les tablettes pendant le suspense des jauges.
+    const page = await openPupitre("&look=classique");
+    const uid = await joinTeam(page, "Sacha");
+    // Dernier jeu de la fête (index = total - 1) : son résultat ne dit rien du classement.
+    await hostState(question({ phase: "reveal", index: 2, total: 3, scores: { [uid]: 250 }, awards: { [uid]: { points: 100, correct: true } } }));
+    await page.locator("#r-total", { hasText: "Le classement, c'est sur la télé" }).waitFor();
+    assert.equal(await page.locator("#r-total", { hasText: "place" }).count(), 0);
+    // Classique : gagnant annoncé 7 s après la fin, + 1,5 s de marge ; la fin date d'il y a 6,5 s → 2 s de suspense.
+    await hostState(question({ phase: "ended", index: 2, total: 3, scores: { [uid]: 250 }, endedAt: Date.now() - 6_500 }));
+    await page.locator("#screen-ended.active.suspense #e-rank", { hasText: "Le grand gagnant est" }).waitFor();
+    assert.match(await page.locator("#e-total").textContent(), /^Regardez la télé\s!$/);
+    assert.doesNotMatch(await page.locator("#screen-ended").textContent(), /250|place|gagné/);
+    await page.locator("#e-rank", { hasText: "Vous avez gagné" }).waitFor({ timeout: 6_000 });
+    assert.equal(await page.locator("#e-total").textContent(), "250 points");
+    assert.equal(await page.locator("#screen-ended.suspense").count(), 0);
+    // Tablette rouverte bien après la fin : le résultat tout de suite.
+    await page.reload();
+    await page.locator("#e-rank", { hasText: "Vous avez gagné" }).waitFor();
+    await page.context().close();
+  });
+
   test("Le design suit celui de la TV de la partie, même ouvert sans le QR (vieil onglet resté en Classique)", async () => {
     // Téléphone de Sacha (cedric, 26/10) : un vieil onglet sans « &look=gs » gardait l'ancien design violet.
     await set(ref(hostDb(), `games/${CODE}/public`), { title: "Fête", look: "gs" });
