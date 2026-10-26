@@ -19,7 +19,7 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
-  questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
+  questionsDuQuiz, ordreAvecCasesVides, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
   estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects,
   pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX, leurresDeChanson, parolesDuHook,
 } from "./show.js";
@@ -50,7 +50,7 @@ import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from "./retour.js";
 import { confirmer, avertir, demanderTexte, apercu } from "./fenetre.js";
 import { lireZipEtSesZip } from "./zip.js";
-import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks } from "./pioche-packs.js";
+import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks, sourceDuDe } from "./pioche-packs.js";
 import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage, dossierDe } from "./pack-zip.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
@@ -2997,7 +2997,9 @@ function refreshRounds() {
         const champs = roundFields(r);
         // Le compteur du Quiz sur la ligne de son numéro (cedric, 23/10), celui du blind test aussi (cedric, 24/10).
         const compteur = sansManches || b.type === "mimes" || b.type === "pictionary" ? champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null : null;
-        const corps = h("div", { class: "round-body" }, ...champs.filter((x) => x !== compteur));
+        // L'âge du Quiz aussi (cedric, 26/10), au bout de cette ligne.
+        const enTete = compteur ? champs.filter((x) => x?.classList?.contains("quiz-en-tete")) : [];
+        const corps = h("div", { class: "round-body" }, ...champs.filter((x) => x !== compteur && !enTete.includes(x)));
         // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10). Pas pour le Quiz (cedric, 23/10) :
         // ses questions viennent du 🎲 et du quiz d'une prestation archivée (« Rappeler un de vos quiz »).
         // Ni pour les Mimes (cedric, 23/10 : « uniquement mon bouton dé »), ni pour le blind test (cedric, 24/10 : « je ne
@@ -3009,8 +3011,8 @@ function refreshRounds() {
         return h("div", { class: "round show-round", "data-manche": i },
           h("div", { class: "round-head" },
             h("span", { class: "num", title: `Jeu ${i + 1} de la prestation`, text: `${i + 1}` }),
-            compteur ?? (SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: "" })
-              : h("span", { class: "grow hint small", text: vide && !sansManches ? "Choisissez son contenu, ou reprenez une partie déjà faite (plus bas)." : "" }))),
+            ...(compteur ? [compteur, ...enTete] : [SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: "" })
+              : h("span", { class: "grow hint small", text: vide && !sansManches ? "Choisissez son contenu, ou reprenez une partie déjà faite (plus bas)." : "" })])),
           corps,
           reprise,
           alerteManche(r));
@@ -3250,12 +3252,12 @@ function versTiree(x) {
  * Pioche [qcm] questions à 4 réponses et [chiffres] Juste Chiffre du niveau de [profil] pour la manche [r] : jamais une
  * question déjà dans la prestation (n'importe quelle série de n'importe quel Quiz), ni retirée de la manche (✕).
  */
-function piocherQuiz(r, { qcm = 0, chiffres = 0, profil }) {
+function piocherQuiz(r, { qcm = 0, chiffres = 0, profil, theme = null }) {
   const exclus = textesPris(r);
   const niveau = NIVEAU_DU_PROFIL[profil] ?? null;
   return {
-    qcm: tirerChiffres(qcm, { niveau, exclus, liste: QCM_TOUT_PRETS }).map(versTiree),
-    chiffres: tirerChiffres(chiffres, { niveau, exclus, liste: CHIFFRES_TOUT_PRETS }).map(versTiree),
+    qcm: tirerChiffres(qcm, { niveau, theme, exclus, liste: QCM_TOUT_PRETS }).map(versTiree),
+    chiffres: tirerChiffres(chiffres, { niveau, theme, exclus, liste: CHIFFRES_TOUT_PRETS }).map(versTiree),
   };
 }
 
@@ -3376,6 +3378,8 @@ function aLaSuite(r, ajouter) {
   const mots = estJeuDeMots(r.type);
   const ordre = () => {
     if (mots) return motsDuJeu(r).map((x) => x.cle);
+    // Le Quiz (cedric, 26/10) : ses cases vides gardent leur place.
+    if (deUnique(r)) return clesDuComplet(r);
     const cles = questionsDuQuiz(r, quizzes).map((x) => x.cle);
     const b = placeDesBougies(r, quizzes);
     if (b != null) cles.splice(b, 0, CLE_BOUGIES);
@@ -3418,15 +3422,95 @@ function poserTirage(r, cases, profil) {
  * la première). Les autres séries de la manche ne bougent pas.
  */
 function tirerQuestionsQuiz(r, n, profil) {
-  const nb = chiffresDuTirage(n);
-  const { qcm, chiffres } = piocherQuiz(r, { qcm: n - nb, chiffres: nb, profil });
-  const liste = [...qcm];
-  chiffres.forEach((q, k) => liste.splice(Math.min(liste.length, Math.round(((k + 1) * n) / (chiffres.length + 1)) - 1), 0, q));
-  const ajoutees = ajouterAuTirage(r, liste, profil);
+  const ajoutees = ajouterAuTirage(r, questionsLibres(r, n, profil), profil);
   r.profil = profil;
   return ajoutees;
 }
 
+
+/**
+ * [n] questions libres de droit ([theme] : ce thème seulement) : environ une sur quatre au Juste Chiffre, réparties
+ * (jamais la première). Rien n'est ajouté à la manche.
+ */
+function questionsLibres(r, n, profil, theme = null) {
+  if (n <= 0) return [];
+  const nb = chiffresDuTirage(n);
+  const { qcm, chiffres } = piocherQuiz(r, { qcm: n - nb, chiffres: nb, profil, theme });
+  // Pas assez d'une sorte (un thème sans Juste Chiffre…) : l'autre complète.
+  if (qcm.length + chiffres.length < n) {
+    const encore = piocherQuiz(r, { qcm: n, chiffres: n, profil, theme });
+    const pris = new Set([...qcm, ...chiffres].map((q) => q.text));
+    for (const q of [...encore.qcm, ...encore.chiffres]) {
+      if (qcm.length + chiffres.length >= n) break;
+      if (!pris.has(q.text)) (q.nombre ? chiffres : qcm).push(q);
+    }
+  }
+  const liste = [...qcm];
+  chiffres.forEach((q, k) => liste.splice(Math.min(liste.length, Math.round(((k + 1) * n) / (chiffres.length + 1)) - 1), 0, q));
+  return liste;
+}
+
+/**
+ * Le 🎲 unique du Quiz (cedric, 26/10) : ce que donnent [n] questions pour le champ [terme] (sourceDuDe), à l'âge de
+ * la carte, sans rien ajouter : `{ packs, libres, mode }` ([packs] : entrées du catalogue de mes packs ; [libres] :
+ * questions libres de droit prêtes). Au hasard dans tout : moitié mes packs, moitié libres de droit ; un thème : mes
+ * packs d'abord, puis le thème des questions libres de droit du même nom. Jamais une question déjà dans la prestation.
+ */
+function piocherAuDe(r, n, terme) {
+  const source = sourceDuDe(terme, THEMES_TOUT_PRETS);
+  const profil = ageDuQuiz(r);
+  const catalogue = catalogueDuJeu(r);
+  const niveau = niveauDesPacks(NIVEAU_DU_PROFIL[profil]);
+  const deja = prisesDuJeu(r);
+  const depuisPacks = (k, mode, t = "", sans = []) => (k > 0 && catalogue.length
+    ? piocherDansLesPacks(catalogue, k, { mode, terme: t, niveau, exclus: new Set([...deja, ...sans.map((x) => x.cle ?? x.q.text)]) }) : []);
+  if (source.sorte === "libres") return { packs: [], libres: questionsLibres(r, n, profil), source };
+  if (source.sorte === "packs") return { packs: depuisPacks(n, "hasard"), libres: [], source };
+  if (source.sorte === "theme") {
+    const packs = depuisPacks(n, "recherche", source.terme);
+    return { packs, libres: source.themeLibre ? questionsLibres(r, n - packs.length, profil, source.themeLibre) : [], source };
+  }
+  // Tout au hasard : une seule question, mes packs ou les libres de droit à pile ou face.
+  const moitie = !catalogue.length ? 0 : n === 1 ? (Math.random() < 0.5 ? 1 : 0) : Math.ceil(n / 2);
+  const packs = depuisPacks(moitie, "hasard");
+  const libres = questionsLibres(r, n - packs.length, profil);
+  return { packs: [...packs, ...depuisPacks(n - packs.length - libres.length, "hasard", "", packs)], libres, source };
+}
+
+/**
+ * Un clic sur le 🎲 unique du Quiz (cedric, 26/10) : ses questions à la suite du « complet » (celles de mes packs en
+ * une série piochée, les libres de droit dans la série du dé), mêlées entre elles. Rend le nombre ajouté.
+ */
+function tirerAuDe(r, n, terme) {
+  const { packs, libres, source } = piocherAuDe(r, n, terme);
+  if (!packs.length && !libres.length) return 0;
+  const avant = clesDuComplet(r);
+  if (packs.length) {
+    const pioche = { mode: source.sorte === "theme" ? "recherche" : "hasard", ...(source.sorte === "theme" ? { terme: source.terme } : {}), profil: ageDuQuiz(r) };
+    seriesDe(r).push({ id: nouvelId("pk"), origine: "reprise", pioche, titre: `Mes packs : ${sortePioche(pioche)}`, questions: packs.map((y) => versQuestionDePack(y, Math.random, "quiz")) });
+  }
+  if (libres.length) ajouterAuTirage(r, libres, ageDuQuiz(r));
+  const deja = new Set(avant);
+  const nouvelles = clesDuComplet(r).filter((c) => !deja.has(c));
+  // Mêlées ; jamais un Juste Chiffre en toute première question.
+  const melange = packs.length && libres.length ? shuffle(nouvelles) : nouvelles;
+  if (!avant.length) {
+    const parCle = new Map(ordreAvecCasesVides(r, quizzes).map((x) => [x.cle, x]));
+    const k = melange.findIndex((c) => parCle.get(c)?.q?.kind !== "number");
+    if (k > 0) melange.unshift(...melange.splice(k, 1));
+  }
+  r.ordreQuiz = [...avant, ...melange];
+  return packs.length + libres.length;
+}
+
+/** Une question pour une case vide du Quiz (son 🎲 et son champ, mêmes règles), telle qu'elle est gardée ; null : aucune. */
+function uneAuDe(r, terme) {
+  const { packs, libres } = piocherAuDe(r, 1, terme);
+  return packs[0] ? versQuestionDePack(packs[0], Math.random, "quiz") : libres[0] ?? null;
+}
+
+/** Les clés du « complet » d'un Quiz dans l'ordre : ses questions, ses cases vides, les bougies si rangées à la main. */
+const clesDuComplet = (r) => ordreAvecCasesVides(r, quizzes).map((x) => x.cle);
 
 /** Miniature de l'image de la révélation (cedric, 23/10 : vérifier qu'elle va avec la réponse) : photo, sinon émoji. */
 const miniature = (q) => (q.banque ? h("img", { class: "tirage-mini", src: cheminPhotoBanque(q.banque), alt: "", loading: "lazy", title: "Image montrée à la révélation" })
@@ -3466,7 +3550,7 @@ function compteurQuiz(r) {
   const total = questionsDesSeries(r, quizzes).length;
   const finale = hasFinale(r.type) && r.finale > 0 ? Math.min(r.finale, total) : 0;
   const unite = estJeuDePhotos(r.type) ? "photo" : r.type === "express" ? "affirmation" : "question";
-  const aTirer = casesDuTirage(r).filter(caseVide).length + seriesPioche(r).flatMap(casesPioche).filter(caseVide).length;
+  const aTirer = seriesDe(r).flatMap(casesPioche).filter(caseVide).length;
   const aFinir = seriesDe(r).filter((x) => x.origine === "main").flatMap((x) => x.questions ?? []).filter((q) => q && !questionJouable(q)).length;
   const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r && questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r);
   return [
@@ -3487,6 +3571,8 @@ const casesPioche = (x) => (Array.isArray(x?.questions) ? x.questions : Object.v
 const catalogueDuJeu = (r) => catalogueDesPacks(quizzes, estQuizDeTest, r.type ?? "quiz");
 /** Ce qui est déjà pris dans la prestation pour ce jeu : les photos au Zoom et à l'Image floue, les textes ailleurs. */
 const prisesDuJeu = (r) => (estJeuDePhotos(r.type) ? photosPrises(r) : textesPris(r));
+/** Le Quiz (cedric, 26/10) : une seule ligne de 🎲 ; les autres jeux gardent leurs dés (en attendant son avis). */
+const deUnique = (r) => (r.type ?? "quiz") === "quiz";
 /** L'unité d'un jeu en séries : carte (une photo à deviner, cedric 25/10), affirmation ou question. */
 const uniteDuJeu = (r) => (estJeuDePhotos(r.type) ? "carte" : r.type === "express" ? "affirmation" : "question");
 /** Ce que dit le titre d'une série piochée : « au hasard », « « Mario » + le reste au hasard », « « K-pop » à 100 % ». */
@@ -3628,6 +3714,79 @@ function lignesDesQuiz(r, changer) {
   ];
 }
 
+/**
+ * La ligne de 🎲 du Quiz (cedric, 26/10 : « une seule ligne de dé ») : le 🎲, un champ (vide : au hasard dans tout ;
+ * « libre » : les questions libres de droit ; « mes packs » ; ou un thème : Mario…), le nombre de questions. L'âge est
+ * celui de la carte. Chaque clic ajoute ses questions à la suite du « complet », jamais une déjà là.
+ */
+function ligneDeQuiz(r, changer) {
+  const catalogue = catalogueDuJeu(r);
+  const reglage = reglageDuDe(r, "unique");
+  const n = NOMBRES_DE_QUIZ.includes(reglage.n) ? reglage.n : TIRAGE_DEFAUT;
+  const tirer = () => {
+    const terme = source.champ.value.trim();
+    const n = NOMBRES_DE_QUIZ.includes(reglage.n) ? reglage.n : TIRAGE_DEFAUT;
+    reglage.terme = terme;
+    const ajoutees = tirerAuDe(r, n, terme);
+    const sorte = sourceDuDe(terme, THEMES_TOUT_PRETS).sorte;
+    if (!ajoutees) {
+      annonce(sorte === "packs" && !catalogue.length ? AUCUN_PACK.quiz : sorte === "theme" ? `Aucune question libre ne se rapporte à « ${terme} » : essayez un autre mot, ou videz le champ.` : "Plus aucune question libre ici : changez l'âge, ou videz le champ.");
+      return;
+    }
+    if (ajoutees < n) annonce(`Seulement ${plural(ajoutees, "question libre", "questions libres")}${sorte === "theme" ? ` sur « ${terme} »` : ""} : les voici.`);
+    changer();
+  };
+  const source = champSourceQuiz({ classe: "de-unique-champ", valeur: reglage.terme ?? "", catalogue, exclus: prisesDuJeu(r), entree: tirer });
+  source.champ.addEventListener("input", () => { reglage.terme = source.champ.value; });
+  return h("div", { class: "de-ligne de-unique-ligne" },
+    h("button", { type: "button", class: "btn packs-de de-unique", text: "🎲", "aria-label": "Tirer les questions", title: "Tirer les questions : au hasard, ou sur ce qui est tapé à droite", onclick: tirer }),
+    source.bloc,
+    h("select", { class: "tirage-nombre de-nombre de-nombre-unique", "aria-label": "Nombre de questions de ce 🎲", onchange: (e) => { reglage.n = Number(e.target.value); } },
+      ...NOMBRES_DE_QUIZ.map((k) => h("option", { value: k, selected: k === n, text: plural(k, "question") }))));
+}
+
+/**
+ * Le champ du 🎲 du Quiz (cedric, 26/10) : on tape librement (« Mario », « kpop », « libre ») ; dessous, une petite
+ * liste propose les sources possibles (les questions libres de droit, mes packs, mes thèmes, les thèmes des questions
+ * libres de droit), filtrée en direct ; un clic met son nom dans le champ. Entrée lance le 🎲.
+ */
+function champSourceQuiz({ classe, valeur = "", catalogue, exclus, entree, placeholder = "Tout au hasard… ou tapez un thème" }) {
+  const champ = h("input", { type: "search", class: `quiz-ajout-cherche ${classe}`, placeholder, value: valeur, maxlength: "80",
+    "aria-label": "Où piocher : vide, au hasard partout ; « libre », les questions libres de droit ; « mes packs » ; ou un thème (Mario…)" });
+  const liste = h("div", { class: "quiz-ajout-liste packs-suggestions" });
+  liste.hidden = true;
+  liste.addEventListener("mousedown", (e) => e.preventDefault());
+  // Mes thèmes, chacun une fois, avec ses questions encore libres.
+  const mesThemes = () => {
+    const themes = new Map();
+    for (const x of catalogue) {
+      if (exclus.has(x.cle ?? x.q.text) || !x.theme) continue;
+      const cle = cleTheme(x.theme) || x.theme;
+      themes.set(cle, { titre: themes.get(cle)?.titre ?? x.theme, n: (themes.get(cle)?.n ?? 0) + 1 });
+    }
+    return [...themes.values()];
+  };
+  const dessiner = () => {
+    const t = champ.value.trim();
+    const libresDeDroit = QUESTIONS_TOUT_PRETES.length;
+    const items = [
+      { titre: "Questions libres de droit", details: `${libresDeDroit} questions, à l'âge choisi` },
+      { titre: "Mes packs", details: catalogue.length ? `${plural(catalogue.length, "question")} dans mes packs` : "Aucun pack importé" },
+      ...(t ? packsQuiRepondent(catalogue, t, exclus) : mesThemes()).map((p) => ({ titre: p.titre, details: `${plural(p.n, "question libre", "questions libres")} dans mes packs` })),
+      ...Object.values(THEMES_TOUT_PRETS).map((l) => ({ titre: l, details: "Questions libres de droit" })),
+    ];
+    const trouves = t ? parPertinence(items.filter((x) => contientTout([x.titre], t) || x.details.includes("dans mes packs")), t, (x) => [x.titre], () => []) : items;
+    liste.replaceChildren(...trouves.slice(0, QUIZ_AJOUT_MAX + 2).map((x) => h("button", { type: "button", class: "quiz-ajout-item packs-suggestion", onclick: () => { champ.value = x.titre; champ.dispatchEvent(new Event("input")); liste.hidden = true; } },
+      h("b", { text: x.titre }), h("span", { class: "small", text: x.details }))));
+    liste.hidden = !trouves.length;
+  };
+  champ.addEventListener("input", dessiner);
+  champ.addEventListener("focus", dessiner);
+  champ.addEventListener("blur", () => { liste.hidden = true; });
+  champ.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); liste.hidden = true; entree?.(); } });
+  return { champ, bloc: h("div", { class: "quiz-ajout-champ" }, champ, liste) };
+}
+
 /** Sans pack pour ce jeu : où les importer. */
 const AUCUN_PACK = {
   quisuis: "Aucun personnage de mes packs : Bibliothèque › Questions › « 📦 Importer un pack ZIP », ou une série dans la page du jeu.",
@@ -3691,6 +3850,7 @@ function mancheQuiz(r) {
   // Vrai ou Faux express : des affirmations, au niveau du profil ; sa Super Finale comme au Quiz, pas de bougies.
   const express = r.type === "express";
   const unite = uniteDuJeu(r);
+  const unique = deUnique(r);
   const famille = familleDuDe(r);
   const profil = PROFILES[de?.profil] ? de.profil : PROFILES[r.profil] ? r.profil : roundCtx.profile?.() ?? "MOYENS";
   // Une nouvelle manche part avec la Super Finale sur ses 3 dernières questions, ×2 (cedric, 23/10).
@@ -3708,16 +3868,20 @@ function mancheQuiz(r) {
   // prestation archivée ne change pas).
   const archives = quizArchives(r.type ?? "quiz");
   const rappel = ligneAjoutQuiz({
-    classe: "quiz-rappel", titre: photos ? "📚 Rappeler les photos d'un ancien anniversaire" : express ? "📚 Rappeler les affirmations d'un ancien anniversaire" : illustre ? "📚 Rappeler un de vos quiz illustrés" : "📚 Rappeler un de vos quiz", label: "Chercher une prestation archivée",
-    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: "Aucun ancien anniversaire avec ce jeu",
+    classe: "quiz-rappel", titre: photos ? "📚 Rappeler les photos d'un ancien anniversaire" : express ? "📚 Rappeler les affirmations d'un ancien anniversaire" : illustre ? "📚 Rappeler un de vos quiz illustrés" : unique ? "📚 Rappeler le quiz d'un ancien anniversaire" : "📚 Rappeler un de vos quiz", label: "Chercher une prestation archivée",
+    placeholder: unique ? "Prénom, âge, date…" : "Prénom, âge, date… d'une prestation archivée", vide: "Aucun ancien anniversaire avec ce jeu",
     aucun: "Aucune prestation archivée ne correspond.", items: archives, attr: (x) => ({ "data-show": x.id }),
     choisir: (x) => {
       series.push({ id: nouvelId("p"), origine: "reprise", titre: x.titre, questions: JSON.parse(JSON.stringify(x.questions)) });
       changer();
     },
   });
+  if (unique) rappel.classList.add("fine");
 
-  const outils = h("div", { class: "quiz-outils" }, ligneAgeQuiz(r, changer), ...lignesDesQuiz(r, changer), rappel, photos ? ligneVosImages(r, changer) : null);
+  // Le Quiz (cedric, 26/10) : l'âge sur la ligne du numéro, puis une seule ligne de 🎲 et le rappel, plus fin.
+  const outils = unique ? h("div", { class: "quiz-outils" }, ligneDeQuiz(r, changer), rappel)
+    : h("div", { class: "quiz-outils" }, ligneAgeQuiz(r, changer), ...lignesDesQuiz(r, changer), rappel, photos ? ligneVosImages(r, changer) : null);
+  const enTete = unique ? menuAge(ageDuQuiz(r), { class: "tirage-profil quiz-age quiz-en-tete", "aria-label": "Âge des questions" }, (v) => { r.profil = v; changer(); }) : null;
   // Une question tirée au 🎲 des contenus libres, retirée : son 🎲 en tire une autre de la même sorte.
   const tirerUne = (q) => {
     const pioche = photos ? { qcm: piocherPhotos(r, 1, famille), chiffres: [] } : illustre ? { qcm: piocherIllustre(r, 1, famille), chiffres: [] }
@@ -3729,7 +3893,7 @@ function mancheQuiz(r) {
   const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
     ? h("label", { class: "check bougies quiz-bougies", title: "« Combien de bougies sur le gâteau de … cette année ? » : l'âge de l'enfant, au Juste Chiffre. D'office juste avant la Super Finale ; elle se range où vous voulez dans le Quiz complet." },
       h("input", { type: "checkbox", checked: r.bougies !== false, onchange: (e) => { r.bougies = e.target.checked ? null : false; if (!e.target.checked) oublierPlaceBougies(r); changer(); } }),
-      "🎂 Question des bougies")
+      unique ? "🎂 Bougies" : "🎂 Question des bougies")
     : null;
 
   // Dernière ligne : la Super Finale (cedric, 23/10) : oui ou non, combien de dernières questions, le multiplicateur.
@@ -3746,8 +3910,11 @@ function mancheQuiz(r) {
     avec ? h("select", { class: "finale-facteur", "aria-label": "Multiplicateur de la Super Finale", onchange: (e) => { r.facteur = Number(e.target.value); changer(); } },
       ...FACTEURS_FINALE.map((k) => h("option", { value: k, selected: (FACTEURS_FINALE.includes(r.facteur) ? r.facteur : FACTEURS_FINALE[0]) === k, text: `Points ×${k}` })))
       : null,
-    avec ? h("span", { class: "hint small", text: "Sur le téléphone, Sarah peut encore changer le multiplicateur juste avant." }) : null);
+    avec && !unique ? h("span", { class: "hint small", text: "Sur le téléphone, Sarah peut encore changer le multiplicateur juste avant." }) : null,
+    // Le Quiz (cedric, 26/10) : les bougies au bout de la ligne de la Super Finale, tout en bas.
+    unique ? bougies : null);
 
+  if (unique) return [compteur, enTete, outils, quizComplet(r, assemblage, clesFinale, changer, { profil, tirerUne: (terme) => uneAuDe(r, terme), unique }), derniere];
   return [compteur, outils, bougies, derniere, quizComplet(r, assemblage, clesFinale, changer, { profil, tirerUne })];
 }
 
@@ -3885,8 +4052,9 @@ function ligneAjoutQuiz({ classe, titre, label, placeholder, vide, aucun, items,
     h("div", { class: "quiz-ajout-champ" }, cherche, resultats));
 }
 
-/** « Quiz complet » déplié (le temps de l'écran), par manche. */
+/** « Quiz complet » déplié (le temps de l'écran), par manche ; celui du Quiz, ouvert d'office : refermé. */
 const quizCompletsDeplies = new WeakSet();
+const quizCompletsFermes = new WeakSet();
 // Décochée, la question des bougies oublie sa place : recochée, elle revient juste avant la Super Finale.
 const oublierPlaceBougies = (r) => { if (r.ordreQuiz?.length) r.ordreQuiz = r.ordreQuiz.filter((c) => c !== CLE_BOUGIES); };
 
@@ -3901,11 +4069,15 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
   // Le Quiz (cedric, 25/10) : ses séries ne se voient plus qu'ici ; une question tirée au 🎲 (banque ou mes packs)
   // retirée laisse ses dés, en tête de la liste, pour en tirer une autre.
   const avecVides = des != null;
-  const vides = !avecVides ? [] : [
+  // Le Quiz (cedric, 26/10) : une question retirée laisse sa place, avec son petit 🎲 et son champ ; une seconde ✕
+  // supprime la place pour de bon.
+  const unique = des?.unique === true;
+  const vides = !avecVides || unique ? [] : [
     ...casesDuTirage(r).map((q, i) => ({ serie: serieDuDe(r), q, i })),
     ...seriesPioche(r).flatMap((x) => casesPioche(x).map((q, i) => ({ serie: x, q, i }))),
   ].filter((v) => caseVide(v.q));
-  if (!assemblage.length && !vides.length) return null;
+  const avecPlaces = unique ? ordreAvecCasesVides(r, quizzes) : null;
+  if (!assemblage.length && !vides.length && !avecPlaces?.some((x) => x.vide)) return null;
   if (vides.length) quizCompletsDeplies.add(r);
   const photos = estJeuDePhotos(r.type);
   const unite = photos ? "photo" : r.type === "express" ? "affirmation" : "question";
@@ -3914,8 +4086,16 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
     && !assemblage.some((x) => x.q.kind === "number" && /bougie/i.test(x.q.text ?? ""))
     ? questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r) : null;
   const rangees = bougies ? placeDesBougies(r, quizzes) : null;
-  const vue = [...assemblage];
-  if (bougies) vue.splice(rangees != null ? Math.min(rangees, vue.length) : assemblage.length - clesFinale.size, 0, { cle: CLE_BOUGIES, bougies: true, q: bougies });
+  const vue = unique ? avecPlaces.filter((x) => !x.bougies || bougies).map((x) => (x.bougies ? { ...x, q: bougies } : x)) : [...assemblage];
+  if (bougies && !unique) vue.splice(rangees != null ? Math.min(rangees, vue.length) : assemblage.length - clesFinale.size, 0, { cle: CLE_BOUGIES, bougies: true, q: bougies });
+  if (bougies && unique && !vue.some((x) => x.bougies)) {
+    // D'office juste avant la Super Finale, les cases vides comptées à leur place.
+    const avant = assemblage.length - clesFinale.size;
+    let reelles = 0;
+    let k = 0;
+    for (; k < vue.length && reelles < avant; k++) if (!vue[k].vide) reelles++;
+    vue.splice(k, 0, { cle: CLE_BOUGIES, bougies: true, q: bougies });
+  }
   const cles = vue.map((x) => x.cle);
   // Les bougies restent d'office juste avant la Super Finale tant qu'on ne les a pas déplacées (ou mélangées) elles-mêmes.
   const ranger = (nouvel, avecBougies) => {
@@ -3933,6 +4113,7 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
   // Enlever : la question part de sa série (une question tirée au 🎲 ne revient pas au prochain tirage) ; celle des
   // bougies se décoche.
   const enlever = (x) => {
+    if (unique) return enleverDuQuiz(x);
     if (x.bougies) {
       r.bougies = false;
       oublierPlaceBougies(r);
@@ -3958,12 +4139,65 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
     changer();
     noterEcran();
   };
+  // Le Quiz : ✕ laisse une case vide à sa place (la clé de sa question) ; ✕ sur une case vide la supprime.
+  const enleverDuQuiz = (x) => {
+    if (x.bougies) {
+      r.bougies = false;
+      oublierPlaceBougies(r);
+      changer();
+      noterEcran();
+      return;
+    }
+    const serie = seriesDe(r).find((y) => y.id === x.serie.id);
+    if (!serie) return;
+    const sansBougies = (liste) => (rangees != null ? liste : liste.filter((c) => c !== CLE_BOUGIES));
+    if (x.vide) {
+      serie.questions = casesPioche(serie).filter((_, i) => i !== x.i);
+      if (!serie.questions.length) r.seriesQuiz = seriesDe(r).filter((y) => y !== serie);
+      r.ordreQuiz = sansBougies(cles.filter((c) => c !== x.cle));
+    } else if (serie.origine === "quiz") {
+      serie.sans = [...(serie.sans ?? []), sig(x.q)];
+      if (r.ordreQuiz?.length) r.ordreQuiz = cles.filter((c) => c !== x.cle && (c !== CLE_BOUGIES || rangees != null));
+    } else {
+      const reste = casesPioche(serie);
+      const k = reste.findIndex((q) => !caseVide(q) && cleQuestion(serie, q, r.type) === x.cle);
+      if (k < 0) return;
+      const q = reste[k];
+      r.ecartees = [...(r.ecartees ?? []), sig(q)];
+      // La case garde la clé de sa question : elle reste à sa place dans l'ordre.
+      serie.questions = reste.map((y, i) => (i === k ? { vide: true, id: typeof q.id === "string" && q.id ? q.id : `t:${signatureQuestion(q, r.type)}`, ...(q.nombre ? { nombre: true } : {}) } : y));
+      r.ordreQuiz = sansBougies(cles);
+    }
+    changer();
+    noterEcran();
+  };
+  // Le 🎲 d'une case vide du Quiz : une question à sa place (au hasard, ou sur le thème tapé à côté).
+  const remplirCase = (x, terme) => {
+    const neuve = des.tirerUne(terme);
+    if (!neuve) { annonce(terme ? `Plus aucune question libre sur « ${terme} » : essayez un autre mot, ou videz le champ.` : "Plus aucune question libre ici : changez l'âge."); return; }
+    const serie = seriesDe(r).find((y) => y.id === x.serie.id);
+    if (!serie) return;
+    serie.questions = casesPioche(serie).map((y, i) => (i === x.i ? neuve : y));
+    const nouvelle = cleQuestion(serie, neuve, r.type);
+    r.ordreQuiz = (rangees != null ? cles : cles.filter((c) => c !== CLE_BOUGIES)).map((c) => (c === x.cle ? nouvelle : c));
+    changer();
+    noterEcran();
+  };
+  const caseVideQuiz = (x, k) => {
+    const champ = h("input", { type: "search", class: "packs-case-theme quiz-case-champ", placeholder: "Au hasard, ou un thème", "aria-label": "Thème de la question à tirer (vide : au hasard)", maxlength: "80",
+      onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); remplirCase(x, champ.value.trim()); } } });
+    return h("li", { class: "tirage-q vide packs-case quiz-case-vide", "data-cle": x.cle }, h("div", { class: "tirage-q-ligne" },
+      h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
+      h("button", { type: "button", class: "btn packs-de petit quiz-case-de", text: "🎲", "aria-label": "Tirer une autre question", title: "Une autre question : au hasard, ou sur le thème tapé à côté", onclick: () => remplirCase(x, champ.value.trim()) }),
+      champ,
+      h("button", { type: "button", class: "icon tirage-retirer quiz-case-retirer", text: "✕", title: "Supprimer cette place", "aria-label": "Supprimer cette place", onclick: () => enleverDuQuiz(x) })));
+  };
   const melanger = () => {
     let nouvel = shuffle(cles);
     for (let essai = 0; essai < 5 && cles.length > 1 && nouvel.every((c, k) => c === cles[k]); essai++) nouvel = shuffle(cles);
     ranger(nouvel, true);
   };
-  const lignes = vue.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${x.bougies ? " quiz-complet-bougies" : ""}${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
+  const lignes = vue.map((x, k) => (x.vide ? caseVideQuiz(x, k) : h("li", { class: `tirage-q quiz-complet-q${x.bougies ? " quiz-complet-bougies" : ""}${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
       photos ? apercuPhoto(x.q) : null,
@@ -3972,7 +4206,7 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
       clesFinale.has(x.cle) ? etiquetteFinale(r) : null,
       h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer cette ${unite} plus tôt`, "aria-label": `Monter cette ${unite}`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
       h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer cette ${unite} plus tard`, "aria-label": `Descendre cette ${unite}`, disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
-      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: x.bougies ? "Enlever la question des bougies (la case se décoche)" : photos || unite === "affirmation" ? `Enlever cette ${unite} du jeu` : "Enlever cette question du quiz", "aria-label": `Enlever cette ${unite}`, onclick: () => enlever(x) }))));
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: x.bougies ? "Enlever la question des bougies (la case se décoche)" : photos || unite === "affirmation" ? `Enlever cette ${unite} du jeu` : "Enlever cette question du quiz", "aria-label": `Enlever cette ${unite}`, onclick: () => enlever(x) })))));
   const caseVideDe = ({ q, i }) => h("li", { class: "tirage-q vide" }, h("div", { class: "tirage-q-ligne" },
     h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer une autre ${unite}`, title: `Tirer une autre ${unite} dans les contenus libres de droit`, onclick: () => {
       const neuve = des.tirerUne(q);
@@ -3983,15 +4217,19 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
     h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : photos ? "Photo à tirer" : unite === "affirmation" ? "Affirmation à tirer" : "Question à tirer" })));
   const lignesVides = vides.map((v) => (v.serie?.pioche ? caseVidePioche(r, v.serie, v.i, profilVides, changer) : caseVideDe(v)));
   const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignesVides, ...lignes);
-  liste.hidden = !quizCompletsDeplies.has(r);
+  // Le Quiz (cedric, 26/10) : son « complet » ouvert d'office.
+  liste.hidden = unique ? quizCompletsFermes.has(r) : !quizCompletsDeplies.has(r);
+  const nVides = unique ? vue.filter((x) => x.vide).length : vides.length;
   const nom = { illustre: "Quiz illustré complet", zoom: "Zoom mystère complet", flou: "Image floue complète", express: "Vrai ou Faux complet" }[r.type] ?? "Quiz complet";
-  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${nom} : ${vue.length} ${unite}${vue.length > 1 ? "s" : ""}, dans l'ordre de passage${vides.length ? ` (${vides.length} à tirer)` : ""}`;
+  const nVue = vue.length - (unique ? nVides : 0);
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${nom} : ${nVue} ${unite}${nVue > 1 ? "s" : ""}, dans l'ordre de passage${nVides ? ` (${nVides} à tirer)` : ""}`;
   const voir = h("button", {
     type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
     title: photos || unite === "affirmation" ? `Voir toutes les ${unite}s du jeu, dans l'ordre` : "Voir toutes les questions du quiz, dans l'ordre",
     onclick: (e) => {
       liste.hidden = !liste.hidden;
       if (liste.hidden) quizCompletsDeplies.delete(r); else quizCompletsDeplies.add(r);
+      if (liste.hidden) quizCompletsFermes.add(r); else quizCompletsFermes.delete(r);
       e.currentTarget.textContent = titre();
       e.currentTarget.setAttribute("aria-expanded", liste.hidden ? "false" : "true");
     },
@@ -5845,7 +6083,16 @@ async function toucherLesDes({ packs = false } = {}) {
   for (let i = 0; i < n; i++) {
     // Prestation test d'un thème : les jeux à packs touchent leur 🎲 « thème à 100 % » (le thème déjà tapé).
     if (packs && JEUX_A_PACKS.includes(bloc(i)?.dataset.jeu)) {
-      bloc(i).querySelector(".packs-de-recherche")?.click();
+      (bloc(i).querySelector(".de-unique") ?? bloc(i).querySelector(".packs-de-recherche"))?.click();
+      await tic();
+      continue;
+    }
+    // Le Quiz (cedric, 26/10 : un seul 🎲) : la prestation de test pioche dans les questions libres de droit, comme avant.
+    const unique = bloc(i)?.querySelector(".de-unique");
+    if (unique) {
+      const champ = bloc(i).querySelector(".de-unique-champ");
+      if (champ) { champ.value = "libre"; champ.dispatchEvent(new Event("input")); }
+      unique.click();
       await tic();
       continue;
     }
@@ -5968,7 +6215,7 @@ $("test-theme").onclick = async () => {
     editing.rounds = JEUX_DU_TEST.map((type) => ({ type, [JEU_OUVERT]: true }));
     refreshRounds();
     // Le thème tapé dans chaque champ « thème à 100 % » (les jeux une fois mis en forme par la carte).
-    for (const r of editing.rounds) if (r && JEUX_A_PACKS.includes(r.type)) reglageDuDe(r, "recherche").terme = theme;
+    for (const r of editing.rounds) if (r && JEUX_A_PACKS.includes(r.type)) reglageDuDe(r, deUnique(r) ? "unique" : "recherche").terme = theme;
     refreshRounds();
     await toucherLesDes({ packs: true });
     // Un jeu à packs sans rien sur ce thème : retiré (jamais rempli d'autre chose).

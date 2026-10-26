@@ -1249,3 +1249,13 @@ select.q-niveau-choix option { color: var(--ink); background: var(--card); }
 /* « 🎨 Prestation test d'un thème » (Paramètres) : le menu et le bouton passent à la ligne sur un téléphone. */
 .test-theme { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .test-theme select { min-width: 0; max-width: 100%; flex: 1 1 160px; }
+
+/* Carte Quiz à une seule ligne de 🎲 (cedric, 26/10) : l'âge au bout de la ligne du numéro, le rappel plus fin, le
+   « complet » avant la Super Finale (bougies au bout), une question retirée qui garde sa place. */
+.round-head > .quiz-en-tete, .round-body > .quiz-en-tete { width: auto; flex: 0 0 auto; max-width: 100%; margin-left: auto; }
+.quiz-rappel.fine .quiz-ajout-titre { font-size: 14px; padding: 4px 10px; }
+.quiz-rappel.fine .quiz-ajout-cherche { min-height: 38px; font-size: 14px; padding: 6px 12px; }
+.round-body > .quiz-complet + .quiz-finale { margin-top: 10px; }
+.quiz-finale > .quiz-bougies { margin-left: auto; }
+.quiz-case-vide .quiz-case-champ { flex: 0 1 300px; }
+.quiz-case-vide .quiz-case-retirer { margin-left: auto; }
