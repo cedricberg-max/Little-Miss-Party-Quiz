@@ -9401,6 +9401,95 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("De bout en bout (cedric, 26/10 : « que ça ne revienne jamais ») : les images d'un pack ZIP, tirées au 🎲 au Quiz illustré, au Zoom mystère, à l'Image floue et au Vrai ou Faux express, partent dans le programme de la TV et sont copiées dans la partie", async () => {
+    // Des couleurs bien différentes : jamais prises pour des doublons à l'import.
+    const COULEURS = [[230, 30, 30], [30, 200, 40], [30, 60, 230], [240, 220, 20], [200, 30, 200], [20, 210, 220], [250, 140, 0], [120, 60, 20],
+      [255, 255, 255], [0, 0, 0], [130, 130, 130], [90, 0, 140], [0, 110, 70], [255, 170, 200]];
+    let c = 0;
+    const image = () => png(COULEURS[c++]);
+    const heros = (text, noms, correct) => ({ text, choices: noms.map((n) => ({ text: n, image: `${n.toLowerCase()}.png` })), correct });
+    const ILLUSTRE = { title: "Héros illustrés", theme: "Marvel", niveau: "Facile", questions: [
+      heros("Qui est l'archer des Avengers ?", ["Faucon", "Thor", "Hulk", "Vision"], 0),
+      heros("Qui a un bouclier ?", ["Captain", "Loki", "Groot", "Rocket"], 0)] };
+    const VF = { title: "Héros vrai ou faux", theme: "Marvel", niveau: "Facile", questions: [
+      { text: "Hulk est vert.", choices: ["Vrai", "Faux"], correct: 0, illustration: "hulk-vf.png" },
+      { text: "Thor a un bouclier.", choices: ["Vrai", "Faux"], correct: 1, illustration: "thor-vf.png" }] };
+    const entrees = [["illus/pack.json", JSON.stringify(ILLUSTRE)], ...ILLUSTRE.questions.flatMap((q) => q.choices.map((x) => [`illus/${x.image}`, image()])),
+      ["photos/pack.json", JSON.stringify({ title: "Héros en photo", theme: "Marvel", niveau: "Facile" })],
+      ...["iron-man", "spider-man", "black-widow", "star-lord"].map((n) => [`photos/${n}.png`, image()]),
+      ["vf/pack.json", JSON.stringify(VF)], ["vf/hulk-vf.png", image()], ["vf/thor-vf.png", image()]];
+    assert.equal(c, COULEURS.length);
+
+    // 1. L'import du ZIP dans la Régie PC.
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.locator("#pack-import:not([hidden])").waitFor();
+    await page.setInputFiles("#pack-file", { name: "marvel.zip", mimeType: "application/zip", buffer: Buffer.from(faireZip(entrees)) });
+    await page.locator("dialog[data-fenetre][open] .pack-apercu-vignettes img").first().waitFor();
+    assert.doesNotMatch(await page.locator("dialog[data-fenetre][open]").innerText(), /Image manquante|image absente|introuvable|Pas importé|n'est pas importée/, "aucune image manquante");
+    assert.equal(await repondreFenetre(page), "Importer ces 3 packs ?");
+    await page.locator("#pack-status", { hasText: /^✓ 3 packs importés, 14 images\.$/ }).waitFor();
+    const packs = Object.values(await library("quizzes"));
+    assert.deepEqual(packs.map((q) => [q.title, q.kind]).sort(), [["Héros en photo", "images"], ["Héros illustrés", "photo"], ["Héros vrai ou faux", "classique"]]);
+    const bibliotheque = await library("images");
+    assert.equal(Object.keys(bibliotheque).length, 14);
+
+    // 2. Une prestation : chaque jeu tire au 🎲 dans « mes packs ».
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Lauren");
+    await page.fill("#show-age", "6");
+    await aVenir(page);
+    const tirer = async (jeu, k, n, attendu) => {
+      await ajouterJeu(page, jeu);
+      const round = page.locator("#show-rounds .round").nth(k);
+      await round.locator(".de-unique-champ").fill("mes packs");
+      await round.locator("select.de-nombre-unique").selectOption(`${n}`);
+      await round.locator(".de-unique").click();
+      await round.locator(".round-head > .quiz-compteur").filter({ hasText: attendu }).waitFor();
+    };
+    await tirer("illustre", 0, 2, /^2 questions/);
+    await tirer("zoom", 1, 2, "2 cartes à deviner");
+    await tirer("flou", 2, 2, "2 cartes à deviner");
+    await tirer("express", 3, 2, /^2 affirmations/);
+    assert.equal(await page.locator(".alerte-sans-images").count(), 0);
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    await page.context().close();
+
+    // 3. Lancée depuis la régie du téléphone, sur la box.
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator(".show-item", { hasText: "Lauren" }).click();
+    await respond(regie);
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const questions = (await read("show")).quiz.questions;
+    const ID = /^[0-9a-f]{16}$/;
+    const parSorte = (kind) => questions.filter((q) => q.kind === kind);
+    // Le programme : chaque question du Quiz illustré a une photo par réponse ; chaque photo et chaque affirmation, la sienne.
+    const illustrees = parSorte("classic");
+    assert.deepEqual(illustrees.map((q) => q.text).sort(), ILLUSTRE.questions.map((q) => q.text).sort());
+    for (const q of illustrees) {
+      assert.equal(q.choiceImages?.length, 4, q.text);
+      assert.ok(q.choiceImages.every((id) => ID.test(id) && bibliotheque[id]), q.text);
+    }
+    assert.equal(new Set(illustrees.flatMap((q) => q.choiceImages)).size, 8);
+    const photos = [...parSorte("zoom"), ...parSorte("flou"), ...parSorte("express")];
+    assert.deepEqual([parSorte("zoom").length, parSorte("flou").length, parSorte("express").length], [2, 2, 2]);
+    for (const q of photos) assert.ok(ID.test(q.imageId ?? "") && bibliotheque[q.imageId], `${q.kind} : ${q.text}`);
+    assert.equal(new Set(photos.map((q) => q.imageId)).size, 6, "jamais deux fois la même photo");
+    // Et chaque image copiée dans la partie, telle quelle : les réponses là où les tablettes les lisent, les photos avec les illustrations.
+    await waitFor(async () => Object.keys((await read("choiceImages")) ?? {}).length === 8, "les 8 réponses en images copiées dans la partie");
+    await waitFor(async () => Object.keys((await read("images")) ?? {}).length === 6, "les 6 photos copiées dans la partie");
+    const copiees = { ...(await read("choiceImages")), ...(await read("images")) };
+    for (const id of [...illustrees.flatMap((q) => q.choiceImages), ...photos.map((q) => q.imageId)]) assert.equal(copiees[id], bibliotheque[id], id);
+    await regie.context().close();
+  });
+
   test("« 💾 Sauvegarder les prestations » (cedric, 22/10) : un fichier sur le PC, sans les images ni les sons, rien d'écrit en ligne", async () => {
     const INES = { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };
     const TOM = { childName: "Tom", status: "brouillon", updatedAt: 2 };
