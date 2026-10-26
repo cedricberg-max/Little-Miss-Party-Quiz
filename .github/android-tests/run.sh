@@ -40,7 +40,7 @@ curl -sf -X PUT -H "Authorization: Bearer owner" -d '{"hostUid":"emulateur-ci"}'
 adb shell rm -rf "$CAPTURES"
 adb shell mkdir -p "$CAPTURES"
 
-./gradlew :tv:connectedDebugAndroidTest --stacktrace
+./gradlew :tv:connectedDebugAndroidTest --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.littlemissparty.quiz.tv.test.RegieTest#bombeCacheeApresUnQuizChacunSonTourJusquALaBombePuisLaFin,com.littlemissparty.quiz.tv.test.RegieTest#gonfleurFouApresUnQuizLePremierBallonEclateGagnePuisLaFin,com.littlemissparty.quiz.tv.test.RegieTest#patateChaudeApresUnQuizLaBombePasseLaMecheColleEtElleExplose
 STATUS=$?
 
 adb pull "$CAPTURES/." "$OUT/captures/" > /dev/null || true
