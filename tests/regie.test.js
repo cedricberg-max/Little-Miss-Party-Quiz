@@ -6816,46 +6816,45 @@ describe("bibliothèque de quiz et prestations", () => {
     await ajouterJeu(page, "quisuis");
     const round = page.locator('#show-rounds .jeu-bloc[data-jeu="quisuis"] .round');
     const compteur = round.locator(".round-head > .quiz-compteur");
-    const total = round.locator(".quiz-total");
+    const champ = round.locator(".de-unique-champ");
+    const nombre = round.locator("select.de-nombre-unique");
     assert.equal(await compteur.textContent(), "Aucun personnage pour l'instant : la TV en tirera 5 au hasard");
-    // La carte du Quiz (cedric, 25/10) : l'âge et le total, trois 🎲 dans mes packs (les personnages de mes séries), un
-    // dans les personnages du jeu, le rappel ; plus de ligne « Intégrer une de vos séries » ni de liste des séries.
+    // La carte du Quiz (cedric, 26/10) : le compteur et l'âge en tête, une seule ligne de 🎲 (mes packs : les personnages
+    // de mes séries ; les personnages du jeu), le rappel ; ni « Intégrer une de vos séries » ni liste des séries.
+    assert.deepEqual(await round.locator(".round-head > *").evaluateAll((xs) => xs.map((x) => x.className)), ["num", "quiz-compteur", "tirage-profil quiz-age quiz-en-tete"]);
     assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)),
-      ["quiz-age-ligne", "packs-ligne", "banque-ligne", "quiz-ajouts quiz-rappel"]);
+      ["de-ligne de-unique-ligne", "quiz-ajouts quiz-rappel fine"]);
     assert.equal(await round.locator(".quiz-biblio, .quiz-series").count(), 0);
-    assert.equal(await round.locator(".quiz-age-titre").textContent(), "🎂 Âge des personnages");
-    assert.equal(await total.textContent(), "Total : 0 personnage");
-    assert.equal(await round.locator(".packs-ligne").getAttribute("data-packs"), "2");
-    assert.equal(await round.locator(".banque-ligne .packs-de-texte").textContent(), "Tout au hasard dans les personnages du jeu");
-    assert.equal(await round.locator("select.de-nombre-banque").inputValue(), "5");
-    assert.deepEqual(await round.locator("select.de-nombre-hasard option").evaluateAll((os) => os.map((o) => Number(o.value))), Array.from({ length: 15 }, (_, k) => k + 1));
+    assert.equal(await nombre.inputValue(), "5");
+    assert.deepEqual(await nombre.locator("option").evaluateAll((os) => os.map((o) => Number(o.value))), Array.from({ length: 15 }, (_, k) => k + 1));
+    await champ.focus();
+    assert.deepEqual(await round.locator(".de-unique-ligne .packs-suggestion").evaluateAll((xs) => xs.slice(0, 2).map((x) => x.innerText.replace(/\s+/g, " "))),
+      ["Personnages libres de droit Les personnages de Qui suis-je ?, à l'âge choisi", "Mes packs 2 personnages dans mes packs"]);
     assert.equal(await round.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler les personnages d'un ancien anniversaire");
 
     // Un ancien anniversaire : tous ses personnages, en une série.
     await round.locator(".quiz-rappel-cherche").fill("mal");
     await round.locator('.quiz-rappel-item[data-show="malo"]').click();
     await compteur.filter({ hasText: "2 personnages" }).waitFor();
-    assert.equal(await total.textContent(), "Total : 2 personnages");
-    // 🎲 « Thème à 100 % » dans mes packs : « Disney », 2 personnages ; un nouveau clic n'en trouve plus d'autre (jamais deux fois).
-    await round.locator(".packs-recherche").fill("Disney");
-    await round.locator("select.de-nombre-recherche").selectOption("2");
-    await round.locator(".packs-de-recherche").click();
+    // « Disney » : mes packs sur ce mot, 2 personnages ; un nouveau clic n'en trouve plus d'autre (jamais deux fois).
+    await champ.fill("Disney");
+    await nombre.selectOption("2");
+    await round.locator(".de-unique").click();
     await compteur.filter({ hasText: "4 personnages" }).waitFor();
-    await round.locator(".packs-de-recherche").click();
-    await page.locator("#annonce", { hasText: "Aucun personnage libre ne se rapporte à « Disney » dans vos packs." }).waitFor();
+    await round.locator(".de-unique").click();
+    await page.locator("#annonce", { hasText: "Aucun personnage libre ne se rapporte à « Disney » : essayez un autre mot, ou videz le champ." }).waitFor();
     assert.equal(await compteur.textContent(), "4 personnages");
 
-    // Le 🎲 des personnages du jeu : 3, aucun de ceux déjà là ni de mes séries ; jamais une image téléversée.
-    await round.locator("select.de-nombre-banque").selectOption("3");
-    await round.locator(".banque-ligne .tirage-de").click();
+    // « libre » : 3 personnages du jeu, aucun de ceux déjà là ni de mes séries ; jamais une image téléversée.
+    await champ.fill("libre");
+    await nombre.selectOption("3");
+    await round.locator(".de-unique").click();
     await compteur.filter({ hasText: "7 personnages" }).waitFor();
-    assert.equal(await total.textContent(), "Total : 7 personnages");
 
-    // « Qui suis-je ? complet » : dans l'ordre des clics, chaque 🎲 à la suite (cedric, 25/10) ; la petite image, les
-    // indices ; ✕, ↓ et 🔀.
+    // « Qui suis-je ? complet », ouvert d'office : dans l'ordre des clics, chaque 🎲 à la suite (cedric, 25/10) ; la
+    // petite image, les indices ; ✕, ↓ et 🔀.
     const complet = round.locator(".quiz-complet");
-    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Qui suis-je ? complet : 7 personnages, dans l'ordre de passage");
-    await complet.locator(".quiz-complet-voir").click();
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▾ 🧩 Qui suis-je ? complet : 7 personnages, dans l'ordre de passage");
     const ordre = () => complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
     const debut = await ordre();
     const tires = debut.slice(4);
@@ -6866,25 +6865,35 @@ describe("bibliothèque de quiz et prestations", () => {
     await waitFor(async () => (await complet.locator('[data-mot="elsa"] img.tirage-mini').getAttribute("src")) === PNG, "la petite image d'Elsa");
     assert.equal(await complet.locator('[data-mot="simba"] .tirage-mini.emoji').textContent(), "🦁");
     assert.equal(await complet.locator('[data-mot="elsa"] .mot-indices').textContent(), "Je suis reine · Je fais de la glace · Libérée, délivrée");
+    // ✕ sur la fée : sa place reste (2e), avec son petit 🎲 et son champ ; la ✕ de la place la supprime pour de bon.
     await complet.locator('.quiz-complet-q[data-mot="la fée"] .tirage-retirer').click();
-    await compteur.filter({ hasText: "6 personnages" }).waitFor();
+    await compteur.filter({ hasText: "6 personnages · 1 à tirer" }).waitFor();
+    const vide = complet.locator("li.quiz-case-vide");
+    assert.equal(await vide.locator(".quiz-complet-num").textContent(), "2");
+    assert.match(await complet.locator(".quiz-complet-voir").textContent(), /\(1 à tirer\)$/);
+    await vide.locator(".quiz-case-retirer").click();
+    await compteur.filter({ hasText: /^6 personnages$/ }).waitFor();
     const avantDescente = await ordre();
     await complet.locator(".quiz-complet-q").nth(0).locator(".quiz-complet-descendre").click();
     await waitFor(async () => (await ordre()).join() === [avantDescente[1], avantDescente[0], ...avantDescente.slice(2)].join(), "le premier passe en 2e");
     const avant = await ordre();
     await complet.locator(".quiz-melanger").click();
     await waitFor(async () => (await ordre()).join() !== avant.join(), "mélangés");
-    // ✕ sur Elsa (piochée dans mes packs) : ses deux dés restent, en tête, avec le thème de sa série.
+    // ✕ sur Elsa (piochée dans mes packs) : sa place reste ; « Disney » n'a plus personne de libre ; la place part.
     await complet.locator('.quiz-complet-q[data-mot="elsa"] .tirage-retirer').click();
-    await compteur.filter({ hasText: "5 personnages" }).waitFor();
-    assert.equal(await complet.locator("li.packs-case .packs-case-theme").inputValue(), "Disney");
-    await complet.locator("li.packs-case .packs-case-hasard").click();
-    await page.locator("#annonce", { hasText: "Plus aucun personnage libre à tirer." }).waitFor();
-    // ✕ sur un personnage du 🎲 : son 🎲 en tire un autre.
+    await compteur.filter({ hasText: "5 personnages · 1 à tirer" }).waitFor();
+    await vide.locator(".quiz-case-champ").fill("Disney");
+    await vide.locator(".quiz-case-de").click();
+    await page.locator("#annonce", { hasText: "Plus aucun personnage libre sur « Disney »" }).waitFor();
+    await vide.locator(".quiz-case-retirer").click();
+    await compteur.filter({ hasText: /^5 personnages$/ }).waitFor();
+    // ✕ sur un personnage du 🎲 : le petit 🎲 de sa place en tire un autre, à sa place.
+    const place = (await ordre()).indexOf(tires[2]);
     await complet.locator(`.quiz-complet-q[data-mot="${tires[2]}"] .tirage-retirer`).click();
-    await compteur.filter({ hasText: "4 personnages" }).waitFor();
-    await complet.locator("li.vide:not(.packs-case) .tirage-de").click();
-    await compteur.filter({ hasText: "5 personnages" }).waitFor();
+    await compteur.filter({ hasText: "4 personnages · 1 à tirer" }).waitFor();
+    assert.equal(await vide.locator(".quiz-complet-num").textContent(), String(place + 1));
+    await vide.locator(".quiz-case-de").click();
+    await compteur.filter({ hasText: /^5 personnages$/ }).waitFor();
     assert.ok(!(await ordre()).includes(tires[2]), "le personnage retiré ne revient pas");
     const joues = await ordre();
     await capture(page, "qui-suis-je");
