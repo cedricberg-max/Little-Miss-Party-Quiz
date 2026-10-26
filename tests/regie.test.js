@@ -4226,6 +4226,25 @@ describe("bibliothèque de quiz et prestations", () => {
     await paroles.locator(".paroles-ligne.repere", { hasText: "Les mains en l'air" }).waitFor();
     assert.equal(await paroles.locator(".paroles-ligne").count(), 11);
     assert.equal(await paroles.locator(".paroles-ligne").first().innerText(), "0:08\nPremier couplet tout doux");
+    // Cliquer une phrase (cedric, 26/10) : deux boutons dessous, « Début de la chanson ici » et « Hook ici », qui
+    // placent leur curseur sur son minutage ; un nouveau clic sur la phrase les range.
+    const suite = paroles.locator(".paroles-ligne", { hasText: "La suite du couplet" });
+    await suite.click();
+    assert.deepEqual(await suite.locator(".paroles-actions button").allTextContents(), ["⏮ Début de la chanson ici", "🎤 Hook ici"]);
+    await suite.click();
+    assert.equal(await paroles.locator(".paroles-actions").count(), 0);
+    await suite.click();
+    await suite.locator(".paroles-debut-ici").click();
+    assert.equal(await reglage.locator('input[aria-label="Début de la chanson"]').inputValue(), "12");
+    assert.equal(await reglage.locator('[data-curseur="debut"] .reglage-temps').textContent(), "0:12");
+    assert.equal(await paroles.locator(".paroles-actions").count(), 0, "les boutons partent une fois choisi");
+    const mains = paroles.locator(".paroles-ligne", { hasText: "Les mains en l'air" }).nth(1);
+    await mains.click();
+    await mains.locator(".paroles-hook-ici").click();
+    assert.equal(await reglage.locator('input[aria-label="Hook"]').inputValue(), "42");
+    assert.equal(await reglage.locator('[data-curseur="hook"] .reglage-temps').textContent(), "0:42");
+    assert.equal(await reglage.locator(".reglage-origine").textContent(), "réglé à la main");
+    assert.equal(await reglage.locator('input[aria-label="Début de la chanson"]').inputValue(), "12", "le début ne bouge pas");
     await reglage.locator('input[aria-label="Hook"]').fill("40");
     const ecouteHook = reglage.locator('[data-curseur="hook"] .reglage-ligne button', { hasText: /Écouter|Pause/ });
     await ecouteHook.filter({ hasText: "⏸ Pause" }).waitFor();
