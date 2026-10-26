@@ -6011,6 +6011,15 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.ok((await lignesMario.count()) >= 5);
     await waitFor(async () => (await lignesMario.locator('img.tirage-mini[src^="data:image/png"]').count()) === await lignesMario.count(), "miniatures des questions de Mario");
     assert.equal(await lignesMario.locator(".tirage-mini.emoji").count(), 0);
+    // Le thème du pack, juste à gauche de la photo (cedric, 26/10) ; rien pour les questions libres de droit.
+    assert.deepEqual([...new Set(await lignesMario.locator(".quiz-complet-theme").allTextContents())], ["Jeux vidéo"]);
+    assert.equal(await lignesMario.locator(".quiz-complet-theme").count(), await lignesMario.count());
+    assert.ok(await lignesMario.first().locator(".quiz-complet-theme").evaluate((x) => x.nextElementSibling?.classList.contains("tirage-mini")), "à gauche de la miniature");
+    const lignesPokemon = complet.locator(".quiz-complet-q", { has: page.locator(".tirage-texte", { hasText: /^Pokémon/ }) });
+    assert.deepEqual([...new Set(await lignesPokemon.locator(".quiz-complet-theme").allTextContents())], ["Pokémon"], "sans thème : le nom du pack");
+    const lignesLibres = complet.locator(".quiz-complet-q:not(.quiz-complet-bougies)", { hasNot: page.locator(".tirage-texte", { hasText: DES_PACKS }) });
+    assert.ok((await lignesLibres.count()) >= 4);
+    assert.equal(await lignesLibres.locator(".quiz-complet-theme").count(), 0);
     await champ.fill("zzz");
     await round.locator(".de-unique").click();
     await page.locator("#annonce", { hasText: "Aucune question libre ne se rapporte à « zzz »" }).waitFor();
