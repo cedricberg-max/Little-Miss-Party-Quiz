@@ -51,7 +51,7 @@ import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from
 import { confirmer, avertir, demanderTexte, apercu } from "./fenetre.js";
 import { lireZipEtSesZip } from "./zip.js";
 import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks, sourceDuDe, avecSesImages } from "./pioche-packs.js";
-import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage, dossierDe } from "./pack-zip.js";
+import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage, dossierDe, garderLesQuestionsIllustrees } from "./pack-zip.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
@@ -9253,9 +9253,13 @@ async function importerPackZip(zip, statut = "pack-status") {
         }
       }
       p.manquantes.sort((a, b) => a.q - b.q || (a.case ?? -1) - (b.case ?? -1));
+      garderLesQuestionsIllustrees(p);
     }
     // Les images nommées qu'aucune question ne cite : importées aussi, en photo (pour « ⭐ Composer avec vos images »).
     for (const x of analyse.nommees) if (!preparees.has(x.chemin)) await preparer(x.fichier, "photo");
+    // Les images des questions laissées de côté (Quiz illustré sans toutes ses photos) : pas téléversées pour rien.
+    const citees = new Set(analyse.packs.flatMap((p) => (p.epreuve === "quisuis" ? p.personnages.map((x) => x.imageId) : p.questions.flatMap((q) => [q.imageId, ...(q.choiceImages ?? [])]))));
+    for (const id of [...aRanger.keys()]) if (!citees.has(id) && !nommes.has(id)) aRanger.delete(id);
     // Doublons (cedric, 25/10) : la même image sous deux noms de fichier (ou à deux tailles, ou préparée pour une
     // réponse et pour la révélation) ; une seule est gardée, la plus grande, et chaque question pointe vers elle.
     // Sans rien demander (cedric, 26/10 : « une image doit juste être affichée une seule fois »).
@@ -9328,7 +9332,7 @@ async function importerPackZip(zip, statut = "pack-status") {
   const vides = analyse.packs.filter((p) => (p.epreuve === "quisuis" ? !p.personnages.length : !p.questions.length));
   if (vides.length === analyse.packs.length && !nommes.size) {
     const absents = analyse.nomsAbsents.length ? `Les images nommées ne sont pas dans le ZIP (${analyse.nomsAbsents.slice(0, 5).join(", ")}${analyse.nomsAbsents.length > 5 ? "…" : ""}) : ajoutez-y le dossier d'images.` : "";
-    return avertir(`Ce pack ne peut pas être importé.\n\n${[...analyse.packs.flatMap((p) => p.ignorees), absents].filter(Boolean).join("\n") || "Aucune image n'a pu être lue."}\n\nRien n'a été enregistré.`);
+    return avertir(`Ce pack ne peut pas être importé.\n\n${(() => { const t = [...analyse.packs.flatMap((p) => p.ignorees), absents].filter(Boolean); return t.length > 8 ? [...t.slice(0, 8), `… et ${t.length - 8} autres.`].join("\n") : t.join("\n"); })() || "Aucune image n'a pu être lue."}\n\nRien n'a été enregistré.`);
   }
   const packs = analyse.packs.filter((p) => !vides.includes(p));
 
@@ -9361,6 +9365,11 @@ async function importerPackZip(zip, statut = "pack-status") {
   const contenu = h("div", { class: "pack-apercu" },
     themeDeTousLesPacks(fixeurs, existants),
     ...apercus,
+    // Un pack du Quiz illustré dont aucune question n'a toutes ses images (cedric, 26/10) : pas importé, dit en rouge.
+    ...vides.filter((p) => p.epreuve === "illustre").map((p) => h("div", { class: "pack-apercu-pack pack-refuse" },
+      h("h3", { text: p.titre }),
+      h("p", { class: "pack-erreur", text: "Pas importé : aucune de ses questions n'a une photo pour chaque réponse dans le ZIP. Ajoutez son dossier d'images au ZIP, puis réimportez-le." }),
+      ...p.ignorees.slice(0, 4).map((t) => h("p", { class: "pack-erreur", text: t })))),
     analyse.laisses.length ? h("p", { class: "hint small", text: `Laissé${analyse.laisses.length > 1 ? "s" : ""} de côté : ${analyse.laisses.join(", ")}.` }) : null,
     // Le dossier d'images téléchargé à côté des packs (cedric, 25/10) : seules les images citées sont téléversées.
     // Les images nommées (cedric, 25/10) : rangées sous leur nom, citées ou non, pour les retrouver en tapant.
