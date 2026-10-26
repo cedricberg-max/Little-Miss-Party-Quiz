@@ -105,6 +105,7 @@ const hostDb = () => env.authenticatedContext(HOST).database();
 const read = async (path) => (await get(ref(hostDb(), `games/${CODE}/${path}`))).val();
 const gameRef = (path = "") => ref(hostDb(), `games/${CODE}${path ? `/${path}` : ""}`);
 
+const TEAM_COLORS_TEST = ["#2B86C5", "#9B5DE5", "#F94144", "#2EE8E0", "#FF6B1A", "#39FF14"];
 const QUESTIONS = [
   { text: "Couleur du ciel ?", choices: ["Vert", "Bleu", "Rouge", "Jaune"], correct: 1 },
   { text: "Le soleil est une étoile", choices: ["Vrai", "Faux"], correct: 0 },
@@ -2825,6 +2826,63 @@ describe("remplacement d'un appareil en cours de partie", () => {
     assert.ok(boutons.every((b) => !b.deborde && b.gauche >= 0 && b.droite <= 360), `boutons du bas : ${JSON.stringify(boutons)}`);
     await capture(regie, "regie-bas-360-pause");
     for (const p of [regie, fresh]) await p.context().close();
+  });
+
+  test("« ＋ Ajouter une équipe » dans ☰ Plus (test Mi Box de cedric, 26/10) : QR direct en nouvelle équipe, carte « Nouvelle équipe en attente », jusqu'à 8 équipes (360×640)", async () => {
+    box = startBox();
+    const regie = await openRegie(await contexteSansChoix({ viewport: { width: 360, height: 640 } }));
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#regie.cockpit").waitFor();
+    const touk = await tablet();
+    await accepter(regie, "Touk");
+    await touk.locator("#screen-play.active").waitFor();
+    await regie.locator("#c-next", { hasText: "Lancer la fête !" }).click();
+    await touk.locator("#screen-question.active").waitFor();
+    // En pleine partie : « ☰ Plus » → « ＋ Ajouter une équipe », un gros bouton bien visible.
+    await regie.click("#c-plus");
+    const bouton = regie.locator("#plus:not([hidden]) #c-equipe");
+    await bouton.waitFor();
+    const r = await bouton.boundingBox();
+    assert.ok(r.y >= 0 && r.y + r.height <= 640 && r.x + r.width <= 360, `bouton dans l'écran : ${JSON.stringify(r)}`);
+    assert.equal(await bouton.isDisabled(), false);
+    await bouton.click();
+    await regie.locator("#plus").waitFor({ state: "hidden" });
+    await regie.locator("#tablette:not([hidden]) #tablette-qr svg path").waitFor();
+    assert.equal(await regie.textContent("#tablette-titre"), "Ajouter une équipe");
+    // Le QR ouvre la partie sans « reprise » : la tablette ne propose pas de reprendre une équipe.
+    const lien = await regie.locator("#tablette-qr").getAttribute("data-texte");
+    assert.equal(lien, `${baseUrl}/?g=${CODE}&emu=1`);
+    assert.equal(await regie.locator("#tablette-bloquee").isHidden(), true);
+    await capture(regie, "regie-ajouter-equipe-360x640", { pleinePage: false });
+    const nouvelle = await openRegie(null, new URL(lien).search);
+    await nouvelle.locator("#screen-waiting.active").waitFor();
+    assert.equal(await nouvelle.locator("#screen-takeover.active").count(), 0);
+    // La demande arrive : la fenêtre se referme sur la carte « Nouvelle équipe en attente ».
+    await regie.locator("#tablette").waitFor({ state: "hidden" });
+    const carte = regie.locator("#c-requests .request", { hasText: "Nouvelle équipe en attente" });
+    await carte.waitFor();
+    // La carte se voit sans rien faire défiler, au-dessus des boutons du bas.
+    const c = await carte.boundingBox();
+    const bas = await regie.locator(".regie .actions").boundingBox();
+    assert.ok(c.y >= 0 && c.y + 60 <= bas.y, `carte visible : ${JSON.stringify({ c, bas })}`);
+    await capture(regie, "regie-ajouter-equipe-carte-360x640", { pleinePage: false });
+    await accepter(regie, "Les Tard-Venus");
+    await nouvelle.locator("#screen-question.active").waitFor();
+    assert.equal(await nouvelle.locator("#screen-question .team-label").textContent(), "Les Tard-Venus");
+    await regie.locator("#c-tuiles .tuile", { hasText: "Les Tard-Venus" }).waitFor();
+    // Reconnecter une tablette garde son QR « reprise ».
+    await regie.click("#c-plus");
+    await regie.click("#c-tablette");
+    await regie.locator("#tablette-titre", { hasText: "Reconnecter une tablette" }).waitFor();
+    assert.match(await regie.locator("#tablette-qr").getAttribute("data-texte"), /reprise=1/);
+    await regie.click("#tablette-close");
+    // 8 équipes : le bouton se grise, avec la raison.
+    for (let k = 0; k < 6; k++) await addTeam(`t${k}`, `Équipe ${k + 3}`, TEAM_COLORS_TEST[k]);
+    await regie.click("#c-plus");
+    await regie.locator("#plus #c-equipe[disabled]").waitFor();
+    assert.equal(await regie.locator("#c-equipe").getAttribute("title"), "8 équipes au maximum");
+    for (const p of [regie, touk, nouvelle]) await p.context().close();
   });
 
   test("nouvelle équipe en cours de partie, ou demande ignorée", async () => {

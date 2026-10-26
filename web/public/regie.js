@@ -1,7 +1,7 @@
 import {
   ref, get, set, update, push, onValue, serverTimestamp, query, limitToFirst,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
-import { BRACELET_COLORS, CHOICE_LETTERS, TEAM_COLORS, TEAM_COLOR_NAMES, numeroTablette } from "./theme.js";
+import { BRACELET_COLORS, CHOICE_LETTERS, MAX_TEAMS, TEAM_COLORS, TEAM_COLOR_NAMES, numeroTablette } from "./theme.js";
 import { writeProof } from "./proof.js";
 import { parPertinence } from "./recherche.js";
 import { passwordCandidates } from "./secret.js";
@@ -160,7 +160,7 @@ function installerCockpit() {
   plus.textContent = "☰ Plus";
   $("c-pause").after(plus);
   const grille = $("plus-grille");
-  for (const id of ["c-add", "c-replay", "c-rescue", "c-points", "c-tablette", "c-box", "c-end"]) grille.append($(id));
+  for (const id of ["c-add", "c-replay", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-end"]) grille.append($(id));
   $("plus-onglets").append($("c-notes"), document.querySelector(".regie .tabs"),
     $("panel-teams"), $("panel-plan"), $("panel-show"), $("panel-defis"));
   // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer » : appui long, elle reste).
@@ -174,7 +174,8 @@ function installerCockpit() {
   tuiles.className = "tuiles";
   tuiles.setAttribute("aria-label", "Équipes");
   tuiles.hidden = true;
-  document.querySelector(".regie .control > .card").after(tuiles);
+  // Sous les demandes d'entrée : la carte « Nouvelle équipe en attente » reste juste sous la question, bien en vue.
+  $("c-requests").after(tuiles);
   $("c-plus").onclick = () => ($("plus").hidden ? ouvrirPlus() : fermerPlus());
   $("plus-fermer").onclick = fermerPlus;
   $("plus-fond").onclick = fermerPlus;
@@ -1052,12 +1053,21 @@ async function admit(device, type, extra, success) {
  * la régie, et dans le bandeau rouge quand une tablette est coupée.
  */
 let tabletteOpen = false;
+/**
+ * « ＋ Ajouter une équipe » (test Mi Box de cedric, 26/10 : introuvable en pleine partie) : la même fenêtre, avec un QR
+ * qui fait entrer la tablette comme nouvelle équipe, sans passer par « Reprendre une équipe ». Dès que la tablette
+ * demande à entrer, la fenêtre se referme sur la carte « Nouvelle équipe en attente » (nom et couleur).
+ */
+let tabletteMode = "reprise";
+/** Demandes d'entrée déjà là à l'ouverture d'« Ajouter une équipe » : seule une nouvelle referme la fenêtre. */
+let demandesConnues = new Set();
+const nouvellesDemandes = () => Object.entries(live.requests).filter(([, r]) => r && !r.replace).map(([d]) => d);
 
 /** Lien du QR code : la page des pupitres de cette partie, en mode « reprendre une équipe ». */
-function lienReprise() {
+function lienReprise(nouvelle = false) {
   const lien = new URL("./", location.href);
   lien.searchParams.set("g", code);
-  lien.searchParams.set("reprise", "1");
+  if (!nouvelle) lien.searchParams.set("reprise", "1");
   const emu = new URLSearchParams(location.search).get("emu");
   if (emu) lien.searchParams.set("emu", emu);
   return lien.href;
@@ -1087,10 +1097,32 @@ async function dessinerQr(box, texte) {
 
 function renderTablette(st) {
   $("c-tablette").disabled = st.phase === "ended";
+  const complet = Object.keys(live.teams).length >= MAX_TEAMS;
+  $("c-equipe").disabled = st.phase === "ended" || complet;
+  $("c-equipe").title = complet ? `${MAX_TEAMS} équipes au maximum` : "";
   if (st.phase === "ended") tabletteOpen = false;
+  const nouvelle = tabletteMode === "nouvelle";
+  // La nouvelle tablette a demandé à entrer : place à la carte « Nouvelle équipe en attente ».
+  if (tabletteOpen && nouvelle && nouvellesDemandes().some((d) => !demandesConnues.has(d))) {
+    tabletteOpen = false;
+    toast("Nouvelle tablette : donnez-lui un nom et une couleur.");
+  }
   $("tablette").hidden = !tabletteOpen;
   if (!tabletteOpen) return;
-  dessinerQr($("tablette-qr"), lienReprise()).catch((e) => console.error(e));
+  $("tablette-titre").textContent = nouvelle ? "Ajouter une équipe" : "Reconnecter une tablette";
+  $("tablette-consigne").textContent = nouvelle
+    ? "Scannez ce QR code avec la nouvelle tablette. Elle demande à entrer : vous lui donnez ici son nom et sa couleur. Les points des autres équipes ne bougent pas."
+    : "Scannez ce QR code avec la tablette, puis touchez le nom de l'équipe. Elle garde son nom, sa couleur et ses points.";
+  $("tablette-qr").setAttribute("aria-label", nouvelle ? "QR code pour ajouter une équipe" : "QR code pour reprendre une équipe");
+  $("tablette-qr").dataset.mode = tabletteMode;
+  dessinerQr($("tablette-qr"), lienReprise(nouvelle)).catch((e) => console.error(e));
+  $("tablette-bloquee").hidden = nouvelle;
+  if (nouvelle) {
+    $("tablette-attente").hidden = false;
+    $("tablette-demandes").replaceChildren();
+    $("tablette-demandes").dataset.key = "";
+    return;
+  }
   // Les tablettes qui ont touché le nom d'une équipe : un toucher (puis la confirmation) la leur confie.
   const demandes = Object.entries(live.requests).filter(([, r]) => r?.replace && live.teams[r.replace])
     .sort((a, b) => (a[1].at ?? 0) - (b[1].at ?? 0));
@@ -1113,10 +1145,17 @@ function renderTablette(st) {
 
 function ouvrirTablette(e) {
   e?.stopPropagation();
+  tabletteMode = "reprise";
   tabletteOpen = true;
   render();
 }
 $("c-tablette").onclick = ouvrirTablette;
+$("c-equipe").onclick = () => {
+  tabletteMode = "nouvelle";
+  demandesConnues = new Set(nouvellesDemandes());
+  tabletteOpen = true;
+  render();
+};
 $("tablette-close").onclick = () => { tabletteOpen = false; render(); };
 
 // ---------- Changer de box ----------

@@ -195,6 +195,7 @@
           <button id="c-add" class="btn secondary rescue-open" aria-label="Ajouter un jeu" hidden>＋ Jeu</button>
           <button id="c-replay" class="btn secondary rescue-open" hidden>🔁 Rejouer</button>
           <button id="c-points" class="btn secondary rescue-open">± Points</button>
+          <button id="c-equipe" class="btn secondary rescue-open">＋ Ajouter une équipe</button>
           <button id="c-rescue" class="btn secondary rescue-open" hidden>⏭ Changer de jeu</button>
           <button id="c-box" class="btn secondary rescue-open">📺 Changer de box</button>
         </div>
@@ -353,15 +354,15 @@
          l'animatrice ; la tablette le scanne, touche son équipe, et l'animatrice la lui confie. -->
     <section id="tablette" class="lib" hidden aria-label="Reconnecter une tablette">
       <header class="lib-top">
-        <b>Reconnecter une tablette</b>
+        <b id="tablette-titre">Reconnecter une tablette</b>
         <button id="tablette-close" class="btn secondary">Fermer</button>
       </header>
       <div class="lib-body">
         <div id="tablette-qr" class="tablette-qr" role="img" aria-label="QR code pour reprendre une équipe"></div>
-        <p class="tablette-consigne">Scannez ce QR code avec la tablette, puis touchez le nom de l'équipe. Elle garde son nom, sa couleur et ses points.</p>
+        <p id="tablette-consigne" class="tablette-consigne">Scannez ce QR code avec la tablette, puis touchez le nom de l'équipe. Elle garde son nom, sa couleur et ses points.</p>
         <p id="tablette-attente" class="hint">En attente de la tablette…</p>
         <div id="tablette-demandes" class="tablette-demandes"></div>
-        <p class="hint">Tablette bloquée ? Fermez complètement son navigateur et rouvrez-le : elle revient seule dans son équipe.</p>
+        <p id="tablette-bloquee" class="hint">Tablette bloquée ? Fermez complètement son navigateur et rouvrez-le : elle revient seule dans son équipe.</p>
       </div>
     </section>
     <!-- « 📺 Changer de box » (cedric, 21/10) : la box de la fête est en panne ; la fête continue sur une box de secours,
