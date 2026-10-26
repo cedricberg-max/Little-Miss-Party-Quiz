@@ -9378,6 +9378,8 @@ describe("bibliothèque de quiz et prestations", () => {
     // Un pack s'ouvre sur ses questions : illustration là, ou l'alerte.
     await page.locator(`.pack[data-pack="${idSavane}"]`, { hasText: "⚠ 1 sans illustration" }).getByRole("button", { name: "Ouvrir" }).click();
     await page.locator("#q-list h2", { hasText: "Les animaux de la savane" }).waitFor();
+    // Sans image hors format, rien d'écrit à la place de leur liste (cedric, 26/10 : « null » au-dessus des questions).
+    assert.equal(await page.locator("#q-list").evaluate((el) => [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim())), false);
     assert.equal(await page.locator("#pack-import").isHidden(), true);
     assert.equal(await page.locator("#q-list .q-item").count(), 4);
     await page.locator(`.q-item[data-question="${idSavane}/0"] .q-illus.emoji`, { hasText: "🐘" }).waitFor();

@@ -1038,7 +1038,7 @@ function selectionEditor({ items, get, set, draw, unit, empty, own, round = null
           return g ? h("optgroup", { label: g }, ...opts) : opts;
         }));
     };
-    box.replaceChildren(...[
+    remplir(box, ...[
       h("span", { class: "small", text: n ? `${n} ${unit}${n > 1 ? "s" : ""} choisi${e}${n > 1 ? "s" : ""}  : le jeu joue exactement cette liste.` : empty }),
       h("button", { type: "button", class: "chip pick-draw", text: "🎲 Tirer au hasard", onclick: () => change(draw()) }),
       chosen.length ? h("button", { type: "button", class: "chip", text: "Tout retirer (tirage au lancement)", onclick: () => change([]) }) : null,
@@ -8353,7 +8353,7 @@ function dessinerQuestions() {
     const photos = p.kind === "images";
     const liste = filtre(p.questions);
     qListees = liste;
-    box.replaceChildren(
+    remplir(box,
       h("div", { class: "title-row" },
         h("button", { type: "button", class: "btn secondary", text: photos ? "← Toutes les séries de photos" : "← Tous mes thèmes", onclick: () => { const y = window.scrollY; qPack = null; qSelection.clear(); renderQuestions(); noterRubrique(y); } }),
         h("button", { type: "button", class: "btn secondary", text: photos ? "Éditer la série" : "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
