@@ -96,7 +96,8 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
                         bombe = r.opened.firstOrNull { it.bomb }?.delta,
                         or = r.opened.firstOrNull { it.gold && it !== ouverture }?.chest,
                         // Le classement et l'alerte ont leur titre en haut : le bandeau du tour se cache derrière eux.
-                        bandeau = classement == null && !alerte,
+                        // Game Show : l'enseigne de l'ouverture prend sa place (pas deux enseignes l'une sur l'autre).
+                        bandeau = classement == null && !alerte && !(Look.gs && ouverture != null),
                     )
                 }
             }
