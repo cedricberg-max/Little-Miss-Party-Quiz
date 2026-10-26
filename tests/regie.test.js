@@ -9591,6 +9591,53 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("🗑 Supprimer un thème (cedric, 26/10) : ses packs et ses séries de photos (Zoom mystère, Image floue), leurs questions et les images qui ne servent qu'à eux ; Mes images, les autres thèmes et les prestations ne bougent pas", async () => {
+    const I = (k) => `${k}`.repeat(16).slice(0, 16);
+    const PNG = `data:image/png;base64,${png([200, 60, 120]).toString("base64")}`;
+    const q = (text, imageId) => ({ text, choices: ["A", "B", "C", "D"], correct: 0, status: "validee", imageId });
+    await seedLibrary("quizzes", {
+      m1: { title: "Mario Facile", theme: "Mario", niveau: "Facile", pack: true, source: "json", updatedAt: 1, questions: [q("Qui est vert ?", I(1)), q("Qui est rose ?", I(2))] },
+      m2: { title: "Mario Moyen", theme: "Mario", niveau: "Moyen", pack: true, source: "json", updatedAt: 1, questions: [q("Qui conduit ?", I(3))] },
+      zm: { title: "Zoom Mario", theme: "Mario", niveau: "Facile", pack: true, kind: "images", source: "photos", updatedAt: 1, questions: [q("Qui est-ce ?", I(4))] },
+      kp: { title: "K-pop Facile", theme: "K-pop", niveau: "Facile", pack: true, source: "json", updatedAt: 1, questions: [q("Qui chante ?", I(5))] },
+    });
+    await seedLibrary("images", Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((k) => [I(k), PNG])));
+    await seedLibrary("medias", {
+      [I(6)]: { name: "Toad", cat: "📦 mario", createdAt: 1, updatedAt: 1 },
+      [I(2)]: { name: "Mon chat", cat: "Animaux", createdAt: 1, updatedAt: 1 },
+      [I(7)]: { name: "Bowser", cat: "📦 K-pop", createdAt: 1, updatedAt: 1 },
+    });
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    const LOU = { childName: "Lou", age: 9, date: day(10), status: "publiee", updatedAt: 1,
+      rounds: [{ type: "quiz", seriesQuiz: [{ id: "s1", origine: "biblio", questions: [{ id: "pk-x", text: "Qui conduit ?", choices: ["A", "B", "C", "D"], correct: 0, imageId: I(3) }] }] }] };
+    await seedLibrary("shows", { lou: LOU });
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.click('#q-groups [data-groupe="packs"]');
+    const mario = page.locator('.q-theme[data-theme="Mario"]');
+    await mario.waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "pas de défilement de côté sur un téléphone");
+    // Annuler ne supprime rien.
+    await mario.locator(".theme-supprimer").click();
+    const message = await repondreFenetre(page, { accepter: false });
+    assert.match(message, /^Supprimer le thème « Mario » \?\n\n3 packs \(4 questions\) et 3 images partent de la bibliothèque, pour de bon\./);
+    assert.match(message, /Mes images, les autres thèmes et les questions déjà copiées dans une prestation ne changent pas\./);
+    assert.equal(Object.keys(await library("quizzes")).length, 4);
+    await mario.locator(".theme-supprimer").click();
+    await repondreFenetre(page);
+    await page.locator("#annonce", { hasText: "✓ Thème « Mario » supprimé : 3 packs et 3 images." }).waitFor();
+    await mario.waitFor({ state: "detached" });
+    await page.locator('.q-theme[data-theme="K-pop"]').waitFor();
+    // Partis : les deux packs et la série de photos Mario, I(1) et I(4) (citées), I(6) (nommée « Toad » sans pack).
+    // Gardées : I(2) (Mes images), I(3) (copiée dans la prestation de Lou), I(5) et I(7) (K-pop).
+    assert.deepEqual(Object.keys(await library("quizzes")), ["kp"]);
+    assert.deepEqual(Object.keys(await library("images")).sort(), [2, 3, 5, 7].map(I).sort());
+    assert.deepEqual(Object.keys(await library("medias")).sort(), [I(2), I(7)].sort());
+    assert.deepEqual((await library("shows")).lou, LOU, "la prestation ne change pas");
+    await page.context().close();
+  });
+
   test("Images en double (cedric, 25/10) : à l'import, la même image sous deux noms de fichier n'est gardée qu'une fois ; « 🧹 Fusionner les doublons » nettoie ce qui est déjà importé", async () => {
     const page = await admin();
     await page.click("#nav button[data-screen=library]");

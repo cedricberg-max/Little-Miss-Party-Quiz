@@ -2418,6 +2418,29 @@ describe("bibliothèque d'images de la Régie PC (émojis, photos libres, ses im
     assert.ok(B.correspond(dePacks.find((x) => x.id === LIBRE), "toad"));
   });
 
+  test("🗑 Supprimer un thème (cedric, 26/10) : ses images partent avec ses packs, sauf celles que quelque chose d'autre utilise ou rangées dans Mes images", () => {
+    const I = (k) => `${k}`.repeat(16).slice(0, 16);
+    const packs = {
+      p1: { title: "Mario Facile", theme: "Mario", pack: true, questions: [{ text: "Qui ?", choices: ["Yoshi", "Toad", "Luigi", "Peach"], correct: 0, imageId: I(1) }] },
+      p2: { title: "Mario illustré", theme: "Mario", pack: true, kind: "photo", questions: [{ text: "Lequel ?", choices: ["A", "B", "C", "D"], correct: 0, choiceImages: { 0: I(2), 1: I(3) }, imageId: I(4) }],
+        imagesHorsFormat: { [I(2)]: "trop petite" } },
+    };
+    const medias = {
+      [I(5)]: { name: "Toad", cat: B.catDePack("Mario"), createdAt: 1 }, // nommée à l'import, citée par aucun pack
+      [I(6)]: { name: "Bowser", cat: B.catDePack("K-pop"), createdAt: 1 }, // un autre thème
+      [I(3)]: { name: "Mon chat", cat: "Animaux", createdAt: 1 }, // dans Mes images
+    };
+    const ailleurs = {
+      quizzes: { kpop: { title: "K-pop", theme: "K-pop", pack: true, questions: [{ text: "Qui ?", choices: ["Rumi", "B", "C", "D"], correct: 0, imageId: I(6) }] } },
+      shows: { zoe: { rounds: [{ type: "quiz", seriesQuiz: [{ origine: "biblio", questions: [{ text: "Qui ?", imageId: I(4) }] }] }] } },
+    };
+    const duTheme = (f) => B.themeDeFiche(f) === "Mario";
+    assert.deepEqual(B.imagesDuTheme({ packs, medias, duTheme, ailleurs }), [I(1), I(2), I(5)].sort(),
+      "I(3) est dans Mes images, I(4) est copiée dans la prestation de Zoé, I(6) est à un autre thème");
+    assert.deepEqual(B.imagesDuTheme({ packs: {}, medias, duTheme }), [I(5)]);
+    assert.deepEqual([...B.imagesCitees({ a: { [I(7)]: "x", b: [I(8), "abc"] } })].sort(), [I(7), I(8)]);
+  });
+
   test("la recherche : chaque mot dans le nom, la catégorie ou les mots-clés, sans accents ni majuscules", () => {
     const elsa = { nom: "Elsa", cat: "Dessins animés", tags: ["princesse", "Reine des neiges"], ou: [] };
     assert.ok(B.correspond(elsa, ""));

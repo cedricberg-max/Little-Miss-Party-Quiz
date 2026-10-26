@@ -56,7 +56,7 @@ import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
 import {
-  GROUPES_IMAGES, A_RANGER, POCHETTES, PACKS, catDePack, themeDeFiche, estFicheDePack, imagesDesPacks, mesImagesDePacks, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, pochettesUtilisees, mesPochettes, nomPochette,
+  GROUPES_IMAGES, A_RANGER, POCHETTES, PACKS, catDePack, themeDeFiche, estFicheDePack, imagesDuTheme, imagesDesPacks, mesImagesDePacks, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, pochettesUtilisees, mesPochettes, nomPochette,
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
@@ -8230,6 +8230,41 @@ async function renommerTheme(nom, cartes) {
 }
 
 /**
+ * « 🗑 Supprimer ce thème » (cedric, 26/10 : effacer les anciens packs Mario, leurs questions et leurs photos avant
+ * d'importer les nouveaux) : tous ses packs et séries de photos, et les images qui ne servent qu'à eux, en un seul envoi.
+ * Mes images, les autres thèmes et les séries déjà copiées dans une prestation ne bougent pas.
+ */
+async function supprimerTheme(nom) {
+  const cle = cleTheme(nom) || nom;
+  const cartes = parTheme([...mesPacks(quizzes), ...mesSeriesDePhotos(quizzes)]).find(([t]) => (cleTheme(t) || t) === cle)?.[1] ?? [];
+  if (!cartes.length) return;
+  const ids = new Set(cartes.map((c) => c.id));
+  const packs = Object.fromEntries([...ids].map((id) => [id, quizzes[id]]));
+  const duTheme = (f) => { const t = themeDeFiche(f); return t != null && (f.cat === catDePack(nom) || (cleTheme(t) || t) === cle); };
+  const images = imagesDuTheme({
+    packs, medias, duTheme,
+    ailleurs: { quizzes: Object.fromEntries(Object.entries(quizzes).filter(([id]) => !ids.has(id))), shows, manches, mimes, contents, songs, playlists },
+  });
+  const questions = cartes.reduce((t, c) => t + (c.total ?? 0), 0);
+  const utilisent = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => roundQuizIds(r).some((id) => ids.has(id)))).map(showTitle);
+  const message = `Supprimer le thème « ${nom} » ?\n\n${plural(cartes.length, "pack")} (${plural(questions, "question")}) et ${plural(images.length, "image")} partent de la bibliothèque, pour de bon.`
+    + "\n\nMes images, les autres thèmes et les questions déjà copiées dans une prestation ne changent pas."
+    + (utilisent.length ? `\n\nAttention, ${utilisent.length > 1 ? "ces prestations utilisent" : "cette prestation utilise"} un de ces packs : ${utilisent.join(", ")}.` : "");
+  if (!(await confirmer(message, { ok: "Supprimer le thème", danger: true }))) return;
+  const ecritures = {};
+  for (const id of ids) ecritures[`library/quizzes/${id}`] = null;
+  for (const id of images) { ecritures[`library/images/${id}`] = null; ecritures[`library/medias/${id}`] = null; }
+  try {
+    await update(ref(db), ecritures);
+    qThemesOuverts.delete(cle);
+    annonce(`✓ Thème « ${nom} » supprimé : ${plural(cartes.length, "pack")} et ${plural(images.length, "image")}.`, true);
+  } catch (err) {
+    console.error(err);
+    annonce("Le thème n'a pas pu être supprimé : vérifiez la connexion. Rien n'a été changé.");
+  }
+}
+
+/**
  * Packs (ou séries de photos) rangés par thème (cedric, 25/10 : « le nom du thème directement : Mario, Barbie,
  * K-pop ») : une puce par niveau, puis une ligne repliée par thème, avec son nombre et ses pastilles de niveau ;
  * ▸ la déplie, « ✎ Renommer » renomme le thème ou le range dans un autre.
@@ -8256,7 +8291,8 @@ function packsParTheme(cartes, recherche, vide) {
     }, h("span", { class: "q-plier-fleche", text: ouvert ? "▾" : "▸" }), h("h2", { text: `🎨 ${t} (${liste.length})` }), h("span", { class: "famille-resume" }, ...resume));
     return h("section", { class: `q-groupe q-theme${ouvert ? " ouvert" : " replie"}`, "data-theme": t },
       h("div", { class: "title-row" }, plier,
-        h("button", { type: "button", class: "btn small secondary theme-renommer", text: "✎ Renommer", title: "Renommer ce thème, ou le ranger dans un autre", onclick: () => renommerTheme(t, liste) })),
+        h("button", { type: "button", class: "btn small secondary theme-renommer", text: "✎ Renommer", title: "Renommer ce thème, ou le ranger dans un autre", onclick: () => renommerTheme(t, liste) }),
+        h("button", { type: "button", class: "btn small danger theme-supprimer", text: "🗑 Supprimer", title: "Supprimer ce thème : ses packs, leurs questions et leurs images", onclick: () => supprimerTheme(t) })),
       ouvert ? h("div", { class: "cards" }, ...liste.map(cartePack)) : null);
   });
   return [puces, h("div", { class: "q-familles q-themes" }, ...themes)];

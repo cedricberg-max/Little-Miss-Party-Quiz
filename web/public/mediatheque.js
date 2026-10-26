@@ -178,6 +178,28 @@ export const themeDeFiche = (fiche) => (typeof fiche?.cat === "string" && fiche.
 /** Une fiche rangée dans « Images des packs » (avec ou sans son thème). */
 export const estFicheDePack = (fiche) => fiche?.cat === PACKS || themeDeFiche(fiche) != null;
 
+/** Identifiants d'images cités dans [x] (en valeur comme en clé), à toute profondeur. */
+export function imagesCitees(x, out = new Set()) {
+  if (!x || typeof x !== "object") return out;
+  for (const [k, v] of Object.entries(x)) {
+    if (IMAGE_ID.test(k)) out.add(k);
+    if (typeof v === "string") { if (IMAGE_ID.test(v)) out.add(v); } else imagesCitees(v, out);
+  }
+  return out;
+}
+
+/**
+ * « 🗑 Supprimer ce thème » (cedric, 26/10) : les images qui partent avec ses packs [packs] (`{ id: quiz }`) : celles
+ * qu'ils citent et celles rangées à son nom ([duTheme](fiche)), sauf une image que quelque chose d'autre cite encore
+ * ([ailleurs] : les autres quiz, les prestations, les jeux…) ou rangée ailleurs (Mes images, pochettes).
+ */
+export function imagesDuTheme({ packs = {}, medias = {}, duTheme = () => false, ailleurs = {} } = {}) {
+  const candidates = imagesCitees(packs);
+  for (const [id, f] of Object.entries(medias ?? {})) if (IMAGE_ID.test(id) && estFicheDePack(f) && duTheme(f)) candidates.add(id);
+  const gardees = imagesCitees(ailleurs);
+  return [...candidates].filter((id) => !gardees.has(id) && (!medias?.[id] || estFicheDePack(medias[id]))).sort();
+}
+
 /** Une image est une image de pack si sa fiche est rangée dans « Images des packs », ou si un pack s'en sert sans qu'elle l'ait rangée ailleurs. */
 const estImagePack = (id, fiche, packs) => estFicheDePack(fiche) || (!fiche?.cat && packs.has(id));
 
