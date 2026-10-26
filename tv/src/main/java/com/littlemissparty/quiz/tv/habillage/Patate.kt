@@ -169,7 +169,8 @@ fun ScenePatate(
                     val r = 0.55f + 0.45f * sin(ms / 420f + i * 1.7f)
                     drawOval(Brush.radialGradient(listOf(Neon.OrClair.copy(alpha = 0.38f * r), Color.Transparent)), Offset((x - 82f * s) * d, (y - 30f * s) * d), androidx.compose.ui.geometry.Size(164f * s * d, 60f * s * d))
                 }
-                estradeRonde(x * d, y * d, 50f * s * d, 13f * s * d, 15f * s * d)
+                if (Look.gs) anneauNeon(x * d, y * d, 54f * s * d, enNeon(equipes[i].second), ms, 13f * s * d)
+                else estradeRonde(x * d, y * d, 50f * s * d, 13f * s * d, 15f * s * d)
                 if (brille) for (k in 0 until 3) {
                     val ph = ((ms / 1_300f + i * 0.37f + k / 3f) % 1f)
                     val a = sin(ph * PI.toFloat())
@@ -194,7 +195,8 @@ fun ScenePatate(
                 val haut = 80f * d * sin(PI.toFloat() * u)
                 drawOval(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f * (1f - 0.7f * sin(PI.toFloat() * u))), Color.Transparent)), Offset(x - r * 1.1f, sol - 6f * d), androidx.compose.ui.geometry.Size(r * 2.2f, 12f * d))
                 val gonfle = 1f + 0.09f * pouls.value
-                dessineBombe(Offset(x, sol - r * gonfle - haut), r * gonfle, ms, 0.55f)
+                if (Look.gs) bombeNeon(Offset(x, sol - r * gonfle - haut), r * gonfle, ms, 0.55f, chauffe = (tens * tens).coerceIn(0f, 1f))
+                else dessineBombe(Offset(x, sol - r * gonfle - haut), r * gonfle, ms, 0.55f)
             }
             if (!explosion) {
                 // La grande mèche : elle brûle de droite à gauche et atteint la bombe pile à l'explosion.
@@ -208,9 +210,24 @@ fun ScenePatate(
                     var x = x0
                     while (x < bout) { x += 6f * d; lineTo(x.coerceAtMost(bout), y + 3f * d * sin(x / (14f * d))) }
                 }
-                drawLine(Color(0xFF3A2E48), Offset(bout, y), Offset(x1, y), 3f * d, StrokeCap.Round)
-                drawPath(corde, Color(0xFFE8D8B8), style = Stroke(7f * d, cap = StrokeCap.Round))
-                drawPath(corde, Color(0xFF9A8460), style = Stroke(7f * d, cap = StrokeCap.Round, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5f * d, 8f * d))))
+                if (Look.gs) {
+                    // Game Show (maquette validée) : la mèche est un tube de néon cyan ; brûlée, une corde noire calcinée.
+                    val brulee = Path().apply {
+                        moveTo(bout, y + 3f * d * sin(bout / (14f * d)))
+                        var x = bout
+                        while (x < x1) { x += 6f * d; lineTo(x.coerceAtMost(x1), y + 3f * d * sin(x / (14f * d)) + 1.5f * d * sin(x / (3.1f * d))) }
+                    }
+                    drawPath(brulee, Color(0xFF0A0710), style = Stroke(5f * d, cap = StrokeCap.Round))
+                    drawPath(brulee, Color(0xFF3A2E48).copy(alpha = 0.6f), style = Stroke(1.2f * d, cap = StrokeCap.Round))
+                    drawPath(corde, GS.Cyan.copy(alpha = 0.3f), style = Stroke(16f * d, cap = StrokeCap.Round))
+                    drawPath(corde, GS.Cyan, style = Stroke(7f * d, cap = StrokeCap.Round))
+                    drawPath(corde, Color.White.copy(alpha = 0.55f), style = Stroke(7f * d, cap = StrokeCap.Round, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(14f * d, 22f * d))))
+                    drawPath(corde, GS.CyanClair, style = Stroke(2f * d, cap = StrokeCap.Round))
+                } else {
+                    drawLine(Color(0xFF3A2E48), Offset(bout, y), Offset(x1, y), 3f * d, StrokeCap.Round)
+                    drawPath(corde, Color(0xFFE8D8B8), style = Stroke(7f * d, cap = StrokeCap.Round))
+                    drawPath(corde, Color(0xFF9A8460), style = Stroke(7f * d, cap = StrokeCap.Round, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5f * d, 8f * d))))
+                }
                 val e = Offset(bout, y + 3f * d * sin(bout / (14f * d)))
                 val vibre = 0.75f + 0.25f * sin(ms / 37f)
                 drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF6C8), Color(0xFFFFB347).copy(alpha = 0.7f), Color.Transparent), e, 26f * d * vibre), 26f * d * vibre, e)
@@ -219,7 +236,7 @@ fun ScenePatate(
                     val lg = (10f + 9f * abs(sin(ms / 47f + k))) * d
                     drawLine(Color(0xFFFFE9A0), e, e + Offset(cos(a) * lg, sin(a) * lg), 2f * d, StrokeCap.Round)
                 }
-                dessineBombe(Offset(104f * d, y + 6f * d), 26f * d, ms, 0f)
+                if (Look.gs) bombeNeon(Offset(104f * d, y + 6f * d), 26f * d, ms, 0f) else dessineBombe(Offset(104f * d, y + 6f * d), 26f * d, ms, 0f)
             } else {
                 // BOUM chez le porteur : boule de feu, onde de choc, fumée, éclair blanc.
                 val (x, y, s) = placePatate(p, n)
