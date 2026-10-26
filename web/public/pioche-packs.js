@@ -156,7 +156,7 @@ export function sourceDuDe(terme, themesLibres = {}) {
   const t = `${terme ?? ""}`.trim().replace(/\s+/g, " ");
   const plat = sansAccent(t).toLowerCase();
   if (!plat) return { sorte: "tout" };
-  if (/^(les |des )?(questions? )?libres?( de droits?)?$/.test(plat)) return { sorte: "libres" };
+  if (/^(les |des )?((questions?|affirmations?|photos?|cartes?|images?) )?libres?( de droits?)?$/.test(plat)) return { sorte: "libres" };
   if (/^(mes |les )?packs?$/.test(plat)) return { sorte: "packs" };
   const libelle = (x) => sansAccent(`${x}`).toLowerCase();
   const themeLibre = Object.entries(themesLibres).find(([k, l]) => k === plat || libelle(l) === plat)?.[0]
