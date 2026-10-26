@@ -49,6 +49,40 @@ const BOMBE_SVG = `
 </svg>`;
 
 /** Durée de la mèche (POTATO_FUSE_MS du moteur, la musique du jeu) : le rouge bat le plus vite à l'explosion. */
+/** Game Show : la bombe à cage de néon de la TV (maquette validée), sur son anneau de néon. Mêmes classes animées. */
+const BOMBE_SVG_GS = `
+<svg class="pc-dessin pc-neon" viewBox="0 0 160 170" aria-hidden="true">
+  <defs>
+    <radialGradient id="pcn-sphere" cx="36%" cy="30%" r="72%">
+      <stop offset="0" stop-color="#5A6488"/><stop offset=".5" stop-color="#1C2036"/><stop offset="1" stop-color="#07080F"/>
+    </radialGradient>
+    <radialGradient id="pcn-feu"><stop offset="0" stop-color="#FFF6C8"/><stop offset=".45" stop-color="#FFB347" stop-opacity=".8"/><stop offset="1" stop-color="#FF5A5F" stop-opacity="0"/></radialGradient>
+  </defs>
+  <g class="pc-socle">
+    <path d="M26 140 v9 a54 13 0 0 0 108 0 v-9 z" fill="#0c0818"/>
+    <ellipse class="pcn-anneau" cx="80" cy="140" rx="54" ry="13" fill="#05030a"/>
+  </g>
+  <g class="pc-corps">
+    <circle cx="76" cy="92" r="44" fill="url(#pcn-sphere)"/>
+    <g class="pcn-trait" fill="none">
+      <ellipse cx="76" cy="92" rx="17" ry="44"/><ellipse cx="76" cy="92" rx="36" ry="44"/>
+      <path d="M32 92 a44 13 0 0 0 88 0" stroke-width="3"/>
+    </g>
+    <g class="pcn-lampes">
+      <circle cx="40" cy="98" r="2.2"/><circle cx="51" cy="102" r="2.2"/><circle cx="63" cy="104.5" r="2.2"/><circle cx="76" cy="105" r="2.2"/>
+      <circle cx="89" cy="104.5" r="2.2"/><circle cx="101" cy="102" r="2.2"/><circle cx="112" cy="98" r="2.2"/>
+    </g>
+    <ellipse cx="58" cy="70" rx="13" ry="8" fill="#fff" opacity=".3" transform="rotate(-28 58 70)"/>
+    <rect x="64" y="40" width="24" height="12" fill="#1c2036"/><ellipse class="pcn-culot" cx="76" cy="40" rx="12" ry="3.5" fill="#2a3050"/>
+    <path class="pcn-meche" d="M76 38 q6 -18 26 -18" fill="none" stroke-linecap="round"/>
+    <g class="pc-etincelle">
+      <circle cx="103" cy="20" r="15" fill="url(#pcn-feu)"/>
+      <path d="M103 8 v24 M91 20 h24 M95 12 l16 16 M111 12 l-16 16" stroke="#FFE9A0" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="103" cy="20" r="3.5" fill="#fff"/>
+    </g>
+  </g>
+</svg>`;
+
 const MECHE_MAX_MS = 38391;
 
 /**
@@ -75,7 +109,7 @@ export function ecranPatate(hote, { surEnvoi }) {
     <div class="pc">
       <div class="pc-scene">
         <p class="pc-compteur" hidden></p>
-        <div class="pc-bombe" aria-hidden="true"><div class="pc-halo"></div>${BOMBE_SVG}<p class="pc-decompte" hidden></p></div>
+        <div class="pc-bombe" aria-hidden="true"><div class="pc-halo"></div>${document.body.classList.contains("look-gs") ? BOMBE_SVG_GS : BOMBE_SVG}<p class="pc-decompte" hidden></p></div>
         <p class="pc-titre"></p>
         <p class="pc-texte"></p>
         <div class="pc-colle"><span></span></div>

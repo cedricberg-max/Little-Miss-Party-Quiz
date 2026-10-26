@@ -17,13 +17,17 @@ export const REVELATION_MS = 1800;
 /** « +150 », « −100 » (vrai signe moins), comme sur la TV. */
 export const signe = (v) => `${v < 0 ? "−" : "+"}${Math.abs(v)}`;
 
+/** Game Show : les coffres 3D de la TV (img/coffres/gs-coffre-N.webp), numéro dans leur fenêtre noire. */
+const PLAQUES_GS = [[67.6, 23.4], [60, 23.4], [68.4, 23.4], [64.2, 23.4], [64.2, 23.4], [66.8, 23.4]];
+
 const coffreHTML = (i) => {
   const m = modeleCoffre(i);
-  const [y, h] = PLAQUES[m];
+  const gs = document.body.classList.contains("look-gs");
+  const [y, h] = (gs ? PLAQUES_GS : PLAQUES)[m];
   return `
   <span class="bc-coffre bc-m${m}">
     <span class="bc-lueur"></span>
-    <img class="bc-image" src="img/coffres/coffre-${m + 1}.svg" alt="" draggable="false">
+    <img class="bc-image" src="img/coffres/${gs ? `gs-coffre-${m + 1}.webp` : `coffre-${m + 1}.svg`}" alt="" draggable="false">
     <span class="bc-plaque" style="top:${y}%;height:${h}%">${i + 1}</span>
     <span class="bc-contenu"></span>
   </span>`;
