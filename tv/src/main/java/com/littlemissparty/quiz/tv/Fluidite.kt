@@ -13,6 +13,12 @@ internal object Fluidite : Choreographer.FrameCallback {
     /** Écran en cours, posé par l'habillage (« question zoom », « intro gonfleur »…). */
     @Volatile var ecran: String = "démarrage"
 
+    /**
+     * Moment précis dans l'écran, posé par une animation qui veut sa propre ligne (« vol » de la bombe, « boum »…) :
+     * compté sous « question bombe vol ». null : l'écran seul.
+     */
+    @Volatile var moment: String? = null
+
     private val compteur = CompteurFluidite()
     private var derniere = 0L
     private var lance = false
@@ -24,7 +30,7 @@ internal object Fluidite : Choreographer.FrameCallback {
     }
 
     override fun doFrame(nanos: Long) {
-        if (derniere != 0L) compteur.image((nanos - derniere) / 1_000_000, ecran)
+        if (derniere != 0L) compteur.image((nanos - derniere) / 1_000_000, moment?.let { "$ecran $it" } ?: ecran)
         derniere = nanos
         Choreographer.getInstance().postFrameCallback(this)
     }

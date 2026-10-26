@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv.habillage
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -69,6 +70,9 @@ private fun placePatate(i: Int, n: Int): Triple<Float, Float, Float> {
     return Triple(90f + 780f * f, 462f - creux * arc, k * (1f - 0.2f * arc))
 }
 
+/** Durée du vol de la bombe d'un socle à l'autre. */
+internal const val VOL_BOMBE_MS = 420
+
 /** La mèche montrée : elle raccourcit au rythme de la mèche et est entièrement consumée pile à l'explosion. */
 private fun mecheMontree(tension: Float): Float = 1f - tension.coerceIn(0f, 1f)
 
@@ -88,14 +92,20 @@ fun ScenePatate(
     val p = porteur.coerceIn(0, n - 1)
     val joue by rememberUpdatedState(jouer)
     val tens by rememberUpdatedState(tension.coerceIn(0f, 1f))
-    // Le vol de la bombe d'un socle à l'autre, à chaque passe.
+    // Le vol de la bombe d'un socle à l'autre, à chaque passe : vif, il part fort et se pose en douceur (« pas au
+    // taquet » à 600 ms linéaires, cedric 26/10). Ses images sont comptées à part dans les rapports de fluidité.
     var depart by remember { mutableIntStateOf(p) }
     val vol = remember { Animatable(1f) }
     LaunchedEffect(p) {
         if (depart != p) {
             joue(Son.PATATE_PASSE)
-            vol.snapTo(0f)
-            vol.animateTo(1f, tween(600, easing = LinearEasing))
+            com.littlemissparty.quiz.tv.Fluidite.moment = "vol"
+            try {
+                vol.snapTo(0f)
+                vol.animateTo(1f, tween(VOL_BOMBE_MS, easing = FastOutSlowInEasing))
+            } finally {
+                com.littlemissparty.quiz.tv.Fluidite.moment = null
+            }
         }
         depart = p
     }
@@ -115,7 +125,12 @@ fun ScenePatate(
     LaunchedEffect(explosion) {
         if (!explosion) { boum.snapTo(0f); return@LaunchedEffect }
         joue(Son.BOMBE_BOUM)
-        boum.animateTo(1f, tween(1_500, easing = LinearEasing))
+        com.littlemissparty.quiz.tv.Fluidite.moment = "boum"
+        try {
+            boum.animateTo(1f, tween(1_500, easing = LinearEasing))
+        } finally {
+            com.littlemissparty.quiz.tv.Fluidite.moment = null
+        }
     }
     val annonce = remember(p) { Animatable(0f) }
     LaunchedEffect(p) { delay(450); annonce.animateTo(1f, tween(420, easing = LinearEasing)) }
