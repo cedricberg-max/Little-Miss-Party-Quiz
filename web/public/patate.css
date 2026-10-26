@@ -152,3 +152,28 @@
   .pc-corps, .pc-etincelle, .pc-halo, .pc-equipe, .pc-equipe::before, .pc-equipe::after, .pc-chez-moi::before, .pc-colle span::after, .pc-bombe,
   .pc-chez-moi.pc-bat .pc-corps, .pc-chez-moi.pc-bat .pc-halo, .pc-chez-moi.pc-bat::before { animation: none !important; }
 }
+
+/* ---------- Game Show : la bombe à cage de néon et les anneaux de la TV, équipes en néon ---------- */
+.look-gs .pc { --neon: 0, 240, 255; }
+.look-gs .pc-chez-moi { --neon: 255, 106, 138; }
+.look-gs .pcn-trait { stroke: rgb(var(--neon)); stroke-width: 2.2; filter: drop-shadow(0 0 2.5px rgb(var(--neon))); transition: stroke .4s; }
+.look-gs .pcn-lampes { fill: #ff8ccf; filter: drop-shadow(0 0 2px #ff2d95); animation: pc-gs-lampes 1.1s steps(2) infinite; }
+.look-gs .pc-chez-moi .pcn-lampes { fill: #ffe27a; filter: drop-shadow(0 0 2px #ffb347); }
+@keyframes pc-gs-lampes { 50% { opacity: .45; } }
+.look-gs .pcn-culot { stroke: #ff2d95; stroke-width: 1.5; }
+.look-gs .pcn-meche { stroke: rgb(var(--neon)); stroke-width: 4; filter: drop-shadow(0 0 3px rgb(var(--neon))); }
+.look-gs .pcn-anneau { stroke: var(--team, var(--gs-cyan)); stroke-width: 2.5; filter: drop-shadow(0 0 4px var(--team, var(--gs-cyan))); }
+.look-gs .pc-chez-moi .pc-corps circle:first-child { fill: url(#pcn-sphere); }
+.look-gs .pc-halo { background: radial-gradient(closest-side, rgba(0, 240, 255, .22), transparent); }
+.look-gs .pc-titre { font-family: "GS Bungee"; font-weight: 400; color: #e6fdff; text-shadow: 0 0 14px var(--gs-cyan); }
+.look-gs .pc-chez-moi .pc-titre { color: #fff; text-shadow: 0 0 16px rgba(var(--rouge), .95); }
+.look-gs .pc-texte { color: var(--gs-encre); }
+.look-gs .pc-compteur { font-family: "GS Orbitron"; font-weight: 700; color: var(--gs-cyan); background: rgba(10, 6, 24, .85); box-shadow: 0 0 0 2px var(--gs-cyan), 0 0 12px rgba(0, 240, 255, .5); }
+.look-gs .pc-colle { background: rgba(10, 6, 24, .85); box-shadow: 0 0 0 2px rgba(0, 240, 255, .6); }
+.look-gs .pc-colle span { background: linear-gradient(90deg, #00f0ff, #8cf9ff 70%, #fff); box-shadow: 0 0 10px #00f0ff; }
+.look-gs .pc-equipe { font-family: "GS Bungee"; font-weight: 400; background: rgba(10, 6, 24, .88);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .55), 0 0 0 4px var(--eq), 0 0 18px var(--eq), inset 0 0 16px color-mix(in srgb, var(--eq) 35%, transparent); text-shadow: 0 0 10px var(--eq); }
+.look-gs .pc-equipe small { font-family: "GS Rajdhani"; font-weight: 700; }
+.look-gs .pc-equipe.pc-choisie { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--eq), 0 0 34px var(--eq); }
+.look-gs .pc-equipe.pc-neuve:not(:disabled)::before { box-shadow: 0 0 0 2px rgba(140, 249, 255, .6), 0 0 26px rgba(0, 240, 255, .55); }
+.look-gs .pc-equipe.pc-neuve:not(:disabled)::after { color: #8cf9ff; text-shadow: 0 0 8px #00f0ff; }

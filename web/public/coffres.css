@@ -66,3 +66,24 @@
 
 @media (prefers-reduced-motion: reduce) { .bc-case, .bc-coffre, .bc-danger, .bc-contenu { animation: none !important; } }
 #coffres-host { width: 100%; }
+
+/* ---------- Game Show : les coffres 3D de la TV, numéros allumés, enseigne de l'équipe en néon ---------- */
+.look-gs .bc-titre { font-family: "GS Bungee"; font-weight: 400; color: #e6fdff; text-shadow: 0 0 14px var(--gs-cyan); }
+.look-gs .bc-titre.bc-equipe { color: #fff; padding: 4px 22px; background: rgba(10, 6, 24, .9);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--eq), 0 0 22px var(--eq), inset 0 0 14px color-mix(in srgb, var(--eq) 45%, transparent);
+  text-shadow: 0 0 12px var(--eq); animation: bc-gs-souffle 2.2s ease-in-out infinite; }
+@keyframes bc-gs-souffle { 50% { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--eq), 0 0 34px var(--eq), inset 0 0 20px color-mix(in srgb, var(--eq) 55%, transparent); } }
+.look-gs .bc-texte { color: var(--gs-encre); }
+.look-gs .bc-plaque { color: #fff; font-family: "GS Orbitron"; font-weight: 900; font-size: 12cqw; text-shadow: 0 0 6px var(--gs-cyan), 0 0 14px var(--gs-cyan); }
+.look-gs .bc-lueur { background: radial-gradient(closest-side, rgba(0, 240, 255, .28), transparent); }
+.look-gs .bc-m0, .look-gs .bc-m3 { --t: 1.08; } .look-gs .bc-m1 { --t: .9; } .look-gs .bc-m2 { --t: .86; } .look-gs .bc-m4 { --t: .84; } .look-gs .bc-m5 { --t: .98; }
+.look-gs .bc-case[aria-pressed="true"] { filter: drop-shadow(0 0 14px var(--gs-cyan)); }
+.look-gs .bc-ouvert .bc-image { filter: brightness(.45) saturate(.6); }
+.look-gs .bc-danger { font-family: "GS Bungee"; font-weight: 400; color: #ffd0d6; background: rgba(40, 6, 18, .85); box-shadow: 0 0 0 2px #ff5a6e, 0 0 16px rgba(255, 60, 90, .6); }
+.look-gs .bc-ouvrir { font-family: "GS Bungee"; font-weight: 400; letter-spacing: .02em; color: #fff; background: rgba(10, 6, 24, .9);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 5px var(--gs-cyan), 0 0 26px var(--gs-cyan); text-shadow: 0 0 10px var(--gs-cyan); }
+.look-gs .bc-ligne { background: rgba(10, 6, 24, .8); }
+.look-gs .bc-contenu { font-family: "GS Orbitron"; font-weight: 900; font-size: 15cqw; }
+.look-gs .bc-plus .bc-contenu { color: #06200c; background: #39ff14; box-shadow: 0 0 12px #39ff14; }
+.look-gs .bc-moins .bc-contenu { color: #fff; background: #ff3b5c; box-shadow: 0 0 12px #ff3b5c; }
+.look-gs .bc-attente .bc-contenu { color: #e6fdff; background: rgba(10, 6, 24, .9); box-shadow: 0 0 0 2px var(--gs-cyan); }
