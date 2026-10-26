@@ -1556,7 +1556,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * reprendre la fête d'une box en panne ; la régie (et les règles) ne confient jamais une fête à une box plus ancienne.
      * `prestation` : la prestation de la bibliothèque jouée ici (liste des prestations de la régie, règles des lancements).
      * `teamColors` : les seules couleurs que les tablettes proposent aux équipes (bracelets et bandeaux de la prestation).
+     * `look` : le design de cette TV ; les pupitres le suivent, même ouverts sans le QR (vieil onglet, cedric 26/10).
      */
+    fun publierDesign() = publishPublic()
+
     private fun publishPublic() {
         val s = _state.value as? UiState.Playing ?: return
         val title = s.title.ifBlank { game?.quiz?.title.orEmpty() }
@@ -1564,6 +1567,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             clean(mapOf(
                 "title" to title.take(120), "childName" to s.childName.take(40).ifBlank { null }, "changeBox" to true,
                 "prestation" to prestation?.take(40), "teamColors" to couleursPrevues.ifEmpty { null },
+                "look" to if (com.littlemissparty.quiz.tv.habillage.Look.gs) "gs" else "classique",
             ))
         )
     }

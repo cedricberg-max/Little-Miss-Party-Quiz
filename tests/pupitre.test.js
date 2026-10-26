@@ -626,6 +626,20 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("Le design suit celui de la TV de la partie, même ouvert sans le QR (vieil onglet resté en Classique)", async () => {
+    // Téléphone de Sacha (cedric, 26/10) : un vieil onglet sans « &look=gs » gardait l'ancien design violet.
+    await set(ref(hostDb(), `games/${CODE}/public`), { title: "Fête", look: "gs" });
+    const page = await openPupitre("&look=classique");
+    await page.waitForFunction(() => document.body.classList.contains("look-gs"));
+    await joinTeam(page, "Sacha");
+    assert.equal(await page.evaluate(() => localStorage.getItem("lmp-look")), "gs", "retenu pour le prochain lien sans réglage");
+    // La TV repasse en Classique (menu Retour) : le pupitre suit en direct.
+    await set(ref(hostDb(), `games/${CODE}/public/look`), "classique");
+    await page.waitForFunction(() => !document.body.classList.contains("look-gs"));
+    assert.equal(await page.locator(".logo .gs-titre").count(), 0, "logo Classique remis");
+    await page.context().close();
+  });
+
   test("Game Show : au buzz, la tablette joue le mot de Daft Punk de son équipe, comme la TV ; en Classique, le petit air", async () => {
     const espion = (ctx) => ctx.addInitScript(() => {
       window.__sons = [];

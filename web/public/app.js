@@ -66,7 +66,7 @@ const takeover = params.get("reprise") === "1";
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
 // Design de la TV (menu Retour) : son QR code ajoute &look=gs ou &look=classique. Un lien sans ce réglage (QR de
 // reconnexion de la régie téléphone, écran d'accueil du téléphone) garde le dernier design vu sur cet appareil.
-const lookGs = (() => {
+let lookGs = (() => {
   try {
     if (params.has("look")) localStorage.setItem("lmp-look", params.get("look") === "gs" ? "gs" : "classique");
     return localStorage.getItem("lmp-look") === "gs";
@@ -74,11 +74,36 @@ const lookGs = (() => {
     return params.get("look") === "gs";
   }
 })();
-if (lookGs) {
-  document.body.classList.add("look-gs");
-  for (const logo of document.querySelectorAll(".logo:not(.small)")) {
-    logo.innerHTML = '<span class="gs-the">THE</span><span class="gs-titre">GAME SHOW</span><span class="gs-by">by Little Miss Party</span>';
+const LOGO_CLASSIQUE = new Map([...document.querySelectorAll(".logo:not(.small)")].map((l) => [l, l.innerHTML]));
+function appliquerLook() {
+  document.body.classList.toggle("look-gs", lookGs);
+  for (const [logo, classique] of LOGO_CLASSIQUE) {
+    logo.innerHTML = lookGs ? '<span class="gs-the">THE</span><span class="gs-titre">GAME SHOW</span><span class="gs-by">by Little Miss Party</span>' : classique;
   }
+}
+appliquerLook();
+
+/**
+ * Le design suit celui de la TV de la partie (games/<code>/public/look), pas seulement le QR : un téléphone rouvert sur
+ * un vieil onglet, sans « &look= », gardait l'ancien design (téléphone de Sacha, cedric 26/10). Écouteur à part, jamais
+ * débranché par stopListening().
+ */
+function suivreLook() {
+  onValue(ref(db, `games/${code}/public/look`), (s) => {
+    const v = s.val();
+    if (v !== "gs" && v !== "classique") return;
+    try { localStorage.setItem("lmp-look", v); } catch { /* stockage refusé : le design suit quand même */ }
+    if ((v === "gs") === lookGs) return;
+    lookGs = v === "gs";
+    appliquerLook();
+    // Les mots de Daft Punk du buzz : chargés dès que la partie passe en Game Show.
+    if (lookGs && teamId) {
+      try {
+        audio ??= new (window.AudioContext || window.webkitAudioContext)();
+        chargerMotsEquipes();
+      } catch { /* pas de son sur ce navigateur : le jeu continue */ }
+    }
+  });
 }
 
 let db, uid, gameRef;
@@ -280,6 +305,7 @@ async function start() {
     const host = await get(ref(db, `games/${code}/hostUid`));
     gameExists = host.exists();
     if (!host.exists()) return fail(`La partie ${code} n'existe pas ou est terminée.`);
+    suivreLook();
     // Téléphone de l'animatrice déjà relié : retour direct à la régie (rechargement, écran verrouillé).
     if (await hasAccess({ db, uid }, code)) return enterRegie();
     const teams = (await get(ref(db, `games/${code}/teams`))).val() ?? {};

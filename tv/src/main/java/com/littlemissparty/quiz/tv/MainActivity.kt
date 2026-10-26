@@ -91,6 +91,8 @@ class MainActivity : ComponentActivity() {
                         val d = Look.design.suivant
                         Look.design = d
                         reglages.edit().putString(CLE_DESIGN, d.cle).apply()
+                        // Les pupitres de la partie en cours suivent le nouveau design.
+                        viewModel.publierDesign()
                         // Les sons suivent le design (sons sci-fi du Game Show).
                         com.littlemissparty.quiz.tv.habillage.Sons.recharger(this@MainActivity)
                     },
