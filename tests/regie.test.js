@@ -7905,11 +7905,12 @@ describe("bibliothèque de quiz et prestations", () => {
     await ajouterJeu(page, "musical");
     const round = page.locator("#show-rounds .round").nth(0);
     const compteur = round.locator(".quiz-compteur");
-    // Pas de manches, ni « Reprendre », ni Note ; pas de « Sélectionner mes chansons » (cedric : le 🎲, une playlist, le récap).
+    // Pas de manches, ni « Reprendre », ni Note ; « Sélectionner mes chansons » comme au Blind test (cedric, 26/10).
     const bloc = page.locator('#show-rounds .jeu-bloc[data-jeu="musical"]');
     assert.equal(await bloc.locator(".jeu-nb, .jeu-plus").count(), 0);
-    assert.equal(await round.locator(".reprendre-ouvrir, .manche-note, .blind-manuel").count(), 0);
-    assert.equal(await compteur.textContent(), "Aucune chanson pour l'instant : touchez 🎲 ou ajoutez une playlist");
+    assert.equal(await round.locator(".reprendre-ouvrir, .manche-note").count(), 0);
+    assert.equal(await round.locator(".blind-manuel .blind-selectionner").textContent(), "🎵 Sélectionner mes chansons");
+    assert.equal(await compteur.textContent(), "Aucune chanson pour l'instant : touchez 🎲, « Sélectionner mes chansons » ou ajoutez une playlist");
     // 🎲 : 5 chansons, avec leur mini pochette et « ✓ Paroles » (le refrain et ses paroles passent à la révélation).
     await round.locator(".blind-nombre").selectOption("5");
     await round.locator(".quiz-outils .tirage-de").click();
@@ -7933,7 +7934,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await pl.locator(".blind-chanson[data-chanson]").first().locator(".tirage-retirer").click();
     await waitFor(async () => (await ids(pl)).length === dansPl.length - 1, "chanson enlevée de la playlist du quiz");
     assert.equal((await library("playlists/pl/tracks")).length, 7, "la playlist de la bibliothèque ne change pas");
-    const total = tires.length + dansPl.length - 1;
+    // « 🎵 Sélectionner mes chansons » (cedric, 26/10) : choisie à la main, elle vient après les autres dans le « complet ».
+    await round.locator(".blind-selectionner").click();
+    const choix = page.locator(".choix-sons");
+    await choix.locator(`.choix-chanson[data-chanson="${dansPl[0]}"]`).click();
+    await choix.locator(".choix-valider", { hasText: "(1)" }).click();
+    await choix.waitFor({ state: "detached" });
+    await round.locator('.blind-serie[data-origine="choix"]').waitFor();
+    assert.equal(await round.locator(".blind-selection").textContent(), "1 chanson sélectionnée");
+    const total = tires.length + dansPl.length;
     await compteur.filter({ hasText: new RegExp(`^${total} chansons à trouver$`) }).waitFor();
     // « Quiz musical complet » : tout, dans l'ordre de passage ; ↑ et 🔀.
     const complet = round.locator(".blind-complet");
@@ -7941,6 +7950,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await complet.locator(".blind-complet-voir").click();
     const ordre = () => complet.locator(".blind-complet-q").evaluateAll((xs) => xs.map((x) => x.dataset.chanson));
     const avant = await ordre();
+    assert.equal(avant.at(-1), dansPl[0], "la chanson choisie à la main, après les autres");
+    assert.equal(await complet.locator(`.blind-complet-q[data-chanson="${dansPl[0]}"] .blind-paroles`).textContent(), "✓ Paroles");
     await complet.locator(".blind-complet-q").nth(1).locator(".quiz-complet-monter").click();
     await waitFor(async () => (await ordre())[0] === avant[1], "la 2e passe en premier");
     await complet.locator(".blind-melanger").click();

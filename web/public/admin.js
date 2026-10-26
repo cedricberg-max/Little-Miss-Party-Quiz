@@ -2051,14 +2051,14 @@ function mancheBlind(r) {
   const aTirer = chansonsBrutes(r).filter((id) => !id).length;
   const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
     text: presentes.length || aTirer ? `${pluriel(presentes.length, "chanson")} à trouver${aTirer ? ` · ${aTirer} à tirer` : ""}`
-      : musical ? "Aucune chanson pour l'instant : touchez 🎲 ou ajoutez une playlist" : "Aucune chanson pour l'instant : touchez 🎲, « Sélectionner mes chansons » ou ajoutez une playlist" });
+      : "Aucune chanson pour l'instant : touchez 🎲, « Sélectionner mes chansons » ou ajoutez une playlist" });
   // Une manche préparée avant (une playlist entière, des extraits choisis) : elle se joue encore telle quelle.
   const ancienne = !r.seriesBlind.length && (r.playlistId || roundTracks(r).length)
     ? h("p", { class: "small hint blind-ancienne", text: `${musical ? "Quiz musical" : "Blind test"} préparé à l'ancienne : ${mancheSummary(r, { playlists })}, joué tel quel. Le 🎲${musical ? "" : ", vos chansons"} ou une playlist le remplacent.` })
     : null;
   return [
     compteur,
-    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de), musical ? null : aLaMain, ajoutPlaylist),
+    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de), aLaMain, ajoutPlaylist),
     ancienne,
     r.seriesBlind.length ? liste : null,
     blindComplet(r, presentes, ranger, changer),
