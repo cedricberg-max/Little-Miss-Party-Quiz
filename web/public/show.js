@@ -35,9 +35,17 @@ export const GONFLEUR_RULE = "chaque équipe tapote sa tablette le plus vite pos
 export const GONFLEUR_SEC = 45;
 /**
  * « Ça va exploser ! » : une bombe passe d'équipe en équipe depuis les tablettes, sa mèche (tirée au sort par la TV)
- * reste secrète. Rien à préparer.
+ * reste secrète. Seul réglage : le nombre de bombes (cedric, 26/10, test Mi Box), de 1 à 6, 3 d'office.
  */
-export const PATATE_RULE = "la bombe peut exploser à tout moment ! Chaque équipe s'en débarrasse en l'envoyant à une autre depuis sa tablette, en 3 secondes au plus, sinon elle lui explose dans les mains ; à chaque explosion, l'équipe qui la tient perd 100 points et toutes les autres en gagnent 100. Trois bombes par partie";
+export const PATATE_BOMBES = [1, 2, 3, 4, 5, 6];
+export const PATATE_BOMBES_DEFAUT = 3;
+/** Le nombre de bombes d'une manche « Ça va exploser ! », ramené dans ses limites (3 d'office). */
+export const bombesDe = (round) => (Number.isInteger(round?.bombs) ? Math.min(6, Math.max(1, round.bombs)) : PATATE_BOMBES_DEFAUT);
+const EN_LETTRES = ["Une", "Deux", "Trois", "Quatre", "Cinq", "Six"];
+/** « Trois bombes par partie », « Une bombe par partie »… */
+export const bombesParPartie = (n = PATATE_BOMBES_DEFAUT) => `${EN_LETTRES[n - 1] ?? n} bombe${n > 1 ? "s" : ""} par partie`;
+export const regleDePatate = (n = PATATE_BOMBES_DEFAUT) => `la bombe peut exploser à tout moment ! Chaque équipe s'en débarrasse en l'envoyant à une autre depuis sa tablette, en 3 secondes au plus, sinon elle lui explose dans les mains ; à chaque explosion, l'équipe qui la tient perd 100 points et toutes les autres en gagnent 100. ${bombesParPartie(n)}`;
+export const PATATE_RULE = regleDePatate();
 /** Type de manche joué : les anciennes Portes mystères deviennent les Coffres mystères. */
 export const roundType = (type) => (type === "portes" ? "coffres" : type);
 
@@ -1283,7 +1291,9 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     if (round.type === "patate") {
       // Un seul élément : la TV tire la mèche au sort et la bombe part d'une équipe au hasard.
       rounds.push({ title: ROUND_TYPES.patate, count: 1 });
-      questions.push({ id: `r${i + 1}p`, text: ROUND_TYPES.patate, kind: "patate", choices: [], correct: -1, duration: 40, double: false, round: ROUND_TYPES.patate });
+      // Le nombre de bombes réglé dans la Régie PC (cedric, 26/10) ; sans réglage, la TV en met 3.
+      questions.push({ id: `r${i + 1}p`, text: ROUND_TYPES.patate, kind: "patate", choices: [], correct: -1, duration: 40, double: false, round: ROUND_TYPES.patate,
+        ...(Number.isInteger(round.bombs) ? { bombs: bombesDe(round) } : {}) });
       return;
     }
     if (round.type === "gonfleur") {
@@ -1583,7 +1593,7 @@ export const DUREE_ESTIMEE = {
   // Mimes : passages par équipe (sauf nombre réglé dans la manche), et le changement d'équipe après chacun.
   mimesParEquipe: 2, apresMime: 15,
   // Pictionary : un dessin par équipe ; statues : la durée choisie ; coffres : un tour par équipe.
-  apresDessin: 30, apresStatues: 30, coffreParEquipe: 60, coffres: 60, gonfleur: 90, patate: 120,
+  apresDessin: 30, apresStatues: 30, coffreParEquipe: 60, coffres: 60, gonfleur: 90, bombe: 50,
   presentation: 60, accueil: 180, podium: 120, pauses: 0.1,
 };
 
@@ -1596,7 +1606,8 @@ function secondesDeJeu(q, equipes, parEquipe = 0) {
   if (q.kind === "statues") return q.duration + D.apresStatues;
   if (q.kind === "coffres" || q.kind === "portes") return equipes * D.coffreParEquipe + D.coffres;
   if (q.kind === "gonfleur") return D.gonfleur;
-  if (q.kind === "patate") return D.patate;
+  // Environ 50 s par bombe (mèche, passes, explosion, scores).
+  if (q.kind === "patate") return D.bombe * bombesDe(q);
   if (q.kind === "express") return q.duration + D.apresExpress;
   return q.duration + (q.audioId ? D.apresTitre : D.apresQuestion);
 }
