@@ -44,4 +44,14 @@ class CompteurFluiditeTest {
         val ligne = c.ligne()!!
         assertEquals(listOf("ecran 6", "ecran 5", "ecran 4", "ecran 3"), Regex("ecran \\d").findAll(ligne).map { it.value }.toList())
     }
+
+    @Test
+    fun `réception des buzz et des envois de bombe : médiane et pire, puis remise à zéro`() {
+        Reactivite.releve()
+        listOf(120L, 90L, 400L).forEach { Reactivite.noter("buzz", it) }
+        Reactivite.noter("bombe", -30)
+        Reactivite.noter("bombe", 90_000)
+        assertEquals("réception : buzz 3 (médiane 120 ms, pire 400 ms), bombe 1 (médiane 0 ms, pire 0 ms)", Reactivite.releve())
+        assertNull(Reactivite.releve())
+    }
 }

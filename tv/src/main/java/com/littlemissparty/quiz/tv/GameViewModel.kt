@@ -1773,6 +1773,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             CrashReporter.report(db, "sante", bilan.ligne())
             // Fluidité des 5 dernières minutes : où la box a accroché (cedric, 25/10 : la Mi Box comme référence).
             Fluidite.releve()?.let { CrashReporter.report(db, "fluidite", it) }
+            Reactivite.releve()?.let { CrashReporter.report(db, "fluidite", it) }
         }
     }
 
@@ -1973,6 +1974,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val team = snapshot.child("team").getValue(String::class.java) ?: return
+                snapshot.child("at").getValue(Long::class.java)?.let { Reactivite.noter("buzz", serverNow() - it) }
                 act { g -> if (Codec.buzzKey(g) == key && teams().any { it.uid == team }) g.buzz(team, serverNow()) else null }
             }
 
@@ -2052,6 +2054,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val to = snapshot.child("to").getValue(String::class.java) ?: return
                 val at = snapshot.child("at").getValue(Long::class.java) ?: serverNow()
+                Reactivite.noter("bombe", serverNow() - at)
                 act { g ->
                     val holder = g.state.potato?.holder
                     if (Codec.potatoKey(g) != key || holder == null) null else g.passPotato(holder, to, serverNow(), sentAt = at)

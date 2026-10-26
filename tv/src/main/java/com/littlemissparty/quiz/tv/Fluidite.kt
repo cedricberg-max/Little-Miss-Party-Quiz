@@ -86,3 +86,27 @@ internal class CompteurFluidite {
         const val IGNORE_MS = 5_000L
     }
 }
+
+/**
+ * Délai entre l'appui sur une tablette (heure du serveur de son écriture) et sa réception par la box : buzz, envoi de
+ * la bombe (cedric, 26/10 : petit décalage du buzz au blind test, bombe « pas au taquet »). Le compte part dans les
+ * rapports de la box toutes les 5 min, avec la fluidité. Rien ici ne touche à la partie.
+ */
+internal object Reactivite {
+    private val mesures = linkedMapOf<String, MutableList<Long>>()
+
+    @Synchronized fun noter(quoi: String, ms: Long) {
+        // Horloges mal calées (heure du serveur pas encore connue) : rien à en tirer.
+        if (ms < -2_000 || ms > 60_000) return
+        mesures.getOrPut(quoi) { mutableListOf() } += ms.coerceAtLeast(0)
+    }
+
+    /** « réception : buzz 6 (médiane 140 ms, pire 380 ms), bombe 14 (médiane 120 ms, pire 260 ms) », puis remise à zéro. */
+    @Synchronized fun releve(): String? {
+        if (mesures.isEmpty()) return null
+        return "réception : " + mesures.entries.joinToString(", ") { (quoi, l) ->
+            val tri = l.sorted()
+            "$quoi ${tri.size} (médiane ${tri[tri.size / 2]} ms, pire ${tri.last()} ms)"
+        }.also { mesures.clear() }
+    }
+}
