@@ -2080,6 +2080,61 @@ function mancheBlind(r) {
   ].filter(Boolean);
 }
 
+/** [liste] avec l'élément de la place [k] passé à la place [j]. */
+const deplaceEn = (liste, k, j) => {
+  const l = [...liste];
+  l.splice(j, 0, ...l.splice(k, 1));
+  return l;
+};
+
+/**
+ * Glisser une ligne d'une liste « … complet » à la souris, plus haut ou plus bas (cedric, 26/10 : « tous les écrans de
+ * composition d'un jeu »), en plus de ↑ ↓. [lignes] : ses <li>, dans l'ordre ; [bouger(k, j)] : la ligne [k] passe à la
+ * place [j] ; [glissable(k)] : faux pour une place vide (on peut quand même poser une ligne à côté).
+ */
+function glisserDansLaListe(liste, lignes, bouger, glissable = () => true) {
+  let glissee = null;
+  const sans = (...classes) => liste.querySelectorAll(classes.map((c) => `.${c}`).join(", ")).forEach((li) => li.classList.remove(...classes));
+  const cible = (e) => {
+    let li = e.target;
+    while (li && !lignes.includes(li)) li = li.parentElement;
+    if (!li) return null;
+    const { top, height } = li.getBoundingClientRect();
+    return { li, k: lignes.indexOf(li), avant: e.clientY < top + height / 2 };
+  };
+  lignes.forEach((li, k) => {
+    if (!glissable(k)) return;
+    li.draggable = true;
+    li.addEventListener("dragstart", (e) => {
+      glissee = k;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", `${k + 1}`);
+      li.classList.add("glisse");
+    });
+    li.addEventListener("dragend", () => { glissee = null; sans("glisse", "depose-avant", "depose-apres"); });
+  });
+  liste.addEventListener("dragover", (e) => {
+    const c = glissee === null ? null : cible(e);
+    if (!c) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    sans("depose-avant", "depose-apres");
+    c.li.classList.add(c.avant ? "depose-avant" : "depose-apres");
+  });
+  liste.addEventListener("dragleave", (e) => { if (!liste.contains(e.relatedTarget)) sans("depose-avant", "depose-apres"); });
+  liste.addEventListener("drop", (e) => {
+    const k = glissee;
+    const c = k === null ? null : cible(e);
+    glissee = null;
+    sans("glisse", "depose-avant", "depose-apres");
+    if (!c) return;
+    e.preventDefault();
+    let j = c.avant ? c.k : c.k + 1;
+    if (j > k) j--;
+    if (j !== k) bouger(k, j);
+  });
+}
+
 /**
  * Dernière ligne d'un blind test (cedric, 24/10 : « un récapitulatif global des deux ajouts mélangés ») : le « Blind
  * test complet », toutes les chansons dans l'ordre de passage. Déplié : chacune monte, descend ou s'enlève (de sa
@@ -2124,6 +2179,13 @@ function blindComplet(r, ordre, ranger, changer) {
         h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever cette chanson du ${r.type === "musical" ? "quiz musical" : "blind test"}`, "aria-label": `Enlever « ${song.title.trim()} »`, onclick: () => enlever(id) })));
   });
   const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste blind-complet-liste" }, ...lignes);
+  // Glissée à la souris : les places des chansons du « complet » dans le blind test gardent leurs voisines d'ailleurs.
+  glisserDansLaListe(liste, lignes, (k, j) => {
+    const places = ordre.map((id) => tout.indexOf(id));
+    const nouvel = [...tout];
+    deplaceEn(ordre, k, j).forEach((id, n) => { nouvel[places[n]] = id; });
+    poser(nouvel);
+  });
   liste.hidden = !blindsCompletsDeplies.has(r);
   const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${r.type === "musical" ? "Quiz musical" : "Blind test"} complet : ${ordre.length} chanson${ordre.length > 1 ? "s" : ""}, dans l'ordre de passage`;
   const voir = h("button", {
@@ -2778,6 +2840,7 @@ function mancheMots(r) {
       h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer ${ce} ${unite} plus tard`, "aria-label": `Descendre « ${nomDe(x.m)} »`, disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
       h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever ${ce} ${unite} de ${jeu}`, "aria-label": `Enlever « ${nomDe(x.m)} »`, onclick: () => enleverDuComplet(x) })))));
   const listeComplete = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignesCompletes);
+  glisserDansLaListe(listeComplete, lignesCompletes, (k, j) => poser(deplaceEn(vue, k, j)), (k) => !vue[k].vide);
   listeComplete.hidden = unique ? motsCompletsFermes.has(r) : !motsCompletsDeplies.has(r);
   const titreComplet = () => `${listeComplete.hidden ? "▸" : "▾"} 🧩 ${jeu} complet : ${nMots(ordre.length)}, dans l'ordre de passage${nVides ? ` (${nVides} à tirer)` : ""}`;
   const complet = h("div", { class: "serie quiz-complet mots-complet" },
@@ -3010,6 +3073,9 @@ function statuesChansons(r) {
         h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Jouer cette chanson plus tard", "aria-label": "Descendre cette chanson", disabled: i === ids.length - 1, onclick: () => bouger(1) }),
         enlever));
   };
+  const lignes = ids.map(ligne);
+  const liste = h("ol", { class: "tirage-liste statues-liste" }, ...lignes);
+  glisserDansLaListe(liste, lignes, (k, j) => ranger(deplaceEn(ids, k, j)));
   const avant = ids.length ? [] : roundSongs(r, playlists);
   const resume = ids.length ? `${pluriel(ids.length, "chanson")}, ${ids.length > 1 ? "jouées l'une après l'autre" : "jouée en boucle"} : la TV joue leur refrain.`
     : avant.length ? `Pour l'instant : ${pluriel(avant.length, "extrait")} coché${avant.length > 1 ? "s" : ""} avant dans vos playlists. Ajoutez vos chansons pour les remplacer.`
@@ -3018,7 +3084,7 @@ function statuesChansons(r) {
     h("div", { class: "tirage-ligne" }, nombre, de, choisir),
     ajoutPlaylist,
     h("p", { class: "hint small statues-resume", text: resume }),
-    ids.length ? h("ol", { class: "tirage-liste statues-liste" }, ...ids.map(ligne)) : null);
+    ids.length ? liste : null);
 }
 
 /** Jeux que « ＋ Ajouter un jeu » propose, par famille, dans l'ordre des tuiles de l'Accueil. */
@@ -4349,6 +4415,12 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
     for (let essai = 0; essai < 5 && cles.length > 1 && nouvel.every((c, k) => c === cles[k]); essai++) nouvel = brasser();
     ranger(nouvel, true);
   };
+  // Glisser une question à la souris plus haut ou plus bas (cedric, 26/10), en plus de ↑ ↓ : comme au 🔀, les N
+  // dernières places restent la Super Finale (les bougies ou une case vide posées là passent juste avant).
+  const garderFinale = (liste) => {
+    const fin = liste.filter((c) => reelles.has(c)).slice(-clesFinale.size);
+    return clesFinale.size ? [...liste.filter((c) => !fin.includes(c)), ...fin] : liste;
+  };
   const lignes = vue.map((x, k) => (x.vide ? caseVideQuiz(x, k) : h("li", { class: `tirage-q quiz-complet-q${x.bougies ? " quiz-complet-bougies" : ""}${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
@@ -4370,6 +4442,7 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
     h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : photos ? "Photo à tirer" : unite === "affirmation" ? "Affirmation à tirer" : "Question à tirer" })));
   const lignesVides = vides.map((v) => (v.serie?.pioche ? caseVidePioche(r, v.serie, v.i, profilVides, changer) : caseVideDe(v)));
   const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignesVides, ...lignes);
+  glisserDansLaListe(liste, lignes, (k, j) => ranger(garderFinale(deplaceEn(cles, k, j)), vue[k].bougies), (k) => !vue[k].vide);
   // Le Quiz (cedric, 26/10) : son « complet » ouvert d'office.
   liste.hidden = unique ? quizCompletsFermes.has(r) : !quizCompletsDeplies.has(r);
   const nVides = unique ? vue.filter((x) => x.vide).length : vides.length;

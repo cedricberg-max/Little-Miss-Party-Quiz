@@ -2938,6 +2938,17 @@ async function openQuizzes(page, type = "quiz") {
   await page.locator("#screen-quizzes:not([hidden])").waitFor();
 }
 
+/** Glisser la ligne [source] à la souris sur le haut (avant) ou le bas (après) de la ligne [cible] (cedric, 26/10). */
+async function glisser(source, cible, bas) {
+  // Les deux lignes à l'écran ensemble (à la main, la page défile d'elle-même quand on approche du bord).
+  const page = source.page();
+  const ecran = page.viewportSize();
+  await page.setViewportSize({ width: ecran.width, height: 2400 });
+  const { height } = await cible.boundingBox();
+  await source.dragTo(cible, { targetPosition: { x: 40, y: bas ? height - 3 : 3 } });
+  await page.setViewportSize(ecran);
+}
+
 async function waitFor(fn, what, ms = 8000) {
   const end = Date.now() + ms;
   for (;;) {
@@ -6759,6 +6770,11 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await ordre(), [...tires2, "Arc-en-ciel"]);
     await complet.locator(".quiz-complet-q").nth(0).locator(".quiz-complet-descendre").click();
     await waitFor(async () => (await ordre()).join() === [tires2[1], tires2[0], ...tires2.slice(2), "Arc-en-ciel"].join(), "le premier passe en 2e");
+    // Glissé à la souris (cedric, 26/10) : le dernier posé en tête, puis remis en bas.
+    await glisser(complet.locator(".quiz-complet-q").last(), complet.locator(".quiz-complet-q").first(), false);
+    await waitFor(async () => (await ordre()).join() === ["Arc-en-ciel", tires2[1], tires2[0], ...tires2.slice(2)].join(), "glissé en tête");
+    await glisser(complet.locator(".quiz-complet-q").first(), complet.locator(".quiz-complet-q").last(), true);
+    await waitFor(async () => (await ordre()).join() === [tires2[1], tires2[0], ...tires2.slice(2), "Arc-en-ciel"].join(), "glissé en bas");
     const avant = await ordre();
     await complet.locator(".quiz-melanger").click();
     await waitFor(async () => (await ordre()).join() !== avant.join(), "mélangés");
@@ -6885,6 +6901,10 @@ describe("bibliothèque de quiz et prestations", () => {
     const avantDescente = await ordre();
     await complet.locator(".quiz-complet-q").nth(0).locator(".quiz-complet-descendre").click();
     await waitFor(async () => (await ordre()).join() === [avantDescente[1], avantDescente[0], ...avantDescente.slice(2)].join(), "le premier passe en 2e");
+    // Glissé à la souris (cedric, 26/10) : le 2e posé sous le 4e.
+    const glisse = await ordre();
+    await glisser(complet.locator(".quiz-complet-q").nth(1), complet.locator(".quiz-complet-q").nth(3), true);
+    await waitFor(async () => (await ordre()).join() === [glisse[0], glisse[2], glisse[3], glisse[1], ...glisse.slice(4)].join(), "glissé plus bas");
     const avant = await ordre();
     await complet.locator(".quiz-melanger").click();
     await waitFor(async () => (await ordre()).join() !== avant.join(), "mélangés");
@@ -7781,6 +7801,10 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(avant.slice(0, 8).sort(), avecC2.slice().sort());
     await complet.locator(".blind-complet-q").last().locator(".quiz-complet-monter").click();
     await waitFor(async () => (await ordreComplet()).slice(-2).join() === "m2,m1", "m2 passe avant m1");
+    // Glissée à la souris (cedric, 26/10) : la dernière posée en tête.
+    const avantGlisse = await ordreComplet();
+    await glisser(complet.locator(".blind-complet-q").last(), complet.locator(".blind-complet-q").first(), false);
+    await waitFor(async () => (await ordreComplet()).join() === ["m1", ...avantGlisse.slice(0, -1)].join(), "glissée en tête");
     await complet.locator('.blind-complet-q[data-chanson="c1"] .tirage-retirer').click();
     await compteur.filter({ hasText: /^9 chansons à trouver$/ }).waitFor();
     assert.ok(!(await ids()).includes("c1"), "enlevée de sa série aussi");
@@ -8602,6 +8626,27 @@ describe("bibliothèque de quiz et prestations", () => {
     // Les bougies se rangent à la main, comme les autres.
     await complet.locator(".quiz-complet-bougies .quiz-complet-monter").click();
     assert.deepEqual(await ordre(), [BOUGIES, "Combien de pattes a une araignée ?", "Quelle est la capitale de l'Italie ?", "Quelle planète est la plus proche du Soleil ?", "🔢 Combien de jours dans une semaine ?"]);
+    // Glisser à la souris (cedric, 26/10), les flèches restent : la question posée en bas entre dans la Super Finale.
+    const finales = () => complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.map((x) => x.classList.contains("en-finale")));
+    const ligne = (texte) => complet.locator(".quiz-complet-q", { has: page.locator(".tirage-texte", { hasText: texte }) });
+    const poser = (a, b, bas) => glisser(ligne(a), ligne(b), bas);
+    await poser("araignée", "jours dans une semaine", true);
+    await waitFor(async () => (await ordre())[4] === "Combien de pattes a une araignée ?", "glissée en dernière place");
+    assert.deepEqual(await ordre(), [BOUGIES, "Quelle est la capitale de l'Italie ?", "Quelle planète est la plus proche du Soleil ?", "🔢 Combien de jours dans une semaine ?", "Combien de pattes a une araignée ?"]);
+    assert.deepEqual(await finales(), [false, false, true, true, true]);
+    // Posée au-dessus de la première : en tête.
+    await poser("planète", "Le Juste Chiffre", false);
+    await waitFor(async () => (await ordre())[0] === "Quelle planète est la plus proche du Soleil ?", "glissée en tête");
+    assert.deepEqual(await ordre(), ["Quelle planète est la plus proche du Soleil ?", BOUGIES, "Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Combien de pattes a une araignée ?"]);
+    assert.deepEqual(await finales(), [false, false, true, true, true]);
+    // Les bougies se glissent aussi ; posées tout en bas, elles ne prennent pas une place de la Super Finale : elles passent juste avant.
+    await poser("Le Juste Chiffre", "planète", false);
+    await waitFor(async () => (await ordre())[0] === BOUGIES, "bougies en tête");
+    await poser("Le Juste Chiffre", "araignée", true);
+    await waitFor(async () => (await ordre())[1] === BOUGIES, "bougies glissées en bas");
+    assert.deepEqual(await ordre(), ["Quelle planète est la plus proche du Soleil ?", BOUGIES, "Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Combien de pattes a une araignée ?"]);
+    assert.deepEqual(await finales(), [false, false, true, true, true]);
+    assert.equal(await complet.locator(".quiz-complet-q").nth(1).locator(".quiz-complet-monter").isVisible(), true, "les flèches restent");
     // Quel que soit le mélange, les 3 dernières places restent la Super Finale (cedric, 26/10) : jamais les bougies.
     for (let essai = 0; essai < 12; essai++) {
       await complet.locator(".quiz-melanger").click();
@@ -10409,6 +10454,9 @@ describe("bibliothèque de quiz et prestations", () => {
     // ↑ ↓ ✕ : l'ordre de passage.
     await round.locator('.statues-chanson[data-chanson="s2"] .quiz-complet-monter').click();
     await waitFor(async () => (await ids()).join() === "s1,s2,s3", "montée");
+    // Glissée à la souris (cedric, 26/10) : la première posée sous la dernière.
+    await glisser(round.locator('.statues-chanson[data-chanson="s1"]'), round.locator('.statues-chanson[data-chanson="s3"]'), true);
+    await waitFor(async () => (await ids()).join() === "s2,s3,s1", "glissée en bas");
     await round.locator('.statues-chanson[data-chanson="s1"] .tirage-retirer').click();
     await waitFor(async () => (await ids()).join() === "s2,s3", "retirée");
     await capture(page, "statues-vos-chansons");
