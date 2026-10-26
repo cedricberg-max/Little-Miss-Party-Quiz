@@ -99,7 +99,7 @@ private fun MusiqueStatues(danse: Boolean, chansons: List<String>) {
         if (preparation is Preparation.Faite && preparation.lecteur == null && chanson != null) illisibles = illisibles + chanson
     }
     val player = (preparation as? Preparation.Faite)?.lecteur ?: return
-    DisposableEffect(player) { onDispose { runCatching { player.stop() }; runCatching { player.release() } } }
+    DisposableEffect(player) { onDispose { com.littlemissparty.quiz.tv.habillage.Liberation.lecteur(player, stop = true) } }
     LaunchedEffect(player, danse) {
         runCatching {
             if (danse) {

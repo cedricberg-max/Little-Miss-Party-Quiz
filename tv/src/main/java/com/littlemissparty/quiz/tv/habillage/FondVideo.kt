@@ -295,11 +295,28 @@ internal class LecteurFond(
         val l = lecteur
         lecteur = null
         vitesseActuelle = 1f
-        if (l != null) {
-            try { l.release() } catch (_: Throwable) {}
-            GelFond.fondsOuverts--
-        }
-        surface?.release()
+        val s = surface
         surface = null
+        if (l != null) {
+            GelFond.fondsOuverts--
+            // La surface ne part qu'après le lecteur qui dessine dedans.
+            Liberation.lecteur(l) { s?.release() }
+        } else s?.release()
+    }
+}
+
+/**
+ * Rend les lecteurs (vidéos, chansons) hors du fil de l'écran : sur la Mi Box, release() bloque parfois des centaines
+ * de millisecondes, et l'image se figeait juste au changement d'écran (gels de 0,3 à 0,8 s, rapports du 26/10). Un seul
+ * fil, dans l'ordre : un lecteur est toujours rendu avant le suivant.
+ */
+internal object Liberation {
+    private val fil = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "liberation-lecteurs").apply { isDaemon = true } }
+
+    /** [stop] : arrêté d'abord (chanson en cours). [apres] : ce qui ne peut partir qu'une fois le lecteur rendu. */
+    fun lecteur(mp: MediaPlayer, stop: Boolean = false, apres: () -> Unit = {}) = fil.execute {
+        if (stop) runCatching { mp.stop() }
+        runCatching { mp.release() }
+        runCatching(apres)
     }
 }
