@@ -4332,9 +4332,16 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
       bloc,
       h("button", { type: "button", class: "icon tirage-retirer quiz-case-retirer", text: "✕", title: "Supprimer cette place", "aria-label": "Supprimer cette place", onclick: () => enleverDuQuiz(x) })));
   };
+  // Les N dernières places restent la Super Finale (cedric, 26/10) : ni les bougies ni une case vide n'y tombent.
+  const reelles = new Set(assemblage.map((x) => x.cle));
+  const brasser = () => {
+    const vraies = shuffle(cles.filter((c) => reelles.has(c)));
+    const fin = vraies.splice(vraies.length - clesFinale.size);
+    return [...shuffle([...vraies, ...cles.filter((c) => !reelles.has(c))]), ...fin];
+  };
   const melanger = () => {
-    let nouvel = shuffle(cles);
-    for (let essai = 0; essai < 5 && cles.length > 1 && nouvel.every((c, k) => c === cles[k]); essai++) nouvel = shuffle(cles);
+    let nouvel = brasser();
+    for (let essai = 0; essai < 5 && cles.length > 1 && nouvel.every((c, k) => c === cles[k]); essai++) nouvel = brasser();
     ranger(nouvel, true);
   };
   const lignes = vue.map((x, k) => (x.vide ? caseVideQuiz(x, k) : h("li", { class: `tirage-q quiz-complet-q${x.bougies ? " quiz-complet-bougies" : ""}${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },

@@ -8593,7 +8593,13 @@ describe("bibliothèque de quiz et prestations", () => {
     // Les bougies se rangent à la main, comme les autres.
     await complet.locator(".quiz-complet-bougies .quiz-complet-monter").click();
     assert.deepEqual(await ordre(), [BOUGIES, "Combien de pattes a une araignée ?", "Quelle est la capitale de l'Italie ?", "Quelle planète est la plus proche du Soleil ?", "🔢 Combien de jours dans une semaine ?"]);
-    // 🔀 : tout est mélangé, les bougies aussi.
+    // Quel que soit le mélange, les 3 dernières places restent la Super Finale (cedric, 26/10) : jamais les bougies.
+    for (let essai = 0; essai < 12; essai++) {
+      await complet.locator(".quiz-melanger").click();
+      const fin = await complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.slice(-3).map((x) => x.classList.contains("en-finale") && !x.classList.contains("quiz-complet-bougies")));
+      assert.deepEqual(fin, [true, true, true], `mélange ${essai + 1}`);
+    }
+    // 🔀 : tout est mélangé, les bougies aussi (mais jamais dans la Super Finale).
     const avant = await ordre();
     await complet.locator(".quiz-melanger").click();
     const melange = await ordre();
