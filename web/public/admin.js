@@ -4339,6 +4339,11 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
     const fin = vraies.splice(vraies.length - clesFinale.size);
     return [...shuffle([...vraies, ...cles.filter((c) => !reelles.has(c))]), ...fin];
   };
+  // Le thème du pack d'où vient la question, juste à gauche de sa photo (cedric, 26/10 : « Pokémon », « Mario », « Roblox »).
+  const themeDePack = (cle) => {
+    const quiz = quizzes[/\|pk-(.+):\d+$/.exec(cle ?? "")?.[1]];
+    return quiz ? h("span", { class: "quiz-complet-theme", text: themeDe(quiz.theme, quiz.title), title: `Question du pack « ${quiz.title ?? ""} »` }) : null;
+  };
   const melanger = () => {
     let nouvel = brasser();
     for (let essai = 0; essai < 5 && cles.length > 1 && nouvel.every((c, k) => c === cles[k]); essai++) nouvel = brasser();
@@ -4349,6 +4354,7 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
       photos ? apercuPhoto(x.q) : null,
       h("span", { class: "tirage-texte", text: photos ? reponsePhoto(x.q) : `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}`, ...(photos ? { title: x.q.text } : {}) }),
+      themeDePack(x.cle),
       photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q) : r.type === "express" ? reponseVF(x.q) : miniature(x.q),
       clesFinale.has(x.cle) ? etiquetteFinale(r) : null,
       h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer cette ${unite} plus tôt`, "aria-label": `Monter cette ${unite}`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
