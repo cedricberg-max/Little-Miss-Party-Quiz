@@ -3018,17 +3018,20 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#import-analyse");
     await page.locator("#screen-review:not([hidden])").waitFor();
     assert.equal(await page.inputValue("#rv-title"), "La jungle");
-    await page.locator("#rv-summary", { hasText: "3 questions · 0 validée · 1 à corriger" }).waitFor();
+    // Plus de « Tout valider » ni de case « Validée » (cedric, 26/10) : une question complète se joue d'office.
+    assert.equal(await page.locator("#rv-validate-all, .q-valid").count(), 0);
+    assert.equal(await page.locator("#rv-save").textContent(), "Enregistrer");
+    await page.locator("#rv-summary", { hasText: "3 questions · 1 à corriger" }).waitFor();
     await page.locator('[data-q="1"] .problems', { hasText: "Bonne réponse absente" }).waitFor();
-    await page.click("#rv-validate-all");
-    await page.locator("#rv-summary", { hasText: "2 validées · 1 à corriger" }).waitFor();
-    assert.equal(await page.locator('[data-q="1"] .q-valid').isDisabled(), true);
-    // Sarah coche la bonne réponse (B) puis valide la question.
-    await page.locator('[data-q="1"] input[type=radio]').nth(1).check();
-    await page.locator('[data-q="1"] .q-valid').check();
-    await page.locator("#rv-summary", { hasText: "3 validées" }).waitFor();
+    // Enregistré tel quel : la question à corriger est dite, et ne se jouera pas.
     await page.click("#rv-save");
-    await page.locator("#rv-status", { hasText: "3 questions validées sur 3" }).waitFor();
+    await page.locator("#rv-status", { hasText: "Enregistré : 3 questions, dont 1 à corriger (elle ne se joue pas)." }).waitFor();
+    assert.deepEqual(Object.values(await library("quizzes"))[0].questions.map((q) => q.status), ["validee", "brouillon", "validee"]);
+    // Sarah coche la bonne réponse (B) : la question est bonne d'office.
+    await page.locator('[data-q="1"] input[type=radio]').nth(1).check();
+    await page.locator("#rv-summary").filter({ hasText: /^3 questions$/ }).waitFor();
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré : 3 questions." }).waitFor();
     const saved = Object.values(await library("quizzes"));
     assert.equal(saved.length, 1);
     assert.equal(saved[0].title, "La jungle");
@@ -4677,7 +4680,6 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
     await page.locator('[data-q="1"] .q-is-number').check();
     await page.locator('[data-q="1"] .q-number').fill("8");
-    await page.locator('[data-q="1"] .q-valid:enabled').check();
     await page.click("#rv-save");
     await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
     const q = (await library("quizzes")).animaux.questions[1];
@@ -5895,7 +5897,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual([...choices].sort(), ["Chat", "Lune", "Tour eiffel"]);
     await page.fill("#rv-title", "Monuments et animaux");
     await page.click("#rv-save");
-    await page.locator("#rv-status", { hasText: "Enregistré : 3 questions validées sur 3" }).waitFor();
+    await page.locator("#rv-status", { hasText: "Enregistré : 3 questions." }).waitFor();
     const [id, quiz] = Object.entries(await library("quizzes"))[0];
     assert.equal(quiz.source, "photos");
     assert.ok(quiz.questions.every((q) => /^[0-9a-f]{16}$/.test(q.imageId) && q.status === "validee"));
@@ -9021,7 +9023,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // Déjà dans le quiz : grisée, plus cochable.
     assert.equal(await panel.locator('.banque-q.deja:has-text("Sur quoi tape-t-on avec des baguettes ?") input').isDisabled(), true);
     await page.click("#rv-save");
-    await page.locator("#rv-status", { hasText: "11 questions validées sur 11" }).waitFor();
+    await page.locator("#rv-status", { hasText: "Enregistré : 11 questions." }).waitFor();
     const [quiz] = Object.values(await library("quizzes"));
     assert.equal(quiz.source, "banque");
     assert.equal(quiz.kind, "photo");
@@ -9157,7 +9159,6 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator('[data-q="0"] .illustration .tag.missing').isHidden(), true);
     await page.locator('[data-q="1"] .illustration .tag.missing:not([hidden])', { hasText: "Image manquante : ajoutez une illustration." }).waitFor();
     assert.equal(await page.locator('[data-q="1"] .case-manquante:not([hidden])').count(), 0, "question en texte : pas d'alerte sur ses réponses");
-    await page.click("#rv-validate-all");
     await page.click("#rv-save");
     await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
     await page.context().close();

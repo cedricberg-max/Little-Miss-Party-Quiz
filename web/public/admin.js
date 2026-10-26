@@ -4653,7 +4653,7 @@ $("import-analyse").onclick = async () => {
     questions: parsed.questions.map((q) => ({ ...q, status: "brouillon" })),
   });
   if (answersMode() === "images" && !parsed.questions.some((q) => q.imageFiles)) {
-    status("rv-status", "Réponses en images : ajoutez une image à chaque réponse avec 📷, puis validez.", true);
+    status("rv-status", "Réponses en images : ajoutez une image à chaque réponse avec 📷, puis enregistrez.", true);
   }
 };
 
@@ -4736,7 +4736,6 @@ function renderReview() {
         h("b", { text: `Question ${i + 1}` }),
         h("button", { type: "button", class: "icon", title: "Monter", text: "↑", disabled: i === 0, onclick: () => { moveQuestion(i, -1); } }),
         h("button", { type: "button", class: "icon", title: "Descendre", text: "↓", disabled: i === draft.questions.length - 1, onclick: () => { moveQuestion(i, 1); } }),
-        h("label", { class: "check" }, h("input", { type: "checkbox", class: "q-valid", checked: q.status === "validee", onchange: (e) => { q.status = e.target.checked ? "validee" : "brouillon"; recheck(); } }), "Validée"),
         h("button", { type: "button", class: "icon", title: "Supprimer la question", text: "✕", onclick: () => { draft.questions.splice(i, 1); renderReview(); } })),
       h("textarea", { class: "q-text", rows: 2, value: q.text, oninput: (e) => { q.text = e.target.value.trim(); q.marks = 0; recheck(); } }),
       draft.kind === "photo" && q.kind !== "number" ? null : h("label", { class: "check q-number-toggle" },
@@ -5030,35 +5029,27 @@ function syncChoices(q, slots) {
 
 function recheck() {
   const checks = checkQuestions(draft.questions, { profile: profileOfDraft(), existing: existingTexts() });
-  let blocked = 0, validated = 0, warned = 0;
+  let blocked = 0, warned = 0;
   draft.questions.forEach((q, i) => {
     const card = $("rv-list").querySelector(`[data-q="${i}"]`);
     if (!card) return;
     const { errors, warnings } = checks[i];
-    if (errors.length) { q.status = "brouillon"; blocked++; }
+    // Plus de validation à la main (cedric, 26/10) : une question complète se joue, une question à corriger attend.
+    q.status = errors.length ? "brouillon" : "validee";
+    if (errors.length) blocked++;
     if (warnings.length) warned++;
-    if (q.status === "validee") validated++;
-    const box = card.querySelector(".q-valid");
-    box.checked = q.status === "validee";
-    box.disabled = errors.length > 0;
     card.classList.toggle("error", errors.length > 0);
-    card.classList.toggle("valid", q.status === "validee");
     card.querySelector(".problems").replaceChildren(
       ...errors.map((t) => h("li", { class: "err", text: t })),
       ...warnings.map((t) => h("li", { class: "warn", text: t })),
     );
   });
   const n = draft.questions.length;
-  $("rv-summary").textContent = `${n} question${n > 1 ? "s" : ""} · ${validated} validée${validated > 1 ? "s" : ""}`
+  $("rv-summary").textContent = `${n} question${n > 1 ? "s" : ""}`
     + (blocked ? ` · ${blocked} à corriger` : "") + (warned ? ` · ${warned} à vérifier` : "");
 }
 ["rv-age-min"].forEach((id) => $(id).addEventListener("input", recheck));
 
-$("rv-validate-all").onclick = () => {
-  const checks = checkQuestions(draft.questions, { profile: profileOfDraft(), existing: existingTexts() });
-  draft.questions.forEach((q, i) => { if (!checks[i].errors.length) q.status = "validee"; });
-  recheck();
-};
 $("rv-add").onclick = () => {
   draft.questions.push({ text: "", choices: [], correct: -1, duration: null, double: false, status: "brouillon", marks: 0 });
   renderReview();
@@ -5468,8 +5459,8 @@ $("rv-save").onclick = async () => {
     });
     draft.id = id;
     histRelecture.enregistre();
-    const ok = questions.filter((q) => q.status === "validee").length;
-    status("rv-status", `Enregistré : ${ok} question${ok > 1 ? "s" : ""} validée${ok > 1 ? "s" : ""} sur ${questions.length}.`, true);
+    const aCorriger = questions.filter((q) => q.status !== "validee").length;
+    status("rv-status", `Enregistré : ${plural(questions.length, "question")}${aCorriger ? `, dont ${aCorriger} à corriger (elle${aCorriger > 1 ? "s" : ""} ne se joue${aCorriger > 1 ? "nt" : ""} pas)` : ""}.`, true);
   } catch (err) {
     console.error(err);
     status("rv-status", "Enregistrement refusé : vérifiez les questions ou vos droits d'administration.");
