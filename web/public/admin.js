@@ -7397,7 +7397,7 @@ const REFRAIN_PREVIEW_SEC = 20;
  * défilent au rythme de la chanson, la phrase chantée en gras, pour vérifier vite qu'elles sont justes et bien calées.
  * Sobre et lisible, rien de festif. [titre] et [fermer] : la petite fenêtre de la liste des sons.
  */
-function fenetreParoles({ titre = "", fermer = null } = {}) {
+function fenetreParoles({ titre = "", fermer = null, actions = null } = {}) {
   const defile = h("div", { class: "paroles-defile" });
   const el = h("div", { class: "paroles-fenetre", role: "region", "aria-label": titre ? `Paroles de « ${titre} »` : "Paroles" },
     titre ? h("div", { class: "paroles-tete" },
@@ -7412,9 +7412,34 @@ function fenetreParoles({ titre = "", fermer = null } = {}) {
     remplir(l, vide = "Chargement des paroles…") {
       lignes = l ?? [];
       actuelle = null;
-      defile.replaceChildren(...(lignes.length ? lignes.map((x) => h("p", { class: "paroles-ligne" },
-        h("span", { class: "paroles-temps", text: mmss(x.t) }),
-        h("span", { class: `paroles-texte${x.text ? "" : " vide"}`, text: x.text || "♪" })))
+      defile.replaceChildren(...(lignes.length ? lignes.map((x) => {
+        const p = h("p", { class: `paroles-ligne${actions ? " cliquable" : ""}` },
+          h("span", { class: "paroles-temps", text: mmss(x.t) }),
+          h("span", { class: `paroles-texte${x.text ? "" : " vide"}`, text: x.text || "♪" }));
+        // [actions] : cliquer une phrase propose ses boutons juste dessous (cedric, 26/10 : « Début ici », « Hook ici »).
+        if (actions) {
+          p.title = "Cliquez pour placer le début ou le hook sur cette phrase";
+          p.onclick = () => {
+            const ouverte = p.classList.contains("choisie");
+            defile.querySelectorAll(".choisie").forEach((y) => { y.classList.remove("choisie"); y.querySelector(".paroles-actions")?.remove(); });
+            if (ouverte) return;
+            p.classList.add("choisie");
+            p.append(h("span", { class: "paroles-actions" }, ...actions.map((a) => h("button", {
+              type: "button", class: `btn small secondary ${a.classe}`, text: a.texte,
+              onclick: (e) => {
+                e.stopPropagation();
+                p.classList.remove("choisie");
+                e.currentTarget.parentElement.remove();
+                a.faire(x.t);
+              },
+            }))));
+            // Les boutons restent visibles dans la fenêtre des paroles.
+            const bas = p.offsetTop + p.offsetHeight + 6;
+            if (bas > defile.scrollTop + defile.clientHeight) defile.scrollTo({ top: bas - defile.clientHeight });
+          };
+        }
+        return p;
+      })
         : [h("p", { class: "hint small", text: vide })]));
     },
     /** La phrase du moment [s] (secondes de la chanson), au milieu de la fenêtre : chantée pendant l'écoute, repère sinon. */
@@ -7692,13 +7717,25 @@ function ecranReglage(t) {
   });
   const bornes = (max) => h("div", { class: "reglage-bornes", "aria-hidden": "true" }, h("span", { text: "0:00" }), h("span", { text: mmss(max) }));
   // Les paroles défilent pendant l'écoute (cedric, 23/10) ; à l'arrêt, elles montrent le moment du curseur bougé.
-  const paroles = t.lrc ? fenetreParoles() : null;
+  // Cliquer une phrase : « Début de la chanson ici » ou « Hook ici » place le curseur sur son minutage (cedric, 26/10).
+  const placerSur = (input, max) => (s) => {
+    input.value = `${Math.max(0, Math.min(Math.floor(s), max))}`;
+    input.dispatchEvent(new Event("input"));
+  };
+  const paroles = t.lrc ? fenetreParoles({
+    actions: fichier ? [
+      { texte: "⏮ Début de la chanson ici", classe: "paroles-debut-ici", faire: (s) => placerSur(curseurDebut, maxDebut)(s) },
+      { texte: "🎤 Hook ici", classe: "paroles-hook-ici", faire: (s) => placerSur(curseurHook, maxHook)(s) },
+    ] : null,
+  }) : null;
   parolesReglage = paroles;
   const reperer = (v) => { if (paroles && preview?.paroles !== paroles) paroles.montrer(v, false); };
   // Lâcher un curseur joue la chanson à cet endroit, et son « ▶ Écouter » devient « ⏸ Pause ».
   const ecouter = (refrain) => boutonEcoute({ class: "btn small secondary", title: refrain ? "Écouter le hook" : "Écouter à partir du début", text: "▶ Écouter" }, (b) => listen(t, refrain, b, paroles));
   const ecouteDebut = ecouter(false);
   const ecouteHook = ecouter(true);
+  const curseurDebut = curseur("Début de la chanson", t.start, maxDebut, (v) => { t.start = v; t.debutMain = true; aRedecouper(t); tempsDebut.textContent = mmss(v); reperer(v); }, () => listen(t, false, ecouteDebut, paroles));
+  const curseurHook = curseur("Hook", t.refrain, maxHook, (v) => { t.refrain = v; t.regle = true; aRedecouper(t); tempsHook.textContent = mmss(v); origine.textContent = "réglé à la main"; reperer(v); }, () => listen(t, true, ecouteHook, paroles));
   if (paroles) {
     // Au départ, les paroles du hook.
     const placer = () => requestAnimationFrame(() => reperer(t.refrain ?? 0));
@@ -7719,7 +7756,7 @@ function ecranReglage(t) {
         h("div", { class: "reglage-liens" }, choisir, retirer, lyricsTools(t)))),
     h("div", { class: "reglage-curseur", "data-curseur": "debut" },
       h("div", { class: "reglage-ligne" }, h("span", { class: "reglage-nom", text: "Début de la chanson" }), tempsDebut, ecouteDebut),
-      curseur("Début de la chanson", t.start, maxDebut, (v) => { t.start = v; t.debutMain = true; aRedecouper(t); tempsDebut.textContent = mmss(v); reperer(v); }, () => listen(t, false, ecouteDebut, paroles)),
+      curseurDebut,
       bornes(maxDebut),
       h("p", { class: "hint small", text: "Réglé d'office 2 s avant les premiers mots chantés (0:00 sans paroles)." })),
     h("div", { class: "reglage-curseur", "data-curseur": "hook" },
@@ -7728,7 +7765,7 @@ function ecranReglage(t) {
           type: "button", class: "btn small secondary", disabled: !fichier, onclick: () => reidentifierHook(t), text: "↺ Réidentifier le hook",
           title: "Retrouver le refrain : le passage le plus chanté des paroles, là où la musique devient forte",
         })),
-      curseur("Hook", t.refrain, maxHook, (v) => { t.refrain = v; t.regle = true; aRedecouper(t); tempsHook.textContent = mmss(v); origine.textContent = "réglé à la main"; reperer(v); }, () => listen(t, true, ecouteHook, paroles)),
+      curseurHook,
       bornes(maxHook),
       h("p", { class: "hint small", text: "Le passage que tout le monde chante à la révélation (« on chante tous ensemble »)." })),
     paroles ? h("div", { class: "reglage-curseur reglage-paroles" },

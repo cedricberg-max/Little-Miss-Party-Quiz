@@ -747,6 +747,10 @@ button.media-tile:hover { border-color: var(--violet); }
 .paroles-texte.vide { opacity: .6; }
 .paroles-ligne.chantee { color: var(--ink); font-weight: 800; background: var(--violet-pale); }
 .paroles-ligne.repere { color: var(--ink); box-shadow: inset 3px 0 0 var(--violet); }
+.paroles-ligne.cliquable { cursor: pointer; }
+.paroles-ligne.cliquable:hover { color: var(--ink); background: var(--violet-pale); }
+.paroles-ligne.choisie { flex-wrap: wrap; color: var(--ink); background: var(--violet-pale); }
+.paroles-actions { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 4px calc(3em + 10px); }
 .paroles-fenetre.flottante {
   position: fixed; right: 16px; bottom: 16px; z-index: 40; width: min(400px, calc(100vw - 32px)); padding: 10px 12px;
   background: var(--card); border: 1px solid var(--line-2); border-radius: 16px; box-shadow: 0 12px 32px rgba(60, 20, 90, .25);
