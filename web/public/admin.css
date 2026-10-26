@@ -938,7 +938,7 @@ button.media-tile:hover { border-color: var(--violet); }
    une par une ; la case du titre ouvre et ferme le panneau. */
 button.vos-images-titre { border: 0; font: inherit; font-weight: 800; cursor: pointer; }
 button.vos-images-titre:hover { background: var(--violet); color: #fff; }
-.vos-images-ouvert { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.vos-images-bloc { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .vos-images-grille { max-height: 440px; overflow-y: auto; margin: 0; padding: 3px; }
 .vos-images-tuile { position: relative; border-width: 2px; }
 .vos-images-tuile.on { border-color: var(--gold); background: var(--gold-pale); box-shadow: 0 0 0 2px var(--gold); }

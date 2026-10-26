@@ -6456,7 +6456,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await round.locator(".round-head > *").evaluateAll((xs) => xs.map((x) => x.className)), ["num", "quiz-compteur", "tirage-profil quiz-age quiz-en-tete"]);
     assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)), ["quiz-outils"]);
     assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((els) => els.map((e) => e.className)),
-      ["de-ligne de-unique-ligne", "quiz-ajouts quiz-rappel fine", "quiz-ajouts vos-images"]);
+      ["de-ligne de-unique-ligne", "quiz-ajouts quiz-rappel fine", "vos-images-bloc"]);
     assert.equal(await round.locator(".quiz-biblio, .quiz-series").count(), 0);
     assert.deepEqual(await nombre.locator("option").evaluateAll((os) => os.map((o) => o.textContent)).then((t) => [t[0], t.length]), ["1 carte", 15]);
     assert.equal(await nombre.inputValue(), "6");
@@ -6599,48 +6599,47 @@ describe("bibliothèque de quiz et prestations", () => {
     await ajouterJeu(page, "zoom");
     const round = page.locator("#show-rounds .round").nth(0);
     const compteur = round.locator(".round-head > .quiz-compteur");
-    const vos = round.locator(".quiz-outils .vos-images");
     const tuile = (zone, id) => zone.locator(`.vos-images-tuile[data-image="${id}"]`);
     const tuiles = (zone) => zone.locator(".vos-images-tuile").evaluateAll((xs) => xs.map((x) => x.dataset.image));
-    // Quatrième ligne des outils, fermée : rien ne se charge tant qu'on ne l'ouvre pas.
-    assert.equal(await vos.locator(".vos-images-titre").textContent(), "▸ ⭐ Composer avec vos images");
-    assert.equal(await vos.locator(".vos-images-tuile").count(), 0);
-    await vos.locator(".vos-images-titre").click();
-    await vos.locator(".vos-images-tuile").first().waitFor();
-    assert.equal(await round.locator(".vos-images-titre").textContent(), "▾ ⭐ Composer avec vos images");
-    // Toute la bibliothèque (cedric, 24/10) : ses images d'abord, puis les photos libres ; jamais d'émoji (que des photos).
-    const ouverte = await tuiles(round);
-    assert.equal(ouverte.length, 60);
-    assert.deepEqual(ouverte.slice(0, 6).sort(), [...MES, SANS_NOM].sort());
-    assert.ok(ouverte.slice(6).every((id) => id.startsWith("banque:")), "puis les photos libres");
-    await round.locator(".vos-images-grille > p.hint", { hasText: `Et ${LIBRES + 6 - 60} autres images : précisez la recherche.` }).waitFor();
-    assert.equal(await round.locator(".vos-images-tuile img").count(), 60);
-    // Sans nom : pas de réponse à trouver, elle ne se coche pas.
+    // « 🖼 Ajouter une image » (cedric, 26/10) : une recherche en direct dans toute la bibliothèque ; rien avant la
+    // première lettre.
+    assert.equal(await round.locator(".vos-images-titre").textContent(), "🖼 Ajouter une image");
+    assert.equal(await round.locator(".vos-images-tuile").count(), 0);
+    const cherche = round.locator(".vos-images-cherche");
+    // Ses images d'abord, puis les photos libres ; jamais d'émoji (que des photos).
+    await cherche.fill("i");
+    await round.locator(".vos-images-tuile").first().waitFor();
+    const trouvees = await tuiles(round);
+    assert.equal(trouvees.length, 24);
+    assert.ok(trouvees.every((id) => MES.includes(id) || id === SANS_NOM || id.startsWith("banque:")));
+    await round.locator(".vos-images-grille > p.hint", { hasText: /^Et \d+ autres images : précisez la recherche\.$/ }).waitFor();
+    // Sans nom : pas de réponse à trouver, elle ne se prend pas.
+    await cherche.fill("animaux");
     assert.equal(await tuile(round, SANS_NOM).isDisabled(), true);
     assert.equal(await tuile(round, SANS_NOM).locator(".vos-images-etat").textContent(), "À nommer dans Mes images");
-    assert.equal(await round.locator(".vos-images-ajouter").isDisabled(), true);
-    // Recherche en direct : « tigre » trouve d'abord les noms qui commencent par « Tigre » (la sienne, puis la photo libre),
-    // puis celui qui le contient.
-    await round.locator(".vos-images-cherche").fill("tigre");
+    // « tigre » trouve d'abord les noms qui commencent par « Tigre » (la sienne, puis la photo libre), puis celui qui le
+    // contient. Un clic ajoute CETTE image à la fin du « complet » ; la recherche reste, l'image est marquée.
+    await cherche.fill("tigre");
     await waitFor(async () => (await round.locator(".vos-images-tuile").count()) === 3, "trois tigres");
     assert.deepEqual(await tuiles(round), [MES[1], "banque:tigre", MES[4]]);
     assert.deepEqual(await round.locator(".vos-images-tuile > span").allTextContents(), ["Tigre", "Tigre", "Petit tigre"]);
     assert.equal(await tuile(round, "banque:tigre").locator("img").getAttribute("src"), "banque/tigre.jpg");
     await tuile(round, MES[1]).click();
-    await round.locator(".vos-images-cherche").fill("famille");
+    await compteur.filter({ hasText: "1 carte à deviner" }).waitFor();
+    assert.equal(await cherche.inputValue(), "tigre");
+    assert.equal(await tuile(round, MES[1]).isDisabled(), true);
+    assert.equal(await tuile(round, MES[1]).locator(".vos-images-etat").textContent(), "✓ Déjà dans le jeu");
+    await cherche.fill("famille");
     await tuile(round, MES[3]).click();
-    await round.locator(".vos-images-cherche").fill("panda");
+    await compteur.filter({ hasText: "2 cartes à deviner" }).waitFor();
+    await cherche.fill("panda");
     await tuile(round, PANDA).click();
-    await round.locator(".vos-images-cherche").fill("");
+    await compteur.filter({ hasText: "3 cartes à deviner" }).waitFor();
+    await cherche.fill("lion");
     await tuile(round, MES[0]).click();
-    for (const id of [MES[0], MES[1], MES[3]]) assert.equal(await tuile(round, id).getAttribute("aria-pressed"), "true", "les cochées le restent d'une recherche à l'autre");
-    assert.equal(await round.locator(".vos-images-ajouter").textContent(), "＋ Ajouter ces 4 photos");
-    await capture(page, "zoom-vos-images-choix");
-    await round.locator(".vos-images-ajouter").click();
     await compteur.filter({ hasText: "4 cartes à deviner" }).waitFor();
-    assert.equal(await round.locator(".vos-images-tuile").count(), 0, "le panneau se referme");
-    // Dans le « Zoom mystère complet » (plus de liste des séries, cedric 25/10) : dans l'ordre des clics, la réponse sans
-    // émoji, la photo à côté.
+    await capture(page, "zoom-vos-images-choix");
+    // Dans le « Zoom mystère complet » : dans l'ordre des clics, la réponse sans émoji, la photo à côté.
     const complet = round.locator(".quiz-complet");
     const lignesCompletes = complet.locator(".quiz-complet-q");
     assert.deepEqual(await lignesCompletes.locator(".tirage-texte").allTextContents(), ["Tigre", "Mamie Jo", "Panda", "Lion"]);
@@ -6658,38 +6657,36 @@ describe("bibliothèque de quiz et prestations", () => {
     const [cle] = tirees;
     const nomTiree = (await lignesCompletes.locator(".tirage-texte").nth(4).textContent()).trim();
 
-    // Rouverte : celles déjà dans la composition ne se recochent pas ; celle du 🎲 est en rouge, mais possible.
-    await round.locator(".vos-images-titre").click();
-    await tuile(round, MES[0]).waitFor();
+    // Celles déjà ajoutées ne se reprennent pas ; celle du 🎲 est en rouge, mais possible. Ajoutée après le 🎲, elle
+    // passe à la fin du « complet ».
+    await cherche.fill("lion");
     assert.equal(await tuile(round, MES[0]).isDisabled(), true);
-    assert.equal(await tuile(round, MES[0]).locator(".vos-images-etat").textContent(), "✓ Déjà dans votre composition");
     assert.equal(await tuile(round, MES[0]).locator(".vos-images-etat.alerte").count(), 0);
-    await round.locator(".vos-images-cherche").fill("panda");
+    await cherche.fill("panda");
     assert.equal(await tuile(round, PANDA).isDisabled(), true);
-    await round.locator(".vos-images-cherche").fill(nomTiree);
+    await cherche.fill(nomTiree);
     await tuile(round, `banque:${cle}`).waitFor();
     assert.equal(await tuile(round, `banque:${cle}`).isDisabled(), false);
     assert.equal(await tuile(round, `banque:${cle}`).locator(".vos-images-etat.alerte").textContent(), "Déjà utilisée dans ce jeu");
-    await round.locator(".vos-images-cherche").fill("");
+    await cherche.fill("ours");
     await tuile(round, MES[2]).click();
-    assert.equal(await round.locator(".vos-images-ajouter").textContent(), "＋ Ajouter cette photo");
-    await round.locator(".vos-images-ajouter").click();
     await compteur.filter({ hasText: "11 cartes à deviner" }).waitFor();
+    assert.equal(await lignesCompletes.locator(".tirage-texte").last().textContent(), "Ours");
 
     // Une Image floue dans la même fête : ses images et photos libres déjà au Zoom mystère sont en rouge, mais restent possibles.
     await ajouterJeu(page, "flou");
     const flou = page.locator("#show-rounds .round").nth(1);
-    await flou.locator(".vos-images-titre").click();
-    await tuile(flou, MES[0]).waitFor();
+    await flou.locator(".vos-images-cherche").fill("lion");
     assert.equal(await tuile(flou, MES[0]).isDisabled(), false);
     assert.equal(await tuile(flou, MES[0]).locator(".vos-images-etat.alerte").textContent(), "Déjà utilisée dans la fête");
+    await flou.locator(".vos-images-cherche").fill("petit");
     assert.equal(await tuile(flou, MES[4]).locator(".vos-images-etat").count(), 0);
     await tuile(flou, MES[4]).click();
+    await flou.locator(".round-head > .quiz-compteur", { hasText: "1 carte à deviner" }).waitFor();
     await flou.locator(".vos-images-cherche").fill("panda");
     assert.equal(await tuile(flou, PANDA).isDisabled(), false);
     assert.equal(await tuile(flou, PANDA).locator(".vos-images-etat.alerte").textContent(), "Déjà utilisée dans la fête");
     await tuile(flou, PANDA).click();
-    await flou.locator(".vos-images-ajouter").click();
     await flou.locator(".round-head > .quiz-compteur", { hasText: "2 cartes à deviner" }).waitFor();
     await capture(page, "zoom-vos-images");
 
