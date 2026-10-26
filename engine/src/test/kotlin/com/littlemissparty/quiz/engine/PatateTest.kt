@@ -186,7 +186,7 @@ class PatateTest {
             assertEquals(g.state, Game(g.quiz, g.events.map { Codec.decode(Codec.encode(it))!! }).state, "$n bombes : partie relue")
         }
         // Valeur hors limites dans le programme : ramenée dans les limites, la partie se joue.
-        val json = """{"title":"P","questions":[{"id":"p1","text":"Ça va exploser !","kind":"patate","choices":[],"bombs":40}]}"""
+        val json = """{"id":"p","title":"P","questions":[{"id":"p1","text":"Ça va exploser !","kind":"patate","choices":[],"bombs":40}]}"""
         assertEquals(POTATO_BOMBS_MAX, QuizJson.parse(json).questions.single().bombs)
         assertEquals(POTATO_BOMBS, QuizJson.parse(json.replace(""","bombs":40""", "")).questions.single().bombs)
         // Ancien journal (sans « total ») : 3 bombes, comme avant.
@@ -195,7 +195,7 @@ class PatateTest {
     }
 
     @Test
-    fun `Dernière bombe : la bombe en cours finit le jeu ; Jeu suivant entre deux bombes : bilan tout de suite`() {
+    fun `Dernière bombe, la bombe en cours finit le jeu - Jeu suivant entre deux bombes, bilan tout de suite`() {
         // Pendant la 1re bombe : « 🏁 Dernière bombe ».
         val g = partie()
         g.allumer()
