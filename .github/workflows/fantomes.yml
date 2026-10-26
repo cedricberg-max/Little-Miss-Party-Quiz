@@ -1,0 +1,51 @@
+name: Équipes fantômes (outil de test)
+
+# Outil de test « équipes fantômes » (cedric, 26/10) : chaque envoi sur sa branche met la page fantomes.html en ligne à
+# une adresse à part (canal d'aperçu « fantomes » de l'hébergement Firebase), sur les mêmes données. Ni la vraie Régie
+# PC, ni la TV, ni les tablettes ne bougent ; les règles Firebase ne sont jamais publiées d'ici.
+on:
+  push:
+    branches: [claude/project-thread-44k74j]
+  workflow_dispatch:
+
+concurrency:
+  group: fantomes
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fantomes:
+    name: Publier la page des équipes fantômes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Vérifier que les scripts se lisent
+        run: |
+          for f in web/public/*.js; do
+            node --check --input-type=module < "$f" || { echo "::error file=$f::script illisible"; exit 1; }
+          done
+      - name: Publier
+        run: |
+          project=$(jq -r .projectId firebase-config.json)
+          if [ -z "$project" ] || [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Firebase pas configuré."
+            exit 1
+          fi
+          cp firebase-config.json web/public/firebase-config.json
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@13 hosting:channel:deploy fantomes --expires 30d \
+            --project "$project" --non-interactive --json > "$RUNNER_TEMP/fantomes.json"
+          cat "$RUNNER_TEMP/fantomes.json"
+          url=$(jq -r '[.result[]?.url] | first // empty' "$RUNNER_TEMP/fantomes.json")
+          [ -n "$url" ] || { echo "::error::Pas d'adresse dans la réponse de Firebase."; exit 1; }
+          echo "::notice title=Équipes fantômes::$url/fantomes.html"
+          echo "Équipes fantômes : $url/fantomes.html" >> "$GITHUB_STEP_SUMMARY"
