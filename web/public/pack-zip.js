@@ -124,6 +124,32 @@ function etiquettesDu(x, parent = null) {
 export const ouQuestion = (i, k = null) => `Question ${i + 1}${k == null ? "" : `, réponse ${LETTERS[k] ?? k + 1}`}`;
 
 /**
+ * Quiz illustré (cedric, 26/10 : six packs Marvel rangés sans une seule image, leurs questions en texte seul sur la TV) :
+ * une fois les images du ZIP préparées, une question dont aucune réponse n'a sa photo n'est pas importée, et le dit en
+ * rouge ([p].ignorees) ; ses alertes suivent les questions gardées. Sans question gardée, le pack reste vide et n'est
+ * pas importé. Une question à qui il ne manque qu'une partie de ses photos reste (simple alerte, à compléter dans
+ * « Éditer » ; le 🎲 ne la tire pas d'ici là). Les Juste Chiffre du pack restent. Rend [p], modifié sur place.
+ */
+export function garderLesQuestionsIllustrees(p) {
+  if (p?.epreuve !== "illustre") return p;
+  const place = new Map();
+  const gardees = [];
+  p.questions.forEach((q, i) => {
+    const choix = (q.choices ?? []).slice(0, 4);
+    if (q.kind === "number" || choix.some((_, k) => q.choiceImages?.[k])) { place.set(i, gardees.length); gardees.push(q); return; }
+    const noms = (q.imageFiles ?? []).slice(0, 4).filter(Boolean);
+    const quoi = noms.length ? `aucune de ses images n'est dans le ZIP (${noms.join(", ")})` : "aucune réponse n'a d'image";
+    p.ignorees.push(`${ouQuestion(i)} : ${quoi}. Elle n'est pas importée : au Quiz illustré, chaque réponse a sa photo.`);
+  });
+  const suivre = (liste) => (liste ?? []).filter((x) => x.q == null || place.has(x.q)).map((x) => (x.q == null ? x : { ...x, q: place.get(x.q) }));
+  p.manquantes = suivre(p.manquantes);
+  p.aCorriger = suivre(p.aCorriger);
+  if (p.horsFormat) p.horsFormat = suivre(p.horsFormat);
+  p.questions = gardees;
+  return p;
+}
+
+/**
  * Analyse les fichiers d'un ZIP : `[{ chemin, nom, texte? }]`, le texte lu pour les fichiers de données (.json).
  * Renvoie `{ packs, erreurs, laisses }` :
  * - packs : `{ epreuve, titre, theme, ageMin, ageMax, questions | personnages, manquantes, aCorriger, ignorees, fichierDonnees }`,

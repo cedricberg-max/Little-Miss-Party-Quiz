@@ -10098,11 +10098,17 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(Object.keys(q0.choiceImages), ["0", "1"], "la case sans image reste vide");
     assert.match(await library(`images/${q0.choiceImages[0]}`), /^data:image\//);
 
-    // Le même ZIP une seconde fois : un nouveau pack à côté, l'ancien ne change pas.
+    // Le même ZIP une seconde fois, mais sans ses images (cedric, 26/10 : six packs Marvel rangés ainsi, leurs questions
+    // en texte seul sur la TV) : refusé, rien d'enregistré.
     await page.setInputFiles("#pack-file", zip("reine.zip", [["pack.json", JSON.stringify(ILLUSTRE)]]));
-    assert.match(await fenetre.innerText(), /Un pack « Reine des neiges » existe déjà en Facile : celui-ci s'appellera « Reine des neiges \(2\) », l'ancien ne change pas\./);
-    assert.match(await fenetre.innerText(), /réponse A : Image manquante/);
-    await repondreFenetre(page, { accepter: false });
+    assert.match(await repondreFenetre(page), /Ce pack ne peut pas être importé\.[\s\S]*Question 1 : aucune de ses images n'est dans le ZIP \(rdn-q01-sven\.jpg, rdn-q01-olaf\.jpg, rdn-q01-hans\.jpg\)\. Elle n'est pas importée : au Quiz illustré, chaque réponse a sa photo\.[\s\S]*Rien n'a été enregistré\./);
+    assert.equal(Object.keys(await library("quizzes")).length, 1);
+    // Avec un autre pack qui, lui, a ses images : celui-ci est importé, l'illustré sans images est dit en rouge.
+    const VF = { title: "Disney vrai ou faux", theme: "Disney", niveau: "Facile", questions: [{ text: "Olaf est un bonhomme de neige.", choices: ["Vrai", "Faux"], correct: 0 }] };
+    await page.setInputFiles("#pack-file", zip("deux.zip", [["reine/pack.json", JSON.stringify(ILLUSTRE)], ["vf/pack.json", JSON.stringify(VF)]]));
+    await fenetre.locator(".pack-refuse").waitFor();
+    assert.match(await fenetre.locator(".pack-refuse").innerText(), /^Reine des neiges[\s\S]*Pas importé : aucune de ses questions n'a une photo pour chaque réponse dans le ZIP\./);
+    assert.equal(await repondreFenetre(page, { accepter: false }), "Importer « Disney vrai ou faux » ?");
     await page.locator("#pack-status", { hasText: "Import annulé : rien n'a été enregistré." }).waitFor();
     assert.equal(Object.keys(await library("quizzes")).length, 1);
 

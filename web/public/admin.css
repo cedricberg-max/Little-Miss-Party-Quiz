@@ -777,7 +777,7 @@ button.media-tile:hover { border-color: var(--violet); }
 .pack-apercu-vignettes img { width: 64px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
 .pack-apercu-liste, .pack-apercu-alertes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
 .pack-apercu-alertes .pack-alerte { color: var(--bad); font-weight: 700; }
-.pack-apercu-alertes .pack-erreur { color: var(--bad); }
+.pack-apercu-alertes .pack-erreur, .pack-refuse .pack-erreur { color: var(--bad); }
 /* Image hors format : une petite alerte, pas une erreur (cedric, 25/10). */
 .pack-apercu-alertes .pack-alerte.hors-format, .hors-format-liste .pack-alerte { color: var(--warn); font-weight: 600; }
 .item .q-alerte.hors-format { color: var(--warn); }
