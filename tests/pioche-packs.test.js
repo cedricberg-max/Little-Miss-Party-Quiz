@@ -84,7 +84,12 @@ describe("pioche dans mes packs", () => {
       illus: { title: "Illustré K-pop", niveau: "Facile", pack: true, kind: "photo",
         questions: [{ text: "Qui chante ?", choices: ["Rumi", "Mira", "Zoey", "Jinu"], correct: 2, choiceImages: { 0: IMG("a"), 1: IMG("b"), 2: IMG("c"), 3: IMG("d") }, imageId: IMG("e"), status: "validee" }] },
     };
-    assert.deepEqual([...new Set(catalogueDesPacks(packs, () => false, "illustre").map((x) => x.titre))].sort(), ["Illustré", "Illustré K-pop"]);
+    // Un pack illustré sans ses images (cedric, 26/10 : Marvel en texte seul sur la TV) : jamais tiré, ni une question
+    // dont une réponse a perdu sa photo.
+    const borgne = { text: "Qui vole ?", choices: ["Rumi", "Mira", "Zoey", "Jinu"], correct: 0, choiceImages: { 0: IMG("a"), 1: IMG("b"), 3: IMG("d") }, status: "validee" };
+    packs.illus.questions.push(borgne);
+    assert.deepEqual(catalogueDesPacks(packs, () => false, "illustre").map((x) => [x.titre, x.q.text]), [["Illustré K-pop", "Qui chante ?"]]);
+    packs.illus.questions.pop();
     assert.deepEqual(catalogueDesPacks(packs, () => false, "express").map((x) => x.titre), ["VF"]);
     const zoom = catalogueDesPacks(packs, () => false, "zoom");
     assert.deepEqual(zoom.map((x) => x.cle), [`i:${IMG(1)}`, `i:${IMG(2)}`], "aux photos, une question = sa photo (le texte est le même partout)");

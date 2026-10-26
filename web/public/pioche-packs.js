@@ -19,15 +19,23 @@ export const niveauDesPacks = (niveau) => NIVEAUX[niveau - 1] ?? null;
 
 /** Une question jouable au Quiz : quatre réponses, ou un Juste Chiffre. */
 const auQuiz = (q) => q.kind === "number" || (q.choices ?? []).filter((c) => `${c ?? ""}`.trim()).length === 4;
+/**
+ * Une question jouable au Quiz illustré : chacune de ses réponses (les 4 premières) a sa photo. Un pack importé sans
+ * ses images (cedric, 26/10 : « Qui est l'archer des Avengers ? » en texte seul sur la TV) n'est jamais tiré.
+ */
+export const avecSesImages = (q) => {
+  const choix = (Array.isArray(q?.choices) ? q.choices : Object.values(q?.choices ?? {})).slice(0, 4);
+  return choix.length >= 2 && choix.every((_, k) => IMAGE_ID.test(q.choiceImages?.[k] ?? ""));
+};
 
 /**
  * Les questions d'un pack jouables dans le jeu [jeu] (cedric, 25/10 : la carte du Quiz pour chaque jeu) : au Quiz, ses
- * quiz à 4 réponses ; au Quiz illustré, ses quiz illustrés ; au Vrai ou Faux express, ses Vrai / Faux ; au Zoom
+ * quiz à 4 réponses ; au Quiz illustré, ses quiz illustrés (une photo par réponse) ; au Vrai ou Faux express, ses Vrai / Faux ; au Zoom
  * mystère et à l'Image floue, ses séries de photos.
  */
 const QUESTIONS_DU_JEU = {
   quiz: (quiz) => (quizKind(quiz) === "classique" ? playable(quiz).filter(auQuiz) : []),
-  illustre: (quiz) => illustreQuestions(quiz),
+  illustre: (quiz) => illustreQuestions(quiz).filter(avecSesImages),
   express: (quiz) => (quizKind(quiz) === "classique" ? expressQuestions(quiz) : []),
   photos: (quiz) => (quizKind(quiz) === "images" ? zoomQuestions(quiz) : []),
 };

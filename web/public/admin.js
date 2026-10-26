@@ -50,7 +50,7 @@ import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from "./retour.js";
 import { confirmer, avertir, demanderTexte, apercu } from "./fenetre.js";
 import { lireZipEtSesZip } from "./zip.js";
-import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks, sourceDuDe } from "./pioche-packs.js";
+import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks, sourceDuDe, avecSesImages } from "./pioche-packs.js";
 import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage, dossierDe } from "./pack-zip.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
@@ -3743,6 +3743,13 @@ function reponsesIllustrees(q) {
   }));
 }
 
+/**
+ * Une question du Quiz illustré dont une réponse n'a pas sa photo (cedric, 26/10 : une question d'un pack Marvel en texte
+ * seul sur la TV) : signalée en rouge dans le « Quiz illustré complet », pour l'enlever (✕) ou la retirer.
+ */
+const sansSesImages = (q) => !q.bougies && q.kind !== "number" && !Array.isArray(q.choiceBanque) && !avecSesImages(q);
+const alerteSansImages = () => h("span", { class: "alerte-sans-images", text: "⚠ Sans images", title: "Une réponse au moins n'a pas sa photo : la TV montrera cette question en texte seul. Enlevez-la (✕), ou réimportez son pack avec ses images." });
+
 /** Zoom mystère, Image floue : la photo à deviner, en petit (banque de photos libres, ou une de vos images). */
 const apercuPhoto = (q) => (q.banque ? h("img", { class: "tirage-photo", src: cheminPhotoBanque(q.banque), alt: "", loading: "lazy" })
   : IMAGE_ID.test(q.imageId ?? "") ? photoBibliotheque(q.imageId, { class: "tirage-photo", loading: "lazy" }) : null);
@@ -4481,6 +4488,7 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
       photos ? nomDePhoto(r, x, changer) : h("span", { class: "tirage-texte", text: `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
       themeDePack(x.cle),
       photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q) : r.type === "express" ? reponseVF(x.q) : miniature(x.q),
+      r.type === "illustre" && sansSesImages(x.q) ? alerteSansImages() : null,
       clesFinale.has(x.cle) ? etiquetteFinale(r) : null,
       h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer cette ${unite} plus tôt`, "aria-label": `Monter cette ${unite}`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
       h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer cette ${unite} plus tard`, "aria-label": `Descendre cette ${unite}`, disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
