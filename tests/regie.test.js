@@ -6259,6 +6259,43 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC (cedric, 26/10) : au Quiz illustré, un pack sans ses images n'est jamais tiré, et une question déjà là sans ses images est signalée en rouge", async () => {
+    const PNG = `data:image/png;base64,${png([200, 120, 60]).toString("base64")}`;
+    const ids = ["1111111111111111", "2222222222222222", "3333333333333333", "4444444444444444"];
+    // Le pack Marvel importé sans ses images (kind « photo », aucune réponse en photo) ; un autre avec les siennes.
+    const MARVEL = { title: "Marvel", kind: "photo", updatedAt: 1, pack: true, niveau: "Facile", questions: [
+      { text: "Qui est l'archer des Avengers ?", choices: ["Œil de Faucon", "Thor", "Hulk", "Vision"], correct: 0, status: "validee" },
+      { text: "Qui a un marteau ?", choices: ["Thor", "Hulk", "Vision", "Loki"], correct: 0, status: "validee", choiceImages: { 0: ids[0], 1: ids[1], 3: ids[3] } }] };
+    const PETITS = { title: "Les animaux des petits", kind: "photo", updatedAt: 1, pack: true, niveau: "Facile", questions: [
+      { text: "Où est le chat ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 0, status: "validee", choiceImages: ids },
+      { text: "Où est le lion ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 3, status: "validee", choiceImages: ids }] };
+    // La prestation de Lauren, composée avant : une question Marvel sans images et une avec, dans son Quiz illustré.
+    const LAUREN = { childName: "Lauren", age: 6, date: "2099-12-02", status: "publiee", updatedAt: 1, rounds: [{ type: "illustre", seriesQuiz: [{ id: "pk1", origine: "reprise", questions: [
+      { id: "pk-marvel:0", text: MARVEL.questions[0].text, choices: MARVEL.questions[0].choices, correct: 0 },
+      { id: "pk-petits:0", text: PETITS.questions[0].text, choices: PETITS.questions[0].choices, correct: 0, choiceImages: ids }] }] }] };
+    await seedLibrary("quizzes", { marvel: MARVEL, petits: PETITS });
+    await seedLibrary("images", Object.fromEntries(ids.map((id) => [id, PNG])));
+    await seedLibrary("shows", { lauren: LAUREN });
+    const page = await admin();
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.locator('#show-list [data-show="lauren"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
+    const round = page.locator("#show-rounds .round").nth(0);
+    const lignes = round.locator(".quiz-complet .quiz-complet-q");
+    await lignes.nth(1).waitFor();
+    assert.deepEqual(await lignes.evaluateAll((xs) => xs.map((x) => [x.querySelector(".tirage-texte")?.textContent, x.querySelector(".alerte-sans-images")?.textContent ?? null])),
+      [["Qui est l'archer des Avengers ?", "⚠ Sans images"], ["Où est le chat ?", null]]);
+    // 🎲 « mes packs » : seulement la question du pack qui a toutes ses images (ni Marvel, ni celle qui a perdu une photo).
+    await round.locator(".de-unique-champ").fill("mes packs");
+    await round.locator("select.de-nombre-unique").selectOption("4");
+    await round.locator(".de-unique").click();
+    await round.locator(".round-head > .quiz-compteur").filter({ hasText: /^3 questions/ }).waitFor();
+    assert.deepEqual(await lignes.evaluateAll((xs) => xs.map((x) => x.querySelector(".tirage-texte")?.textContent)),
+      ["Qui est l'archer des Avengers ?", "Où est le chat ?", "Où est le lion ?"]);
+    assert.equal(await round.locator(".quiz-complet .alerte-sans-images").count(), 1);
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 23/10) : le Quiz illustré se construit comme le Quiz : 🎲 par thème (photos libres ou émojis), un ancien anniversaire, ses quiz illustrés, Super Finale, « Quiz illustré complet » ; la TV a ses réponses en images", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const { cataloguePetits } = await import("../web/public/banque-petits.js");
