@@ -7602,8 +7602,8 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await liste.isVisible(), true);
     assert.ok((await round.locator(".blind-titre b").allTextContents()).every((t) => /^Complète \d$/.test(t)));
     await waitFor(async () => (await serieDe.locator("img.blind-pochette").evaluateAll((xs) => xs.filter((x) => x.src.startsWith("data:image/png")).length)) === 5, "5 mini pochettes");
-    assert.deepEqual(await round.locator(".blind-paroles").allTextContents(), Array(5).fill("✓ Paroles"));
-    const [titre, paroles] = await Promise.all([round.locator(".blind-titre").first().boundingBox(), round.locator(".blind-paroles").first().boundingBox()]);
+    assert.deepEqual(await round.locator(".blind-series .blind-paroles").allTextContents(), Array(5).fill("✓ Paroles"));
+    const [titre, paroles] = await Promise.all([round.locator(".blind-titre").first().boundingBox(), round.locator(".blind-series .blind-paroles").first().boundingBox()]);
     assert.ok(paroles.x >= titre.x + titre.width - 1, "« ✓ Paroles » à droite du titre");
     await capture(page, "blind-test-chansons");
     // Repliable comme une série du Quiz.
@@ -7805,6 +7805,18 @@ describe("bibliothèque de quiz et prestations", () => {
     const avantGlisse = await ordreComplet();
     await glisser(complet.locator(".blind-complet-q").last(), complet.locator(".blind-complet-q").first(), false);
     await waitFor(async () => (await ordreComplet()).join() === ["m1", ...avantGlisse.slice(0, -1)].join(), "glissée en tête");
+    // 🎧 et « ✓ Paroles » sur chaque chanson du « complet » aussi (cedric, 26/10), d'où qu'elle vienne.
+    const lignesCompletes = complet.locator(".blind-complet-q");
+    assert.equal(await lignesCompletes.locator(".blind-paroles").count(), await lignesCompletes.count());
+    assert.equal(await lignesCompletes.locator(".blind-ecouter").count(), await lignesCompletes.count());
+    assert.equal(await complet.locator('.blind-complet-q[data-chanson="m1"] .blind-paroles').textContent(),
+      await seriePl.locator('.blind-chanson[data-chanson="m1"] .blind-paroles').textContent(), "la même pastille que dans sa série");
+    await complet.locator('.blind-complet-q[data-chanson="m1"] .blind-ecouter').click();
+    await complet.locator('.blind-complet-q[data-chanson="m1"] .blind-reglage').waitFor();
+    assert.ok((await complet.locator('.blind-complet-q[data-chanson="m1"] .blind-reglage button').allTextContents()).includes("⏱ Régler…"));
+    assert.equal(await round.locator(".blind-reglage").count(), 1, "seulement dans le « complet », un seul ouvert");
+    await complet.locator('.blind-complet-q[data-chanson="m1"] .blind-ecouter').click();
+    await waitFor(async () => (await round.locator(".blind-reglage").count()) === 0, "menu refermé");
     await complet.locator('.blind-complet-q[data-chanson="c1"] .tirage-retirer').click();
     await compteur.filter({ hasText: /^9 chansons à trouver$/ }).waitFor();
     assert.ok(!(await ids()).includes("c1"), "enlevée de sa série aussi");

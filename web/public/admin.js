@@ -1973,28 +1973,13 @@ function mancheBlind(r) {
         h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette chanson", title: titreRetirer, onclick: retirer })));
     }
     const deja = autres.get(id) ?? autres.get(song.audioId);
-    const paroles = parolesSurTv(song);
     const ouvert = blindEcoute.get(r) === id;
-    // Quiz musical aussi (cedric, 24/10) : l'extrait pendant la question, le refrain et ses paroles à la révélation.
-    const badge = h("span", {
-      class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles",
-      title: paroles ? "Paroles présentes : elles défileront sur la TV à la révélation"
-        : song.lrc === true ? "Fichier .lrc présent, mais le refrain n'est pas encore réglé (Bibliothèque › Sons)" : "Pas de fichier .lrc : ajoutez-le dans Bibliothèque › Sons",
-    });
     return h("li", { class: `tirage-q blind-chanson${deja ? " deja" : ""}${ouvert ? " ouverte" : ""}`, "data-chanson": id, ...(deja ? { title: `Déjà dans ${deja}` } : {}) },
       h("div", { class: "tirage-q-ligne" },
         miniPochette(song),
         h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
-        badge,
-        h("button", {
-          type: "button", class: `icon blind-ecouter${ouvert ? " active" : ""}`, text: "🎧", "aria-expanded": ouvert ? "true" : "false",
-          "aria-label": `Écouter et régler « ${song.title.trim()} »`, title: "Écouter l'extrait et le refrain, et les régler",
-          onclick: () => {
-            stopPreview();
-            if (ouvert) blindEcoute.delete(r); else blindEcoute.set(r, id);
-            changer();
-          },
-        }),
+        pastilleParoles(song),
+        boutonCasque(r, id, song, ouvert, changer),
         h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${song.title.trim()} »`, title: titreRetirer, onclick: retirer })),
       musical ? leurresChanson(r, id, song) : null,
       ouvert ? menuChanson(id) : null);
@@ -2140,6 +2125,26 @@ function glisserDansLaListe(liste, lignes, bouger, glissable = () => true) {
  * test complet », toutes les chansons dans l'ordre de passage. Déplié : chacune monte, descend ou s'enlève (de sa
  * série) ; 🔀 mélange tout. L'ordre rangé ici est gardé dans le blind test (`ordreBlind`).
  */
+// Quiz musical aussi (cedric, 24/10) : l'extrait pendant la question, le refrain et ses paroles à la révélation.
+const pastilleParoles = (song) => {
+  const paroles = parolesSurTv(song);
+  return h("span", {
+    class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles",
+    title: paroles ? "Paroles présentes : elles défileront sur la TV à la révélation"
+      : song.lrc === true ? "Fichier .lrc présent, mais le refrain n'est pas encore réglé (Bibliothèque › Sons)" : "Pas de fichier .lrc : ajoutez-le dans Bibliothèque › Sons",
+  });
+};
+/** 🎧 d'une chanson du blind test : ouvre ou ferme son petit menu (un seul ouvert à la fois, repéré par [cle]). */
+const boutonCasque = (r, cle, song, ouvert, changer) => h("button", {
+  type: "button", class: `icon blind-ecouter${ouvert ? " active" : ""}`, text: "🎧", "aria-expanded": ouvert ? "true" : "false",
+  "aria-label": `Écouter et régler « ${song.title.trim()} »`, title: "Écouter l'extrait et le refrain, et les régler",
+  onclick: () => {
+    stopPreview();
+    if (ouvert) blindEcoute.delete(r); else blindEcoute.set(r, cle);
+    changer();
+  },
+});
+
 function blindComplet(r, ordre, ranger, changer) {
   if (!ordre.length) return null;
   const tout = chansonsDe(r);
@@ -2169,14 +2174,19 @@ function blindComplet(r, ordre, ranger, changer) {
   };
   const lignes = ordre.map((id, k) => {
     const song = songs[id];
-    return h("li", { class: "tirage-q blind-complet-q", "data-chanson": id },
+    // 🎧 et « ✓ Paroles » ici aussi (cedric, 26/10), quelle que soit l'origine de la chanson.
+    const ouvert = blindEcoute.get(r) === `complet:${id}`;
+    return h("li", { class: `tirage-q blind-complet-q${ouvert ? " ouverte" : ""}`, "data-chanson": id },
       h("div", { class: "tirage-q-ligne" },
         h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
         miniPochette(song),
         h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
+        pastilleParoles(song),
+        boutonCasque(r, `complet:${id}`, song, ouvert, changer),
         h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Passer cette chanson plus tôt", "aria-label": "Monter cette chanson", disabled: k === 0, onclick: () => deplacer(k, -1) }),
         h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Passer cette chanson plus tard", "aria-label": "Descendre cette chanson", disabled: k === ordre.length - 1, onclick: () => deplacer(k, 1) }),
-        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever cette chanson du ${r.type === "musical" ? "quiz musical" : "blind test"}`, "aria-label": `Enlever « ${song.title.trim()} »`, onclick: () => enlever(id) })));
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever cette chanson du ${r.type === "musical" ? "quiz musical" : "blind test"}`, "aria-label": `Enlever « ${song.title.trim()} »`, onclick: () => enlever(id) })),
+      ouvert ? menuChanson(id) : null);
   });
   const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste blind-complet-liste" }, ...lignes);
   // Glissée à la souris : les places des chansons du « complet » dans le blind test gardent leurs voisines d'ailleurs.
