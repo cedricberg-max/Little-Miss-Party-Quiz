@@ -3752,6 +3752,76 @@ const apercuPhoto = (q) => (q.banque ? h("img", { class: "tirage-photo", src: ch
  */
 const reponsePhoto = (q) => `${q.choices?.[q.correct] ?? q.text ?? ""}`.replace(/^[^\p{L}\p{N}]+/u, "").trim();
 
+/**
+ * Le nom d'une photo du Zoom mystère ou de l'Image floue dans son « … complet », avec ✎ pour le renommer (cedric, 26/10 :
+ * « les noms des packs ne correspondent pas forcément au nom du personnage que l'on voit »). Le nouveau nom devient la
+ * réponse dans ce jeu, et aussi dans la bibliothèque (renommerImage) ; une photo libre de l'appli ne change que dans le jeu.
+ */
+function nomDePhoto(r, x, changer) {
+  const texte = h("span", { class: "tirage-texte", text: reponsePhoto(x.q), title: x.q.text });
+  const serie = x.serie;
+  const gardee = serie?.origine === "quiz" ? null : (serie?.questions ?? []).find((q) => q && cleQuestion(serie, q, r.type) === x.cle);
+  if (!gardee) return texte;
+  const ouvrir = () => {
+    const champ = h("input", { type: "text", class: "photo-nom", maxlength: 60, value: reponsePhoto(gardee), "aria-label": "Nouveau nom de la photo (la réponse à trouver)" });
+    let fini = false;
+    const finir = (garder) => {
+      if (fini) return;
+      fini = true;
+      const nom = champ.value.replace(/\s+/g, " ").trim();
+      if (garder && nom && nom !== reponsePhoto(gardee)) {
+        nommerQuestionPhoto(gardee, nom);
+        if (IMAGE_ID.test(gardee.imageId ?? "")) renommerImage(gardee.imageId, nom);
+        noterEcran();
+      }
+      changer();
+    };
+    champ.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); finir(true); }
+      if (e.key === "Escape") { e.preventDefault(); finir(false); }
+    });
+    champ.addEventListener("blur", () => finir(true));
+    texte.replaceWith(champ);
+    bouton.hidden = true;
+    // Pas de glisser pendant la saisie : la souris sélectionne le texte.
+    const li = champ.closest("li");
+    if (li) li.draggable = false;
+    champ.focus();
+    champ.select();
+  };
+  const bouton = h("button", { type: "button", class: "icon photo-renommer", text: "✎", title: "Renommer la photo (la réponse à trouver)", "aria-label": `Renommer « ${reponsePhoto(x.q)} »`, onclick: ouvrir });
+  return h("span", { class: "photo-nom-bloc" }, texte, bouton);
+}
+
+/** La bonne réponse de [q] devient [nom] ; une autre proposition qui s'écrivait déjà ainsi prend l'ancien nom. */
+function nommerQuestionPhoto(q, nom) {
+  const choices = Array.isArray(q.choices) ? [...q.choices] : Object.values(q.choices ?? {});
+  const ancien = choices[q.correct];
+  const meme = (t) => `${t ?? ""}`.trim().toLowerCase() === nom.toLowerCase();
+  q.choices = choices.map((c, k) => (k === q.correct ? nom : meme(c) ? ancien : c));
+}
+
+/**
+ * Renomme l'image [id] dans la bibliothèque : sa fiche (Mes images, Images des packs) et la bonne réponse des questions
+ * de packs (ou de séries de photos) qui la montrent, pour que les prochains 🎲 donnent le bon nom.
+ */
+async function renommerImage(id, nom) {
+  const chemins = {};
+  if (medias?.[id]) Object.assign(chemins, { [`library/medias/${id}/name`]: nom, [`library/medias/${id}/updatedAt`]: serverTimestamp() });
+  Object.entries(quizzes ?? {}).forEach(([qid, quiz]) => {
+    const qs = quiz?.questions;
+    Object.entries(qs && typeof qs === "object" ? qs : {}).forEach(([k, q]) => {
+      if (q?.imageId !== id || !Number.isInteger(q.correct)) return;
+      const copie = { ...q };
+      nommerQuestionPhoto(copie, nom);
+      chemins[`library/quizzes/${qid}/questions/${k}/choices`] = copie.choices;
+      chemins[`library/quizzes/${qid}/updatedAt`] = serverTimestamp();
+    });
+  });
+  if (!Object.keys(chemins).length) return;
+  try { await update(ref(db), chemins); } catch (e) { annonce(`Le nouveau nom n'a pas pu être gardé dans la bibliothèque : ${e.message}`, true); }
+}
+
 /** Petite étiquette des questions de la Super Finale, dans la liste (cedric, 23/10 : une seule, à la fin). */
 const etiquetteFinale = (r) => h("span", { class: "badge-finale", text: `🏆 ×${FACTEURS_FINALE.includes(r.facteur) ? r.facteur : FACTEURS_FINALE[0]}`, title: "Question de la Super Finale" });
 
@@ -4408,7 +4478,7 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
       photos ? apercuPhoto(x.q) : null,
-      h("span", { class: "tirage-texte", text: photos ? reponsePhoto(x.q) : `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}`, ...(photos ? { title: x.q.text } : {}) }),
+      photos ? nomDePhoto(r, x, changer) : h("span", { class: "tirage-texte", text: `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
       themeDePack(x.cle),
       photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q) : r.type === "express" ? reponseVF(x.q) : miniature(x.q),
       clesFinale.has(x.cle) ? etiquetteFinale(r) : null,

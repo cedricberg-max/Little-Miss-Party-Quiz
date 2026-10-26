@@ -1266,6 +1266,10 @@ select.q-niveau-choix option { color: var(--ink); background: var(--card); }
 .round-body > .quiz-complet { min-width: 0; max-width: 100%; }
 .quiz-complet-q .tirage-q-ligne { flex-wrap: wrap; row-gap: 6px; }
 .quiz-complet-q .tirage-texte { flex: 1 1 160px; overflow-wrap: anywhere; }
+.photo-nom-bloc { flex: 1 1 160px; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.photo-nom-bloc > .tirage-texte { flex: 0 1 auto; }
+.photo-renommer { flex: none; width: 30px; height: 30px; border-radius: 10px; font-size: 14px; }
+.quiz-complet-q .photo-nom { flex: 1 1 160px; min-width: 0; max-width: 320px; }
 .quiz-complet-theme { flex: none; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 10px; border-radius: 999px; background: var(--violet-pale); color: var(--violet); font-size: 13px; font-weight: 700; }
 /* Glisser une ligne d'un « … complet » à la souris (cedric, 26/10) : la ligne prise pâlit, un trait violet montre où elle se pose. */
 .tirage-liste > li[draggable="true"] { cursor: grab; }
