@@ -13,7 +13,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +25,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,7 +40,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.littlemissparty.quiz.tv.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -78,7 +75,7 @@ import kotlin.math.roundToInt
  *   totalité ») ;
  * - le solo de guitare : flash, la fête du gagnant en plan cinéma, plein écran ([FeteCinema] : le robot bondit,
  *   s'arrête, fait un clin d'œil, la caméra bouge ; cedric, 24 octobre), le nom du gagnant claque lettre par lettre
- *   ([NomNerveux]), ses vrais points, puis le classement des autres sur une ou deux lignes ;
+ *   ([NomNerveux]) et ses vrais points ; jamais les autres équipes (cedric, 26/10) ;
  * - à [Tempo.PODIUM_FIN], quand la chanson s'éteint : l'écran de fin cinéma ([FinCinemaGameShow]).
  * Égalité en tête : mêmes tubes, puis « ÉGALITÉ ! » et les noms couronnés. Personne n'a marqué : les tubes restent
  * presque vides et « Bravo à toutes les équipes ! » arrive au solo. Les compteurs du suspense ne sont qu'un spectacle
@@ -92,7 +89,6 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
     if (apres(Tempo.PODIUM_FIN, Unit)) return FinCinemaGameShow(modifier)
     val meilleur = classement.firstOrNull()?.points ?: 0
     val gagnants = if (meilleur > 0) classement.takeWhile { it.points == meilleur } else emptyList()
-    val autres = classement.drop(gagnants.size)
     val seul = gagnants.size == 1
     // Horloge du podium (ms) : lue seulement dans les calques et les dessins, jamais à la composition.
     val horloge = remember { mutableFloatStateOf(0f) }
@@ -206,9 +202,9 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
                         )
                         NomNerveux(g, ligneNom, ms)
                         PointsNerveux(g.points, g.nom.length, ligneNom + 42.dp, ms)
-                        ClassementNerveux(autres, classement, if (autres.size >= 5) listOf(507.dp, 527.dp) else listOf(525.dp), ms)
+                        // Le gagnant seul : plus les autres équipes dessous (cedric, 26/10 : « je ne vois pas l'intérêt »).
                     } else {
-                        RevelationEgaliteOuZero(gagnants, autres, classement, meilleur, Modifier.align(Alignment.BottomCenter))
+                        RevelationEgaliteOuZero(gagnants, meilleur, Modifier.align(Alignment.BottomCenter))
                     }
                 }
             }
@@ -231,17 +227,15 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
 
 /**
  * La révélation sans gagnant unique, dans les 40 % du bas : égalité en tête (« ÉGALITÉ ! », la couronne, les noms à
- * égalité, leurs points) ou personne n'a marqué (« Bravo à toutes les équipes ! »). Les autres équipes dessous
- * (jusqu'à 3) ou de part et d'autre (4 à 7).
+ * égalité, leurs points) ou personne n'a marqué (« Bravo à toutes les équipes ! »). Jamais les autres équipes : seuls
+ * les gagnants (cedric, 26/10).
  */
 @Composable
-private fun RevelationEgaliteOuZero(gagnants: List<Classee>, autres: List<Classee>, classement: List<Classee>, meilleur: Int, modifier: Modifier) {
-    val cotes = autres.size > 3
+private fun RevelationEgaliteOuZero(gagnants: List<Classee>, meilleur: Int, modifier: Modifier) {
     Row(
         modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        if (cotes) ColonneAutres(autres.filterIndexed { i, _ -> i % 2 == 0 }, classement, Modifier.width(200.dp))
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
             if (gagnants.isNotEmpty()) {
                 Text(
@@ -278,12 +272,7 @@ private fun RevelationEgaliteOuZero(gagnants: List<Classee>, autres: List<Classe
                     modifier = Modifier.apparition(Tempo.PODIUM_REVELATION + 800, Unit),
                 )
             }
-            if (autres.isNotEmpty() && !cotes) {
-                Spacer(Modifier.height(8.dp))
-                BandeAutres(autres, classement, Modifier.apparition(Tempo.PODIUM_REVELATION + 2_500, Unit))
-            }
         }
-        if (cotes) ColonneAutres(autres.filterIndexed { i, _ -> i % 2 == 1 }, classement, Modifier.width(200.dp))
     }
 }
 
@@ -551,37 +540,6 @@ internal fun dispositionTubes(n: Int): List<PlaceTube> {
         }
     }
 }
-
-/**
- * Les autres équipes de part et d'autre du nom du gagnant (4 à 7 équipes) : une pastille par ligne, rang, couleur, nom
- * et points. Les noms longs sont réduits, jamais coupés au milieu d'un mot.
- */
-@Composable
-private fun ColonneAutres(equipes: List<Classee>, classement: List<Classee>, modifier: Modifier) {
-    val avecPoints = classement.any { it.points > 0 }
-    Column(modifier.apparition(Tempo.PODIUM_REVELATION + 2_500, Unit), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        equipes.forEach { e ->
-            val rang = 1 + classement.count { it.points > e.points }
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (avecPoints) {
-                    Text("$rang", style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = 14.sp, color = GS.Cyan), maxLines = 1)
-                    Spacer(Modifier.width(6.dp))
-                }
-                Box(Modifier.size(12.dp).clip(RoundedCornerShape(50)).background(enNeon(e.couleur)))
-                Spacer(Modifier.width(6.dp))
-                Box(Modifier.weight(1f)) { NomUneLigne(e.nom, GS.Encre, 16f, 92.dp, tailleMin = 9f) }
-                if (avecPoints) {
-                    Spacer(Modifier.width(4.dp))
-                    Text("${e.points}", style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = GS.Encre.copy(alpha = 0.8f)), maxLines = 1)
-                }
-            }
-        }
-    }
-}
-
 
 /**
  * Écran de fin dessiné du Game Show (secours de [FinCinemaGameShow] si sa vidéo ne se lit pas), sur le dernier groove d'Aerodynamic : « Merci d'avoir participé ! »,

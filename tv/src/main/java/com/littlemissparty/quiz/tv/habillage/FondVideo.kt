@@ -160,6 +160,22 @@ internal class LecteurFond(
         surfaceTextureListener = this
     }
 
+    /**
+     * La vue quitte la fenêtre (fin normale de l'intro, « Lancer l'épreuve ») : la surface est détruite, ce n'est pas une
+     * vidéo qui lâche. Avant, chaque intro de jeu finie était rapportée « a lâché, essai 1 » (Mi Box, 26/10).
+     */
+    private var detachee = false
+
+    override fun onAttachedToWindow() {
+        detachee = false
+        super.onAttachedToWindow()
+    }
+
+    override fun onDetachedFromWindow() {
+        detachee = true
+        super.onDetachedFromWindow()
+    }
+
     override fun onSurfaceTextureAvailable(st: SurfaceTexture, largeur: Int, hauteur: Int) {
         if (fini) return
         arreter()
@@ -223,7 +239,7 @@ internal class LecteurFond(
     // suivante tant que la vue n'est pas libérée.
     override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
         arreter()
-        if (!fini) surEchec()
+        if (!fini && !detachee) surEchec()
         return true
     }
 
