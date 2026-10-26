@@ -395,8 +395,9 @@ private fun TubesPodium(colonnes: List<Classee>, scores: List<Int>, ms: () -> Fl
     }
 }
 
+// Chiffres un peu espacés, comme aux jauges des scores : en Black, « 117 » se touchait presque (cedric, 26/10).
 private fun styleCompteur(taille: Float, couleur: Color) = TextStyle(
-    fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = taille.sp, color = couleur,
+    fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = taille.sp, letterSpacing = (taille * 0.08f).sp, color = couleur,
     shadow = Shadow(couleur.copy(alpha = 0.8f), Offset.Zero, taille * 0.6f), textAlign = TextAlign.Center,
 )
 
