@@ -126,7 +126,9 @@ fun SceneGonfleur(equipes: List<Triple<String, Color, Float>>, gagnante: Int?, m
     val fente = 860f / n
     val rMax = min(fente * 0.44f, 118f)
     Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().clearAndSetSemantics {}.drawWithCache { onDrawBehind { estradeGonfleur() } })
+        // Game Show : pas d'estrade, les ballons sont posés sur leurs anneaux de néon, sur le sol du plateau.
+        val gs = Look.gs
+        if (!gs) Box(Modifier.fillMaxSize().clearAndSetSemantics {}.drawWithCache { onDrawBehind { estradeGonfleur() } })
         equipes.forEachIndexed { i, (nom, couleur, progres) ->
             val p by animateFloatAsState(progres.coerceIn(0f, 1f), tween(260), label = "ballon$i")
             val cx = 50f + fente * (i + 0.5f)
@@ -135,7 +137,8 @@ fun SceneGonfleur(equipes: List<Triple<String, Color, Float>>, gagnante: Int?, m
                 val d = density
                 val socleHaut = 452f * d
                 // Socle lesté (laiton et laque) posé sur l'estrade, avec son ombre.
-                socle(cx * d, socleHaut, min(fente * 0.36f, 56f) * d, couleur)
+                if (gs) anneauNeon(cx * d, socleHaut - 4f * density, min(fente * 0.36f, 56f) * d * 1.12f, enNeon(couleur), temps.value)
+                else socle(cx * d, socleHaut, min(fente * 0.36f, 56f) * d, couleur)
                 val e = eclat.value
                 if (gagne && e > 0.12f) {
                     // Le ballon a éclaté : lambeaux de caoutchouc et ficelle qui retombe.
@@ -154,7 +157,7 @@ fun SceneGonfleur(equipes: List<Triple<String, Color, Float>>, gagnante: Int?, m
                     cubicTo(cx * d + 8f * d * sin(ms / 700f + i), (socleHaut + noeud.y) / 2, noeud.x - 6f * d, noeud.y + 20f * d, noeud.x, noeud.y)
                 }
                 drawPath(ficelle, Color(0xFFF6EBDC).copy(alpha = 0.85f), style = Stroke(1.6f * d))
-                rotate(balance, noeud) { ballon(c, r, couleur, p, tremble) }
+                rotate(balance, noeud) { if (gs) ballonNeon(c, r, enNeon(couleur), p, tremble) else ballon(c, r, couleur, p, tremble) }
             }
             // Nom de l'équipe sur le socle ; points à la fin.
             Column(
@@ -206,9 +209,9 @@ fun SceneGonfleur(equipes: List<Triple<String, Color, Float>>, gagnante: Int?, m
             Text(
                 "Tapez vite sur la tablette !", maxLines = 1,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp)
-                    .background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50))
+                    .background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.5.dp, if (gs) GS.Cyan else Neon.Or, RoundedCornerShape(50))
                     .padding(horizontal = 26.dp, vertical = 6.dp),
-                style = styleGonfleur.copy(fontSize = 26.sp, color = Neon.OrClair),
+                style = styleGonfleur.copy(fontSize = 26.sp, color = if (gs) GS.CyanClair else Neon.OrClair),
             )
         }
     }
@@ -281,4 +284,40 @@ private fun DrawScope.morceaux(c: Offset, r: Float, couleur: Color, u: Float, gr
     // La ficelle retombe mollement.
     val bas = c.y + r * 1.1f + 60f * d * u
     drawLine(Color(0xFFF6EBDC).copy(alpha = 0.8f * (1f - u)), Offset(c.x, bas - 40f * d), Offset(c.x + 10f * d * sin(u * 8f), bas), 1.6f * d, StrokeCap.Round)
+}
+
+/*
+ * Game Show : le ballon et son socle de la maquette 3D validée par cedric (nuit du 23 au 24 octobre) — ballon laqué
+ * qui brille de la couleur de l'équipe, reflets de néon violet, rose et cyan, posé sur un anneau de néon.
+ */
+
+/** Ballon laqué du Game Show : halo de la couleur de l'équipe, reflets de néon, il pâlit et se tend près d'éclater. */
+private fun DrawScope.ballonNeon(c: Offset, r: Float, couleur: Color, p: Float, tremble: Float) {
+    val tendu = lerp(couleur, Color.White, 0.12f * p)
+    val corps = Path().apply {
+        moveTo(c.x, c.y + r * 1.08f)
+        cubicTo(c.x - r * 0.8f, c.y + r * 0.9f, c.x - r * 1.04f, c.y + r * 0.1f, c.x - r * 0.98f, c.y - r * 0.38f)
+        cubicTo(c.x - r * 0.9f, c.y - r * 1.02f, c.x + r * 0.9f, c.y - r * 1.02f, c.x + r * 0.98f, c.y - r * 0.38f)
+        cubicTo(c.x + r * 1.04f, c.y + r * 0.1f, c.x + r * 0.8f, c.y + r * 0.9f, c.x, c.y + r * 1.08f)
+        close()
+    }
+    drawCircle(Brush.radialGradient(listOf(couleur.copy(alpha = 0.42f + 0.25f * tremble), couleur.copy(alpha = 0.12f), Color.Transparent), c, r * 1.75f), r * 1.75f, c)
+    drawPath(corps, Brush.radialGradient(listOf(lerp(tendu, Color.White, 0.42f), tendu, lerp(couleur, Color(0xFF14082A), 0.42f)), c - Offset(r * 0.28f, r * 0.34f), r * 1.45f))
+    // Lumière de contre-jour en bas à droite (reflet du plateau).
+    drawPath(corps, Brush.radialGradient(listOf(lerp(couleur, Color.White, 0.55f).copy(alpha = 0.55f), Color.Transparent), c + Offset(r * 0.8f, r * 0.55f), r * 0.6f))
+    val anneau = { k: Float -> Offset(c.x - r * k, c.y - r * k) to Size(2 * r * k, 2 * r * k) }
+    // Reflets de néon : arc violet en haut, trait rose à gauche, trait cyan à droite.
+    val (o1, s1) = anneau(0.78f)
+    drawArc(Color(0xFFB04DFF), 228f, 84f, false, o1, s1, style = Stroke(r * 0.085f, cap = StrokeCap.Round))
+    val (o2, s2) = anneau(0.6f)
+    drawArc(Color(0xFFFF2D95).copy(alpha = 0.9f), 168f, 36f, false, o2, s2, style = Stroke(r * 0.11f, cap = StrokeCap.Round))
+    val (o3, s3) = anneau(0.74f)
+    drawArc(GS.Cyan.copy(alpha = 0.85f), 342f, 34f, false, o3, s3, style = Stroke(r * 0.07f, cap = StrokeCap.Round))
+    // Éclat blanc et sa traînée, petit point de lumière plus bas.
+    drawLine(Color.White.copy(alpha = 0.45f), c + Offset(-r * 0.3f, -r * 0.5f), c + Offset(r * 0.18f, -r * 0.47f), r * 0.07f, StrokeCap.Round)
+    drawCircle(Brush.radialGradient(listOf(Color.White, Color.White.copy(alpha = 0.6f), Color.Transparent), c + Offset(-r * 0.36f, -r * 0.52f), r * 0.17f), r * 0.17f, c + Offset(-r * 0.36f, -r * 0.52f))
+    drawCircle(Color.White.copy(alpha = 0.85f), r * 0.045f, c + Offset(r * 0.42f, r * 0.42f))
+    // Nœud.
+    val n = c + Offset(0f, r * 1.08f)
+    drawPath(Path().apply { moveTo(n.x - r * 0.09f, n.y + r * 0.1f); lineTo(n.x + r * 0.09f, n.y + r * 0.1f); lineTo(n.x, n.y - r * 0.02f); close() }, lerp(couleur, Color.Black, 0.3f))
 }

@@ -115,6 +115,10 @@ describe("analyse d'un pack", () => {
     assert.deepEqual(laisses.sort(), ["liste.txt"]);
     assert.equal(imagesInutiles, 1, "en-trop.jpg : comptée, jamais téléversée");
     assert.equal(IMAGE_MANQUANTE, "Image manquante : ajoutez une illustration.");
+    // Un Juste Chiffre illustré (cedric, 26/10) : sa photo est servie, pas « inutile ».
+    const avecPhoto = { ...QUIZ, questions: [...QUIZ.questions.slice(0, 2), { ...QUIZ.questions[2], illustration: "HP-Q03-Revelation.jpg" }] };
+    const lu = analyserPack([fichier("hp/pack.json", JSON.stringify(avecPhoto)), fichier("hp/HP-Q01-Revelation.JPG"), fichier("hp/HP-Q03-Revelation.jpg")]);
+    assert.deepEqual([lu.packs[0].questions[2].kind, lu.packs[0].questions[2].revealFile, lu.imagesInutiles], ["number", "HP-Q03-Revelation.jpg", 0]);
   });
 
   test("Quiz illustré : images des propositions et révélation facultative ; une case sans image reste vide, sans émoji", () => {
@@ -319,6 +323,36 @@ describe("un seul fichier packs.json et le dossier d'images téléchargé (cedri
     assert.equal(alerteImage({ largeur: 1920, hauteur: 600, octets: 900_000 }, "revelation", { banque: true }), null);
     assert.match(alerteImage({ largeur: 200, hauteur: 150, octets: 9_000 }, "revelation", { banque: true }), /trop petite/);
     assert.match(alerteImage({ largeur: 1920, hauteur: 600, octets: 900_000 }, "revelation"), /panoramique/);
+  });
+
+  test("\"images\" donne un nom à chaque image (cedric, 25/10 : « Yoshi, Toad… ») : citée ou non, elle est gardée ; les autres restent de côté", () => {
+    const zip = [
+      fichier("mario/packs.json", JSON.stringify({ theme: "Mario", niveau: "Facile",
+        images: [{ fichier: "IMG_001.jpg", nom: "Yoshi" }, { fichier: "img-002.PNG", nom: "Toad" }, { fichier: "IMG_003.jpg", nom: "Yoshi" }, { fichier: "absente.jpg", nom: "Bowser" }],
+        packs: [{ title: "Zoom Mario", photos: [{ image: "IMG_001.jpg", reponse: "Yoshi" }] }] })),
+      ...["IMG_001.jpg", "img_002.png", "IMG_003.jpg", "IMG_004.jpg"].map((n) => fichier(`mario/images/${n}`)),
+    ];
+    const { packs, erreurs, nommees, nomsAbsents, imagesInutiles } = analyserPack(zip);
+    assert.deepEqual(erreurs, []);
+    assert.deepEqual(packs.map((p) => [p.epreuve, p.theme, p.questions.length]), [["photos", "Mario", 1]], "la liste des noms n'est pas une série de photos");
+    assert.deepEqual(nommees.map((x) => [x.chemin, x.nom, x.theme]), [
+      ["mario/images/IMG_001.jpg", "Yoshi", "Mario"], ["mario/images/img_002.png", "Toad", "Mario"], ["mario/images/IMG_003.jpg", "Yoshi 2", "Mario"]], "un nom unique dans le thème");
+    assert.deepEqual(nomsAbsents, ["absente.jpg"]);
+    assert.equal(imagesInutiles, 1, "IMG_004 : ni citée ni nommée");
+  });
+
+  test("un fichier qui ne fait que nommer les images ({ theme, images }) s'importe seul ; une série de photos { image, reponse } reste une série", () => {
+    const seul = analyserPack([fichier("noms-images.json", JSON.stringify({ theme: "Super Mario", images: [{ fichier: "a.jpg", nom: "Peach" }, { fichier: "b.jpg", nom: "Daisy", theme: "Princesses" }] })),
+      fichier("images/a.jpg"), fichier("images/b.jpg"), fichier("images/c.jpg")]);
+    assert.deepEqual([seul.erreurs, seul.packs], [[], []]);
+    assert.deepEqual(seul.nommees.map((x) => [x.nom, x.theme]), [["Peach", "Super Mario"], ["Daisy", "Princesses"]]);
+    assert.equal(seul.imagesInutiles, 1);
+    // Rien de trouvé : aucune série de toutes les photos du ZIP.
+    const absentes = analyserPack([fichier("noms-images.json", JSON.stringify({ theme: "Mario", images: [{ fichier: "x.jpg", nom: "X" }] })), fichier("images/a.jpg")]);
+    assert.deepEqual([absentes.packs, absentes.nommees, absentes.nomsAbsents], [[], [], ["x.jpg"]]);
+    const serie = analyserPack([fichier("pack.json", JSON.stringify({ title: "Disney", images: [{ image: "a.jpg", reponse: "Elsa" }] })), fichier("a.jpg")]);
+    assert.deepEqual(serie.packs.map((p) => [p.epreuve, p.questions[0].choices[0]]), [["photos", "Elsa"]]);
+    assert.deepEqual(serie.nommees, []);
   });
 });
 

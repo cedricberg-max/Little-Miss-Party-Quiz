@@ -309,3 +309,20 @@
   .mot-secret-carte { width: min(84vw, 900px); }
   .mot-secret-carte > .mot-secret-image { width: min(40vh, 320px); font-size: min(26vh, 200px); }
 }
+
+/* ---------- Game Show : l'ardoise dans un cadre de néon (cyan et rose), outils en néon ; la feuille reste blanche ---------- */
+.look-gs .ardoise { --or: var(--gs-cyan); --or-clair: #8cf9ff; }
+.look-gs .ardoise-titre { font-family: "GS Bungee"; font-weight: 400; letter-spacing: 0; color: #fff; text-shadow: 0 0 14px var(--gs-rose), 0 0 4px #fff; }
+.look-gs .ardoise-cadre { padding: 10px; background: rgba(10, 6, 24, .92);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 5px var(--gs-cyan), 0 0 26px rgba(0, 240, 255, .7), 0 0 0 9px rgba(255, 45, 149, .55), 0 0 60px rgba(255, 45, 149, .35);
+  animation: ardoise-gs-souffle 3s ease-in-out infinite; }
+@keyframes ardoise-gs-souffle { 50% { box-shadow: 0 0 0 2px #fff, 0 0 0 5px var(--gs-cyan), 0 0 40px rgba(0, 240, 255, .9), 0 0 0 9px rgba(255, 45, 149, .7), 0 0 80px rgba(255, 45, 149, .45); } }
+.look-gs .ardoise-coin { color: #e6fdff; text-shadow: 0 0 10px var(--gs-cyan), 0 0 4px var(--gs-cyan); }
+.look-gs .ardoise-outils { background: rgba(10, 6, 24, .85); box-shadow: 0 0 0 2px rgba(0, 240, 255, .55), 0 0 16px rgba(0, 240, 255, .3); }
+.look-gs .ardoise-gomme { background: rgba(10, 6, 24, .9) !important; color: #e6fdff; box-shadow: 0 0 0 2px var(--gs-cyan); font-family: "GS Rajdhani"; }
+.look-gs .ardoise-gomme[aria-checked="true"] { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--gs-cyan), 0 0 16px var(--gs-cyan); }
+.look-gs .ardoise-effacer { background: rgba(10, 6, 24, .9); color: #ffb3c8; box-shadow: 0 0 0 2px var(--gs-rose), 0 0 12px rgba(255, 45, 149, .5); font-family: "GS Rajdhani"; }
+.look-gs .ardoise-effacer.confirmer { background: var(--gs-rose); color: #fff; }
+.look-gs .ardoise-feutre[aria-checked="true"] { box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--gs-cyan), 0 0 14px var(--gs-cyan); }
+.look-gs .ardoise-epaisseur[aria-checked="true"] { box-shadow: 0 0 0 3px var(--gs-cyan), 0 0 12px var(--gs-cyan); }
+.look-gs .choix-titre { font-family: "GS Bungee"; font-weight: 400; text-shadow: 0 0 14px var(--gs-cyan); }

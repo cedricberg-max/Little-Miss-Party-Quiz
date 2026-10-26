@@ -21,7 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,8 +37,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
@@ -140,6 +138,7 @@ private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, 
                 val taille = with(LocalDensity.current) { ((maxHeight - 34.dp) / 1.15f).coerceIn(16.dp, 52.dp).toSp() }
                 // En photos : la photo remplit la case au-dessus du nom (l'émoji reste en secours si elle manque).
                 val cote: Dp = min(maxWidth - 12.dp, maxHeight - 40.dp).coerceIn(24.dp, 160.dp)
+                val largeurNom = maxWidth - 8.dp
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = if (enOr) Modifier.apparition(0, "retour") else Modifier) {
                     if (photo != null) {
                         Image(
@@ -150,11 +149,11 @@ private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, 
                     } else {
                         Text(carte.image ?: "⭐", fontSize = taille, lineHeight = taille * 1.15f)
                     }
-                    Text(
-                        carte.word,
-                        color = if (enOr) Palette.Gold else Palette.Ink, fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 160.dp),
+                    // Le nom entier sur toute la largeur de la case, plus petit s'il est long (« Téléphérique »,
+                    // « Bateau à voile », 25/10) : jamais de « … ».
+                    TexteAjuste(
+                        carte.word, color = if (enOr) Palette.Gold else Palette.Ink, max = 22.sp, min = 11.sp, lignes = 1,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.width(largeurNom),
                     )
                 }
             }

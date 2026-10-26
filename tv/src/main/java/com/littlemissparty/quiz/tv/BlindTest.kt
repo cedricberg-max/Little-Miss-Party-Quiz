@@ -6,12 +6,17 @@ import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.GAIN_REFRAIN_MB
+import com.littlemissparty.quiz.tv.habillage.Sons
 import com.littlemissparty.quiz.tv.habillage.boosterExtrait
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.security.MessageDigest
 
 /** Extraits musicaux (blind test, quiz musical) : vérification du fichier reçu. */
@@ -34,8 +39,22 @@ object Extraits {
  */
 @Composable
 fun ExtraitMusical(q: Question, state: UiState.Playing) {
-    val path = q.audioId?.let { state.sounds[it] } ?: return
-    val player = remember(q.id, path) {
+    val path = q.audioId?.let { state.sounds[it] }
+    if (path == null) {
+        // Toujours pas sur la box quelques secondes après l'ouverture de la question : dit dans les rapports.
+        if (q.audioId != null) LaunchedEffect(q.id) {
+            delay(ABSENT_APRES_MS)
+            Sons.incidentChanson("Extrait ${q.audioId} absent de la box (question ${q.id}) : question sans musique")
+        }
+        return
+    }
+    // Lecteur en panne (erreur, ou muet alors qu'il devrait jouer : TV du 25/10 au soir) : refait, deux fois au plus.
+    var essai by remember(q.id, path) { mutableIntStateOf(0) }
+    val panne: (String) -> Unit = { raison ->
+        Sons.incidentChanson("Extrait ${q.audioId} (question ${q.id}) : $raison${if (essai < ESSAIS_CHANSON) ", lecteur refait" else ""}")
+        if (essai < ESSAIS_CHANSON) essai++
+    }
+    val preparation = rememberPrepareAuCalme(q.id, path, essai, liberer = ::rendreLecteur) {
         runCatching {
             MediaPlayer().apply {
                 setAudioAttributes(
@@ -43,9 +62,14 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
                 )
                 setDataSource(path)
                 prepare()
+                setOnErrorListener { _, quoi, extra -> panne("lecteur en erreur ($quoi, $extra)"); true }
             }
-        }.onFailure { Log.w("Extrait", "Extrait illisible ${q.audioId}", it) }.getOrNull()
-    } ?: return
+        }.onFailure {
+            Log.w("Extrait", "Extrait illisible ${q.audioId}", it)
+            Sons.incidentChanson("Extrait ${q.audioId} (question ${q.id}) illisible : ${it.message}")
+        }.getOrNull()
+    }
+    val player = (preparation as? Preparation.Faite)?.lecteur ?: return
     DisposableEffect(player) {
         val volume = boosterExtrait(player)
         onDispose { runCatching { volume?.release() }; runCatching { player.stop() }; runCatching { player.release() } }
@@ -64,6 +88,7 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
                 revealed && (coupe || refrain != null) -> if (player.isPlaying) player.pause()
                 revealed -> {
                     player.seekTo(0); player.start()
+                    launch { verifierQueCaJoue(player, 0, panne) }
                     // revealSec 0 : tout l'extrait, le temps de chanter.
                     if (q.isBlind && q.revealSec > 0) {
                         delay(q.revealSec * 1000L)
@@ -81,7 +106,10 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
                     val attente = start - (System.currentTimeMillis() + state.serverOffset)
                     if (attente > 0) { if (player.isPlaying) player.pause(); delay(attente) }
                     val ecoule = (q.durationMs - ((state.deadline ?: 0L) - (System.currentTimeMillis() + state.serverOffset))).coerceAtLeast(0)
-                    if (ecoule < player.duration) { player.seekTo(ecoule.toInt()); player.start() } else if (player.isPlaying) player.pause()
+                    if (ecoule < player.duration) {
+                        player.seekTo(ecoule.toInt()); player.start()
+                        launch { verifierQueCaJoue(player, ecoule.toInt(), panne) }
+                    } else if (player.isPlaying) player.pause()
                 }
                 else -> if (player.isPlaying) player.pause()
             }
@@ -89,6 +117,31 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
         }.onFailure { Log.w("Extrait", "Lecture impossible", it) }
     }
 }
+
+/** Arrête et rend un lecteur de chanson ; sans effet s'il l'est déjà. */
+internal fun rendreLecteur(l: MediaPlayer) {
+    runCatching { l.stop() }
+    runCatching { l.release() }
+}
+
+/** Extrait toujours absent de la box ce temps après l'ouverture de sa question : signalé dans les rapports. */
+private const val ABSENT_APRES_MS = 8_000L
+
+/** Lecteur d'une chanson refait au plus ce nombre de fois quand il tombe en panne. */
+internal const val ESSAIS_CHANSON = 2
+
+/**
+ * Une chanson lancée avance vraiment : sinon (lecteur muet, la TCL du 25/10 au soir), [panne]. Le lecteur lancé
+ * depuis [depart] doit avoir avancé d'au moins une demi-seconde en [VERIFICATION_MS].
+ */
+internal suspend fun verifierQueCaJoue(player: MediaPlayer, depart: Int, panne: (String) -> Unit) {
+    delay(VERIFICATION_MS)
+    val position = runCatching { player.currentPosition }.getOrNull() ?: return
+    if (!runCatching { player.isPlaying }.getOrDefault(false)) return
+    if (position < depart + 500) panne("muet, n'avance pas (${position - depart} ms en $VERIFICATION_MS ms)")
+}
+
+private const val VERIFICATION_MS = 1_500L
 
 /** Fondu enchaîné entre deux passages du refrain, en millisecondes. */
 private const val FONDU_REFRAIN_MS = 2_000L
@@ -132,7 +185,7 @@ object PositionRefrain {
  */
 @Composable
 fun RefrainEnBoucle(cle: String, path: String, dureeMs: Long? = null) {
-    val lecteurs = remember(cle, path) {
+    val preparation = rememberPrepareAuCalme(cle, path, liberer = { l: List<MediaPlayer> -> l.forEach(::rendreLecteur) }) {
         runCatching {
             List(2) {
                 MediaPlayer().apply {
@@ -141,10 +194,15 @@ fun RefrainEnBoucle(cle: String, path: String, dureeMs: Long? = null) {
                     )
                     setDataSource(path)
                     prepare()
+                    setOnErrorListener { _, quoi, extra -> Sons.incidentChanson("Refrain ($cle) : lecteur en erreur ($quoi, $extra)"); true }
                 }
             }
-        }.onFailure { Log.w("Extrait", "Refrain illisible", it) }.getOrNull()
-    } ?: return
+        }.onFailure {
+            Log.w("Extrait", "Refrain illisible", it)
+            Sons.incidentChanson("Refrain ($cle) illisible : ${it.message}")
+        }.getOrNull()
+    }
+    val lecteurs = (preparation as? Preparation.Faite)?.lecteur ?: return
     DisposableEffect(lecteurs) {
         val volumes = lecteurs.map { boosterExtrait(it, GAIN_REFRAIN_MB) }
         onDispose {

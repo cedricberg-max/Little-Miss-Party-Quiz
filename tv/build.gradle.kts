@@ -90,6 +90,9 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose:1.10.0")
     implementation("androidx.core:core-ktx:1.15.0")
+    // Profils de démarrage (ceux de Compose et le nôtre, src/main/baseline-prof.txt) : Android compile d'avance le code
+    // de l'appli au lieu de l'interpréter les premières minutes (cedric, 25/10 : saccades qui passent après ~5 min).
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
     implementation(platform("com.google.firebase:firebase-bom:33.8.0"))
     implementation("com.google.firebase:firebase-database")

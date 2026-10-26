@@ -168,19 +168,152 @@ function installerCockpit() {
     const bouton = e.target.closest("button");
     if (bouton && bouton.id !== "c-end") fermerPlus();
   }, true);
-  $("c-plus").onclick = ouvrirPlus;
+  // Le milieu de l'écran (cedric, 25/10) : une tuile par équipe, sous la carte de la question.
+  const tuiles = document.createElement("section");
+  tuiles.id = "c-tuiles";
+  tuiles.className = "tuiles";
+  tuiles.setAttribute("aria-label", "Équipes");
+  tuiles.hidden = true;
+  document.querySelector(".regie .control > .card").after(tuiles);
+  $("c-plus").onclick = () => ($("plus").hidden ? ouvrirPlus() : fermerPlus());
   $("plus-fermer").onclick = fermerPlus;
   $("plus-fond").onclick = fermerPlus;
+  // Le bas de la régie reste utilisable sous la feuille : Pause, le bouton principal ou « Fin de la fête » la referment.
+  for (const id of ["c-pause", "c-next", "c-fin"]) $(id).addEventListener("click", fermerPlus);
 }
+
+/**
+ * « ☰ Plus » s'arrête au-dessus du bas de la régie : Pause, « ☰ Plus » et le bouton principal (« Lancer la fête ! »)
+ * restent visibles et utilisables (test du 25/10 : feuille ouverte, Sarah ne trouvait plus comment lancer la fête).
+ */
+function caleSurLeBas() {
+  if ($("plus").hidden) return;
+  const haut = document.querySelector(".regie .actions")?.getBoundingClientRect().top;
+  const bas = haut > 0 ? Math.max(0, window.innerHeight - haut) : 0;
+  document.documentElement.style.setProperty("--bas-regie", `${Math.round(bas)}px`);
+}
+
+// Le bas de la régie grandit parfois feuille ouverte (une ligne d'aide, une tablette coupée) : la feuille suit.
+let suiviDuBas = null;
 
 function ouvrirPlus() {
   $("plus").hidden = false;
   $("plus-fond").hidden = false;
+  caleSurLeBas();
+  const actions = document.querySelector(".regie .actions");
+  if (!suiviDuBas && actions && typeof ResizeObserver === "function") (suiviDuBas = new ResizeObserver(caleSurLeBas)).observe(actions);
 }
 
 function fermerPlus() {
   $("plus").hidden = true;
   $("plus-fond").hidden = true;
+}
+
+window.addEventListener("resize", caleSurLeBas);
+
+/**
+ * Régie « cockpit » (maquette validée par cedric, 25/10) : la bonne réponse en grand, lettre dans une pastille dorée.
+ * Toucher la cache (et la remontre), comme avant.
+ */
+function grosseReponse(btn, { correct, text, number, flou, prochaine = false }) {
+  const lbl = document.createElement("span");
+  lbl.className = "rep-lbl";
+  lbl.textContent = prochaine ? "Prochaine réponse" : "Bonne réponse";
+  const oeil = document.createElement("span");
+  oeil.textContent = answerMasked ? "👁 voir" : "👁 cacher";
+  lbl.append(oeil);
+  const txt = document.createElement("span");
+  txt.className = "rep-txt";
+  if (answerMasked) txt.textContent = "Réponse cachée";
+  else if (number) txt.textContent = String(correct);
+  else {
+    if (!flou && CHOICE_LETTERS[correct]) txt.append(Object.assign(document.createElement("span"), { className: "rep-lettre", textContent: CHOICE_LETTERS[correct] }));
+    txt.append(text);
+  }
+  btn.replaceChildren(lbl, txt);
+}
+
+/** Classement au milieu d'un jeu : la question qui suit, si elle est du même jeu et a une bonne réponse à annoncer. */
+function questionSuivante(st) {
+  const { questions, next } = gamesOf(st);
+  const k = (st.index ?? -1) + 1;
+  const q = questions[k];
+  if (!q || (next && next.start === k) || st.leaveTo != null) return null;
+  if (["portes", "coffres", "gonfleur", "patate", "statues", "mime", "pictionary", "blind"].includes(q.kind)) return null;
+  if (q.correct == null) return null;
+  return { q, correct: q.correct, text: q.choices?.[q.correct] ?? "", number: q.kind === "number", flou: BUZZ_KINDS.includes(q.kind) };
+}
+
+/** Jeux qui ont déjà leur propre écran au milieu de la régie pendant la question (mimes, blind test, statues…). */
+const MILIEU_OCCUPE = ["mime", "blind", "statues", "coffres", "gonfleur", "patate"];
+
+/**
+ * Une tuile par équipe (1 à 8) : sa couleur, ses points, ce qu'elle fait (a répondu, réfléchit, sa réponse et ses
+ * points une fois révélée, sa place au classement). La toucher ouvre « Bonus ou malus » réglé sur elle ; une tablette
+ * coupée passe en rouge et la toucher ouvre le QR pour la reconnecter. Au buzz, le verdict plein écran passe devant.
+ */
+function renderTuiles(st, teams) {
+  const box = $("c-tuiles");
+  const occupe = MILIEU_OCCUPE.some((id) => !$(id).hidden) || !!st.buzz?.team;
+  box.hidden = !teams.length || occupe;
+  if (box.hidden) { box.dataset.cle = ""; return; }
+  const scores = st.scores ?? {};
+  const tri = teams.map(([id]) => scores[id] ?? 0).sort((a, b) => b - a);
+  const place = (id) => tri.indexOf(scores[id] ?? 0) + 1;
+  const classement = st.phase === "scores" || st.phase === "ended";
+  const enQuestion = (st.phase === "question" || st.phase === "closed") && !BUZZ_KINDS.includes(st.kind);
+  const revele = st.phase === "reveal" && st.awards != null;
+  const ordre = classement ? [...teams].sort((a, b) => (scores[b[0]] ?? 0) - (scores[a[0]] ?? 0)) : teams;
+  // Redessinées seulement quand quelque chose change : un doigt posé sur une tuile ne la perd jamais en route.
+  const cle = JSON.stringify([st.phase, st.kind, st.index, ordre.map(([id, t]) => [id, t.name, t.color, scores[id], tablettesCoupees.has(id), live.answers[id] ? live.answers[id].choice ?? true : null, st.awards?.[id] ?? null])]);
+  if (box.dataset.cle === cle) return;
+  box.dataset.cle = cle;
+  box.classList.toggle("une", teams.length === 1);
+  box.classList.toggle("serree", teams.length > 4);
+  const tuiles = ordre.map(([id, t]) => {
+    const coupee = tablettesCoupees.has(id);
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "tuile";
+    b.dataset.team = id;
+    b.style.setProperty("--c", t.color ?? "#fff");
+    const nom = document.createElement("span");
+    nom.className = "t-nom";
+    if (classement) nom.append(Object.assign(document.createElement("span"), { className: `t-place${place(id) === 1 ? " premiere" : ""}`, textContent: String(place(id)) }));
+    nom.append(t.name ?? "Équipe");
+    const score = Object.assign(document.createElement("span"), { className: "t-score", textContent: String(scores[id] ?? 0) });
+    const etat = document.createElement("span");
+    etat.className = "t-etat";
+    const rep = live.answers[id];
+    const a = st.awards?.[id];
+    if (coupee && st.phase !== "ended") {
+      b.classList.add("coupee");
+      etat.textContent = "📱 Hors ligne · touchez : QR";
+    } else if (st.phase === "lobby") {
+      etat.textContent = "connectée";
+      etat.classList.add("ok");
+    } else if (enQuestion) {
+      etat.textContent = rep ? (st.kind === "number" ? `✓ ${rep.choice}` : "✓ a répondu") : "… réfléchit";
+      etat.classList.add(rep ? "ok" : "attend");
+    } else if (revele && !BUZZ_KINDS.includes(st.kind)) {
+      const choix = rep == null ? "pas de réponse" : st.kind === "number" ? String(rep.choice) : CHOICE_LETTERS[rep.choice] ?? "";
+      const pts = (a?.points ?? 0) + (a?.bonus ?? 0);
+      etat.textContent = `${a?.correct ? "✓" : "✕"} ${choix} · ${pts > 0 ? "+" : ""}${pts}`;
+      etat.classList.add(a?.correct ? "ok" : "ko");
+    } else if (a && (a.points || a.bonus)) {
+      const pts = (a.points ?? 0) + (a.bonus ?? 0);
+      etat.textContent = `${pts > 0 ? "+" : ""}${pts}`;
+      etat.classList.add(pts > 0 ? "ok" : "ko");
+    }
+    b.append(nom, score, etat);
+    b.setAttribute("aria-label", `${t.name ?? "Équipe"} : ${scores[id] ?? 0} points${etat.textContent ? `, ${etat.textContent}` : ""}`);
+    b.disabled = st.phase === "ended" && !coupee;
+    b.onclick = coupee ? ouvrirTablette : () => choosePoints(id, true);
+    return b;
+  });
+  const astuce = Object.assign(document.createElement("p"), { className: "t-astuce", textContent: "Touchez une équipe : bonus ou malus" });
+  astuce.hidden = st.phase === "ended";
+  box.replaceChildren(...tuiles, astuce);
 }
 
 /**
@@ -331,8 +464,13 @@ function control() {
     watchAnswers();
     watchPumps();
     // En arrivant dans le salon d'attente, la première chose à faire est de charger la prestation.
-    if (first && !tabChosen && live.state?.phase === "lobby") switchTab("show");
+    if (first && !tabChosen && live.state?.phase === "lobby") {
+      switchTab("show");
+      // Arrivée en suivant la TV (« Fin de la fête ») : la liste des prestations s'ouvre d'elle-même.
+      if (COCKPIT && arriveeEnSuivant()) ouvrirPlus();
+    }
     first = false;
+    suivreLaTV(live.state);
     render();
   });
   listen(`games/${code}/teams`, (s) => { live.teams = s.val() ?? {}; render(); });
@@ -356,6 +494,45 @@ function control() {
     $("c-notes").hidden = !notes;
     $("c-notes-text").textContent = notes;
   });
+}
+
+/**
+ * « 🏁 Fin de la fête » ou nouvelle partie lancée sur la TV (cedric, 25/10 : « il faut que ça suive tout seul ») :
+ * la box laisse sur l'ancienne partie l'adresse de la nouvelle (state/suite) et y a déjà relié ce téléphone. La régie
+ * passe seule à la nouvelle partie, sans QR ni mot de passe, la liste des prestations ouverte. Si la box n'a pas pu
+ * relier ce téléphone, la régie le dit et propose d'y aller avec le mot de passe.
+ */
+let suiteVue = null;
+async function suivreLaTV(st) {
+  const suite = typeof st?.suite === "string" ? st.suite.toUpperCase() : null;
+  if (!st?.leftAt || !suite || !/^[A-Z0-9]{5}$/.test(suite) || suite === code || suiteVue === suite) return;
+  suiteVue = suite;
+  const partie = code;
+  const relie = await hasAccess({ db, uid }, suite).catch(() => false);
+  if (code !== partie) return;
+  const adresse = new URL(location.href);
+  adresse.searchParams.set("g", suite);
+  if (relie) {
+    adresse.searchParams.set("suivie", "1");
+    adresse.searchParams.delete("regie");
+    toast("La TV a ouvert une nouvelle partie : la régie la suit…");
+    setTimeout(() => location.replace(adresse.href), 600);
+    return;
+  }
+  adresse.searchParams.set("regie", "1");
+  adresse.searchParams.delete("suivie");
+  const lien = Object.assign(document.createElement("a"), { className: "btn main", href: adresse.href, textContent: "Aller à la nouvelle partie" });
+  $("c-suite").replaceChildren("La TV a ouvert une nouvelle partie. Ce téléphone n'a pas pu la suivre seul : touchez ci-dessous, puis tapez le mot de passe.", lien);
+  $("c-suite").hidden = false;
+}
+
+/** Page ouverte en suivant la TV : une seule fois (un rechargement ne rouvre pas la liste). */
+function arriveeEnSuivant() {
+  const adresse = new URL(location.href);
+  if (adresse.searchParams.get("suivie") !== "1") return false;
+  adresse.searchParams.delete("suivie");
+  history.replaceState(null, "", adresse.href);
+  return true;
 }
 
 function watchAnswers() {
@@ -483,7 +660,17 @@ function render() {
     const flou = BUZZ_KINDS.includes(q?.kind ?? st.kind);
     answerBtn.textContent = answerMasked ? "Réponse masquée · toucher pour voir" : number ? `Juste Chiffre · ${correct}` : flou ? `Réponse · ${text}` : `Réponse ${CHOICE_LETTERS[correct]} · ${text}`;
     answerBtn.classList.toggle("masked", answerMasked);
+    if (COCKPIT) grosseReponse(answerBtn, { correct, text, number, flou });
   }
+  // Classement d'un jeu en cours : la réponse de la question qui arrive, en grand, pour l'annoncer sans chercher.
+  const suite = COCKPIT && st.phase === "scores" ? questionSuivante(st) : null;
+  if (suite) {
+    answerBtn.hidden = false;
+    $("c-question").textContent = `Question suivante : ${suite.q.text ?? ""}`;
+    grosseReponse(answerBtn, { ...suite, prochaine: true });
+    answerBtn.classList.toggle("masked", answerMasked);
+  }
+  answerBtn.classList.toggle("grosse", COCKPIT && !answerBtn.hidden && !(portes && q?.doors));
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
   $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
 
@@ -499,6 +686,7 @@ function render() {
   renderGonfleur(st, teams);
   renderPatate(st);
   renderTeams(st, teams);
+  if (COCKPIT) renderTuiles(st, teams);
   renderPoints();
   renderPlan(st);
   renderShows(st);
@@ -529,6 +717,7 @@ function render() {
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
   $("c-end").hidden = st.phase === "ended";
+  caleSurLeBas();
 }
 
 /**
@@ -611,6 +800,8 @@ const REVENUE_MS = 3000;
 const horsLigneDepuis = new Map();
 let alertees = new Set();
 let masquees = new Set();
+/** Équipes coupées depuis plus de 4 s (même délai que la pastille) : leur tuile passe en rouge, toucher = le QR. */
+let tablettesCoupees = new Set();
 let revenue = { ids: [], noms: [], jusqua: 0 };
 let alerteTimer = null;
 
@@ -634,6 +825,7 @@ function renderAlerte(st, teams) {
   if (coupees.some((id) => !alertees.has(id) && !masquees.has(id))) navigator.vibrate?.([200, 100, 200]);
   alertees = new Set(coupees);
   const visibles = coupees.filter((id) => !masquees.has(id));
+  tablettesCoupees = new Set(coupees);
   const pluriel = visibles.length > 1 ? "s" : "";
   if (visibles.length) {
     box.className = "r-alerte";
@@ -1787,10 +1979,13 @@ const isDemo = () => live.plan?.id === "demo";
  */
 function renderDemo(st) {
   const box = $("c-demo");
-  box.hidden = !isDemo();
+  // TV déjà partie vers une nouvelle partie : la régie la suit, plus rien à expliquer ici.
+  box.hidden = !isDemo() || !!st.leftAt;
   if (box.hidden) return;
   box.textContent = st.phase === "lobby"
     ? "Aucune prestation chargée : la TV jouera son quiz de démonstration. Choisissez la prestation dans l'onglet « Prestation » avant de lancer la fête."
+    : st.phase === "ended"
+    ? "La TV a joué son quiz de démonstration. Pour jouer une prestation : « 🏁 Fin de la fête », puis choisissez-la dans la liste qui s'ouvre."
     : "La TV joue son quiz de démonstration, pas une prestation. Pour jouer une prestation : sur la TV, touche Retour → « Terminer et lancer une nouvelle partie », puis choisissez-la dans l'onglet « Prestation » de la régie.";
 }
 
@@ -2938,11 +3133,37 @@ async function readShows() {
   return { list, launches };
 }
 
+/**
+ * Dernière liste des prestations vue sur ce téléphone, affichée tout de suite pendant la relecture (cedric, 25/10 :
+ * après un nouveau scan, l'anniversaire test mettait du temps à réapparaître). Sans risque : une prestation touchée
+ * est toujours relue à l'instant du lancement.
+ */
+const CLE_LISTE = "lmp-regie-prestations";
+function listeGardee() {
+  try {
+    const liste = JSON.parse(localStorage.getItem(CLE_LISTE) ?? "null");
+    return Array.isArray(liste) ? liste : null;
+  } catch {
+    return null;
+  }
+}
+function garderListe(list) {
+  const resume = (x) => ({
+    id: x.id, run: x.run, problems: x.problems ?? [],
+    show: { title: x.show.title, childName: x.show.childName, copieDe: x.show.copieDe, age: x.show.age, date: x.show.date },
+    jeux: x.snapshot?.rounds.length ?? null,
+    questions: x.snapshot?.quiz.questions.filter((q) => q.kind !== "mime" && q.kind !== "pictionary").length ?? 0,
+  });
+  try { localStorage.setItem(CLE_LISTE, JSON.stringify(list.map(resume))); } catch { /* navigation privée : rien de gardé */ }
+}
+
 async function fetchShows() {
-  shows = { loading: true };
+  const gardee = shows?.list ?? listeGardee();
+  shows = gardee ? { list: gardee, loading: true } : { loading: true };
   render();
   try {
     shows = { list: (await readShows()).list };
+    garderListe(shows.list);
   } catch (e) {
     console.error(e);
     shows = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -2965,7 +3186,9 @@ function renderShows(st) {
   box.dataset.key = key;
   box.innerHTML = "";
   const hint = (text) => { const p = document.createElement("p"); p.className = "hint"; p.textContent = text; box.appendChild(p); };
-  if (shows.loading) return hint("Chargement des prestations…");
+  if (shows.loading && !shows.list) return hint("⏳ Chargement des prestations…");
+  // Liste gardée de la dernière fois : visible tout de suite, la relecture se voit en haut.
+  if (shows.loading) hint("⏳ Mise à jour de la liste…");
   if (shows.denied) return hint("Pour charger une prestation, entrez dans la régie avec le mot de passe (pas avec le code de la TV).");
   if (shows.error || !shows.list) return hint("Impossible de lire les prestations. Vérifiez la connexion.");
   if (wrongShow) {
@@ -2978,7 +3201,7 @@ function renderShows(st) {
     box.appendChild(keep);
   }
   if (!shows.list.length) hint("Aucune prestation à venir. Sarah les prépare dans l'administration (statut « À venir »).");
-  shows.list.forEach(({ id, show, snapshot, problems, run }) => {
+  shows.list.forEach(({ id, show, snapshot, problems, run, jeux, questions }) => {
     const item = document.createElement("button");
     item.className = "show-item";
     item.dataset.show = id;
@@ -2988,9 +3211,10 @@ function renderShows(st) {
     const date = show.date ? new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : "";
     meta.textContent = [show.childName, show.age ? `${show.age} ans` : "", date].filter(Boolean).join(" · ");
     const detail = document.createElement("span");
-    const asked = snapshot?.quiz.questions.filter((x) => x.kind !== "mime" && x.kind !== "pictionary").length ?? 0;
-    detail.textContent = snapshot
-      ? `${snapshot.rounds.length} jeu${snapshot.rounds.length > 1 ? "x" : ""}${asked ? ` · ${asked} questions` : ""}`
+    const asked = snapshot ? snapshot.quiz.questions.filter((x) => x.kind !== "mime" && x.kind !== "pictionary").length : questions ?? 0;
+    const nbJeux = snapshot ? snapshot.rounds.length : jeux;
+    detail.textContent = nbJeux != null
+      ? `${nbJeux} jeu${nbJeux > 1 ? "x" : ""}${asked ? ` · ${asked} questions` : ""}`
       : problems[problems.length - 1];
     // Où en est la prestation : préparée, sur cette TV, sur une autre box, interrompue, terminée.
     const where = document.createElement("span");
@@ -3001,14 +3225,14 @@ function renderShows(st) {
     item.dataset.run = run.etat;
     item.append(title, meta, where, detail);
     // Un jeu qui ne peut pas être préparé ne disparaît jamais en silence : la régie le dit avant le lancement.
-    if (snapshot && problems.length) {
+    if (nbJeux != null && problems.length) {
       const warn = document.createElement("span");
       warn.className = "show-warn";
       warn.textContent = `⚠ ${problems.join(" ")}`;
       item.append(warn);
     }
     if (loadingShow === id) detail.textContent = "Chargement sur la TV…";
-    item.disabled = !snapshot || !!loadingShow;
+    item.disabled = nbJeux == null || !!loadingShow;
     item.onclick = () => loadShow(id);
     box.appendChild(item);
   });
@@ -3163,6 +3387,8 @@ async function loadShow(id) {
         shows = { list: shows.list.map((x) => (x.id === id ? { ...x, run: { etat: "ici", code } }
           : x.run?.etat === "ici" ? { ...x, run: { etat: "preparee" } } : x)) };
       }
+      // Prestation choisie dans « ☰ Plus » : la feuille se referme, « Lancer la fête ! » est juste là.
+      fermerPlus();
       return done(`« ${snapshot.title} » est chargée sur la TV : ${snapshot.rounds.length} jeu${snapshot.rounds.length > 1 ? "x" : ""}.`);
     }
     annuler();

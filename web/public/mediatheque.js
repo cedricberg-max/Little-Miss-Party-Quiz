@@ -167,8 +167,87 @@ export function imagesDesPacks(quizzes = {}) {
   return out;
 }
 
+/**
+ * Catégorie de la fiche d'une image de pack nommée à l'import (cedric, 25/10 : « Yoshi », « Toad »… dans le thème
+ * Mario) : « 📦 » puis son thème, la fiche n'ayant pas d'autre place pour lui (même une image qu'aucun pack ne cite).
+ */
+const PREFIXE_PACK = "📦 ";
+export const catDePack = (theme) => `${PREFIXE_PACK}${`${theme ?? ""}`.trim() || "Sans thème"}`.slice(0, FICHE.cat);
+/** Le thème écrit dans la catégorie d'une fiche d'image de pack, sinon null. */
+export const themeDeFiche = (fiche) => (typeof fiche?.cat === "string" && fiche.cat.startsWith(PREFIXE_PACK) ? fiche.cat.slice(PREFIXE_PACK.length) : null);
+/** Une fiche rangée dans « Images des packs » (avec ou sans son thème). */
+export const estFicheDePack = (fiche) => fiche?.cat === PACKS || themeDeFiche(fiche) != null;
+
+/** Identifiants d'images cités dans [x] (en valeur comme en clé), à toute profondeur. */
+export function imagesCitees(x, out = new Set()) {
+  if (!x || typeof x !== "object") return out;
+  for (const [k, v] of Object.entries(x)) {
+    if (IMAGE_ID.test(k)) out.add(k);
+    if (typeof v === "string") { if (IMAGE_ID.test(v)) out.add(v); } else imagesCitees(v, out);
+  }
+  return out;
+}
+
+/**
+ * « 🗑 Supprimer ce thème » (cedric, 26/10) : les images qui partent avec ses packs [packs] (`{ id: quiz }`) : celles
+ * qu'ils citent et celles rangées à son nom ([duTheme](fiche)), sauf une image que quelque chose d'autre cite encore
+ * ([ailleurs] : les autres quiz, les prestations, les jeux…) ou rangée ailleurs (Mes images, pochettes).
+ */
+export function imagesDuTheme({ packs = {}, medias = {}, duTheme = () => false, ailleurs = {} } = {}) {
+  const candidates = imagesCitees(packs);
+  for (const [id, f] of Object.entries(medias ?? {})) if (IMAGE_ID.test(id) && estFicheDePack(f) && duTheme(f)) candidates.add(id);
+  const gardees = imagesCitees(ailleurs);
+  return [...candidates].filter((id) => !gardees.has(id) && (!medias?.[id] || estFicheDePack(medias[id]))).sort();
+}
+
+/**
+ * « 🧹 Images orphelines » (cedric, 26/10 : des thèmes supprimés laissaient leurs photos) : parmi [ids] (toutes les
+ * images de la base), celles que rien ne cite ([citees]) et qui sont sans fiche (invisibles), ou rangées dans les images
+ * des packs d'un thème qui n'existe plus ([themeVivant](fiche) : faux). Jamais Mes images ni les pochettes (leur fiche).
+ */
+export function imagesOrphelines({ ids = [], medias = {}, citees = new Set(), themeVivant = () => true } = {}) {
+  return [...new Set(ids)].filter((id) => {
+    if (!IMAGE_ID.test(id) || citees.has(id)) return false;
+    const f = medias?.[id];
+    if (!f) return true;
+    if (!estFicheDePack(f)) return false;
+    return themeDeFiche(f) == null || !themeVivant(f);
+  }).sort();
+}
+
+/**
+ * « 🗑 Tout effacer » des images des packs (cedric, 26/10 : « repartir sur une base saine ») : [x] (une prestation, un
+ * jeu gardé) sans ce qui cite une image de [ids] : chaque question ou personnage qui en montre une part de sa liste, une
+ * série vidée ainsi part aussi. Rend `{ valeur, retires }` (retires : combien d'éléments sont partis).
+ */
+export function sansImages(x, ids) {
+  let retires = 0;
+  // Ce qu'un élément montre lui-même (ses champs, sans ses listes : celles-ci sont nettoyées à leur tour).
+  const cite = (v) => {
+    if (typeof v === "string") return ids.has(v);
+    if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+    return Object.entries(v).some(([k, w]) => ids.has(k) || (!Array.isArray(w) && cite(w)));
+  };
+  const videe = (avant, apres) => ["questions", "mots"].some((k) => Array.isArray(avant?.[k]) && avant[k].length && Array.isArray(apres?.[k]) && !apres[k].length);
+  const nettoyer = (v) => {
+    if (Array.isArray(v)) {
+      const out = [];
+      for (const e of v) {
+        if (cite(e)) { retires++; continue; }
+        const n = nettoyer(e);
+        if (videe(e, n)) continue;
+        out.push(n);
+      }
+      return out;
+    }
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, w]) => [k, nettoyer(w)]));
+    return v;
+  };
+  return { valeur: nettoyer(x), retires };
+}
+
 /** Une image est une image de pack si sa fiche est rangée dans « Images des packs », ou si un pack s'en sert sans qu'elle l'ait rangée ailleurs. */
-const estImagePack = (id, fiche, packs) => fiche?.cat === PACKS || (!fiche?.cat && packs.has(id));
+const estImagePack = (id, fiche, packs) => estFicheDePack(fiche) || (!fiche?.cat && packs.has(id));
 
 /**
  * Les images des packs, par thème de pack puis par nom (pas les pochettes) ; une fiche donne son nom, ses mots-clés et
@@ -177,12 +256,15 @@ const estImagePack = (id, fiche, packs) => fiche?.cat === PACKS || (!fiche?.cat 
 export function mesImagesDePacks(medias = {}, packs = new Map(), utilisees = new Map(), pochettes = new Map()) {
   const out = [];
   const ids = new Set([...Object.keys(medias), ...packs.keys()]);
+  // Un thème trop long pour la catégorie de la fiche (coupé) : celui d'un pack qui commence pareil.
+  const themes = [...new Set([...packs.values()].map((p) => p.theme))];
+  const themeDe = (f) => { const t = themeDeFiche(f); return t == null ? null : themes.find((x) => catDePack(x) === f.cat) ?? t; };
   for (const id of ids) {
     const f = medias[id];
     if (!IMAGE_ID.test(id) || estPochette(id, f, pochettes) || !estImagePack(id, f, packs)) continue;
     const p = packs.get(id);
     out.push({
-      groupe: "packs", id, nom: f?.name ?? p?.nom ?? "Image", cat: p?.theme ?? "Sans thème", tags: f ? motsCles(f.tags) : p ? motsCles(p.pack) : [],
+      groupe: "packs", id, nom: f?.name ?? p?.nom ?? "Image", cat: p?.theme ?? themeDe(f) ?? "Sans thème", tags: f ? motsCles(f.tags) : p ? motsCles(p.pack) : [],
       retiree: f?.hidden === true, ou: utilisees.get(id)?.ou ?? [], fiche: !!f,
     });
   }

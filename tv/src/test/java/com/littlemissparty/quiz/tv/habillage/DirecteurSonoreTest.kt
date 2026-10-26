@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import com.littlemissparty.quiz.engine.Phase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -91,6 +92,23 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show, la fete lancee depuis l'accueil compte comme intro des la premiere image, sans jingle de rideau`() {
+        // Cedric, 25/10 : un écran noir et le jingle du rideau passaient avant le réveil du robot. Dès la première image de
+        // la présentation, l'intro est « en vue » : la bande-son se tait au lieu de jouer la transition.
+        assertTrue(lancementEnVue(gameShow = true, phase = Phase.QUESTION, presentation = true, enPause = false, introAttendue = true))
+        assertFalse(lancementEnVue(gameShow = false, phase = Phase.QUESTION, presentation = true, enPause = false, introAttendue = true))
+        assertFalse(lancementEnVue(gameShow = true, phase = Phase.QUESTION, presentation = true, enPause = false, introAttendue = false))
+        assertFalse(lancementEnVue(gameShow = true, phase = Phase.QUESTION, presentation = false, enPause = false, introAttendue = true))
+        assertFalse(lancementEnVue(gameShow = true, phase = Phase.QUESTION, presentation = true, enPause = true, introAttendue = true))
+        assertFalse(lancementEnVue(gameShow = true, phase = Phase.LOBBY, presentation = false, enPause = false, introAttendue = true))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        val premiere = d.observer(Instant(Ecran.PRESENTATION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true, lancement = true))
+        assertFalse(Son.TRANSITION in premiere.sons())
+        assertEquals(Ambiance.SILENCE, premiere.musique())
+    }
+
+    @Test
     fun `Game Show, intro du lancement coupee par l'epreuve lancee, la question entre avec sa musique`() {
         val presentation = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true)
         val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true)
@@ -160,8 +178,19 @@ class DirecteurSonoreTest {
         d.observer(q1.copy(gameShow = true))
         d.observer(q2.copy(gameShow = true))
         val bascule = d.observer(q2.copy(index = 8, superFinale = true, gameShow = true))
-        assertTrue(Son.BT_DOUBLE in bascule.sons())
+        // Un impact, jamais les cuivres du Classique par-dessus Daft Punk (cedric, 25/10 au soir : deux musiques).
+        assertTrue(Son.IMPACT in bascule.sons())
+        assertFalse(Son.BT_DOUBLE in bascule.sons())
         assertEquals(listOf(Ambiance.DECISIVE), bascule.filterIsInstance<Ordre.Musique>().map { it.ambiance })
+    }
+
+    @Test
+    fun `Game Show, le classement en cours de partie n'a que sa musique, sans compteur ni couronne du Classique`() {
+        val d = DirecteurSonore()
+        d.observer(q2.copy(gameShow = true))
+        val ordres = d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 2, meneurAPoints = true, gameShow = true))
+        assertFalse(Son.COMPTEUR in ordres.sons() || Son.COURONNE in ordres.sons())
+        assertEquals(Ambiance.BILAN, ordres.musique())
     }
 
     @Test
@@ -476,6 +505,22 @@ class DirecteurSonoreTest {
         val revele = d.observer(question.copy(ecran = Ecran.REVELATION, gagnants = 1))
         assertTrue(Son.ZOOM_REVELE in revele.sons())
         assertFalse(Son.ROULEMENT_COURT in revele.sons())
+    }
+
+    @Test
+    fun `image floue, la montee dure tout le chrono sans jamais accelerer`() {
+        val d = DirecteurSonore()
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 8, equipes = 3))
+        // cedric, 25/10 : 30 s de montée pour 40 s de chrono, elle s'arrêtait avant la fin.
+        val entree = d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, jeuBuzz = true, flou = true, chronoMs = 40_000))
+        val montee = entree.filterIsInstance<Ordre.Jouer>().single { it.son == Son.FLOU_MONTEE }
+        assertEquals(40_000 - Tempo.PROPOSITIONS_DEBUT, montee.etireSurMs)
+        assertEquals(30_000f / 39_650f, vitesseEtiree(30_000, montee.etireSurMs), 0.001f)
+        // Chrono plus court que le fichier : vitesse normale, coupée à la fin comme avant ; jamais trop pâteuse.
+        assertEquals(1f, vitesseEtiree(30_000, 20_000), 0.0001f)
+        assertEquals(1f, vitesseEtiree(30_000, 0), 0.0001f)
+        assertEquals(1f, vitesseEtiree(0, 40_000), 0.0001f)
+        assertEquals(VITESSE_MIN, vitesseEtiree(30_000, 120_000), 0.0001f)
     }
 
     @Test

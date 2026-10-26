@@ -148,8 +148,9 @@ class DirecteurSonore {
                     o += Ordre.Musique(musique, Tempo.TRANSITION_MUSIQUE)
                 } else if (i.superFinale && !p.superFinale) {
                     // Les dernières questions du quiz passent à points ×2 : un éclat « points doublés », une seule fois.
-                    // Ce n'est pas un nouveau jeu : ni rideau ni jingle de manche.
-                    o += Ordre.Jouer(Son.BT_DOUBLE)
+                    // Ce n'est pas un nouveau jeu : ni rideau ni jingle de manche. Game Show : un impact, pas les cuivres
+                    // du Classique, qui faisaient deux musiques à la fois sur Daft Punk (cedric, 25/10 au soir).
+                    o += Ordre.Jouer(if (i.gameShow) Son.IMPACT else Son.BT_DOUBLE)
                     // Game Show : la musique de la manche ne s'arrête pas, la nappe de tension la rejoint (cedric, 23/10).
                     if (!i.gameShow) {
                         o += Ordre.Musique(Ambiance.SILENCE)
@@ -167,7 +168,8 @@ class DirecteurSonore {
                 // Zoom mystère : moteur d'objectif et déclic quand la photo apparaît.
                 if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT)
                 // Image floue et Zoom mystère : une longue montée accompagne la photo qui se précise (ou se dézoome).
-                if (i.flou || i.zoom) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT)
+                // Elle dure tout le chrono (cedric, 25/10 : à l'Image floue, 30 s de montée pour 40 s de chrono).
+                if (i.flou || i.zoom) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT, etireSurMs = (i.chronoMs - Tempo.PROPOSITIONS_DEBUT).coerceAtLeast(0))
                 // Extrait musical (blind test, quiz musical) : le diamant se pose sur le disque quand la chanson part.
                 // Blind test : seulement quand la chanson part vraiment (pas pendant la présentation).
                 if (i.musical && (!i.blind || i.blindLecture)) o += Ordre.Jouer(Son.BT_DIAMANT)
@@ -274,8 +276,12 @@ class DirecteurSonore {
                 o += Ordre.Musique(Ambiance.BILAN, Tempo.BT_OUTRO_MUSIQUE)
             } else {
                 o += Ordre.Jouer(Son.WHOOSH)
-                o += Ordre.Jouer(Son.COMPTEUR, Tempo.CLASSEMENT_COMPTEUR)
-                if (i.meneurAPoints) o += Ordre.Jouer(Son.COURONNE, Tempo.CLASSEMENT_COURONNE)
+                // Game Show : le riff d'Aerodynamic seul. Le compteur et la couronne du Classique sont des sons musicaux
+                // qui faisaient deux musiques à la fois (cedric, 25/10 au soir, classement en cours de Quiz).
+                if (!i.gameShow) {
+                    o += Ordre.Jouer(Son.COMPTEUR, Tempo.CLASSEMENT_COMPTEUR)
+                    if (i.meneurAPoints) o += Ordre.Jouer(Son.COURONNE, Tempo.CLASSEMENT_COURONNE)
+                }
                 o += Ordre.Musique(Ambiance.BILAN)
             }
             Ecran.FIN -> if (i.gameShow) {
@@ -471,6 +477,8 @@ data class Instant(
     val express: Boolean = false,
     val reponseVraie: Boolean = false,
     val zoom: Boolean = false,
+    /** Durée du chrono de la question (millisecondes) ; 0 hors des questions. */
+    val chronoMs: Long = 0,
     /**
      * Jeux au buzzer (Image floue, Chante le mot, Qui suis-je) : place de l'équipe qui a buzzé et attend le
      * verdict (-1 sinon), équipes déjà ratées, indices de Qui suis-je déjà affichés.
@@ -720,7 +728,8 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
 }
 
 sealed interface Ordre {
-    data class Jouer(val son: Son, val dansMs: Long = 0) : Ordre
+    /** [etireSurMs] : un son long plus court que ça est ralenti (sans changer sa hauteur) pour durer ce temps-là. */
+    data class Jouer(val son: Son, val dansMs: Long = 0, val etireSurMs: Long = 0) : Ordre
     data class Musique(val ambiance: Ambiance, val dansMs: Long = 0, val fonduMs: Long = Tempo.FONDU_MUSIQUE) : Ordre
     /** Les boucles musicales repartent du début de leur première mesure (relais calé sur le générique). */
     data class Caler(val dansMs: Long = 0) : Ordre
@@ -813,3 +822,14 @@ object Tempo {
     fun tampon(k: Int, express: Boolean = false) =
         if (express) EXPRESS_TAMPON + k * EXPRESS_TAMPON_PAS else REVELATION_TAMPON + k * REVELATION_TAMPON_PAS
 }
+
+/**
+ * Vitesse de lecture d'un son long de [dureeFichierMs] qui doit durer [etireSurMs] : ralenti jusqu'à [VITESSE_MIN] au
+ * plus, jamais accéléré (un chrono plus court le coupe à la fin, comme avant).
+ */
+internal fun vitesseEtiree(dureeFichierMs: Int, etireSurMs: Long): Float =
+    if (dureeFichierMs <= 0 || etireSurMs <= dureeFichierMs) 1f
+    else (dureeFichierMs.toFloat() / etireSurMs).coerceAtLeast(VITESSE_MIN)
+
+/** Un son étiré ne descend pas sous cette vitesse : au-delà, il deviendrait pâteux. */
+internal const val VITESSE_MIN = 0.6f

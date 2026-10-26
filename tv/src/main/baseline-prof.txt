@@ -1,0 +1,6 @@
+# Profil de démarrage de l'appli TV : tout le code de l'appli et du moteur est compilé d'avance par Android
+# (sinon interprété, puis compilé petit à petit : saccades des premières minutes, test du 25/10 au soir).
+HSPLcom/littlemissparty/quiz/tv/**->**(**)**
+Lcom/littlemissparty/quiz/tv/**;
+HSPLcom/littlemissparty/quiz/engine/**->**(**)**
+Lcom/littlemissparty/quiz/engine/**;

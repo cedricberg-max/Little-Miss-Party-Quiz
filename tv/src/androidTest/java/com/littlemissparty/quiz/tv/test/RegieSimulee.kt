@@ -99,6 +99,11 @@ class RegieSimulee : AutoCloseable {
         return verdict(code, id)
     }
 
+    /** Ce téléphone est relié à la régie de [code] (sa ligne `regie/<uid>` existe). */
+    fun estRelie(code: String): Boolean = runCatching {
+        bloquer { base.getReference("games/$code/regie/$uid").lireUneFois() }.exists()
+    }.getOrDefault(false)
+
     fun lireConducteur(code: String): Boolean = runCatching {
         bloquer { base.getReference("games/$code/conducteur").lireUneFois() }.exists()
     }.getOrDefault(false)

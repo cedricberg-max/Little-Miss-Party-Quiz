@@ -490,6 +490,21 @@ describe("régie", () => {
     await assertSucceeds(update(ref(db(HOST), `games/${CODE}/state`), { leftAt: serverTimestamp() }));
     await assertFails(update(ref(db(REGIE), `games/${CODE}/state`), { leftAt: serverTimestamp() }));
   });
+  test("« 🏁 Fin de la fête » (cedric, 25/10) : la box relie la régie à la nouvelle partie et pointe la suite ; personne d'autre", async () => {
+    await paired();
+    const SUITE = "SUIT2";
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${SUITE}`), { hostUid: HOST, state: { phase: "lobby" } }));
+    // La box (hôte des deux parties) recopie les régies, mot de passe ou code, puis écrit la suite sur l'ancienne.
+    await assertSucceeds(update(ref(db(HOST), `games/${SUITE}`), {
+      [`regie/${REGIE}`]: { pairedAt: serverTimestamp(), via: "password" },
+      "regie/autre": { pairedAt: serverTimestamp(), via: "pin" },
+    }));
+    await assertSucceeds(update(ref(db(HOST), `games/${CODE}/state`), { phase: "ended", leftAt: serverTimestamp(), suite: SUITE }));
+    await assertSucceeds(get(ref(db(REGIE), `games/${SUITE}/regie/${REGIE}`)));
+    // Une régie ou une tablette ne s'ajoute pas seule à la nouvelle partie, ni n'écrit la suite.
+    await assertFails(set(ref(db("espion"), `games/${SUITE}/regie/espion`), { pairedAt: serverTimestamp(), via: "pin" }));
+    await assertFails(update(ref(db(REGIE), `games/${CODE}/state`), { suite: "PIRAT" }));
+  });
   test("la régie ne touche jamais directement l'état, les scores ni le journal", async () => {
     await paired();
     await assertFails(update(ref(db(REGIE), `games/${CODE}/state`), { phase: "reveal" }));

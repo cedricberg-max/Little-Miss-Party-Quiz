@@ -21,6 +21,32 @@ import { afficherMotsDePasse } from "./oeil.js";
 afficherMotsDePasse();
 
 const $ = (id) => document.getElementById(id);
+
+// Ponctuation française : jamais un « ! », « ? » ou « : » tout seul au début d'une ligne (cedric, 25/10 : « Zoom
+// mystère : regardez la TV » puis « ! » seul dessous). Les textes de la page s'écrivent avec une espace normale, rendue
+// insécable à l'affichage, pour tous les textes à venir.
+function rendreInsecables(noeud) {
+  if (noeud.nodeType === Node.TEXT_NODE) {
+    if (/ [!?:;»]|« /.test(noeud.nodeValue) && !noeud.parentElement?.closest("script, style, textarea")) {
+      noeud.nodeValue = noeud.nodeValue.replace(/ ([!?:;»])/g, "\u00a0$1").replace(/« /g, "«\u00a0");
+    }
+    return;
+  }
+  if (noeud.nodeType !== Node.ELEMENT_NODE) return;
+  const textes = document.createTreeWalker(noeud, NodeFilter.SHOW_TEXT);
+  while (textes.nextNode()) rendreInsecables(textes.currentNode);
+}
+// Les écrans des équipes seulement : la régie du téléphone (même page) garde ses textes tels quels.
+const insecables = new MutationObserver((changements) => {
+  for (const c of changements) {
+    if (c.type === "characterData") rendreInsecables(c.target);
+    else c.addedNodes.forEach(rendreInsecables);
+  }
+});
+for (const id of ["app", "paused", "resume-count"]) {
+  rendreInsecables($(id));
+  insecables.observe($(id), { childList: true, subtree: true, characterData: true });
+}
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
 const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu"];
 const BUZZ_INVITE = {
@@ -170,7 +196,14 @@ function reconnecter() {
   goOffline(db);
   goOnline(db);
 }
+// Retour sur la page : le toucher qui la ramène tombe sur une grande réponse (cedric, 25/10 : « réponse envoyée » au
+// retour, sans avoir répondu). Une seconde sans réponse. Pas au passage en plein écran : il arrive au premier toucher
+// d'un jeu, et les touches suivantes (Juste Chiffre, Portes mystères) doivent passer tout de suite.
+const REPONSES_BLOQUEES_MS = 1000;
+let reponsesBloqueesJusqua = 0;
+const bloquerReponses = () => { reponsesBloqueesJusqua = Date.now() + REPONSES_BLOQUEES_MS; };
 document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") bloquerReponses();
   if (document.visibilityState === "hidden") {
     cacheeDepuis = Date.now();
     return;
@@ -179,7 +212,7 @@ document.addEventListener("visibilitychange", () => {
   cacheeDepuis = null;
 });
 // Page gardée telle quelle par le navigateur puis rouverte (bouton retour) : même chose.
-window.addEventListener("pageshow", (e) => { if (e.persisted) reconnecter(); });
+window.addEventListener("pageshow", (e) => { if (e.persisted) { bloquerReponses(); reconnecter(); } });
 
 // Connexion de secours (cedric, 24/10 : iPhone 15 sous contrôle parental Qustodio, connecté quelques secondes puis coupé,
 // sans fin, quand les autres téléphones tiennent). Ces filtres coupent la connexion continue (WebSocket). Après
@@ -255,7 +288,10 @@ async function start() {
     if (mine) { teamId = mine; return play(); }
     // Partie commencée : un nouvel appareil n'entre que si la régie l'accepte (nouvelle équipe ou remplaçant).
     const phase = (await get(ref(db, `games/${code}/state/phase`))).val() ?? "lobby";
-    if (phase === "ended") return fail("Cette partie est terminée. Merci d'avoir joué !");
+    if (phase === "ended") {
+      if (suivreLaSuite((await get(ref(db, `games/${code}/state/suite`))).val())) return;
+      return fail("Cette partie est terminée. Merci d'avoir joué !");
+    }
     if (takeover && !regieDirect && Object.keys(teams).length) return showTakeover();
     if (phase === "lobby" && Object.keys(teams).length >= MAX_TEAMS) {
       fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`);
@@ -295,6 +331,7 @@ function showReplaced(team) {
 function showGate() {
   stopListening();
   ecouterBienvenue();
+  listen(`games/${code}/state/suite`, (s) => { suivreLaSuite(s.val()); });
   let demande = false;
   listen(`games/${code}/regieActive`, (s) => {
     // QR « Reconnecter la régie » : ce téléphone est celui de l'animatrice, il ne demande jamais à entrer.
@@ -370,6 +407,7 @@ function waitForAdmission(text = "L'animatrice vous fait entrer dans la partie d
   $("screen-waiting").dataset.device = uid;
   show("waiting");
   ecouterBienvenue();
+  listen(`games/${code}/state/suite`, (s) => { suivreLaSuite(s.val()); });
   let teams = {};
   let refusal = null;
   let done = false;
@@ -439,7 +477,27 @@ function play() {
     }
   });
   listen(`games/${code}/teams`, (s) => { game.teams = s.val() ?? {}; game.teamsLoaded = true; render(); });
-  listen(`games/${code}/state`, (s) => { game.state = s.val(); watchMyAnswer(); render(); });
+  listen(`games/${code}/state`, (s) => {
+    game.state = s.val();
+    if (suivreLaSuite(game.state?.suite)) return;
+    watchMyAnswer();
+    render();
+  });
+}
+
+/**
+ * « 🏁 Fin de la fête » : la TV a ouvert une nouvelle partie et l'écrit sur l'ancienne (`state/suite`). La tablette la
+ * suit seule, sans rescanner (cedric, 25/10 : « il faut que ça suive tout seul »). true : la page part vers la suite.
+ */
+function suivreLaSuite(suite) {
+  if (typeof suite !== "string" || !/^[A-Z0-9]{4,8}$/.test(suite) || suite === code) return false;
+  if (document.body.classList.contains("regie-mode")) return false;
+  stopListening();
+  const p = new URLSearchParams(location.search);
+  p.set("g", suite);
+  p.delete("reprise");
+  location.replace(`${location.pathname}?${p}`);
+  return true;
 }
 
 function watchMyAnswer() {
@@ -876,6 +934,7 @@ function renderWatch(m, name) {
 async function answer(choice) {
   const st = game.state;
   if (!st || st.phase !== "question" || st.paused || counting(st) || game.myAnswer || pending) return;
+  if (Date.now() < reponsesBloqueesJusqua) return;
   pending = { qid: st.qid, choice };
   beep(990, 150);
   navigator.vibrate?.(80);

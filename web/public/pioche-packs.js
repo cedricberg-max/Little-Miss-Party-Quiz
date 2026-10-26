@@ -123,7 +123,11 @@ export function versQuestionDePack(x, hasard = Math.random, jeu = "quiz") {
   const q = x.q;
   const choix = () => (Array.isArray(q.choices) ? q.choices : Object.values(q.choices ?? {}));
   if (estJeuDePhotos(jeu)) return { id: `i:${q.imageId}`, text: q.text, choices: [...choix()], correct: q.correct, imageId: q.imageId };
-  if (jeu === "express") return { id: `pk-${x.id}`, text: q.text, choices: [...choix()].slice(0, 2), correct: q.correct };
+  // Vrai ou Faux : l'image de l'affirmation (Mario, K-pop…) se montre à la révélation (cedric, 25/10).
+  if (jeu === "express") {
+    return { id: `pk-${x.id}`, text: q.text, choices: [...choix()].slice(0, 2), correct: q.correct,
+      ...(IMAGE_ID.test(q.imageId ?? "") ? { imageId: q.imageId } : typeof q.image === "string" && q.image ? { emoji: q.image } : {}) };
+  }
   if (jeu === "illustre") {
     const images = choix().map((_, k) => (IMAGE_ID.test(q.choiceImages?.[k] ?? "") ? q.choiceImages[k] : ""));
     const ordre = melanger(choix().map((_, k) => k).slice(0, 4), hasard);
@@ -138,4 +142,24 @@ export function versQuestionDePack(x, hasard = Math.random, jeu = "quiz") {
     id: `pk-${x.id}`, text: q.text, choices, correct: choices.indexOf(q.choices[q.correct]),
     ...(IMAGE_ID.test(q.imageId ?? "") ? { imageId: q.imageId } : typeof q.image === "string" && q.image ? { emoji: q.image } : {}),
   };
+}
+
+/**
+ * Le champ du 🎲 unique du Quiz (cedric, 26/10 : « soit je n'écris rien… soit j'écris Mario ») : ce qu'il demande.
+ * - vide : au hasard dans tout (mes packs et les questions libres de droit) ;
+ * - « libre », « libres de droit », « questions libres de droit » : les questions libres de droit seulement ;
+ * - « packs », « mes packs » : mes packs seulement ;
+ * - autre chose : ce thème (ou personnage) dans mes packs, et le thème des questions libres de droit qui porte ce nom
+ *   ([themesLibres] : { clé: libellé }), s'il y en a un.
+ */
+export function sourceDuDe(terme, themesLibres = {}) {
+  const t = `${terme ?? ""}`.trim().replace(/\s+/g, " ");
+  const plat = sansAccent(t).toLowerCase();
+  if (!plat) return { sorte: "tout" };
+  if (/^(les |des )?((questions?|affirmations?|photos?|cartes?|images?|personnages?) )?libres?( de droits?)?$/.test(plat)) return { sorte: "libres" };
+  if (/^(mes |les )?packs?$/.test(plat)) return { sorte: "packs" };
+  const libelle = (x) => sansAccent(`${x}`).toLowerCase();
+  const themeLibre = Object.entries(themesLibres).find(([k, l]) => k === plat || libelle(l) === plat)?.[0]
+    ?? (plat.length > 2 ? Object.entries(themesLibres).find(([, l]) => libelle(l).startsWith(plat))?.[0] : null) ?? null;
+  return { sorte: "theme", terme: t, themeLibre };
 }

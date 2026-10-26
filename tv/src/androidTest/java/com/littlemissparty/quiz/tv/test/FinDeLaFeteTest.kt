@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 /**
  * « 🏁 Fin de la fête » sur la régie du téléphone (cedric, 23/10) : une fois la partie terminée (écran « Merci d'avoir
  * participé »), la TV quitte la fête et revient à l'accueil avec une nouvelle partie ; la partie quittée est marquée
- * (`leftAt`) pour que la régie le dise. Avant la fin, la commande est refusée et rien ne change.
+ * (`leftAt`) et pointe vers la nouvelle (`suite`), où la régie est déjà reliée. Avant la fin, la commande est refusée.
  */
 @RunWith(AndroidJUnit4::class)
 class FinDeLaFeteTest : TestTv() {
@@ -54,6 +54,10 @@ class FinDeLaFeteTest : TestTv() {
         if (!Look.gs) ecran.voit(nouveau)
         attendreQue("ancienne partie marquée quittée") { licornes.etat(code).child("leftAt").value as? Number }
         assertEquals("ended", licornes.etat(code).child("phase").value)
+        // La régie et les tablettes suivent seules (cedric, 25/10) : le téléphone est déjà relié à la nouvelle partie,
+        // et l'ancienne pointe vers elle.
+        attendreQue("régie reliée à la nouvelle partie") { regie.estRelie(nouveau).takeIf { it } }
+        assertEquals(nouveau, licornes.etat(code).child("suite").value)
         ecran.capture("retour-accueil")
     }
 }

@@ -56,6 +56,7 @@ internal object GelFond {
     fun uneSeuleVideo() {
         if (!Look.deuxVideos) return
         Log.w("Decodeurs", "Deux vidéos à la fois refusées : plateau figé pendant les clips")
+        Sons.incident("Deux vidéos à la fois refusées par la box : plateau figé pendant les clips jusqu'au redémarrage")
         Look.deuxVideos = false
     }
 

@@ -2395,6 +2395,72 @@ describe("bibliothèque d'images de la Régie PC (émojis, photos libres, ses im
     assert.deepEqual(Object.keys(B.GROUPES_IMAGES), ["packs", "emojis", "photos", "miennes", "pochettes"], "les images des packs d'abord (cedric, 25/10)");
   });
 
+  test("images nommées à l'import (cedric, 25/10) : leur nom, leur thème même sans pack qui les cite, et le nom se cherche", () => {
+    const [CITEE, LIBRE, LONGUE] = ["c1c1c1c1c1c1c1c1", "c2c2c2c2c2c2c2c2", "c3c3c3c3c3c3c3c3"];
+    const theme = "Super Mario Bros et tous leurs amis du royaume";
+    const quizzes = { m: { title: "Zoom Mario", theme: "Mario", source: "photos", pack: true, kind: "images", questions: [{ text: "?", choices: ["Yoshi"], correct: 0, imageId: CITEE }] },
+      l: { title: "Long", theme, source: "json", pack: true, questions: [{ text: "?", choices: ["A", "B"], correct: 0, imageId: "c4c4c4c4c4c4c4c4" }] } };
+    assert.equal(B.catDePack("Mario"), "📦 Mario");
+    assert.ok(B.catDePack(theme).length <= 40, "catégorie à la limite de la base");
+    assert.equal(B.themeDeFiche({ cat: "📦 Mario" }), "Mario");
+    assert.equal(B.themeDeFiche({ cat: B.PACKS }), null);
+    const medias = {
+      [CITEE]: { name: "Yoshi sur son kart", cat: B.catDePack("Mario"), createdAt: 1 },
+      [LIBRE]: { name: "Toad", cat: B.catDePack("Mario"), createdAt: 2 },
+      [LONGUE]: { name: "Luigi", cat: B.catDePack(theme), createdAt: 3 },
+    };
+    const packs = B.imagesDesPacks(quizzes);
+    const u = B.imagesUtilisees({ quizzes });
+    assert.deepEqual(B.mesImages(medias, u, new Map(), packs), [], "aucune dans « Mes images »");
+    const dePacks = B.mesImagesDePacks(medias, packs, u, new Map());
+    assert.deepEqual(dePacks.filter((x) => x.id !== "c4c4c4c4c4c4c4c4").map((x) => [x.id, x.cat, x.nom]).sort(), [
+      [CITEE, "Mario", "Yoshi sur son kart"], [LIBRE, "Mario", "Toad"], [LONGUE, theme, "Luigi"]].sort(), "un thème coupé retrouve celui de son pack");
+    assert.ok(B.correspond(dePacks.find((x) => x.id === LIBRE), "toad"));
+  });
+
+  test("🗑 Supprimer un thème (cedric, 26/10) : ses images partent avec ses packs, sauf celles que quelque chose d'autre utilise ou rangées dans Mes images", () => {
+    const I = (k) => `${k}`.repeat(16).slice(0, 16);
+    const packs = {
+      p1: { title: "Mario Facile", theme: "Mario", pack: true, questions: [{ text: "Qui ?", choices: ["Yoshi", "Toad", "Luigi", "Peach"], correct: 0, imageId: I(1) }] },
+      p2: { title: "Mario illustré", theme: "Mario", pack: true, kind: "photo", questions: [{ text: "Lequel ?", choices: ["A", "B", "C", "D"], correct: 0, choiceImages: { 0: I(2), 1: I(3) }, imageId: I(4) }],
+        imagesHorsFormat: { [I(2)]: "trop petite" } },
+    };
+    const medias = {
+      [I(5)]: { name: "Toad", cat: B.catDePack("Mario"), createdAt: 1 }, // nommée à l'import, citée par aucun pack
+      [I(6)]: { name: "Bowser", cat: B.catDePack("K-pop"), createdAt: 1 }, // un autre thème
+      [I(3)]: { name: "Mon chat", cat: "Animaux", createdAt: 1 }, // dans Mes images
+    };
+    const ailleurs = {
+      quizzes: { kpop: { title: "K-pop", theme: "K-pop", pack: true, questions: [{ text: "Qui ?", choices: ["Rumi", "B", "C", "D"], correct: 0, imageId: I(6) }] } },
+      shows: { zoe: { rounds: [{ type: "quiz", seriesQuiz: [{ origine: "biblio", questions: [{ text: "Qui ?", imageId: I(4) }] }] }] } },
+    };
+    const duTheme = (f) => B.themeDeFiche(f) === "Mario";
+    assert.deepEqual(B.imagesDuTheme({ packs, medias, duTheme, ailleurs }), [I(1), I(2), I(5)].sort(),
+      "I(3) est dans Mes images, I(4) est copiée dans la prestation de Zoé, I(6) est à un autre thème");
+    assert.deepEqual(B.imagesDuTheme({ packs: {}, medias, duTheme }), [I(5)]);
+    assert.deepEqual([...B.imagesCitees({ a: { [I(7)]: "x", b: [I(8), "abc"] } })].sort(), [I(7), I(8)]);
+    // 🧹 Images orphelines : sans fiche ou d'un thème disparu, que rien ne cite ; jamais Mes images ni un thème vivant.
+    const fiches = { [I(1)]: { name: "Woody", cat: B.catDePack("Pixar") }, [I(2)]: { name: "Rumi", cat: B.catDePack("K-pop") },
+      [I(3)]: { name: "Chat", cat: "Animaux" }, [I(4)]: { name: "Vieille", cat: B.PACKS } };
+    assert.deepEqual(B.imagesOrphelines({ ids: [1, 2, 3, 4, 5, 6].map(I), medias: fiches, citees: new Set([I(6)]), themeVivant: (f) => B.themeDeFiche(f) === "K-pop" }),
+      [I(1), I(4), I(5)].sort());
+    // 🗑 Tout effacer : la question ou le personnage qui montre une image effacée part de sa liste ; une série vidée
+    // part aussi ; le reste de la prestation ne bouge pas.
+    const show = { childName: "Lou", rounds: [
+      { type: "quiz", seriesQuiz: [
+        { id: "a", origine: "biblio", questions: [{ text: "Q1", imageId: I(1) }, { text: "Q2", choiceImages: { 0: I(2), 1: "" } }] },
+        { id: "b", origine: "de", questions: [{ text: "Q3", imageId: I(3) }, { text: "Q4", imageId: I(9) }] }], ordreQuiz: ["a:0", "b:1"] },
+      { type: "quisuis", seriesMots: [{ id: "c", mots: [{ answer: "Yoshi", imageId: I(1) }, { answer: "Lion" }] }] },
+      { type: "statues", duration: 60 }] };
+    const { valeur, retires } = B.sansImages(show, new Set([I(1), I(2), I(3)]));
+    assert.equal(retires, 4);
+    assert.deepEqual(valeur, { childName: "Lou", rounds: [
+      { type: "quiz", seriesQuiz: [{ id: "b", origine: "de", questions: [{ text: "Q4", imageId: I(9) }] }], ordreQuiz: ["a:0", "b:1"] },
+      { type: "quisuis", seriesMots: [{ id: "c", mots: [{ answer: "Lion" }] }] },
+      { type: "statues", duration: 60 }] });
+    assert.deepEqual(B.sansImages(show, new Set([I(7)])), { valeur: show, retires: 0 });
+  });
+
   test("la recherche : chaque mot dans le nom, la catégorie ou les mots-clés, sans accents ni majuscules", () => {
     const elsa = { nom: "Elsa", cat: "Dessins animés", tags: ["princesse", "Reine des neiges"], ou: [] };
     assert.ok(B.correspond(elsa, ""));
@@ -2583,6 +2649,9 @@ describe("Bibliothèque › Questions : toutes prêtes, mes questions, mes packs
     assert.deepEqual([roi.correct, roi.revealFile, roi.image], [1, "lion.png", undefined]);
     assert.deepEqual([chat.choices, chat.imageFiles], [["Chat", "Chien"], ["chat.jpg", "chien.jpg"]]);
     assert.deepEqual([sans.choices, sans.kind, sans.correct], [[], undefined, -1]);
+    // Un Juste Chiffre garde sa photo de révélation (cedric, 26/10 : elle ressortait « inutile » à l'import).
+    const [vv] = Q.lirePacks(JSON.stringify([{ text: "Combien d'émotions dans Vice-Versa ?", correct: 5, illustration: "vice-versa.jpg" }])).packs[0].questions;
+    assert.deepEqual([vv.kind, vv.correct, vv.revealFile, vv.image], ["number", 5, "vice-versa.jpg", undefined]);
     // Un Juste Chiffre à 0 reste 0 (pas une bonne réponse « absente »).
     assert.equal(Q.lirePacks(JSON.stringify([{ text: "Zéro ?", correct: 0 }])).packs[0].questions[0].correct, 0);
   });

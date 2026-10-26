@@ -47,6 +47,9 @@ import com.littlemissparty.quiz.engine.gameStep
 import com.littlemissparty.quiz.engine.nextGameTitle
 import com.littlemissparty.quiz.engine.withProgram
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -421,7 +424,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Termine la partie active (elle reste archivée dans Firebase) et en crée une nouvelle. La partie quittée est marquée
-     * (`state/leftAt`) : une régie encore ouverte dessus sait que la TV est revenue à l'accueil.
+     * (`state/leftAt`) et pointe vers la nouvelle (`state/suite`) : la régie du téléphone et les tablettes la suivent
+     * seules, sans rescanner ni retaper le mot de passe (cedric, 25/10 : « il faut que ça suive tout seul »).
      */
     fun newGame() {
         countdown?.cancel()
@@ -433,19 +437,47 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val db = connect()
-                if (previous != null) {
-                    db.getReference("games/$previous/state").updateChildren(
-                        mapOf("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP, "leftAt" to ServerValue.TIMESTAMP)
-                    )
-                }
                 activeCode = null
                 val uid = FirebaseAuth.getInstance().currentUser!!.uid
-                if (!boxMayPlay(db, uid)) return@launch
-                open(db, createGame(db, uid))
+                var nouveau: String? = null
+                try {
+                    if (boxMayPlay(db, uid)) nouveau = createGame(db, uid)
+                } finally {
+                    // Même sans nouvelle partie (box à activer, base muette), l'ancienne est quittée.
+                    if (previous != null) quitter(db, previous, nouveau)
+                }
+                nouveau?.let { open(db, it) }
             } catch (e: Exception) {
                 fail(e)
             }
         }
+    }
+
+    /**
+     * Marque [ancien] terminée et quittée. Avec une [suite] : les téléphones reliés à la régie de l'ancienne partie le
+     * sont d'abord à la nouvelle (la box est hôte des deux), puis `state/suite` est écrit, pour que la régie qui bascule
+     * soit déjà reliée.
+     */
+    private suspend fun quitter(db: FirebaseDatabase, ancien: String, suite: String?) {
+        val fin = mutableMapOf<String, Any>("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP, "leftAt" to ServerValue.TIMESTAMP)
+        if (suite != null) {
+            try {
+                val regies = db.getReference("games/$ancien/regie").readOnce()?.children?.toList().orEmpty()
+                    .mapNotNull { r -> r.key?.let { it to (r.child("via").getValue(String::class.java) ?: "pin") } }
+                if (regies.isNotEmpty()) {
+                    withTimeoutOrNull(8000L) {
+                        db.getReference("games/$suite").updateChildren(
+                            regies.associate { (cle, via) -> "regie/$cle" to mapOf("pairedAt" to ServerValue.TIMESTAMP, "via" to via) }
+                        ).await()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "régie non recopiée vers $suite", e)
+            }
+            fin["suite"] = suite
+        }
+        // Sans attendre : hors ligne, l'écriture part au retour du réseau.
+        db.getReference("games/$ancien/state").updateChildren(fin)
     }
 
     // ---------- Activation de la box ----------
@@ -579,14 +611,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Partie [code] à reprendre ([UiState.ResumeOffer]), confiée à une autre box ([UiState.Moved]), ou rien. */
     private suspend fun resumableGame(db: FirebaseDatabase, uid: String, code: String): UiState? {
-        val read = runCatching { db.getReference("games/$code").readOnce() }
+        // Juste ce qu'il faut pour proposer la reprise : jamais les médias de la partie (voir [CLES_REPRISE]).
+        val read = runCatching { db.getReference("games/$code").lirePartie(listOf("hostUid", "state", "teams"), essais = 1) }
         // Lecture refusée : cette box n'est plus l'hôte de la partie (confiée à une autre box, données effacées, autre compte).
         if (read.exceptionOrNull()?.message?.contains("ermission") == true) return movedTo(db, uid, code)
         // Sans réseau ni copie locale (ou base muette), on fait confiance au code mémorisé.
-        val snap = read.getOrNull() ?: return UiState.ResumeOffer(code, emptyList(), AUTO_RESUME_SECONDS)
-        if (snap.child("hostUid").getValue(String::class.java) != uid) return movedTo(db, uid, code)
-        if (snap.child("state/phase").getValue(String::class.java) == Phase.ENDED.code) return null
-        val names = snap.child("teams").children.mapNotNull { it.child("name").getValue(String::class.java) }
+        val partie = read.getOrNull() ?: return UiState.ResumeOffer(code, emptyList(), AUTO_RESUME_SECONDS)
+        if (partie.child("hostUid").getValue(String::class.java) != uid) return movedTo(db, uid, code)
+        if (partie.child("state/phase").getValue(String::class.java) == Phase.ENDED.code) return null
+        val names = partie.child("teams").children.mapNotNull { it.child("name").getValue(String::class.java) }
         return UiState.ResumeOffer(code, names, AUTO_RESUME_SECONDS)
     }
 
@@ -641,7 +674,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * Ouvre une partie : relit le journal, reconstruit l'état, reprend là où on en était.
      * [given] : la partie déjà lue sur le serveur (partie confiée par la régie à cette box de secours).
      */
-    private suspend fun open(db: FirebaseDatabase, code: String, given: DataSnapshot? = null) {
+    private suspend fun open(db: FirebaseDatabase, code: String, given: PartieLue? = null) {
         stopListening()
         timer?.cancel()
         expressTimer?.cancel()
@@ -654,44 +687,45 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         coups.vider()
         _coup.value = null
         activeCode = code
-        val snap = given ?: ref.readOnce() ?: error("La base Firebase ne répond pas. Vérifiez Internet puis réessayez.")
+        val partie = given ?: ref.lirePartie()
+            ?: error("La base Firebase ne répond pas. Vérifiez Internet puis réessayez.")
         // Programme en vigueur, écrit par la box elle-même (prestation et modifications acceptées) ;
         // à défaut (partie d'une version plus ancienne), la prestation chargée par la régie et acceptée.
-        val program = snap.child("conducteur").takeIf { it.child("id").value != null && it.child("rev").value != null }
+        val program = partie.child("conducteur").takeIf { it.child("id").value != null && it.child("rev").value != null }
             ?.let { c -> runCatching { QuizJson.fromValue(c.value) }.getOrNull()?.let { it to c.child("rev").getValue(String::class.java)!! } }
-        val show = snap.child("show")
+        val show = partie.child("show")
         val showApplied = show.child("id").value != null &&
-            snap.child("showStatus/id").value == show.child("id").value &&
-            snap.child("showStatus/status").getValue(String::class.java) == "applied"
+            partie.child("showStatus/id").value == show.child("id").value &&
+            partie.child("showStatus/status").getValue(String::class.java) == "applied"
         val quiz = program?.first
             ?: (if (showApplied) runCatching { QuizJson.fromValue(show.child("quiz").value) }.getOrNull() else null)
-            ?: loadQuiz(snap.child("quizId").getValue(String::class.java))
+            ?: loadQuiz(partie.child("quizId").getValue(String::class.java))
         programRev = program?.second ?: if (showApplied) show.child("id").getValue(String::class.java)!! else "initial"
         val named = program != null || showApplied
         // Prestation publiée par la box elle-même ; à défaut (partie d'une version plus ancienne), celle chargée par la régie.
-        prestation = snap.child("public/prestation").getValue(String::class.java)
+        prestation = partie.child("public/prestation").getValue(String::class.java)
             ?: show.child("prestation").getValue(String::class.java)?.takeIf { showApplied && show.child("base").value == null }
-        couleursPrevues = couleursValides(snap.child("public/teamColors").children.map { it.value })
+        couleursPrevues = couleursValides(partie.child("public/teamColors").children.map { it.value })
             .ifEmpty { if (showApplied) couleursValides(show.child("teamColors").children.map { it.value }) else emptyList() }
-        judgedShow = snap.child("showStatus/id").getValue(String::class.java)
-        val history = snap.child("log").children.mapNotNull { (it.value as? Map<*, *>)?.let(Codec::decode) }
+        judgedShow = partie.child("showStatus/id").getValue(String::class.java)
+        val history = partie.child("log").children.mapNotNull { (it.value as? Map<*, *>)?.let(Codec::decode) }
         val g = Game(quiz, history)
         game = g
-        val round = snap.child("state/round").getValue(Int::class.java) ?: 1
+        val round = partie.child("state/round").getValue(Int::class.java) ?: 1
         // Commandes de la régie déjà traitées avant un redémarrage : jamais appliquées deux fois.
         handledCommands.clear()
-        snap.child("commandStatus").children.mapNotNullTo(handledCommands) { it.key }
-        refuseBeforeTakeover(ref, snap)
-        regieUids = snap.child("regie").children.mapNotNull { it.key }.toSet()
-        pinFailures = snap.child("pairingLock/failures").getValue(Int::class.java) ?: 0
-        pinLockedUntil = snap.child("pairingLock/until").getValue(Long::class.java) ?: 0L
+        partie.child("commandStatus").children.mapNotNullTo(handledCommands) { it.key }
+        refuseBeforeTakeover(ref, partie)
+        regieUids = partie.child("regie").children.mapNotNull { it.key }.toSet()
+        pinFailures = partie.child("pairingLock/failures").getValue(Int::class.java) ?: 0
+        pinLockedUntil = partie.child("pairingLock/until").getValue(Long::class.java) ?: 0L
         _state.value = UiState.Playing(
             code = code, joinUrl = joinUrl(code), total = quiz.questions.size, round = round,
             // Équipes connues dès l'ouverture : une commande reçue avant leur chargement est jugée correctement.
-            teams = parseTeams(snap.child("teams")),
+            teams = parseTeams(partie.child("teams")),
             regiePin = regiePin(code), regies = regieUids.size,
             title = if (named) quiz.title else "",
-            childName = if (named) snap.child("public/childName").getValue(String::class.java)
+            childName = if (named) partie.child("public/childName").getValue(String::class.java)
                 ?: show.child("childName").getValue(String::class.java).orEmpty() else "",
         )
         // Le conducteur (questions et bonnes réponses) n'est lisible que par les régies reliées.
@@ -708,16 +742,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * « La TV ne répond pas ») n'est jamais appliqué ici, même un « Suivant » encore valable ou un programme
      * modifié. Chacun reçoit la réponse « trop ancien », une seule fois.
      */
-    private fun refuseBeforeTakeover(ref: DatabaseReference, snap: DataSnapshot) {
-        val takeoverAt = snap.child("takeover/at").getValue(Long::class.java) ?: return
+    private fun refuseBeforeTakeover(ref: DatabaseReference, partie: PartieLue) {
+        val takeoverAt = partie.child("takeover/at").getValue(Long::class.java) ?: return
         val updates = mutableMapOf<String, Any?>()
-        for (c in snap.child("commands").children) {
+        for (c in partie.child("commands").children) {
             val id = c.key ?: continue
             if (id in handledCommands || (c.child("at").getValue(Long::class.java) ?: 0L) > takeoverAt) continue
             handledCommands += id
             updates += statusOf(id, CommandResult(CommandStatus.REFUSED, reason = "too_old"))
         }
-        val show = snap.child("show")
+        val show = partie.child("show")
         val showId = show.child("id").getValue(String::class.java)
         if (showId != null && showId != judgedShow && (show.child("at").getValue(Long::class.java) ?: 0L) <= takeoverAt) {
             judgedShow = showId
@@ -1733,6 +1767,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 depuisMs = depuisMs,
             )
             CrashReporter.report(db, "sante", bilan.ligne())
+            // Fluidité des 5 dernières minutes : où la box a accroché (cedric, 25/10 : la Mi Box comme référence).
+            Fluidite.releve()?.let { CrashReporter.report(db, "fluidite", it) }
         }
     }
 
@@ -2327,23 +2363,66 @@ private const val RANGEMENT_DELAI_MS = 15_000L
  * où le changement vise bien ce salon. Une copie locale plus ancienne (box d'origine qui retrouve sa partie) est
  * ignorée. Null au-delà de [timeoutMs] ; exception si la lecture est refusée (partie confiée ailleurs entre-temps).
  */
-private suspend fun DatabaseReference.readHandedOver(lobby: String, uid: String, timeoutMs: Long): DataSnapshot? = withTimeoutOrNull(timeoutMs) {
-    suspendCancellableCoroutine { cont ->
-        val listener = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val fresh = snapshot.child("hostUid").getValue(String::class.java) == uid &&
-                    snapshot.child("takeover/to").getValue(String::class.java) == lobby
-                if (fresh && cont.isActive) { removeEventListener(this); cont.resume(snapshot) }
-            }
+private suspend fun DatabaseReference.readHandedOver(lobby: String, uid: String, timeoutMs: Long): PartieLue? {
+    // L'hôte et `takeover` changent dans la même écriture : on attend l'hôte (lisible de tous), puis on relit la partie,
+    // sans ses médias (voir [CLES_REPRISE]).
+    val hote = child("hostUid")
+    withTimeoutOrNull(timeoutMs) {
+        suspendCancellableCoroutine<Unit> { cont ->
+            val listener = object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    if (snapshot.getValue(String::class.java) == uid && cont.isActive) { hote.removeEventListener(this); cont.resume(Unit) }
+                }
 
-            override fun onCancelled(error: DatabaseError) {
-                if (cont.isActive) cont.resumeWithException(error.toException())
+                override fun onCancelled(error: DatabaseError) {
+                    if (cont.isActive) cont.resumeWithException(error.toException())
+                }
             }
+            hote.addValueEventListener(listener)
+            cont.invokeOnCancellation { hote.removeEventListener(listener) }
         }
-        addValueEventListener(listener)
-        cont.invokeOnCancellation { removeEventListener(listener) }
+    } ?: return null
+    return lirePartie()?.takeIf { it.child("takeover/to").getValue(String::class.java) == lobby }
+}
+
+/**
+ * Ce qu'une reprise relit d'une partie : tout sauf ses médias. Les chansons et photos que la régie copie dans la partie
+ * (`sounds`, `images`, `choiceImages` : des dizaines de Mo) empêchaient toute reprise (25/10 au soir : « La base
+ * Firebase ne répond pas » après un arrêt de l'appli, « Réessayer » sans effet). Ils arrivent ensuite, un par un.
+ */
+internal val CLES_REPRISE = listOf(
+    "hostUid", "quizId", "conducteur", "show", "showStatus", "public", "log", "state", "teams",
+    "commands", "commandStatus", "takeover", "regie", "pairingLock",
+)
+
+/** Une partie relue par morceaux ([CLES_REPRISE]) : se lit comme la partie entière. */
+internal class PartieLue(private val morceau: (String) -> DataSnapshot) {
+    /** Comme [DataSnapshot.child] sur la partie entière : « showStatus/id », « teams »… */
+    fun child(chemin: String): DataSnapshot {
+        val reste = chemin.substringAfter('/', "")
+        return morceau(chemin.substringBefore('/')).let { if (reste.isEmpty()) it else it.child(reste) }
     }
 }
+
+/**
+ * Les morceaux [cles] de la partie, lus en même temps (chacun avec un long délai) ; le serveur muet : on réessaie,
+ * [essais] fois en tout, avant de renoncer (null). Une lecture refusée (partie confiée à une autre box) remonte.
+ */
+private suspend fun DatabaseReference.lirePartie(cles: List<String> = CLES_REPRISE, essais: Int = 3): PartieLue? {
+    for (essai in 1..essais) {
+        val lus = coroutineScope { cles.map { k -> async { k to child(k).readOnce(LECTURE_REPRISE_MS) } }.awaitAll() }
+        if (lus.all { it.second != null }) {
+            val morceaux = lus.associate { (k, v) -> k to v!! }
+            return PartieLue { morceaux.getValue(it) }
+        }
+        Log.w("QuizTv", "Partie $key : serveur muet à la lecture $essai/$essais")
+        if (essai < essais) delay(2_000L * essai)
+    }
+    return null
+}
+
+/** Délai de chaque morceau d'une partie relue à la reprise (Wi-Fi d'une salle des fêtes, box qui vient de démarrer). */
+private const val LECTURE_REPRISE_MS = 15_000L
 
 private suspend fun DatabaseReference.readOnce(timeoutMs: Long = 8000L): DataSnapshot? = withTimeoutOrNull(timeoutMs) {
     suspendCancellableCoroutine { cont ->

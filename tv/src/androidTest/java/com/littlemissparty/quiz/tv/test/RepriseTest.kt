@@ -2,6 +2,7 @@ package com.littlemissparty.quiz.tv.test
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.littlemissparty.quiz.engine.Scoring
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,6 +11,34 @@ import org.junit.runner.RunWith
 /** L'appli se ferme ou plante en pleine partie : au redémarrage, rien n'est perdu. */
 @RunWith(AndroidJUnit4::class)
 class RepriseTest : TestTv() {
+    private val regies = mutableListOf<RegieSimulee>()
+
+    @After
+    fun rangerRegies() = regies.forEach { it.close() }
+
+    /**
+     * 25/10 au soir : appli arrêtée en pleine fête, après que la régie a copié chansons et photos dans la partie.
+     * La reprise relisait toute la partie, médias compris, et échouait à chaque essai (« La base Firebase ne répond
+     * pas »). Ici, 8 extraits de près de 900 Ko : la fête reprend quand même, avec ses équipes et sa question.
+     */
+    @Test
+    fun repriseDUneFeteAvecSesChansonsCopiees() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = RegieSimulee().also { regies += it }
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        val lourd = "data:audio/mpeg;base64," + "A".repeat(890_000)
+        repeat(8) { k -> regie.copierExtrait(code, "%016x".format(0xabc000L + k), lourd) }
+        ecran.lancerLaFete()
+        attendreQuestion(licornes, code, 0)
+
+        relancerBoite()
+        ecran.voit("Une partie est en cours", 30_000)
+        ecran.voit("Licornes")
+        ecran.ok("Reprendre la partie")
+        ecran.voit("Quiz · question 1 / ", 30_000)
+        assertEquals(code, Boite.codeActif())
+    }
 
     @Test
     fun repriseAvecOkApresFermeture() {

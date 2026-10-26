@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.habillage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,10 +56,21 @@ object Habillage {
     val equipesAnnoncees = mutableSetOf<String>()
     /** Parties dont la box a montré l'accueil : la grande intro du Game Show attend que Sarah lance la fête. */
     val introsAttendues = mutableSetOf<String>()
+
+    /**
+     * La fête vient d'être lancée et la grande intro va passer : vrai dès la toute première image de la présentation du
+     * premier jeu, avant même que l'intro ne démarre. Le rideau « C'EST PARTI ! » et son jingle n'ont pas le temps de
+     * passer devant (cedric, 25/10 : « Lancer la fête » coupe directement sur le réveil du robot, sans transition).
+     */
+    fun lancementEnVue(s: UiState.Playing): Boolean =
+        lancementEnVue(Look.gs, s.phase, s.intro, s.paused, s.code in introsAttendues)
     /** La grande intro du lancement passe à l'écran (avec son propre son) : la bande-son se tait, le robot aussi. */
     val introLancement = mutableStateOf(false)
     /** L'intro vidéo d'un jeu passe sur l'écran de présentation : le décor ne lit pas son propre fond vidéo. */
     val introJeu = mutableStateOf(false)
+
+    /** La présentation du blind test a dessiné l'ancienne platine (Classique, ou platine néon introuvable) ; lu par les tests. */
+    @Volatile var platineIntroClassique = false
 
     /** La vidéo de l'écran de fin du Game Show passe : le décor ne lit pas son propre fond vidéo. */
     val finVideo = mutableStateOf(false)
@@ -77,7 +89,10 @@ fun HabillageTv(state: UiState) {
         val observateur = LifecycleEventObserver { _, e ->
             when (e) {
                 Lifecycle.Event.ON_STOP -> Sons.suspendre()
-                Lifecycle.Event.ON_START -> Sons.reprendre()
+                Lifecycle.Event.ON_START -> {
+                    com.littlemissparty.quiz.tv.Fluidite.oublierDerniere()
+                    Sons.reprendre()
+                }
                 else -> {}
             }
         }
@@ -90,15 +105,35 @@ fun HabillageTv(state: UiState) {
     val statue = statueFigee(state as? UiState.Playing)
     // Qui a disparu ? : l'étape affichée par le plateau (mémoriser, tour de magie, chercher, réponse), de 1 à 4.
     val disparu = (state as? UiState.Playing)?.let { s -> s.question?.takeIf { it.isDisparu }?.let { etapeDisparu(it, s).ordinal + 1 } } ?: 0
-    val lancement = Habillage.introLancement.value
+    val lancement = Habillage.introLancement.value || (state as? UiState.Playing)?.let(Habillage::lancementEnVue) == true
     val instant = remember(state, urgent, indices, statue, disparu, decompte, lancement) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte, presentation = (state as? UiState.Playing)?.intro == true, lancement = lancement) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
+    // Mesure de la fluidité : l'écran en cours, pour savoir où la box accroche (rapports de la box).
+    SideEffect { com.littlemissparty.quiz.tv.Fluidite.ecran = etiquetteFluidite(state) }
     // Dernières questions du quiz à points multipliés : le plateau passe au doré, de la question à sa révélation.
     val dore = (state as? UiState.Playing)?.let { it.question?.double == true && it.phase in listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL) } == true
     // Accueil du Game Show : le robot qui dort, sous Get Lucky ; pendant la grande intro, aucune autre vidéo.
     val salon = (state as? UiState.Playing)?.phase == Phase.LOBBY
     DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || Habillage.introJeu.value || Habillage.finVideo.value)
 }
+
+/** « question zoom », « presentation gonfleur », « scores », « accueil »… : l'écran, tel que le compte la fluidité. */
+internal fun etiquetteFluidite(state: UiState): String {
+    val s = state as? UiState.Playing ?: return state::class.simpleName.orEmpty().lowercase()
+    if (s.phase == Phase.LOBBY) return "accueil"
+    if (Habillage.introLancement.value) return "intro lancement"
+    val jeu = s.question?.let { " " + familleJeu(it) }.orEmpty()
+    return when {
+        s.paused -> "pause"
+        s.intro && s.phase == Phase.QUESTION -> "presentation$jeu"
+        s.phase == Phase.SCORES || s.phase == Phase.ENDED -> s.phase.code
+        else -> s.phase.code + jeu
+    }
+}
+
+/** Voir [Habillage.lancementEnVue] : la présentation du premier jeu, lancée depuis l'accueil de cette box, en Game Show. */
+internal fun lancementEnVue(gameShow: Boolean, phase: Phase, presentation: Boolean, enPause: Boolean, introAttendue: Boolean) =
+    gameShow && introAttendue && phase == Phase.QUESTION && presentation && !enPause
 
 /**
  * [presentation] : la TV montre l'écran de présentation du jeu (avant sa première question, en attendant que
@@ -145,6 +180,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         express = s.question?.isExpress == true,
         reponseVraie = s.question?.let { q -> q.choices.getOrNull(q.correct)?.trim()?.startsWith("vrai", ignoreCase = true) } == true,
         zoom = s.question?.isZoom == true,
+        chronoMs = s.question?.durationMs ?: 0,
         jeuBuzz = s.question?.isBuzz == true,
         flou = s.question?.isFlou == true,
         chante = s.question?.isChante == true,

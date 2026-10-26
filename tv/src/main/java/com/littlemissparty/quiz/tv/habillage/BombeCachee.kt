@@ -162,6 +162,8 @@ private val LUEUR_OR = Color(0xFFFFD98A)
 private val LUEUR_MALUS = Color(0xFFB9A8D8)
 private val LUEUR_BOMBE = Color(0xFFFF6A3D)
 
+internal fun largeurModele(modele: Int): Float = MODELES[modele].largeur
+
 /** Position de la plaque numérotée sur la face avant (fractions de la largeur et de la hauteur du coffre). */
 private fun plaque(m: ModeleCoffre): Rect {
     val l = if (m === MODELES[4]) 0.30f else m.couvercle
@@ -175,7 +177,9 @@ private fun plaque(m: ModeleCoffre): Rect {
  * Dessine un coffre qui remplit la zone ; sa base touche le bas de la zone. [ouverture] : 0 fermé, 1 couvercle
  * relevé ; [lueur] : la lumière qui sort quand il est ouvert ; [assombri] : 0 neuf, 0,25 déjà ouvert, 0,75 brûlé.
  */
-private fun DrawScope.dessineCoffre(modele: Int, ouverture: Float, lueur: Color?, assombri: Float, dore: Boolean = false) {
+private fun DrawScope.dessineCoffre(modele: Int, ouverture: Float, lueur: Color?, assombri: Float, dore: Boolean = false, enScene: Boolean = false) {
+    // Game Show : les coffres 3D validés (CoffresGs.kt) ; le dessin ci-dessous reste celui du Classique.
+    if (Look.gs && dessineCoffreGs(modele, ouverture, assombri, dore, enScene)) return
     val m = MODELES[modele]
     val w = size.width
     val h = size.height
@@ -390,6 +394,16 @@ private fun DrawScope.gradins(rangees: Int) {
         val dessus = Path().apply {
             moveTo(m.gauche * d + retrait, haut); lineTo(m.droite * d - retrait, haut); lineTo(m.droite * d, avant); lineTo(m.gauche * d, avant); close()
         }
+        if (Look.gs) {
+            // Game Show (maquette des coffres 3D) : laque nuit, nez de marche en néon cyan, arête du fond rose.
+            drawPath(dessus, Brush.verticalGradient(listOf(Color(0xFF1C1238), Color(0xFF2A1B52)), haut, avant))
+            drawRect(Brush.verticalGradient(listOf(Color(0xFF15102C), Color(0xFF0A0718)), avant, bas), Offset(m.gauche * d, avant), Size((m.droite - m.gauche) * d, bas - avant))
+            drawRect(Brush.verticalGradient(listOf(GS.Cyan.copy(alpha = 0.28f), Color.Transparent), avant, avant + 18f * d), Offset(m.gauche * d, avant), Size((m.droite - m.gauche) * d, 18f * d))
+            drawLine(GS.Cyan.copy(alpha = 0.35f), Offset(m.gauche * d, avant), Offset(m.droite * d, avant), 7f * d)
+            drawLine(GS.CyanClair, Offset(m.gauche * d, avant), Offset(m.droite * d, avant), 2f * d)
+            drawLine(GS.Rose.copy(alpha = 0.55f), Offset(m.gauche * d + retrait, haut), Offset(m.droite * d - retrait, haut), 1.5f * d)
+            return@forEachIndexed
+        }
         drawPath(dessus, Brush.verticalGradient(listOf(Color(0xFF55297F), Color(0xFF41206A)), haut, avant))
         drawPath(dessus, Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.07f), Color.Transparent), m.gauche * d, m.droite * d))
         drawRect(Brush.verticalGradient(listOf(Color(0xFF2A1244), Color(0xFF190A2C)), avant, bas), Offset(m.gauche * d, avant), Size((m.droite - m.gauche) * d, bas - avant))
@@ -412,6 +426,7 @@ fun SceneCoffres(
     nombre: Int, ouverts: Map<Int, Int?>, auTour: Pair<String, Color>?, phaseDanger: Boolean,
     modifier: Modifier = Modifier, bombe: Int? = null, or: Int? = null, bandeau: Boolean = true,
 ) {
+    ChargerCoffresGs()
     val places = remember(nombre) { placesCoffres(nombre) }
     val rangees = remember(nombre) { repartitionCoffres(nombre).size }
     val boucle = rememberInfiniteTransition(label = "coffres")
@@ -441,6 +456,7 @@ fun SceneCoffres(
                         modeleCoffre(i), if (ouvert) 1f else 0f,
                         when { !ouvert -> null; delta == null -> LUEUR_BOMBE; estBonus(delta) -> LUEUR_OR; else -> LUEUR_MALUS },
                         when { !ouvert -> 0f; delta == null -> 0.72f; else -> 0.28f },
+                        enScene = true,
                     )
                 }
                 val p = plaque(m)
@@ -449,7 +465,12 @@ fun SceneCoffres(
                         Modifier.offset(x = (p.left * w).dp, y = (p.top * h).dp).size((p.width * w).dp, (p.height * h).dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("${i + 1}", maxLines = 1, softWrap = false, style = styleCentre(maxOf(p.height * h * 0.72f, 15f * e).sp, Color(0xFF3A1C00)))
+                        // Game Show : le numéro s'allume dans la fenêtre noire du coffre 3D.
+                        Text(
+                            "${i + 1}", maxLines = 1, softWrap = false,
+                            style = if (Look.gs) styleCentre(maxOf(p.height * h * 0.66f, 14f * e).sp, Neon.Blanc).copy(fontFamily = PoliceGsChiffres, shadow = Shadow(GS.Cyan, Offset.Zero, 10f))
+                            else styleCentre(maxOf(p.height * h * 0.72f, 15f * e).sp, Color(0xFF3A1C00)),
+                        )
                     }
                 } else {
                     // Coffre ouvert : sa valeur s'affiche sur la face avant.
@@ -478,6 +499,7 @@ private val styleBandeau = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em
 
 @Composable
 private fun BandeauTour(auTour: Pair<String, Color>?, modifier: Modifier = Modifier) {
+    if (Look.gs) return BandeauTourGs(auTour, modifier)
     val couleur = auTour?.second ?: Neon.Or
     Row(
         modifier.widthIn(max = 700.dp).background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
@@ -489,6 +511,42 @@ private fun BandeauTour(auTour: Pair<String, Color>?, modifier: Modifier = Modif
         } else {
             Text(auTour.first, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false), style = styleBandeau.copy(color = couleur))
             Text(", choisissez un coffre !", maxLines = 1, softWrap = false, style = styleBandeau.copy(color = Neon.Blanc))
+        }
+    }
+}
+
+/**
+ * Game Show (retour de cedric le 25/10 au soir : « pas très sexy ») : l'enseigne du tour en tube de néon de la
+ * couleur de l'équipe, qui respire ; le nom de l'équipe brille dans sa couleur, le reste en blanc néon (Bungee).
+ */
+@Composable
+private fun BandeauTourGs(auTour: Pair<String, Color>?, modifier: Modifier = Modifier, suite: String = ", choisissez un coffre !", cle: Any? = auTour?.first) {
+    val couleur = auTour?.second?.let(::enNeon) ?: GS.Cyan
+    val souffle by rememberInfiniteTransition(label = "bandeau").animateFloat(0.55f, 1f, infiniteRepeatable(tween(1_100), RepeatMode.Reverse), label = "souffle")
+    val lueur = { c: Color -> Shadow(c, Offset.Zero, 18f) }
+    val style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 24.sp, lineHeight = 1.15.em)
+    Row(
+        modifier.widthIn(max = 780.dp).apparition(0, cle)
+            .drawBehind {
+                val r = CornerRadius(size.height / 2)
+                drawRoundRect(Brush.verticalGradient(listOf(Color(0xF0140A2A), Color(0xF00A0618))), cornerRadius = r)
+                // Tube de néon : halo large et doux, halo serré, cœur coloré, filament blanc.
+                drawRoundRect(couleur.copy(alpha = 0.16f * souffle), cornerRadius = r, style = Stroke(14.dp.toPx()))
+                drawRoundRect(couleur.copy(alpha = 0.45f * souffle), cornerRadius = r, style = Stroke(6.dp.toPx()))
+                drawRoundRect(couleur, cornerRadius = r, style = Stroke(2.6.dp.toPx()))
+                drawRoundRect(Color.White.copy(alpha = 0.75f), cornerRadius = r, style = Stroke(0.9.dp.toPx()))
+            }
+            .padding(horizontal = 30.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (auTour == null) {
+            Text("Les Coffres mystères", maxLines = 1, style = style.copy(color = GS.CyanClair, shadow = lueur(GS.Cyan)))
+        } else {
+            Text(
+                auTour.first, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                style = style.copy(color = lerp(couleur, Color.White, 0.25f), shadow = lueur(couleur)),
+            )
+            Text(suite, maxLines = 1, softWrap = false, style = style.copy(color = Color(0xFFF4F1FF), shadow = lueur(GS.Violet)))
         }
     }
 }
@@ -567,6 +625,7 @@ fun OuvertureCoffre(
         fini()
     }
     val modele = modeleCoffre(index)
+    ChargerOuvertureGs(modele)
     val m = MODELES[modele]
     // Coffre agrandi : assez grand pour le spectacle, assez bas pour laisser le verdict lisible au-dessus.
     val e = min(240f / m.largeur, 170f / m.hauteur)
@@ -704,7 +763,13 @@ fun OuvertureCoffre(
             if (bombe && ms >= T_BOUM) explosion((ms - T_BOUM) / 1000f, Offset(cx, size.height * 0.52f), boules, braises, debris, d)
         }
         // Qui ouvre quel coffre (la carte BONUS / MALUS reprend le nom : le bandeau s'efface pour lui laisser la place).
-        Row(
+        // Game Show : la même enseigne en néon que le tour des coffres.
+        if (Look.gs) BandeauTourGs(
+            equipe to couleur,
+            Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
+                .graphicsLayer { alpha = if (carte) 1f - ((t.value - tVerdict) / 220f).coerceIn(0f, 1f) else 1f },
+            suite = " ouvre le coffre n° ${index + 1}", cle = index,
+        ) else Row(
             Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
                 .graphicsLayer { alpha = if (carte) 1f - ((t.value - tVerdict) / 220f).coerceIn(0f, 1f) else 1f }
                 .apparition(0, index)
@@ -939,6 +1004,7 @@ fun AlerteBombe(onFini: () -> Unit, modifier: Modifier = Modifier, jouer: (Son) 
         fini()
     }
     val pieces = remember { projectiles(97L, 46) }
+    ChargerOuvertureGs(0, dore = true)
     Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
             val ms = t.value

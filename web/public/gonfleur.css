@@ -30,3 +30,28 @@
 @keyframes gf-appui { 50% { transform: translateY(6px) scale(.97); box-shadow: 0 4px 0 #a77d3a, 0 6px 14px rgba(233, 194, 122, .45); } }
 
 @media (prefers-reduced-motion: reduce) { .gf-ballon, .gf-pompe { animation: none !important; transition: none !important; } }
+
+/* ---------- Game Show : le ballon laqué aux reflets de néon de la TV, sur son anneau, et une pompe en néon ---------- */
+.look-gs .gf-titre { font-family: "GS Bungee"; font-weight: 400; color: #fff; text-shadow: 0 0 14px var(--gf-couleur); }
+.look-gs .gf-texte { color: var(--gs-encre); }
+.look-gs .gf-scene::after { content: ""; position: absolute; left: 50%; bottom: -10px; width: 58%; height: 22px; transform: translateX(-50%); border-radius: 50%; z-index: 0;
+  background: radial-gradient(closest-side, #05030a 60%, #1e1638); box-shadow: 0 0 0 2px var(--gf-couleur), 0 0 0 3px rgba(255, 255, 255, .6), 0 0 18px var(--gf-couleur), 0 10px 26px color-mix(in srgb, var(--gf-couleur) 40%, transparent); }
+.look-gs .gf-ballon { z-index: 1; border-radius: 50% 50% 47% 47% / 52% 52% 48% 48%;
+  background:
+    radial-gradient(circle at 34% 26%, #fff 0 4%, rgba(255, 255, 255, .7) 6%, transparent 14%),
+    radial-gradient(circle at 82% 78%, color-mix(in srgb, var(--gf-couleur) 45%, #fff) 0, transparent 30%),
+    radial-gradient(circle at 38% 34%, color-mix(in srgb, var(--gf-couleur) 58%, #fff), var(--gf-couleur) 48%, color-mix(in srgb, var(--gf-couleur) 58%, #14082a));
+  box-shadow: 0 0 calc(18px + 40px * var(--p)) color-mix(in srgb, var(--gf-couleur) 80%, transparent), 0 0 calc(60px + 60px * var(--p)) color-mix(in srgb, var(--gf-couleur) 35%, transparent); }
+/* Reflets de néon : arc violet en haut, trait rose à gauche (le reflet), trait cyan à droite. */
+.look-gs .gf-ballon::before { content: ""; position: absolute; left: 22%; right: 22%; top: 9%; height: 30%; border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  border-top: 5px solid #b04dff; filter: drop-shadow(0 0 3px #b04dff); }
+.look-gs .gf-ballon::after { content: ""; position: absolute; right: 13%; top: 34%; width: 5px; height: 24%; border-radius: 99px; background: #00f0ff; box-shadow: 0 0 6px #00f0ff; transform: rotate(-8deg); }
+.look-gs .gf-reflet { left: 19%; top: 32%; width: 7%; height: 28%; border-radius: 99px; background: #ff2d95; box-shadow: 0 0 8px #ff2d95; transform: rotate(10deg); opacity: .9; }
+.look-gs .gf-ficelle { background: rgba(255, 255, 255, .8); }
+.look-gs .gf-jauge { background: rgba(10, 6, 24, .85); box-shadow: 0 0 0 2px rgba(255, 255, 255, .5), 0 0 0 3px var(--gf-couleur), 0 0 14px var(--gf-couleur); }
+.look-gs .gf-plein { background: linear-gradient(90deg, color-mix(in srgb, var(--gf-couleur) 70%, #fff), var(--gf-couleur)); box-shadow: 0 0 12px var(--gf-couleur); }
+.look-gs .gf-pompe { font-family: "GS Bungee"; font-weight: 400; color: #fff; text-shadow: 0 0 12px var(--gf-couleur);
+  background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--gf-couleur) 30%, #1a0b3a), #0a0618 72%);
+  box-shadow: 0 0 0 3px #fff, 0 0 0 8px var(--gf-couleur), 0 0 34px var(--gf-couleur), inset 0 0 30px color-mix(in srgb, var(--gf-couleur) 55%, transparent); }
+.look-gs .gf-pompe.gf-appui { animation: gf-gs-appui .12s ease-out; }
+@keyframes gf-gs-appui { 50% { transform: scale(.94); box-shadow: 0 0 0 3px #fff, 0 0 0 8px var(--gf-couleur), 0 0 60px var(--gf-couleur), inset 0 0 50px var(--gf-couleur); } }

@@ -91,6 +91,8 @@ private fun TransitionDeJeu(state: UiState.Playing) {
         val avant = Habillage.epreuvesVues.put(state.code, cle)
         // Même jeu, ou box qui se reconnecte en plein jeu : pas de rideau.
         if (avant == cle || (avant == null && state.index != 0)) return@LaunchedEffect
+        // Game Show, fête lancée depuis l'accueil : coupe franche sur la grande intro, pas de rideau « C'EST PARTI ! ».
+        if (avant == null && (Habillage.introLancement.value || Habillage.lancementEnVue(state))) return@LaunchedEffect
         val mimes = q.kind == QuestionKind.MIME
         annonce = Annonce(
             id = "${state.code} $cle ${state.index}",

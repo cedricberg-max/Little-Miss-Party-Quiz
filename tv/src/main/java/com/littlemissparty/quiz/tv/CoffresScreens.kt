@@ -16,7 +16,11 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,9 +32,12 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.AlerteBombe
 import com.littlemissparty.quiz.tv.habillage.BilanBombe
 import com.littlemissparty.quiz.tv.habillage.ClassementCoffre
+import com.littlemissparty.quiz.tv.habillage.GS
+import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.LignePortes
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.OuvertureCoffre
+import com.littlemissparty.quiz.tv.habillage.PoliceGsTitre
 import com.littlemissparty.quiz.tv.habillage.SceneCoffres
 import com.littlemissparty.quiz.tv.habillage.rangs
 import com.littlemissparty.quiz.tv.habillage.styleCentre
@@ -89,7 +96,8 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
                         bombe = r.opened.firstOrNull { it.bomb }?.delta,
                         or = r.opened.firstOrNull { it.gold && it !== ouverture }?.chest,
                         // Le classement et l'alerte ont leur titre en haut : le bandeau du tour se cache derrière eux.
-                        bandeau = classement == null && !alerte,
+                        // Game Show : l'enseigne de l'ouverture prend sa place (pas deux enseignes l'une sur l'autre).
+                        bandeau = classement == null && !alerte && !(Look.gs && ouverture != null),
                     )
                 }
             }
@@ -105,7 +113,12 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
                 Text(
                     bas,
                     // Texte long : un peu plus petit, pour tenir sur une ligne à côté du bouton de secours.
-                    style = styleCentre(if (bas.length > 46) 22.sp else 26.sp, Neon.OrClair),
+                    // Game Show : en néon cyan (Bungee), comme l'enseigne du tour au-dessus.
+                    style = if (Look.gs) TextStyle(
+                        fontFamily = PoliceGsTitre, textAlign = TextAlign.Center, color = GS.CyanClair,
+                        fontSize = when { bas.length > 46 -> 17.sp; bas.length > 32 -> 20.sp; else -> 23.sp },
+                        shadow = Shadow(GS.Cyan, Offset.Zero, 16f),
+                    ) else styleCentre(if (bas.length > 46) 22.sp else 26.sp, Neon.OrClair),
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

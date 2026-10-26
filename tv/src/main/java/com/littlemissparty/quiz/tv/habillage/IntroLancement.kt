@@ -10,6 +10,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -37,6 +38,8 @@ fun IntroLancement(s: UiState.Playing) {
     // 0 : rien ; 1 : la vidéo passe ; 2 : elle s'efface ; 3 : finie (jusqu'au prochain retour à l'accueil).
     var etape by remember(s.code) { mutableIntStateOf(0) }
     var depart by remember(s.code) { mutableIntStateOf(-1) }
+    // La vidéo ne se lit pas (même avant d'avoir démarré) : l'intro s'efface, la partie continue sans elle.
+    var ratee by remember(s.code) { mutableStateOf(false) }
     val voile = remember(s.code) { Animatable(1f) }
     LaunchedEffect(s.code, s.phase, s.intro, s.paused) {
         // Retour à l'accueil (mauvaise prestation remplacée) : la fête sera relancée, l'intro aussi.
@@ -46,21 +49,22 @@ fun IntroLancement(s: UiState.Playing) {
             voile.snapTo(1f)
         } else if (Habillage.introsAttendues.remove(s.code) && etape == 0 && s.phase == Phase.QUESTION && s.intro && !s.paused) {
             depart = s.index
-            etape = 1
+            etape = if (ratee) 2 else 1
         }
     }
+    LaunchedEffect(ratee) { if (ratee && etape == 1) etape = 2 }
     val enPlace = s.index == depart && s.phase == Phase.QUESTION && s.intro && !s.paused
     LaunchedEffect(enPlace, etape) { if (!enPlace && etape in 1..2) etape = 3 }
     // Jusqu'à la fin du fondu : la bande-son reprend et le robot arrive quand l'écran du jeu est entièrement là (la box
     // ne décode qu'une vidéo à la fois).
     val joue = etape in 1..2 && enPlace
-    DisposableEffect(joue) {
-        Habillage.introLancement.value = joue
+    // Dès la première image de la présentation (avant que l'effet ci-dessus ne démarre l'intro) : la vidéo se prépare
+    // sur fond noir, sans laisser entrevoir le jeu, et l'intro compte déjà comme à l'écran (bande-son, rideau, robot).
+    val imminente = etape == 0 && Habillage.lancementEnVue(s)
+    DisposableEffect(joue || imminente) {
+        Habillage.introLancement.value = joue || imminente
         onDispose { Habillage.introLancement.value = false }
     }
-    // Dès la première image de la présentation (avant que l'effet ci-dessus ne démarre l'intro) : écran noir, sans
-    // laisser entrevoir le jeu.
-    val imminente = etape == 0 && s.phase == Phase.QUESTION && s.intro && !s.paused && s.code in Habillage.introsAttendues
     if (!joue && !imminente) return
     LaunchedEffect(etape) {
         if (etape == 2) {
@@ -72,8 +76,13 @@ fun IntroLancement(s: UiState.Playing) {
         AndroidView(
             factory = {
                 LecteurFond(
-                    it, R.raw.gs_intro_lancement, surPret = {}, surEchec = { if (etape == 1) etape = 2 },
+                    it, R.raw.gs_intro_lancement, surPret = {},
+                    surEchec = {
+                        Sons.incident("Intro du lancement : la vidéo ne se lit pas (${GelFond.fondsOuverts} vidéos ouvertes)")
+                        ratee = true
+                    },
                     boucle = false, volume = VOLUME_INTRO, finMs = FIN_INTRO_MS, surFin = { if (etape == 1) etape = 2 },
+                    surSon = { piste -> if (!piste) Sons.incident("Intro du lancement : la box ne lit pas le son de la vidéo") },
                 )
             },
             onRelease = { it.liberer() },

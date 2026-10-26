@@ -628,6 +628,25 @@ function ordreDuQuiz(round, quizzes) {
 }
 
 /**
+ * Le « Quiz complet » de la Régie PC (cedric, 26/10 : une question retirée laisse sa place) : l'ordre de passage avec,
+ * à leur place, les questions retirées qui attendent leur 🎲 ({ cle, vide: true, q, i, serie } ; [i] : sa place dans la
+ * série). Une case vide garde l'identifiant de sa question, donc sa clé. Jamais joué : la TV ne lit que questionsDuQuiz.
+ */
+export function ordreAvecCasesVides(round, quizzes = {}) {
+  const type = round?.type ?? "quiz";
+  const parSerie = roundSeriesQuiz(round).map((serie) => {
+    const enLigne = itemsDeLaSerie(serie, quizzes, type);
+    if (serie?.origine === "quiz") return enLigne.map((x) => ({ ...x, serie }));
+    let k = 0;
+    return listOf(serie?.questions).filter(Boolean).flatMap((q, i) => {
+      if (q.vide === true) return typeof q.id === "string" && q.id ? [{ cle: cleQuestion(serie, q, type), vide: true, q, i, serie }] : [];
+      return questionsEnLigne([q]).length && enLigne[k] ? [{ ...enLigne[k++], serie }] : [];
+    });
+  });
+  return rangerSelonOrdre(parSerie, round?.ordreQuiz, [{ cle: CLE_BOUGIES, bougies: true }]);
+}
+
+/**
  * Les éléments de séries ([parSerie] : une liste de { cle } par série) dans l'ordre rangé à la main ([ordre] : leurs
  * clés), avec [extras] (places hors des séries, rangées à la main). Sans ordre : série après série. Un élément arrivé
  * ensuite se met à côté de sa voisine de série ; une série toute nouvelle, au début si c'est la première (le 🎲),

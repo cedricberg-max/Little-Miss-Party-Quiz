@@ -256,7 +256,6 @@ button.item { cursor: pointer; }
 .summary { margin: 0; font-weight: 800; color: var(--violet); }
 .questions { display: flex; flex-direction: column; gap: 12px; }
 .qcard { display: flex; flex-direction: column; gap: 10px; background: var(--card); border: 2px solid var(--line); border-radius: 20px; padding: 18px; box-shadow: var(--shadow); }
-.qcard.valid { border-color: #9fd9b4; }
 .qcard.error { border-color: #f0a7bf; }
 .illustration .q-emoji, .illustration label.inline input.q-emoji { width: 140px; font-size: 20px; }
 .illustration .q-image { height: 72px; width: 96px; max-width: none; object-fit: cover; border-radius: 9%; border: 2px solid var(--line); }
@@ -1236,3 +1235,31 @@ select.q-niveau-choix option { color: var(--ink); background: var(--card); }
 .pack-theme-global .hint { margin: 6px 0 0; }
 .q-theme > .title-row { flex-wrap: nowrap; }
 .q-theme > .title-row > .q-plier { flex: 1 1 auto; min-width: 0; }
+
+/* « 🧹 Fusionner les doublons » des images des packs (cedric, 25/10). */
+.doublons-outil { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.doublons-apercu { display: grid; gap: 10px; max-height: 60vh; overflow-y: auto; }
+.doublons-groupe { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
+.doublon { margin: 0; width: 120px; display: grid; gap: 4px; opacity: .65; }
+.doublon.gardee { opacity: 1; }
+.doublon img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; border: 2px solid var(--line); }
+.doublon.gardee img { border-color: #1f9d55; }
+.doublon figcaption { font-size: .8rem; line-height: 1.2; overflow-wrap: anywhere; }
+
+/* « 🎨 Prestation test d'un thème » (Paramètres) : le menu et le bouton passent à la ligne sur un téléphone. */
+.test-theme { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.test-theme select { min-width: 0; max-width: 100%; flex: 1 1 160px; }
+
+/* Carte Quiz à une seule ligne de 🎲 (cedric, 26/10) : l'âge au bout de la ligne du numéro, le rappel plus fin, le
+   « complet » avant la Super Finale (bougies au bout), une question retirée qui garde sa place. */
+.round-head > .quiz-en-tete, .round-body > .quiz-en-tete { width: auto; flex: 0 0 auto; max-width: 100%; margin-left: auto; }
+.quiz-rappel.fine .quiz-ajout-titre { font-size: 14px; padding: 4px 10px; }
+.quiz-rappel.fine .quiz-ajout-cherche { min-height: 38px; font-size: 14px; padding: 6px 12px; }
+.round-body > .quiz-complet + .quiz-finale { margin-top: 10px; }
+.quiz-finale > .quiz-bougies { margin-left: auto; }
+.quiz-case-vide .quiz-case-source { flex: 1 1 140px; max-width: 300px; }
+/* Sur le téléphone, le « Quiz complet » tient dans l'écran : le texte se replie, ↑ ↓ ✕ restent visibles. */
+.round-body > .quiz-complet { min-width: 0; max-width: 100%; }
+.quiz-complet-q .tirage-q-ligne { flex-wrap: wrap; row-gap: 6px; }
+.quiz-complet-q .tirage-texte { flex: 1 1 160px; overflow-wrap: anywhere; }
+.quiz-case-vide .quiz-case-retirer { margin-left: auto; }

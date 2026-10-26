@@ -1,7 +1,7 @@
 // « 🎨 Mes thèmes » d'un Quiz (cedric, 25/10) : piocher dans les packs importés, avec trois dés.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks } from "../web/public/pioche-packs.js";
+import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks, sourceDuDe } from "../web/public/pioche-packs.js";
 
 const q = (text, extra = {}) => ({ text, choices: ["A", "B", "C", "D"], correct: 1, status: "validee", ...extra });
 const pack = (title, niveau, n, extra = {}) => ({ title, niveau, famille: "Divers", pack: true, kind: "classique",
@@ -95,6 +95,11 @@ describe("pioche dans mes packs", () => {
     assert.deepEqual(versQuestionDePack(zoom[0], hasard, "flou"), { id: `i:${IMG(1)}`, text: "Qui est-ce ?", choices: ["Rumi", "Zoey", "Jinu", "Derpy"], correct: 0, imageId: IMG(1) });
     const [vf] = catalogueDesPacks(packs, () => false, "express");
     assert.deepEqual(versQuestionDePack(vf, hasard, "express"), { id: `pk-${vf.id}`, text: "Vrai ?", choices: ["Vrai", "Faux"], correct: 0 }, "Vrai / Faux jamais mélangé");
+    // Son image montrée à la fin (cedric, 25/10 : « l'image doit être montrée à la fin ») : photo, sinon émoji.
+    const vfImage = { ...vf, q: { ...vf.q, imageId: IMG(7) } };
+    assert.deepEqual(versQuestionDePack(vfImage, hasard, "express"), { id: `pk-${vf.id}`, text: "Vrai ?", choices: ["Vrai", "Faux"], correct: 0, imageId: IMG(7) });
+    assert.equal(versQuestionDePack({ ...vf, q: { ...vf.q, image: "🍄" } }, hasard, "express").emoji, "🍄");
+    assert.equal(versQuestionDePack({ ...vf, q: { ...vf.q, imageId: "pas-une-image" } }, hasard, "express").imageId, undefined);
     const illus = catalogueDesPacks(packs, () => false, "illustre").find((x) => x.quizId === "illus");
     for (let k = 0; k < 6; k++) {
       const x = versQuestionDePack(illus, hasard, "illustre");
@@ -102,5 +107,23 @@ describe("pioche dans mes packs", () => {
       assert.deepEqual(x.choices.map((c, i) => [c, x.choiceImages[i]]).sort(), [["Jinu", IMG("d")], ["Mira", IMG("b")], ["Rumi", IMG("a")], ["Zoey", IMG("c")]], "chaque réponse garde son image");
       assert.equal(x.imageId, IMG("e"));
     }
+  });
+});
+
+describe("Le champ du 🎲 unique du Quiz (cedric, 26/10)", () => {
+  const LIBRES = { animaux: "Animaux", corps: "Corps humain", sport: "Sport" };
+  test("vide : au hasard dans tout ; « libre » : les libres de droit ; « mes packs » : mes packs", () => {
+    for (const t of ["", "  "]) assert.deepEqual(sourceDuDe(t, LIBRES), { sorte: "tout" });
+    for (const t of ["libre", "Libres", "libres de droit", "Questions libres de droit", "question libre de droits"]) assert.equal(sourceDuDe(t, LIBRES).sorte, "libres", t);
+    for (const t of ["mes packs", "Mes Packs", "packs", "pack"]) assert.equal(sourceDuDe(t, LIBRES).sorte, "packs", t);
+  });
+  test("un thème : dans mes packs, et le thème libre de droit du même nom s'il y en a un", () => {
+    assert.deepEqual(sourceDuDe(" Mario ", LIBRES), { sorte: "theme", terme: "Mario", themeLibre: null });
+    assert.deepEqual(sourceDuDe("kpop", LIBRES), { sorte: "theme", terme: "kpop", themeLibre: null });
+    assert.equal(sourceDuDe("animaux", LIBRES).themeLibre, "animaux");
+    assert.equal(sourceDuDe("Animaux", LIBRES).themeLibre, "animaux");
+    assert.equal(sourceDuDe("corps", LIBRES).themeLibre, "corps", "le début du libellé suffit");
+    assert.equal(sourceDuDe("co", LIBRES).themeLibre, null, "deux lettres : trop court");
+    assert.equal(sourceDuDe("Libre-service", LIBRES).sorte, "theme");
   });
 });

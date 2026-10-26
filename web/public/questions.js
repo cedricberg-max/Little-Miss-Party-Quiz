@@ -248,7 +248,8 @@ export function lirePacks(texte) {
       const sans = sansChoix[i];
       const n = nombreEntier(brut.correct ?? brut.answer ?? brut.reponse ?? brut.réponse ?? brut.bonne_reponse);
       const illus = emoji(brut.illustration) ?? emoji(brut.image) ?? emoji(brut.emoji);
-      if (sans && n != null) return { text: q.text, choices: [], correct: n, kind: "number", duration: q.duration, double: q.double, marks: 0, ...(illus ? { image: illus } : {}) };
+      // Sa photo de révélation (« illustration » : un fichier) reste avec elle (cedric, 26/10).
+      if (sans && n != null) return { text: q.text, choices: [], correct: n, kind: "number", duration: q.duration, double: q.double, marks: 0, ...(illus ? { image: illus } : {}), ...(q.revealFile ? { revealFile: q.revealFile } : {}) };
       return { ...q, ...(illus ? { image: illus } : {}) };
     });
     // Ses deux étiquettes (cedric, 25/10) : écrites sur le pack, ou une fois pour tous en haut du fichier.
