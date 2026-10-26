@@ -520,13 +520,13 @@ private fun BandeauTour(auTour: Pair<String, Color>?, modifier: Modifier = Modif
  * couleur de l'équipe, qui respire ; le nom de l'équipe brille dans sa couleur, le reste en blanc néon (Bungee).
  */
 @Composable
-private fun BandeauTourGs(auTour: Pair<String, Color>?, modifier: Modifier = Modifier) {
+private fun BandeauTourGs(auTour: Pair<String, Color>?, modifier: Modifier = Modifier, suite: String = ", choisissez un coffre !", cle: Any? = auTour?.first) {
     val couleur = auTour?.second?.let(::enNeon) ?: GS.Cyan
     val souffle by rememberInfiniteTransition(label = "bandeau").animateFloat(0.55f, 1f, infiniteRepeatable(tween(1_100), RepeatMode.Reverse), label = "souffle")
     val lueur = { c: Color -> Shadow(c, Offset.Zero, 18f) }
     val style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 24.sp, lineHeight = 1.15.em)
     Row(
-        modifier.widthIn(max = 780.dp).apparition(0, auTour?.first)
+        modifier.widthIn(max = 780.dp).apparition(0, cle)
             .drawBehind {
                 val r = CornerRadius(size.height / 2)
                 drawRoundRect(Brush.verticalGradient(listOf(Color(0xF0140A2A), Color(0xF00A0618))), cornerRadius = r)
@@ -546,7 +546,7 @@ private fun BandeauTourGs(auTour: Pair<String, Color>?, modifier: Modifier = Mod
                 auTour.first, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 style = style.copy(color = lerp(couleur, Color.White, 0.25f), shadow = lueur(couleur)),
             )
-            Text(", choisissez un coffre !", maxLines = 1, softWrap = false, style = style.copy(color = Color(0xFFF4F1FF), shadow = lueur(GS.Violet)))
+            Text(suite, maxLines = 1, softWrap = false, style = style.copy(color = Color(0xFFF4F1FF), shadow = lueur(GS.Violet)))
         }
     }
 }
@@ -763,7 +763,13 @@ fun OuvertureCoffre(
             if (bombe && ms >= T_BOUM) explosion((ms - T_BOUM) / 1000f, Offset(cx, size.height * 0.52f), boules, braises, debris, d)
         }
         // Qui ouvre quel coffre (la carte BONUS / MALUS reprend le nom : le bandeau s'efface pour lui laisser la place).
-        Row(
+        // Game Show : la même enseigne en néon que le tour des coffres.
+        if (Look.gs) BandeauTourGs(
+            equipe to couleur,
+            Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
+                .graphicsLayer { alpha = if (carte) 1f - ((t.value - tVerdict) / 220f).coerceIn(0f, 1f) else 1f },
+            suite = " ouvre le coffre n° ${index + 1}", cle = index,
+        ) else Row(
             Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
                 .graphicsLayer { alpha = if (carte) 1f - ((t.value - tVerdict) / 220f).coerceIn(0f, 1f) else 1f }
                 .apparition(0, index)
