@@ -1863,8 +1863,9 @@ function renderPatate(st) {
   const booms = Array.isArray(p.booms) ? p.booms : Object.values(p.booms ?? {});
   const boom = booms[booms.length - 1];
   const numero = (p.bombs ?? 1) > 1 ? `Bombe ${p.bomb ?? 1} sur ${p.bombs}. ` : "";
+  const derniere = (p.bomb ?? 1) >= (p.bombs ?? 1);
   $("patate-info").textContent = p.lit !== true ? "La mèche s'allume sur la TV…"
-    : p.exploded === true ? `💥 BOUM chez ${name(boom?.holder)} ! La bombe ${(p.bomb ?? 1) + 1} s'allume…`
+    : p.exploded === true ? `💥 BOUM chez ${name(boom?.holder)} ! ${derniere ? "C'était la dernière bombe : le bilan arrive." : `La bombe ${(p.bomb ?? 1) + 1} s'allume…`}`
       : `${numero}💣 La bombe est chez ${name(p.holder)}${p.from ? ` (envoyée par ${name(p.from)})` : ""}. ${p.passes ?? 0} envoi${(p.passes ?? 0) > 1 ? "s" : ""}.`
         + (pas.length ? ` Pas encore touchées : ${pas.map(name).join(", ")}.` : " Toutes les équipes l'ont eue.")
         + (booms.length ? ` Déjà explosées chez : ${booms.map((x) => name(x.holder)).join(", ")}.` : "");
@@ -1874,7 +1875,28 @@ function renderPatate(st) {
   clearTimeout(patatePret);
   if (wait > 0) patatePret = setTimeout(render, wait + 50);
   btn.textContent = patateArme ? `Touchez encore : la bombe part de chez ${name(p.holder)}` : `🎲 Envoyer la bombe au hasard pour ${name(p.holder)}`;
+  // Finir le jeu sans jouer toutes les bombes (cedric, 26/10), seulement avec une box qui le sait (patateStop).
+  // Entre deux bombes (BOUM affiché, ou la suivante allumée mais pas encore partie) : « ⏭ Jeu suivant », bilan tout de
+  // suite. Pendant une bombe qui n'est pas la dernière : « 🏁 Dernière bombe ».
+  const maintenant = Date.now() + serverOffset;
+  const entreDeux = p.lit === true && p.exploded !== true && (p.bomb ?? 1) > 1 && booms.length === (p.bomb ?? 1) - 1 && (p.since ?? 0) > maintenant;
+  const apresBoum = p.lit === true && p.exploded === true && !derniere;
+  const pendant = p.lit === true && p.exploded !== true && !entreDeux && !derniere;
+  const stop = $("patate-stop");
+  stop.hidden = live.plan?.patateStop !== true || !(entreDeux || apresBoum || pendant);
+  stop.textContent = pendant ? "🏁 Dernière bombe" : "⏭ Jeu suivant";
+  stop.disabled = !!pending?.advance || st.paused === true;
+  clearTimeout(patateEntreDeux);
+  if (entreDeux) patateEntreDeux = setTimeout(render, p.since - maintenant + 50);
 }
+let patateEntreDeux = null;
+$("patate-stop").onclick = async () => {
+  const p = live.state?.potato ?? {};
+  const dernierePendant = $("patate-stop").textContent.startsWith("🏁");
+  navigator.vibrate?.(60);
+  const r = await send("potato_stop", {}, { advance: true });
+  if (r?.status === "applied") toast(dernierePendant ? `La bombe ${p.bomb ?? ""} est la dernière : bilan après son explosion.` : "Fin du jeu : le bilan s'affiche sur la TV.");
+};
 $("patate-random").onclick = () => {
   if (!patateArme) {
     patateArme = setTimeout(() => { patateArme = null; render(); }, 4000);

@@ -2092,6 +2092,58 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("« Ça va exploser ! » (cedric, 26/10) : « 🏁 Dernière bombe » pendant une bombe, « ⏭ Jeu suivant » entre deux, un seul appui ; rien après la dernière", async () => {
+    box = startBox();
+    const page = await openRegie(await contexteSansChoix({ viewport: { width: 360, height: 640 } }));
+    await pair(page);
+    await inRegie(page);
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const plan = (await read("conducteur")) ?? { questions: [] };
+    const bombe = { id: "p1", text: "Ça va exploser !", kind: "patate", choices: [], correct: -1, round: "Ça va exploser !" };
+    await set(gameRef("conducteur"), { ...plan, patate: true, patateStop: true, questions: [...plan.questions, bombe] });
+    const now = Date.now();
+    const potato = { lit: true, holder: "rose", from: null, since: now - 3000, readyAt: now - 1000, canReturn: true, targets: ["bleu"], teams: ["rose", "bleu"], hit: ["rose"], passes: 0, key: "p1-1", bomb: 1, bombs: 3, exploded: false, booms: [] };
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "patate", text: "Ça va exploser !", choices: null, deadline: null, total: 3, potato });
+    const stop = page.locator("#patate-stop");
+    // Bombe 1 sur 3 en cours : « 🏁 Dernière bombe », dans l'écran, un seul appui.
+    await page.locator("#patate-stop:not([hidden])", { hasText: "🏁 Dernière bombe" }).waitFor();
+    const r = await stop.boundingBox();
+    assert.ok(r.y >= 0 && r.y + r.height <= 640, `bouton dans l'écran : ${JSON.stringify(r)}`);
+    await stop.click();
+    await waitFor(async () => (await commands()).filter((c) => c.type === "potato_stop").length === 1, "« Dernière bombe » envoyé en un appui");
+    // La box l'a pris en compte : cette bombe est la dernière, plus de bouton.
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, bombs: 1 } });
+    await page.locator("#patate-stop").waitFor({ state: "hidden" });
+    // Elle explose : « C'était la dernière bombe », jamais « La bombe 2 s'allume ».
+    const boom = { holder: "rose", at: Date.now(), lost: 100, gain: 100 };
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, bombs: 1, exploded: true, key: null, booms: [boom] } });
+    await page.locator("#patate-info", { hasText: "C'était la dernière bombe" }).waitFor();
+    assert.doesNotMatch(await page.textContent("#patate-info"), /s'allume/);
+    assert.equal(await stop.isHidden(), true);
+    // Autre partie de 3 bombes : BOUM de la bombe 1 → « ⏭ Jeu suivant ».
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, exploded: true, key: null, booms: [boom] } });
+    await page.locator("#patate-info", { hasText: "La bombe 2 s'allume…" }).waitFor();
+    await page.locator("#patate-stop:not([hidden])", { hasText: "⏭ Jeu suivant" }).waitFor();
+    // La bombe 2 allumée mais pas encore partie : toujours « ⏭ Jeu suivant », puis « 🏁 Dernière bombe » une fois partie.
+    const go = Date.now() + 2500;
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, holder: "bleu", since: go, readyAt: go + 2000, bomb: 2, exploded: false, key: "p1-2", booms: [boom] } });
+    await page.locator("#patate-info", { hasText: "Bombe 2 sur 3" }).waitFor();
+    assert.equal(await stop.textContent(), "⏭ Jeu suivant");
+    await page.locator("#patate-stop", { hasText: "🏁 Dernière bombe" }).waitFor({ timeout: 6000 });
+    // Bombe 3 sur 3 : déjà la dernière, pas de bouton.
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, holder: "rose", since: Date.now() - 1000, bomb: 3, exploded: false, key: "p1-3", booms: [boom, { ...boom, holder: "bleu" }] } });
+    await page.locator("#patate-info", { hasText: "Bombe 3 sur 3" }).waitFor();
+    assert.equal(await stop.isHidden(), true);
+    // Ancienne box (sans patateStop) : jamais de bouton.
+    await set(gameRef("conducteur"), { ...plan, patate: true, questions: [...plan.questions, bombe] });
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, bomb: 1 } });
+    await page.locator("#patate-info", { hasText: "Bombe 1 sur 3" }).waitFor();
+    assert.equal(await stop.isHidden(), true);
+    await capture(page, "patate-derniere-bombe-360x640", { pleinePage: false });
+    await page.context().close();
+  });
+
   test("présentation d'un jeu : la régie propose « ▶ Lancer l'épreuve » et c'est elle qui lance le jeu", async () => {
     box = startBox();
     const page = await openRegie();
