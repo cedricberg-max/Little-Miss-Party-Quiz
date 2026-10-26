@@ -8495,21 +8495,23 @@ function persosARetirer(retirer) {
  * d'importer les nouveaux) : tous ses packs et séries de photos, et les images qui ne servent qu'à eux, en un seul envoi.
  * Mes images, les autres thèmes et les séries déjà copiées dans une prestation ne bougent pas.
  */
-async function supprimerTheme(nom) {
+async function supprimerTheme(nom, bloc = null) {
   const cle = cleTheme(nom) || nom;
-  const cartes = parTheme([...mesPacks(quizzes), ...mesSeriesDePhotos(quizzes)]).find(([t]) => (cleTheme(t) || t) === cle)?.[1] ?? [];
+  const duNom = parTheme([...mesPacks(quizzes), ...mesSeriesDePhotos(quizzes)]).find(([t]) => (cleTheme(t) || t) === cle)?.[1] ?? [];
+  // Un seul bloc du thème (cedric, 26/10 : un jeu, un niveau) : ses packs seulement, le reste du thème ne bouge pas.
+  const cartes = bloc ? duNom.filter((c) => bloc.ids.includes(c.id)) : duNom;
   if (!cartes.length) return;
   const ids = new Set(cartes.map((c) => c.id));
   const packs = Object.fromEntries([...ids].map((id) => [id, quizzes[id]]));
   const duTheme = (f) => { const t = themeDeFiche(f); return t != null && (f.cat === catDePack(nom) || (cleTheme(t) || t) === cle); };
   // Sa « 🧪 Test packs » (Paramètres) : une copie pour essayer le thème, qui part avec lui et ne garde pas ses images.
-  const test = shows[idTestDuTheme(nom)] ? idTestDuTheme(nom) : null;
+  const test = !bloc && shows[idTestDuTheme(nom)] ? idTestDuTheme(nom) : null;
   const autresShows = Object.fromEntries(Object.entries(shows).filter(([id]) => id !== test));
   // Ses jeux gardés à l'enregistrement (« manches », avec son showId) partent avec elle.
-  const manchesTest = Object.keys(manches ?? {}).filter((id) => manches[id]?.showId === idTestDuTheme(nom));
+  const manchesTest = bloc ? [] : Object.keys(manches ?? {}).filter((id) => manches[id]?.showId === idTestDuTheme(nom));
   const autresManches = Object.fromEntries(Object.entries(manches ?? {}).filter(([id]) => !manchesTest.includes(id)));
   // Ses personnages de Qui suis-je ? : leur série porte le nom du thème, ou leur image y est rangée.
-  const qui = persosARetirer((x, img) => (cleTheme(x.serie ?? "") || x.serie) === cle || (img != null && duTheme(medias[img])));
+  const qui = bloc ? persosARetirer(() => false) : persosARetirer((x, img) => (cleTheme(x.serie ?? "") || x.serie) === cle || (img != null && duTheme(medias[img])));
   const resteContents = qui.contenu ? { ...contents, quisuis: qui.contenu } : contents;
   const ailleurs = { quizzes: Object.fromEntries(Object.entries(quizzes).filter(([id]) => !ids.has(id))), shows: autresShows, manches: autresManches, mimes, contents: resteContents, songs, playlists };
   const avecPersos = { ...packs, "\u0000qui": qui.images };
@@ -8517,13 +8519,14 @@ async function supprimerTheme(nom) {
   const gardees = imagesDuTheme({ packs: avecPersos, medias, duTheme }).length - images.length;
   const questions = cartes.reduce((t, c) => t + (c.total ?? 0), 0);
   const utilisent = Object.values(autresShows).filter((s) => (s.rounds ?? []).some((r) => roundQuizIds(r).some((id) => ids.has(id)))).map(showTitle);
-  const message = `Supprimer le thème « ${nom} » ?\n\n${plural(cartes.length, "pack")} (${plural(questions, "question")}) et ${plural(images.length, "image")} partent de la bibliothèque, pour de bon.`
+  const message = (bloc ? `Supprimer « ${bloc.titre} » ?\n\n${plural(questions, bloc.photos ? "photo" : "question")} et ${plural(images.length, "image")} partent de la bibliothèque, pour de bon.`
+    : `Supprimer le thème « ${nom} » ?\n\n${plural(cartes.length, "pack")} (${plural(questions, "question")}) et ${plural(images.length, "image")} partent de la bibliothèque, pour de bon.`)
     + (qui.retires.length ? `\n\n${plural(qui.retires.length, "personnage", "personnages")} de Qui suis-je ? ${qui.retires.length > 1 ? "partent" : "part"} aussi.` : "")
     + (test ? `\n\nSa prestation de test « ${showTitle(shows[test])} » part aussi.` : "")
     + (gardees ? `\n\n${plural(gardees, "image reste", "images restent")} : une prestation ou un autre pack s'en sert.` : "")
     + "\n\nMes images, les autres thèmes et les questions déjà copiées dans une prestation ne changent pas."
     + (utilisent.length ? `\n\nAttention, ${utilisent.length > 1 ? "ces prestations utilisent" : "cette prestation utilise"} un de ces packs : ${utilisent.join(", ")}.` : "");
-  if (!(await confirmer(message, { ok: "Supprimer le thème", danger: true }))) return;
+  if (!(await confirmer(message, { ok: bloc ? "Supprimer" : "Supprimer le thème", danger: true }))) return;
   const ecritures = {};
   if (test) ecritures[`library/shows/${test}`] = null;
   for (const id of manchesTest) ecritures[`library/manches/${id}`] = null;
@@ -8532,8 +8535,11 @@ async function supprimerTheme(nom) {
   for (const id of images) { ecritures[`library/images/${id}`] = null; ecritures[`library/medias/${id}`] = null; }
   try {
     await update(ref(db), ecritures);
-    qThemesOuverts.delete(cle);
-    annonce(`✓ Thème « ${nom} » supprimé : ${plural(cartes.length, "pack")} et ${plural(images.length, "image")}.`, true);
+    if (bloc) annonce(`✓ « ${bloc.titre} » supprimé : ${plural(questions, bloc.photos ? "photo" : "question")} et ${plural(images.length, "image")}.`, true);
+    else {
+      qThemesOuverts.delete(cle);
+      annonce(`✓ Thème « ${nom} » supprimé : ${plural(cartes.length, "pack")} et ${plural(images.length, "image")}.`, true);
+    }
   } catch (err) {
     console.error(err);
     annonce("Le thème n'a pas pu être supprimé : vérifiez la connexion. Rien n'a été changé.");
@@ -8569,25 +8575,57 @@ function packsParTheme(cartes, recherche, vide) {
       h("div", { class: "title-row" }, plier,
         h("button", { type: "button", class: "btn small secondary theme-renommer", text: "✎ Renommer", title: "Renommer ce thème, ou le ranger dans un autre", onclick: () => renommerTheme(t, liste) }),
         h("button", { type: "button", class: "btn small danger theme-supprimer", text: "🗑 Supprimer", title: "Supprimer ce thème : ses packs, leurs questions et leurs images", onclick: () => supprimerTheme(t) })),
-      ouvert ? h("div", { class: "cards" }, ...liste.map(cartePack)) : null);
+      ouvert ? h("div", { class: "cards" }, ...blocsDuTheme(t, liste).map(carteBloc)) : null);
   });
   return [puces, h("div", { class: "q-familles q-themes" }, ...themes)];
 }
 
-function cartePack(p) {
-  return h("div", { class: `item pack${packsNouveaux.has(p.id) ? " copie-recente" : ""}`, "data-pack": p.id },
-    h("span", { class: "pill", text: jeuDuPack(quizzes[p.id] ?? {}) }),
-    h("b", { text: p.title }),
-    p.niveau ? h("span", { class: "pack-niveau", "data-niveau": p.niveau }, pastilleNiveau(p.niveau), p.niveau) : h("span", { class: "pack-niveau sans", text: "Niveau à choisir dans « Éditer »" }),
-    h("span", { text: SOURCES[p.source] ?? "" }),
-    h("span", { text: `${plural(p.total, p.kind === "images" ? "photo" : "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
+/**
+ * Un thème en blocs (cedric, 26/10 : plus de « Disney 1, Disney 2, Disney 3… ») : un bloc par jeu et par niveau
+ * (« Quiz classique · Facile »), qui réunit les questions de tous ses packs. Les blocs vus, par identifiant, pour
+ * les ouvrir.
+ */
+const blocsVus = new Map();
+const ORDRE_NIVEAUX = { Facile: 0, Moyen: 1, Difficile: 2 };
+function blocsDuTheme(theme, cartes) {
+  const blocs = new Map();
+  for (const c of cartes) {
+    const jeu = jeuDuPack(quizzes[c.id] ?? {});
+    const id = `bloc:${cleTheme(theme) || theme}|${jeu}|${c.niveau ?? ""}`;
+    if (!blocs.has(id)) blocs.set(id, { id, theme, jeu, niveau: c.niveau ?? null, photos: c.kind === "images", ids: [] });
+    blocs.get(id).ids.push(c.id);
+  }
+  const sansEmoji = (jeu) => jeu.replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, "");
+  const liste = [...blocs.values()].sort((a, b) => sansEmoji(a.jeu).localeCompare(sansEmoji(b.jeu)) || (ORDRE_NIVEAUX[a.niveau] ?? 3) - (ORDRE_NIVEAUX[b.niveau] ?? 3));
+  for (const b of liste) {
+    b.titre = [b.theme, sansEmoji(b.jeu), b.niveau].filter(Boolean).join(" · ");
+    blocsVus.set(b.id, b);
+  }
+  return liste;
+}
+
+/** Les cartes d'un bloc, comme un seul pack : toutes ses questions à la suite. */
+function packDuBloc(bloc, cartes) {
+  const siennes = bloc.ids.map((id) => cartes.find((c) => c.id === id)).filter(Boolean);
+  return {
+    id: bloc.id, bloc, title: bloc.titre, theme: "", kind: siennes[0]?.kind, ids: siennes.map((c) => c.id),
+    total: siennes.reduce((t, c) => t + c.total, 0), sansIllustration: siennes.reduce((t, c) => t + c.sansIllustration, 0),
+    questions: siennes.flatMap((c) => c.questions),
+  };
+}
+
+function carteBloc(b) {
+  const p = packDuBloc(b, [...mesPacks(quizzes), ...mesSeriesDePhotos(quizzes)]);
+  const horsFormat = p.ids.reduce((t, id) => t + horsFormatDu(quizzes[id]).length, 0);
+  return h("div", { class: `item pack pack-bloc${p.ids.some((id) => packsNouveaux.has(id)) ? " copie-recente" : ""}`, "data-bloc": b.id, "data-pack": p.ids.join(" ") },
+    h("span", { class: "pill", text: b.jeu }),
+    b.niveau ? h("span", { class: "pack-niveau", "data-niveau": b.niveau }, pastilleNiveau(b.niveau), b.niveau) : h("span", { class: "pack-niveau sans", text: "Niveau à choisir dans « Éditer »" }),
+    h("b", { text: plural(p.total, b.photos ? "photo" : "question") }),
     p.sansIllustration ? h("span", { class: "q-alerte", text: `⚠ ${p.sansIllustration} sans illustration` }) : h("span", { class: "ok", text: "✓ Toutes illustrées" }),
-    horsFormatDu(quizzes[p.id]).length ? h("span", { class: "q-alerte hors-format", text: `⚠ ${plural(horsFormatDu(quizzes[p.id]).length, "image hors format", "images hors format")} : « Ouvrir » pour voir` }) : null,
+    horsFormat ? h("span", { class: "q-alerte hors-format", text: `⚠ ${plural(horsFormat, "image hors format", "images hors format")} : « Ouvrir » pour voir` }) : null,
     h("div", { class: "row" },
-      h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { const y = window.scrollY; qPack = p.id; qSelection.clear(); status("q-status", ""); renderQuestions(); noterRubrique(y); } }),
-      h("button", { class: "btn secondary", type: "button", text: "Éditer", onclick: () => review(p.id, quizzes[p.id]) }),
-      h("button", { class: "btn secondary", type: "button", text: "Renommer", onclick: () => rename(`library/quizzes/${p.id}`, p.title, "du pack") }),
-      h("button", { class: "btn danger", type: "button", text: "Supprimer", onclick: () => deleteQuiz(p.id, quizzes[p.id]) })));
+      h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { const y = window.scrollY; qPack = b.id; qSelection.clear(); status("q-status", ""); renderQuestions(); noterRubrique(y); } }),
+      h("button", { class: "btn danger", type: "button", text: "Supprimer", onclick: () => supprimerTheme(b.theme, b) })));
 }
 
 function renderQuestions() {
@@ -8610,7 +8648,7 @@ function dessinerQuestions() {
   // « 🧪 Questions de test » n'apparaît que s'il y a une prestation de test dans la bibliothèque.
   const groupes = Object.entries(GROUPES_QUESTIONS).filter(([k]) => k !== "tests" || g.tests.length);
   if (qGroupe === "tests" && !g.tests.length) qGroupe = null;
-  if (qPack && !quizzes[qPack]) qPack = null;
+  if (qPack && !quizzes[qPack] && !blocsVus.get(qPack)?.ids.some((id) => quizzes[id])) qPack = null;
   const chip = (key, label, n) => h("button", {
     type: "button", class: `chip${qGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
     onclick: () => { const y = window.scrollY; qGroupe = key; qPack = null; qCategorie = null; qType = null; qNiveau = null; qSelection.clear(); status("q-status", ""); renderQuestions(); noterRubrique(y); },
@@ -8625,18 +8663,22 @@ function dessinerQuestions() {
 
   // Un pack ouvert : ses questions, chacune avec son illustration ou l'alerte.
   if (qPack) {
-    const p = [...g.packs, ...g.photos].find((x) => x.id === qPack);
+    const bloc = blocsVus.get(qPack);
+    const p = bloc ? packDuBloc(bloc, [...g.packs, ...g.photos]) : [...g.packs, ...g.photos].find((x) => x.id === qPack);
     const photos = p.kind === "images";
+    // Un bloc fait d'un seul pack s'édite d'un coup ; sinon, chaque question a son « Éditer ».
+    const seul = bloc ? (p.ids.length === 1 ? p.ids[0] : null) : p.id;
+    const alertes = (bloc ? p.ids : [p.id]).flatMap((id) => horsFormatDu(quizzes[id]).map((x) => ({ id, x })));
     const liste = filtre(p.questions);
     qListees = liste;
     remplir(box,
       h("div", { class: "title-row" },
         h("button", { type: "button", class: "btn secondary", text: photos ? "← Toutes les séries de photos" : "← Tous mes thèmes", onclick: () => { const y = window.scrollY; qPack = null; qSelection.clear(); renderQuestions(); noterRubrique(y); } }),
-        h("button", { type: "button", class: "btn secondary", text: photos ? "Éditer la série" : "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
+        seul ? h("button", { type: "button", class: "btn secondary", text: photos ? "Éditer la série" : "Éditer le pack", onclick: () => review(seul, quizzes[seul]) }) : null),
       h("h2", { text: p.title }),
       h("p", { class: "hint", text: [p.theme, plural(p.total, photos ? "photo" : "question"), p.sansIllustration ? `⚠ ${p.sansIllustration} sans ${photos ? "photo" : "illustration"}` : photos ? "✓ toutes avec leur photo" : "✓ toutes illustrées"].filter(Boolean).join(" · ") }),
-      horsFormatDu(quizzes[p.id]).length ? h("ul", { class: "pack-apercu-alertes hors-format-liste" },
-        ...horsFormatDu(quizzes[p.id]).map((x) => h("li", { class: "pack-alerte", text: `${ouImage(quizzes[p.id], x)} : ${x.message}` }))) : null,
+      alertes.length ? h("ul", { class: "pack-apercu-alertes hors-format-liste" },
+        ...alertes.map(({ id, x }) => h("li", { class: "pack-alerte", text: `${ouImage(quizzes[id], x)} : ${x.message}` }))) : null,
       liste.length ? h("div", { class: "q-liste" }, ...liste.map(ligneQuestion)) : h("p", { class: "hint", text: "Aucune question ne correspond à cette recherche." }));
     return;
   }
@@ -8653,7 +8695,7 @@ function dessinerQuestions() {
       }, h("span", { class: "q-plier-fleche", text: ouvert ? "▾" : "▸" }), h("h2", { text: `${label} (${compte[k]})` }));
       const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { const y = window.scrollY; qGroupe = k; renderQuestions(); noterRubrique(y); } });
       const contenu = enCartes[k]
-        ? (enCartes[k].length ? h("div", { class: "cards" }, ...enCartes[k].slice(0, QUESTIONS_APERCU).map(cartePack))
+        ? (enCartes[k].length ? h("div", { class: "cards" }, ...parTheme(enCartes[k]).flatMap(([t, liste]) => blocsDuTheme(t, liste)).slice(0, QUESTIONS_APERCU).map(carteBloc))
           : recherche ? h("p", { class: "hint small", text: "Rien ici pour cette recherche." })
           : k === "photos" ? h("p", { class: "hint small", text: "Aucune série de photos pour l'instant : « Voir tout », puis « 📷 Nouvelle série de photos »." })
           : h("div", { class: "row" }, h("p", { class: "hint small", text: "Aucun thème pour l'instant." }),

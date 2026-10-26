@@ -5909,8 +5909,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#q-groups [data-groupe="photos"]', { hasText: "🔍 Mes séries de photos (3)" }).click();
     // Rangée par thème (cedric, 25/10) : faite à la main sans thème, son nom en fait un.
     await page.locator('#q-list .q-theme[data-theme="Monuments et animaux"] .q-plier', { hasText: "🎨 Monuments et animaux (1)" }).click();
-    await page.locator(`#q-list .pack[data-pack="${id}"]`, { hasText: "3 photos" }).waitFor();
-    await page.locator(`#q-list .pack[data-pack="${id}"] .pack-niveau.sans`, { hasText: "Niveau à choisir dans « Éditer »" }).waitFor();
+    await page.locator(`#q-list .pack[data-pack~="${id}"]`, { hasText: "3 photos" }).waitFor();
+    await page.locator(`#q-list .pack[data-pack~="${id}"] .pack-niveau.sans`, { hasText: "Niveau à choisir dans « Éditer »" }).waitFor();
     assert.equal(await page.locator("#q-list .photos-nouvelle").textContent(), "📷 Nouvelle série de photos");
     await page.locator('#q-groups [data-groupe="miennes"]', { hasText: "(0)" }).waitFor();
     // Image floue (cedric, 25/10 : la carte du Quiz) : la série de photos faite à la main se pioche aux dés de « Mes packs ».
@@ -9260,7 +9260,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('.q-groupe[data-groupe="illustrees"] .q-item').first().waitFor();
     await page.locator('.q-groupe[data-groupe="miennes"] .q-item[data-question="mien/0"] .q-illus.emoji', { hasText: "☁️" }).waitFor();
     await page.locator('.q-groupe[data-groupe="miennes"] .q-item.sans-illus[data-question="mien/1"] .q-alerte', { hasText: "⚠ Pas d'illustration" }).waitFor();
-    await page.locator('.q-groupe[data-groupe="packs"] .pack[data-pack="animaux"]', { hasText: "⚠ 3 sans illustration" }).waitFor();
+    await page.locator('.q-groupe[data-groupe="packs"] .pack[data-pack~="animaux"]', { hasText: "⚠ 3 sans illustration" }).waitFor();
     await capture(page, "questions-apercu");
     // Ses questions se suppriment (cedric, 22/10) ; pas celles toutes prêtes de l'appli.
     assert.equal(await page.locator('.q-groupe[data-groupe="illustrees"] .q-item').first().getByRole("button", { name: "Supprimer" }).count(), 0);
@@ -9365,11 +9365,11 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(quizzes.animaux, ANIMAUX, "les autres quiz ne bougent pas");
     // Les packs importés à l'instant sont encadrés, leurs thèmes ouverts ; les packs sont rangés par thème (cedric,
     // 25/10), dans l'ordre alphabétique, avec leurs pastilles de niveau : l'ancien quiz « Animaux » et la savane ensemble.
-    await page.locator(`.pack.copie-recente[data-pack="${idSavane}"]`).waitFor();
+    await page.locator(`.pack.copie-recente[data-pack~="${idSavane}"]`).waitFor();
     assert.deepEqual(await page.locator(".q-theme .q-plier h2").allInnerTexts(), ["🎨 Animaux (2)", "🎨 Sciences (1)"]);
-    await page.locator(`.q-theme[data-theme="Animaux"] .pack[data-pack="${idSavane}"] .pack-niveau[data-niveau="Facile"]`).waitFor();
-    await page.locator(`.q-theme[data-theme="Animaux"] .pack[data-pack="animaux"]`).waitFor();
-    await page.locator(`.q-theme[data-theme="Sciences"] .pack[data-pack="${idEspace}"] .pack-niveau[data-niveau="Moyen"]`).waitFor();
+    await page.locator(`.q-theme[data-theme="Animaux"] .pack[data-pack~="${idSavane}"] .pack-niveau[data-niveau="Facile"]`).waitFor();
+    await page.locator(`.q-theme[data-theme="Animaux"] .pack[data-pack~="animaux"]`).waitFor();
+    await page.locator(`.q-theme[data-theme="Sciences"] .pack[data-pack~="${idEspace}"] .pack-niveau[data-niveau="Moyen"]`).waitFor();
     await capture(page, "packs-par-theme");
     // ✎ Renommer : « sciences et espace » devient le thème ; puis le nom d'un autre thème l'y range (fusion).
     await page.locator('.q-theme[data-theme="Sciences"] .theme-renommer').click();
@@ -9386,21 +9386,24 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click('.q-niveaux-packs [data-niveau="Facile"]');
     assert.deepEqual(await page.locator(".q-theme .q-plier h2").allInnerTexts(), ["🎨 Animaux (2)"]);
     await page.click('.q-niveaux-packs [data-niveau="tous"]');
-    await page.locator(`.pack[data-pack="${idEspace}"]`).waitFor();
+    await page.locator(`.pack[data-pack~="${idEspace}"]`).waitFor();
 
-    // Un pack s'ouvre sur ses questions : illustration là, ou l'alerte.
-    await page.locator(`.pack[data-pack="${idSavane}"]`, { hasText: "⚠ 1 sans illustration" }).getByRole("button", { name: "Ouvrir" }).click();
-    await page.locator("#q-list h2", { hasText: "Les animaux de la savane" }).waitFor();
+    // Un thème se montre en blocs, un par jeu et par niveau (cedric, 26/10 : plus de « Disney 1, Disney 2… ») : la savane
+    // et l'ancien quiz « Animaux » (Facile tous les deux) n'en font qu'un, ses questions à la suite.
+    assert.deepEqual(await page.locator('.q-theme[data-theme="Animaux"] .pack-bloc').evaluateAll((xs) => xs.map((x) => x.dataset.pack)), [`animaux ${idSavane}`, idEspace]);
+    await page.locator(`.pack[data-pack~="${idSavane}"]`, { hasText: "⚠ 4 sans illustration" }).getByRole("button", { name: "Ouvrir" }).click();
+    await page.locator("#q-list h2", { hasText: "Animaux · Quiz classique · Facile" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Éditer le pack" }).count(), 0, "deux packs : chaque question a son « Éditer »");
     // Sans image hors format, rien d'écrit à la place de leur liste (cedric, 26/10 : « null » au-dessus des questions).
     assert.equal(await page.locator("#q-list").evaluate((el) => [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim())), false);
     assert.equal(await page.locator("#pack-import").isHidden(), true);
-    assert.equal(await page.locator("#q-list .q-item").count(), 4);
+    assert.equal(await page.locator("#q-list .q-item").count(), 4 + ANIMAUX.questions.length);
     await page.locator(`.q-item[data-question="${idSavane}/0"] .q-illus.emoji`, { hasText: "🐘" }).waitFor();
     await page.locator(`.q-item[data-question="${idSavane}/1"] img.q-illus[src^="data:image"]`).waitFor();
     await page.locator(`.q-item[data-question="${idSavane}/2"] .q-nombre`, { hasText: "réponse : 4" }).waitFor();
     await page.locator(`.q-item.sans-illus[data-question="${idSavane}/3"] .q-illus.vide`).waitFor();
     await page.locator(`.q-item.sans-illus[data-question="${idSavane}/3"] .q-alerte`, { hasText: "⚠ Pas d'illustration" }).waitFor();
-    assert.equal(await page.locator(".q-item.sans-illus").count(), 1);
+    assert.equal(await page.locator(".q-item.sans-illus").count(), 4);
     // Plusieurs questions cochées, supprimées ensemble.
     await page.locator(`.q-item[data-question="${idSavane}/0"] .q-coche`).check();
     await page.locator(`.q-item[data-question="${idSavane}/2"] .q-coche`).check();
@@ -9414,7 +9417,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await capture(page, "questions-pack-pc", { pleinePage: false });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.click("#q-tout");
-    await page.locator("#q-selection-n", { hasText: "4 questions cochées" }).waitFor();
+    await page.locator("#q-selection-n", { hasText: `${4 + ANIMAUX.questions.length} questions cochées` }).waitFor();
     assert.equal(await page.locator("#q-tout").isHidden(), true);
     await page.click("#q-aucune");
     await page.locator("#q-selection").waitFor({ state: "hidden" });
@@ -9426,28 +9429,29 @@ describe("bibliothèque de quiz et prestations", () => {
     await waitFor(async () => (await library(`quizzes/${idSavane}/questions`))?.length === 2, "deux questions de moins dans le pack");
     assert.deepEqual((await library(`quizzes/${idSavane}/questions`)).map((q) => q.text), ["Quel animal est le roi de la savane ?", "Quel animal a des rayures ?"]);
     await page.locator("#q-selection").waitFor({ state: "hidden" });
-    assert.equal(await page.locator("#q-list .q-item").count(), 2);
+    assert.equal(await page.locator("#q-list .q-item").count(), 2 + ANIMAUX.questions.length);
 
-    // « Éditer le pack » : la relecture habituelle du quiz.
+    // Un bloc d'un seul pack : « Éditer le pack », la relecture habituelle du quiz.
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.locator(`.pack[data-pack~="${idEspace}"]`).getByRole("button", { name: "Ouvrir" }).click();
+    await page.locator("#q-list h2", { hasText: "Animaux · Quiz classique · Moyen" }).waitFor();
     await page.getByRole("button", { name: "Éditer le pack" }).click();
     await page.locator("#screen-review:not([hidden])").waitFor();
-    assert.equal(await page.locator("#rv-title").inputValue(), "Les animaux de la savane");
+    assert.equal(await page.locator("#rv-title").inputValue(), "Espace");
     // Son thème et son niveau se corrigent ici (cedric, 25/10) ; plus de famille à choisir.
     assert.equal(await page.locator("#rv-theme").inputValue(), "Animaux");
     assert.equal(await page.locator("#rv-famille-champ").isHidden(), true);
-    assert.equal(await page.locator("#rv-niveau").inputValue(), "Facile");
+    assert.equal(await page.locator("#rv-niveau").inputValue(), "Moyen");
     await page.goBack();
     await page.locator("#library-questions:not([hidden])").waitFor();
 
-    // Renommer et Supprimer un pack (fenêtres de la Régie PC).
+    // Supprimer un bloc (fenêtre de la Régie PC) : ses packs seulement, le reste du thème ne bouge pas.
     await page.click('#q-groups [data-groupe="packs"]');
-    await page.locator(`.pack[data-pack="${idSavane}"]`).getByRole("button", { name: "Renommer" }).click();
-    await repondreFenetre(page, { texte: "La savane" });
-    await waitFor(async () => (await library(`quizzes/${idSavane}`)).title === "La savane", "pack renommé");
-    await page.locator(`.pack[data-pack="${idEspace}"]`).getByRole("button", { name: "Supprimer" }).click();
-    assert.match(await repondreFenetre(page), /Supprimer le quiz « Espace » \?/);
+    await page.locator(`.pack[data-pack~="${idEspace}"]`).getByRole("button", { name: "Supprimer" }).click();
+    assert.match(await repondreFenetre(page), /^Supprimer « Animaux · Quiz classique · Moyen » \?/);
     await waitFor(async () => (await library(`quizzes/${idEspace}`)) === null, "pack supprimé");
-    await page.locator(`.pack[data-pack="${idEspace}"]`).waitFor({ state: "detached" });
+    await page.locator(`.pack[data-pack~="${idEspace}"]`).waitFor({ state: "detached" });
+    assert.ok(await library(`quizzes/${idSavane}`), "le reste du thème ne bouge pas");
     await page.context().close();
   });
 
@@ -9901,7 +9905,8 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(Object.keys(await library("quizzes")).length, 1);
 
     // Dans « Éditer » : la petite alerte sur la case C ; on y met une image, on en retire une autre, on enregistre.
-    await page.locator(`.pack[data-pack="${idReine}"]`).getByRole("button", { name: "Éditer" }).click();
+    await page.locator(`.pack[data-pack~="${idReine}"]`).getByRole("button", { name: "Ouvrir" }).click();
+    await page.getByRole("button", { name: "Éditer le pack" }).click();
     await page.locator("#screen-review:not([hidden])").waitFor();
     const cases = page.locator('#rv-list [data-q="0"] .choice-photo');
     assert.deepEqual(await cases.locator(".case-manquante").evaluateAll((els) => els.map((e) => !e.hidden)), [false, false, true, false], "4e case vide : pas une réponse");
@@ -9920,7 +9925,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.goBack();
     await page.locator("#library-questions:not([hidden])").waitFor();
     await page.click('#q-groups [data-groupe="packs"]');
-    await page.locator(`.pack[data-pack="${idReine}"]`).getByRole("button", { name: "Éditer" }).click();
+    await page.locator(`.pack[data-pack~="${idReine}"]`).getByRole("button", { name: "Ouvrir" }).click();
+    await page.getByRole("button", { name: "Éditer le pack" }).click();
     await page.locator("#screen-review:not([hidden])").waitFor();
     assert.equal(await page.locator('#rv-list [data-q="0"] .q-choice').nth(1).inputValue(), "Olaf le bonhomme");
     await cases.nth(2).locator('img.choice-thumb:not([hidden])[src^="data:image"]').waitFor();
@@ -10023,7 +10029,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#pack-status", { hasText: /^✓ \d+ packs? importés?/ }).waitFor();
     const [idKpop, kpopFacile] = Object.entries(await library("quizzes")).find(([, q]) => q.title === "K-pop" && q.niveau === "Facile");
     assert.deepEqual(Object.values(kpopFacile.imagesHorsFormat ?? {}).length, 1);
-    const carteKpop = page.locator(`.pack[data-pack="${idKpop}"]`);
+    const carteKpop = page.locator(`.pack[data-pack~="${idKpop}"]`);
     await carteKpop.locator(".q-alerte.hors-format", { hasText: "⚠ 1 image hors format : « Ouvrir » pour voir" }).waitFor();
     await carteKpop.getByRole("button", { name: "Ouvrir" }).click();
     await page.locator(".hors-format-liste li", { hasText: "Question 1 : Image panoramique (1600 × 900)" }).waitFor();
