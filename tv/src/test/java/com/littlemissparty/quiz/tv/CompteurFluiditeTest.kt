@@ -46,7 +46,7 @@ class CompteurFluiditeTest {
     }
 
     @Test
-    fun `réception des buzz et des envois de bombe : médiane et pire, puis remise à zéro`() {
+    fun `réception des buzz et des envois de bombe, médiane et pire, puis remise à zéro`() {
         Reactivite.releve()
         listOf(120L, 90L, 400L).forEach { Reactivite.noter("buzz", it) }
         Reactivite.noter("bombe", -30)
