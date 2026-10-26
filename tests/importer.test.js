@@ -850,6 +850,28 @@ describe("Ça va exploser !", () => {
     const p = snapshot.quiz.questions.at(-1);
     assert.deepEqual([p.kind, p.text, p.round, p.correct, p.choices], ["patate", "Ça va exploser !", "Ça va exploser !", -1, []]);
     assert.equal(roundFilled({ type: "patate" }), true);
+    assert.equal(p.bombs, undefined, "sans réglage : les 3 bombes de la TV");
+  });
+  test("le nombre de bombes (cedric, 26/10, test Mi Box) : de 1 à 6, 3 d'office, passé à la TV ; la durée estimée et la règle suivent", async () => {
+    const { cleanRound } = await import("../web/public/manches.js");
+    const { regleDePatate, PATATE_RULE, bombesDe } = await import("../web/public/show.js");
+    const bombe = (round) => buildSnapshot("s", { childName: "Léa", age: 9, rounds: [round] }).snapshot.quiz.questions[0];
+    assert.equal(bombe({ type: "patate", bombs: 5 }).bombs, 5);
+    assert.equal(bombe({ type: "patate", bombs: 9 }).bombs, 6, "ramené dans ses limites");
+    assert.equal(bombe({ type: "patate", bombs: 0 }).bombs, 1);
+    assert.deepEqual([bombesDe({}), bombesDe({ bombs: 2.5 })], [3, 3]);
+    // Environ 50 s par bombe.
+    const sec = (round) => estimateMinutes({ quiz: { questions: [bombe(round)] } });
+    assert.deepEqual([sec({ type: "patate", bombs: 1 }), sec({ type: "patate" }), sec({ type: "patate", bombs: 6 })], [1, 3, 5]);
+    assert.equal(DUREE_ESTIMEE.bombe, 50);
+    // Gardé dans la manche enregistrée, dans ses limites.
+    assert.deepEqual(cleanRound({ type: "patate", bombs: 4 }), { type: "patate", bombs: 4 });
+    assert.deepEqual(cleanRound({ type: "patate", bombs: 12 }), { type: "patate", bombs: 6 });
+    assert.deepEqual(cleanRound({ type: "patate", bombs: "4" }), { type: "patate" });
+    // La règle dit le vrai nombre.
+    assert.match(PATATE_RULE, /Trois bombes par partie$/);
+    assert.match(regleDePatate(1), /Une bombe par partie$/);
+    assert.match(regleDePatate(6), /Six bombes par partie$/);
   });
 });
 

@@ -5115,11 +5115,18 @@ describe("bibliothèque de quiz et prestations", () => {
     await ajouterJeu(page, "patate");
     const bombe = page.locator("#show-rounds .round").nth(1);
     await bombe.locator(".alerte-equipes", { hasText: "« Ça va exploser ! » se joue à 2 équipes au moins" }).waitFor();
+    // Le nombre de bombes (cedric, 26/10, test Mi Box) : de 1 à 6, 3 d'office.
+    const bombes = bombe.locator("select.patate-bombes");
+    assert.equal(await bombes.inputValue(), "3");
+    assert.deepEqual((await bombes.locator("option").allTextContents()).map((t) => t.replace(/ \(.*\)$/, "")),
+      ["Une bombe par partie", "Deux bombes par partie", "Trois bombes par partie", "Quatre bombes par partie", "Cinq bombes par partie", "Six bombes par partie"]);
+    await bombes.selectOption("5");
     // L'alerte n'empêche pas d'enregistrer.
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "enregistrée" }).waitFor();
     const show = Object.values(await library("shows"))[0];
     assert.equal(show.teams, 1);
+    assert.deepEqual(show.rounds[1], { type: "patate", bombs: 5 });
     await page.selectOption("#show-teams", "4");
     await bombe.locator(".alerte-equipes").waitFor({ state: "detached" });
     await page.context().close();

@@ -13,7 +13,7 @@ import {
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
   estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES,
   chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND, JEUX_DE_CHANSONS, leurresDeLaManche, chansonsStatues,
-  estJeuDeMots, seriesMots, motsDuJeu, MAX_MOTS, pictoToursBruts, pictoTours, pictoPropositions, pictoPassages,
+  estJeuDeMots, seriesMots, motsDuJeu, MAX_MOTS, pictoToursBruts, pictoTours, pictoPropositions, pictoPassages, bombesDe,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
 import { FAMILLES_PETITS } from "./banque-petits.js";
@@ -303,7 +303,8 @@ export function cleanRound(r, playlists = {}) {
   else if (type === "pictionary" && pictoToursBruts(r).some((ps) => ps.length)) {
     out = { type, duration: r.duration ?? PICTO_SEC, tours: pictoToursBruts(r), propositions: pictoPropositions(r), passages: pictoPassages(r) };
   } else if (type === "pictionary") out = { type, duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}), ...picks };
-  else if (type === "coffres" || type === "gonfleur" || type === "patate") out = { type };
+  else if (type === "patate") out = { type, ...(Number.isInteger(r.bombs) ? { bombs: bombesDe(r) } : {}) };
+  else if (type === "coffres" || type === "gonfleur") out = { type };
   // Blind test tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : ses chansons dans l'ordre, cases retirées
   // comprises (en attente de leur 🎲), et le nombre demandé.
   else if (JEUX_DE_CHANSONS.includes(type) && chansonsBrutes(r).some(Boolean)) {
