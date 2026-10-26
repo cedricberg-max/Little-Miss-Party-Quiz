@@ -115,6 +115,10 @@ describe("analyse d'un pack", () => {
     assert.deepEqual(laisses.sort(), ["liste.txt"]);
     assert.equal(imagesInutiles, 1, "en-trop.jpg : comptée, jamais téléversée");
     assert.equal(IMAGE_MANQUANTE, "Image manquante : ajoutez une illustration.");
+    // Un Juste Chiffre illustré (cedric, 26/10) : sa photo est servie, pas « inutile ».
+    const avecPhoto = { ...QUIZ, questions: [...QUIZ.questions.slice(0, 2), { ...QUIZ.questions[2], illustration: "HP-Q03-Revelation.jpg" }] };
+    const lu = analyserPack([fichier("hp/pack.json", JSON.stringify(avecPhoto)), fichier("hp/HP-Q01-Revelation.JPG"), fichier("hp/HP-Q03-Revelation.jpg")]);
+    assert.deepEqual([lu.packs[0].questions[2].kind, lu.packs[0].questions[2].revealFile, lu.imagesInutiles], ["number", "HP-Q03-Revelation.jpg", 0]);
   });
 
   test("Quiz illustré : images des propositions et révélation facultative ; une case sans image reste vide, sans émoji", () => {

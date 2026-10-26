@@ -333,7 +333,8 @@ function finish(q) {
   }
   // Le Juste Chiffre : aucune proposition et une réponse en nombre entier (« Réponse : 206 »).
   const target = !q.choices.length ? numberAnswer(q.answer) : null;
-  if (target != null) return { text, choices: [], correct: target, kind: "number", duration: q.duration ?? null, double, marks: 0 };
+  // Sa photo de révélation (cedric, 26/10) est gardée avec elle, comme pour une question à propositions.
+  if (target != null) return { text, choices: [], correct: target, kind: "number", duration: q.duration ?? null, double, marks: 0, ...(q.revealFile ? { revealFile: q.revealFile } : {}) };
   return { text, choices: q.choices, correct, duration: q.duration ?? null, double, marks, ...(q.imageFiles ? { imageFiles: q.imageFiles } : {}), ...(q.revealFile ? { revealFile: q.revealFile } : {}) };
 }
 

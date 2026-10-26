@@ -2629,6 +2629,9 @@ describe("Bibliothèque › Questions : toutes prêtes, mes questions, mes packs
     assert.deepEqual([roi.correct, roi.revealFile, roi.image], [1, "lion.png", undefined]);
     assert.deepEqual([chat.choices, chat.imageFiles], [["Chat", "Chien"], ["chat.jpg", "chien.jpg"]]);
     assert.deepEqual([sans.choices, sans.kind, sans.correct], [[], undefined, -1]);
+    // Un Juste Chiffre garde sa photo de révélation (cedric, 26/10 : elle ressortait « inutile » à l'import).
+    const [vv] = Q.lirePacks(JSON.stringify([{ text: "Combien d'émotions dans Vice-Versa ?", correct: 5, illustration: "vice-versa.jpg" }])).packs[0].questions;
+    assert.deepEqual([vv.kind, vv.correct, vv.revealFile, vv.image], ["number", 5, "vice-versa.jpg", undefined]);
     // Un Juste Chiffre à 0 reste 0 (pas une bonne réponse « absente »).
     assert.equal(Q.lirePacks(JSON.stringify([{ text: "Zéro ?", correct: 0 }])).packs[0].questions[0].correct, 0);
   });
