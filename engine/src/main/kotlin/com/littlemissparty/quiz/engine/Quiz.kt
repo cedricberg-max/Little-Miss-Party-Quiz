@@ -164,6 +164,8 @@ data class Question(
     val points: Int? = null,
     /** Blind test : durée de la séquence de révélation (extrait rejoué, pochette, titre, points), en secondes. */
     val revealSec: Int = BLIND_REVEAL_SEC,
+    /** « Ça va exploser ! » : nombre de bombes de la partie, réglé dans la Régie PC (1 à [POTATO_BOMBS_MAX]). */
+    val bombs: Int = POTATO_BOMBS,
 ) {
     /** Paroles du refrain, phrase par phrase et mot par mot (vide : pas de paroles). */
     val paroles: List<LigneParole> by lazy { lireParoles(lyrics) }

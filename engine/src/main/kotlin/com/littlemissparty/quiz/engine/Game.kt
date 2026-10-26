@@ -412,16 +412,34 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         is PotatoLit -> {
             val q = quiz.questions.getOrNull(s.index)
             val p = s.potato
-            // La première bombe, ou la suivante une fois la précédente explosée (jamais plus de POTATO_BOMBS).
-            val suite = if (p == null) e.bomb == 1 else p.exploded && e.bomb == p.bomb + 1 && e.bomb <= POTATO_BOMBS
-            if (s.phase != Phase.QUESTION || q == null || !q.isPatate || q.id != e.qid || !suite || s.paused ||
+            // La première bombe, ou la suivante une fois la précédente explosée (jamais plus que le nombre de la partie).
+            val total = p?.total ?: e.total
+            val suite = if (p == null) e.bomb == 1 else p.exploded && e.bomb == p.bomb + 1 && e.bomb <= p.total
+            if (s.phase != Phase.QUESTION || q == null || !q.isPatate || q.id != e.qid || !suite || s.paused || total !in 1..POTATO_BOMBS_MAX ||
                 e.teams.size < 2 || e.teams.distinct().size != e.teams.size || e.holder !in e.teams || e.fuseMs !in POTATO_FUSE_MIN_MS..POTATO_FUSE_MAX_MS) null
             // Bombe suivante : le temps de l'explosion et de l'annonce « Bombe 2 sur 3 » avant qu'elle parte.
             else (e.at + if (p == null) POTATO_GO_MS else POTATO_NEXT_MS).let { go ->
                 s.copy(
-                    potato = PotatoRound(e.fuseMs, e.teams, e.holder, since = go, bomb = e.bomb, booms = p?.booms.orEmpty()),
+                    potato = PotatoRound(e.fuseMs, e.teams, e.holder, since = go, bomb = e.bomb, booms = p?.booms.orEmpty(), total = total),
                     segments = listOf(Segment(go)), resumeAt = go,
                 )
+            }
+        }
+        is PotatoStopped -> {
+            val p = s.potato
+            val dernier = p?.booms?.lastOrNull()
+            when {
+                s.phase != Phase.QUESTION || s.qid != e.qid || p == null -> null
+                // Entre deux bombes (la suivante allumée, pas encore partie) : on s'arrête sur la bombe explosée, bilan.
+                p.entreDeux(e.at) && dernier != null -> s.copy(
+                    phase = Phase.REVEAL, hold = null, resumeAt = null, segments = closeSegments(s, e.at),
+                    potato = p.copy(bomb = p.bomb - 1, total = p.bomb - 1, holder = dernier.holder, from = null, since = dernier.at),
+                )
+                // Bombe explosée, la suivante pas encore allumée : bilan tout de suite.
+                p.exploded -> s.copy(phase = Phase.REVEAL, hold = null, potato = p.copy(total = p.bomb))
+                p.last -> null
+                // Bombe en cours : c'est la dernière.
+                else -> s.copy(potato = p.copy(total = p.bomb))
             }
         }
         is PotatoPassed -> {
@@ -892,7 +910,18 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         if (!needsPotato() || playing.size < 2) return null
         val p = state.potato
         val start = playing.filter { it != p?.booms?.lastOrNull()?.holder }.random(random)
-        return emit(PotatoLit(nextSeq, now, q.id, start, POTATO_FUSE_MS, playing, bomb = (p?.bomb ?: 0) + 1))
+        return emit(PotatoLit(nextSeq, now, q.id, start, POTATO_FUSE_MS, playing, bomb = (p?.bomb ?: 0) + 1, total = p?.total ?: q.bombs.coerceIn(1, POTATO_BOMBS_MAX)))
+    }
+
+    /**
+     * « Ça va exploser ! », téléphone de Sarah : « 🏁 Dernière bombe » pendant une bombe, « ⏭ Jeu suivant » entre deux
+     * bombes (cedric, 26/10). Refusé hors du jeu, en pause, ou quand la bombe en cours est déjà la dernière.
+     */
+    fun stopPotato(now: Long): GameEvent? {
+        val q = question ?: return null
+        val p = state.potato ?: return null
+        if (!q.isPatate || state.phase != Phase.QUESTION || state.paused || (p.last && !p.exploded && !p.entreDeux(now))) return null
+        return emit(PotatoStopped(nextSeq, now, q.id))
     }
 
     /**

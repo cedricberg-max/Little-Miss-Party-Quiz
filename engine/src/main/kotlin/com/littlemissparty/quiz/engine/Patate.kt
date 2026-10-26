@@ -40,8 +40,9 @@ const val POTATO_GO_MS = 3_500L
  */
 const val POTATO_POINTS = 100
 
-/** Nombre de bombes dans une partie. */
+/** Nombre de bombes dans une partie, par défaut ; la Régie PC peut le régler de 1 à [POTATO_BOMBS_MAX] (cedric, 26/10). */
 const val POTATO_BOMBS = 3
+const val POTATO_BOMBS_MAX = 6
 
 /** Entre deux bombes : l'explosion à la TV ([POTATO_BOOM_MS]), puis « Bombe 2 sur 3 » ; la nouvelle bombe part ensuite. */
 const val POTATO_BOOM_MS = 3_500L
@@ -56,8 +57,9 @@ data class PotatoBoom(val holder: String, val at: Long, val lost: Int, val gain:
 /**
  * Bombe en cours de « Ça va exploser ! » : [teams] = équipes qui jouent, [holder] = équipe qui tient la bombe, [from] =
  * celle qui vient de l'envoyer (null au départ), [since] = heure du serveur où [holder] l'a reçue, [hit] = équipes qui
- * l'ont déjà eue, [passes] = nombre d'envois, [bomb] = numéro de la bombe (1 à [POTATO_BOMBS]), [booms] = les
- * explosions de la partie, celle de cette bombe comprise une fois arrivée.
+ * l'ont déjà eue, [passes] = nombre d'envois, [bomb] = numéro de la bombe (1 à [total]), [booms] = les
+ * explosions de la partie, celle de cette bombe comprise une fois arrivée. [total] = nombre de bombes de la partie
+ * (réglé dans la Régie PC ; ramené à la bombe en cours quand Sarah choisit « Dernière bombe »).
  */
 data class PotatoRound(
     val fuseMs: Long,
@@ -69,18 +71,22 @@ data class PotatoRound(
     val passes: Int = 0,
     val bomb: Int = 1,
     val booms: List<PotatoBoom> = emptyList(),
+    val total: Int = POTATO_BOMBS,
 ) {
     /** Cette bombe a explosé : plus d'envoi, la suivante va s'allumer (ou c'est la fin, après la dernière). */
     val exploded: Boolean get() = booms.size >= bomb
 
     /** Dernière bombe de la partie. */
-    val last: Boolean get() = bomb >= POTATO_BOMBS
+    val last: Boolean get() = bomb >= total
 
     /** À 2 équipes, la bombe repart forcément chez l'envoyeur : seule la mèche qui colle s'applique. */
     val canReturn: Boolean get() = teams.size <= 2
 
     /** Équipes à qui [holder] peut envoyer la bombe. */
     val targets: List<String> get() = teams.filter { it != holder && (canReturn || it != from) }
+
+    /** Entre deux bombes à [now] : la suivante est allumée mais pas encore partie (explosion et « Bombe 2 sur 3 »). */
+    fun entreDeux(now: Long): Boolean = !exploded && bomb > 1 && booms.size == bomb - 1 && now < since
 
     /** Heure du serveur à partir de laquelle [holder] peut renvoyer la bombe. */
     val readyAt: Long get() = since + POTATO_STICKY_MS

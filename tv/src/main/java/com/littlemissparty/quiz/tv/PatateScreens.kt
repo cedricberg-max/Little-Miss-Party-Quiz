@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.littlemissparty.quiz.engine.POTATO_BOMBS
 import com.littlemissparty.quiz.engine.POTATO_BOOM_MS
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.AnnonceBombe
@@ -114,15 +113,15 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
             }
         }
         // Quelle bombe joue : petit compteur en haut à gauche, au-dessus de la mèche.
-        if (p != null && !revele) {
+        if (p != null && !revele && p.total > 1) {
             Text(
-                "💣 Bombe ${p.bomb} sur $POTATO_BOMBS", maxLines = 1,
+                "💣 Bombe ${p.bomb} sur ${p.total}", maxLines = 1,
                 style = styleCentre(20.sp, Neon.OrClair),
                 modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 16.dp)
                     .background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.dp, Neon.Or, RoundedCornerShape(50))
                     .padding(horizontal = 14.dp, vertical = 4.dp),
             )
         }
-        if (annonce) key(p?.bomb) { AnnonceBombe(p!!.bomb, POTATO_BOMBS, Modifier.fillMaxSize()) }
+        if (annonce) key(p?.bomb) { AnnonceBombe(p!!.bomb, p.total, Modifier.fillMaxSize()) }
     }
 }

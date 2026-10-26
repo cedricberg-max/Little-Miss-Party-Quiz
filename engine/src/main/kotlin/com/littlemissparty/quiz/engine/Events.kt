@@ -238,7 +238,15 @@ data class PotatoLit(
     val fuseMs: Long,
     val teams: List<String>,
     val bomb: Int = 1,
+    /** Nombre de bombes de la partie (absent des journaux d'avant le 26/10 : 3). */
+    val total: Int = POTATO_BOMBS,
 ) : GameEvent
+
+/**
+ * « Ça va exploser ! » : Sarah arrête après cette bombe (téléphone). Bombe en cours : c'est la dernière. Entre deux
+ * bombes (la suivante pas encore partie) : on s'arrête là, bilan des scores, puis le jeu suivant.
+ */
+data class PotatoStopped(override val seq: Int, override val at: Long, val qid: String) : GameEvent
 
 /** « Ça va exploser ! » : [from] envoie la bombe à [to]. */
 data class PotatoPassed(override val seq: Int, override val at: Long, val qid: String, val from: String, val to: String) : GameEvent

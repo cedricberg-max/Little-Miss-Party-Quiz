@@ -40,6 +40,9 @@ sealed interface Command {
     /** « Ça va exploser ! » : secours, la bombe part au hasard chez une équipe permise (tablette en panne). */
     data class PotatoRandom(override val id: String, override val expectSeq: Int) : Command
 
+    /** « Ça va exploser ! » : « 🏁 Dernière bombe » (bombe en cours) ou « ⏭ Jeu suivant » (entre deux bombes). */
+    data class PotatoStop(override val id: String, override val expectSeq: Int) : Command
+
     /** Statues musicales : l'équipe gagnante désignée par l'animatrice. */
     data class StatuesWin(override val id: String, override val expectSeq: Int, val team: String) : Command
 
@@ -106,6 +109,7 @@ sealed interface Command {
                 "factor" -> Factor(id, seq, (m["factor"] as Number).toInt())
                 "chest_random" -> ChestRandom(id, seq)
                 "potato_random" -> PotatoRandom(id, seq)
+                "potato_stop" -> PotatoStop(id, seq)
                 "portes_set" -> PortesSet(id, seq, m["qid"] as String, (m["door"] as Number).toInt(), (m["value"] as Number).toInt())
                 else -> null
             }
@@ -142,7 +146,8 @@ fun Game.execute(
         cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeStop || cmd is Command.Goto ||
         cmd is Command.Judge || cmd is Command.StatuesWin || cmd is Command.BlindPlay || cmd is Command.BlindUnblock ||
         cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut ||
-        cmd is Command.PictoShow || cmd is Command.PictoDraw || cmd is Command.ChestRandom || cmd is Command.PotatoRandom
+        cmd is Command.PictoShow || cmd is Command.PictoDraw || cmd is Command.ChestRandom || cmd is Command.PotatoRandom ||
+        cmd is Command.PotatoStop
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
     // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
@@ -190,6 +195,7 @@ fun Game.execute(
         is Command.BlindCut -> blindCut(now)
         is Command.ChestRandom -> openRandomChest(now)
         is Command.PotatoRandom -> passPotatoRandom(now)
+        is Command.PotatoStop -> stopPotato(now)
         is Command.PortesSet -> if (question?.id != cmd.qid) return refused("stale_program") else setDoor(cmd.door, cmd.value, now)
         is Command.Factor -> if (cmd.factor !in FACTORS) return refused("bad_factor") else chooseFactor(cmd.factor, now)
         // Le programme a changé depuis l'affichage de la régie : rien n'est fait.

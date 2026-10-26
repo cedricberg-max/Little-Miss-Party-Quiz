@@ -53,7 +53,8 @@ object Codec {
             is RevealCut -> mapOf("type" to "reveal_cut", "qid" to e.qid)
             is BuzzJudged -> if (e.bonus) mapOf("type" to "buzz_judge", "ok" to e.ok, "bonus" to true) else mapOf("type" to "buzz_judge", "ok" to e.ok)
             is StatuesWon -> mapOf("type" to "statues_win", "team" to e.team, "others" to e.others.ifEmpty { null })
-            is PotatoLit -> mapOf("type" to "potato", "qid" to e.qid, "holder" to e.holder, "fuseMs" to e.fuseMs, "teams" to e.teams, "bomb" to e.bomb)
+            is PotatoLit -> mapOf("type" to "potato", "qid" to e.qid, "holder" to e.holder, "fuseMs" to e.fuseMs, "teams" to e.teams, "bomb" to e.bomb, "total" to e.total)
+            is PotatoStopped -> mapOf("type" to "potato_stop", "qid" to e.qid)
             is PotatoPassed -> mapOf("type" to "potato_pass", "qid" to e.qid, "from" to e.from, "to" to e.to)
             is PotatoExploded -> mapOf("type" to "potato_boom", "qid" to e.qid, "holder" to e.holder)
             is BalloonBurst -> mapOf("type" to "balloon", "qid" to e.qid, "team" to e.team, "teams" to e.teams)
@@ -112,8 +113,9 @@ object Codec {
             "reveal_cut" -> RevealCut(seq, at, m["qid"] as String)
             "potato" -> PotatoLit(
                 seq, at, m["qid"] as String, m["holder"] as String, m.num("fuseMs").toLong(), (m["teams"] as List<*>).map { it as String },
-                (m["bomb"] as? Number)?.toInt() ?: 1,
+                (m["bomb"] as? Number)?.toInt() ?: 1, (m["total"] as? Number)?.toInt() ?: POTATO_BOMBS,
             )
+            "potato_stop" -> PotatoStopped(seq, at, m["qid"] as String)
             "potato_pass" -> PotatoPassed(seq, at, m["qid"] as String, m["from"] as String, m["to"] as String)
             "potato_boom" -> PotatoExploded(seq, at, m["qid"] as String, m["holder"] as String)
             "balloon" -> BalloonBurst(seq, at, m["qid"] as String, m["team"] as String, (m["teams"] as? List<*>).orEmpty().map { it as String })
@@ -304,7 +306,7 @@ object Codec {
             "passes" to p.passes,
             // Bombe n° [bomb] sur [bombs] ; les explosions déjà arrivées (la TV et les tablettes les montrent un moment).
             "bomb" to p.bomb,
-            "bombs" to POTATO_BOMBS,
+            "bombs" to p.total,
             "exploded" to p.exploded,
             // Heure où la mèche aurait été allumée sans les pauses (null en pause ou entre deux bombes) : la tablette qui
             // tient la bombe en tire un rouge qui bat de plus en plus vite, sans jamais connaître la durée de la mèche.

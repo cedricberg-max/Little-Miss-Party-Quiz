@@ -98,6 +98,8 @@ object QuizJson {
             points = q.optInt("points", 0).takeIf { it > 0 && (kind == QuestionKind.BLIND || kind == QuestionKind.PICTIONARY) }?.coerceAtMost(MAX_TRACK_POINTS),
             // 0 : tout l'extrait à la révélation (le temps de chanter le refrain).
             revealSec = q.optInt("reveal", BLIND_REVEAL_SEC).let { if (it == 0) 0 else it.coerceIn(3, 60) },
+            // Nombre de bombes hors limites : ramené dans les limites, jamais une partie refusée pour ça.
+            bombs = q.optInt("bombs", POTATO_BOMBS).coerceIn(1, POTATO_BOMBS_MAX),
         )
     }
 }

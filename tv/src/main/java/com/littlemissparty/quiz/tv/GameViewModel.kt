@@ -2297,6 +2297,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "gonfleur" to true,
             // « Ça va exploser ! » : envois des tablettes dans potatoPass/, mèche et explosion par la box, envoi au hasard (potato_random).
             "patate" to true,
+            // « Ça va exploser ! » : « 🏁 Dernière bombe » / « ⏭ Jeu suivant » du téléphone (potato_stop), nombre de bombes réglé.
+            "patateStop" to true,
             // Statues musicales : les chansons choisies (audioIds) jouées l'une après l'autre.
             "statuesChansons" to true,
             "disparu" to true,
@@ -2313,6 +2315,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },
                     // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.
                     "points" to it.points?.takeIf { _ -> it.isBlind }, "reveal" to it.revealSec.takeIf { _ -> it.isBlind },
+                    // « Ça va exploser ! » : nombre de bombes réglé dans la Régie PC.
+                    "bombs" to it.bombs.takeIf { _ -> it.isPatate },
                 ))
             },
         )
