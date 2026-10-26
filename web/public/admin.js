@@ -56,7 +56,7 @@ import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
 import {
-  GROUPES_IMAGES, A_RANGER, POCHETTES, PACKS, catDePack, themeDeFiche, estFicheDePack, imagesDuTheme, imagesDesPacks, mesImagesDePacks, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, pochettesUtilisees, mesPochettes, nomPochette,
+  GROUPES_IMAGES, A_RANGER, POCHETTES, PACKS, catDePack, themeDeFiche, estFicheDePack, imagesDuTheme, imagesOrphelines, imagesCitees, imagesDesPacks, mesImagesDePacks, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, pochettesUtilisees, mesPochettes, nomPochette,
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
@@ -5933,6 +5933,9 @@ $("test-prestation").onclick = async () => {
 
 /** Les jeux qui piochent dans les packs importés (leur carte a les dés « 🎨 Mes packs »). */
 const JEUX_A_PACKS = ["quiz", "illustre", "express", "zoom", "flou", "quisuis"];
+/** Identifiant de la prestation « 🧪 Test packs » d'un thème (une par thème, refaite à chaque fois). */
+const PREFIXE_TEST_THEME = "test-packs-";
+const idTestDuTheme = (theme) => `${PREFIXE_TEST_THEME}${cleTheme(theme).replace(/[^a-z0-9]/g, "") || "theme"}`;
 
 /**
  * « 🎨 Prestation test d'un thème » (cedric, 25/10 : « une prestation test qui exploite exclusivement les packs, Mario,
@@ -5960,7 +5963,7 @@ $("test-theme").onclick = async () => {
   btn.disabled = true;
   try {
     editShow(null);
-    editing.id = `test-packs-${cleTheme(theme).replace(/[^a-z0-9]/g, "") || "theme"}`;
+    editing.id = idTestDuTheme(theme);
     editing.origin = "test";
     $("show-child").value = TEST_FICHE.childName;
     $("show-title").value = titre;
@@ -8241,17 +8244,22 @@ async function supprimerTheme(nom) {
   const ids = new Set(cartes.map((c) => c.id));
   const packs = Object.fromEntries([...ids].map((id) => [id, quizzes[id]]));
   const duTheme = (f) => { const t = themeDeFiche(f); return t != null && (f.cat === catDePack(nom) || (cleTheme(t) || t) === cle); };
-  const images = imagesDuTheme({
-    packs, medias, duTheme,
-    ailleurs: { quizzes: Object.fromEntries(Object.entries(quizzes).filter(([id]) => !ids.has(id))), shows, manches, mimes, contents, songs, playlists },
-  });
+  // Sa « 🧪 Test packs » (Paramètres) : une copie pour essayer le thème, qui part avec lui et ne garde pas ses images.
+  const test = shows[idTestDuTheme(nom)] ? idTestDuTheme(nom) : null;
+  const autresShows = Object.fromEntries(Object.entries(shows).filter(([id]) => id !== test));
+  const ailleurs = { quizzes: Object.fromEntries(Object.entries(quizzes).filter(([id]) => !ids.has(id))), shows: autresShows, manches, mimes, contents, songs, playlists };
+  const images = imagesDuTheme({ packs, medias, duTheme, ailleurs });
+  const gardees = imagesDuTheme({ packs, medias, duTheme }).length - images.length;
   const questions = cartes.reduce((t, c) => t + (c.total ?? 0), 0);
-  const utilisent = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => roundQuizIds(r).some((id) => ids.has(id)))).map(showTitle);
+  const utilisent = Object.values(autresShows).filter((s) => (s.rounds ?? []).some((r) => roundQuizIds(r).some((id) => ids.has(id)))).map(showTitle);
   const message = `Supprimer le thème « ${nom} » ?\n\n${plural(cartes.length, "pack")} (${plural(questions, "question")}) et ${plural(images.length, "image")} partent de la bibliothèque, pour de bon.`
+    + (test ? `\n\nSa prestation de test « ${showTitle(shows[test])} » part aussi.` : "")
+    + (gardees ? `\n\n${plural(gardees, "image reste", "images restent")} : une prestation ou un autre pack s'en sert.` : "")
     + "\n\nMes images, les autres thèmes et les questions déjà copiées dans une prestation ne changent pas."
     + (utilisent.length ? `\n\nAttention, ${utilisent.length > 1 ? "ces prestations utilisent" : "cette prestation utilise"} un de ces packs : ${utilisent.join(", ")}.` : "");
   if (!(await confirmer(message, { ok: "Supprimer le thème", danger: true }))) return;
   const ecritures = {};
+  if (test) ecritures[`library/shows/${test}`] = null;
   for (const id of ids) ecritures[`library/quizzes/${id}`] = null;
   for (const id of images) { ecritures[`library/images/${id}`] = null; ecritures[`library/medias/${id}`] = null; }
   try {
@@ -9007,10 +9015,12 @@ function renderMedias(force = false) {
   // Menu temporaire (cedric, 24/10) : les mots de la banque sans vraie photo, à compléter avec ses photos.
   if (mediaGroupe === "photos" && !recherche && !mediaCat) { const pm = panneauPhotosManquantes(h, annonce); if (pm) box.prepend(pm); }
   // Les doublons des images des packs (cedric, 25/10) : à fusionner, après un aperçu.
-  if (mediaGroupe === "packs" && !recherche && mediaCat !== RETIREES && g.packs.length + g[RETIREES].packs.length > 1) {
+  // Et les images orphelines (cedric, 26/10) : celles des thèmes supprimés, que plus rien n'utilise.
+  if (mediaGroupe === "packs" && !recherche && mediaCat !== RETIREES) {
     box.prepend(h("div", { class: "doublons-outil" },
-      h("button", { type: "button", class: "btn small secondary doublons-fusionner", text: "🧹 Fusionner les doublons", onclick: fusionnerDoublonsPacks }),
-      h("span", { class: "hint small", text: "La même image importée deux fois (autre nom de fichier, autre taille) : une seule est gardée, chaque question pointe vers elle." })));
+      g.packs.length + g[RETIREES].packs.length > 1 ? h("button", { type: "button", class: "btn small secondary doublons-fusionner", text: "🧹 Fusionner les doublons", onclick: fusionnerDoublonsPacks }) : null,
+      h("button", { type: "button", class: "btn small secondary orphelines-nettoyer", text: "🧹 Images orphelines", onclick: nettoyerImagesOrphelines }),
+      h("span", { class: "hint small", text: "Doublons : la même image importée deux fois, une seule est gardée. Orphelines : les images de thèmes supprimés que plus rien n'utilise." })));
   }
 }
 
@@ -9020,6 +9030,51 @@ function renderMedias(force = false) {
  * prestation (archivées comprises), manche, jeu qui citait une copie cite l'image gardée (la plus grande), puis les
  * copies, que plus rien ne cite, sont effacées avec leur fiche. Ses images à elle (« Mes images ») ne sont jamais touchées.
  */
+/**
+ * « 🧹 Images orphelines » (cedric, 26/10 : les photos des thèmes supprimés restaient) : les images que plus rien ne
+ * cite, sans fiche ou rangées à un thème qui n'existe plus, et les « 🧪 Test packs » de ces thèmes (des copies pour
+ * essayer). Un aperçu, puis un seul envoi. Mes images, les pochettes et tout ce qu'une prestation utilise restent.
+ */
+async function nettoyerImagesOrphelines() {
+  document.activeElement?.blur?.();
+  status("media-note", "Recherche des images orphelines…", true);
+  let ids;
+  try {
+    ids = [...await clesDe("library/images"), ...Object.keys(medias ?? {})];
+  } catch (err) {
+    console.error(err);
+    status("media-note", "");
+    return annonce("La liste des images n'a pas pu être lue : vérifiez la connexion.");
+  }
+  status("media-note", "");
+  const vivants = new Set([...mesPacks(quizzes), ...mesSeriesDePhotos(quizzes)].map((c) => cleTheme(themeDe(c.theme, c.title))).filter(Boolean));
+  const themeVivant = (f) => { const t = themeDeFiche(f); return t != null && (vivants.has(cleTheme(t)) || [...vivants].some((v) => catDePack(v) === f.cat)); };
+  const vivantsTest = new Set([...vivants].map((c) => idTestDuTheme(c)));
+  const testsMorts = Object.keys(shows).filter((id) => id.startsWith(PREFIXE_TEST_THEME) && !vivantsTest.has(id));
+  const citees = imagesCitees({ quizzes, shows: Object.fromEntries(Object.entries(shows).filter(([id]) => !testsMorts.includes(id))), manches, mimes, contents, songs, playlists });
+  const orphelines = imagesOrphelines({ ids, medias, citees, themeVivant });
+  if (!orphelines.length && !testsMorts.length) return annonce("Aucune image orpheline : tout ce qui reste sert encore.", true);
+  const MONTREES = 24;
+  const contenu = h("div", { class: "doublons-apercu orphelines-apercu" },
+    h("p", { class: "hint small", text: "Plus aucun pack, quiz, jeu ni prestation ne s'en sert. Mes images et les pochettes ne sont jamais touchées." }),
+    testsMorts.length ? h("p", { class: "hint small", text: `Et ${testsMorts.length > 1 ? "les prestations de test" : "la prestation de test"} de thèmes supprimés : ${testsMorts.map((id) => showTitle(shows[id])).join(", ")}.` } ) : null,
+    h("div", { class: "doublons-groupe" }, ...orphelines.slice(0, MONTREES).map((id) => h("figure", { class: "doublon" },
+      photoBibliotheque(id, { loading: "lazy" }), h("figcaption", { text: medias[id]?.name ?? "Sans nom" })))),
+    orphelines.length > MONTREES ? h("p", { class: "hint small", text: `… et ${orphelines.length - MONTREES} autres.` }) : null);
+  const titre = `Effacer ${plural(orphelines.length, "image orpheline", "images orphelines")}${testsMorts.length ? ` et ${plural(testsMorts.length, "prestation de test", "prestations de test")}` : ""} ?`;
+  if (!(await apercu(titre, contenu, { ok: "Effacer", danger: true }))) return;
+  const ecritures = {};
+  for (const id of testsMorts) ecritures[`library/shows/${id}`] = null;
+  for (const id of orphelines) { ecritures[`library/images/${id}`] = null; ecritures[`library/medias/${id}`] = null; }
+  try {
+    await update(ref(db), ecritures);
+    annonce(`✓ ${plural(orphelines.length, "image orpheline effacée", "images orphelines effacées")}${testsMorts.length ? `, ${plural(testsMorts.length, "prestation de test", "prestations de test")}` : ""}.`, true);
+  } catch (err) {
+    console.error(err);
+    annonce("Le nettoyage n'a pas pu se faire : vérifiez la connexion. Rien n'a été effacé.");
+  }
+}
+
 async function fusionnerDoublonsPacks() {
   // Le bouton est dans la liste : sans le quitter, la liste attendrait pour se redessiner.
   document.activeElement?.blur?.();

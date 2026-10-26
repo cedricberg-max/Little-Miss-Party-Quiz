@@ -200,6 +200,21 @@ export function imagesDuTheme({ packs = {}, medias = {}, duTheme = () => false, 
   return [...candidates].filter((id) => !gardees.has(id) && (!medias?.[id] || estFicheDePack(medias[id]))).sort();
 }
 
+/**
+ * « 🧹 Images orphelines » (cedric, 26/10 : des thèmes supprimés laissaient leurs photos) : parmi [ids] (toutes les
+ * images de la base), celles que rien ne cite ([citees]) et qui sont sans fiche (invisibles), ou rangées dans les images
+ * des packs d'un thème qui n'existe plus ([themeVivant](fiche) : faux). Jamais Mes images ni les pochettes (leur fiche).
+ */
+export function imagesOrphelines({ ids = [], medias = {}, citees = new Set(), themeVivant = () => true } = {}) {
+  return [...new Set(ids)].filter((id) => {
+    if (!IMAGE_ID.test(id) || citees.has(id)) return false;
+    const f = medias?.[id];
+    if (!f) return true;
+    if (!estFicheDePack(f)) return false;
+    return themeDeFiche(f) == null || !themeVivant(f);
+  }).sort();
+}
+
 /** Une image est une image de pack si sa fiche est rangée dans « Images des packs », ou si un pack s'en sert sans qu'elle l'ait rangée ailleurs. */
 const estImagePack = (id, fiche, packs) => estFicheDePack(fiche) || (!fiche?.cat && packs.has(id));
 

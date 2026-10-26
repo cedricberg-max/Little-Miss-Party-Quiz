@@ -2439,6 +2439,11 @@ describe("bibliothèque d'images de la Régie PC (émojis, photos libres, ses im
       "I(3) est dans Mes images, I(4) est copiée dans la prestation de Zoé, I(6) est à un autre thème");
     assert.deepEqual(B.imagesDuTheme({ packs: {}, medias, duTheme }), [I(5)]);
     assert.deepEqual([...B.imagesCitees({ a: { [I(7)]: "x", b: [I(8), "abc"] } })].sort(), [I(7), I(8)]);
+    // 🧹 Images orphelines : sans fiche ou d'un thème disparu, que rien ne cite ; jamais Mes images ni un thème vivant.
+    const fiches = { [I(1)]: { name: "Woody", cat: B.catDePack("Pixar") }, [I(2)]: { name: "Rumi", cat: B.catDePack("K-pop") },
+      [I(3)]: { name: "Chat", cat: "Animaux" }, [I(4)]: { name: "Vieille", cat: B.PACKS } };
+    assert.deepEqual(B.imagesOrphelines({ ids: [1, 2, 3, 4, 5, 6].map(I), medias: fiches, citees: new Set([I(6)]), themeVivant: (f) => B.themeDeFiche(f) === "K-pop" }),
+      [I(1), I(4), I(5)].sort());
   });
 
   test("la recherche : chaque mot dans le nom, la catégorie ou les mots-clés, sans accents ni majuscules", () => {

@@ -9612,7 +9612,10 @@ describe("bibliothèque de quiz et prestations", () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     const LOU = { childName: "Lou", age: 9, date: day(10), status: "publiee", updatedAt: 1,
       rounds: [{ type: "quiz", seriesQuiz: [{ id: "s1", origine: "biblio", questions: [{ id: "pk-x", text: "Qui conduit ?", choices: ["A", "B", "C", "D"], correct: 0, imageId: I(3) }] }] }] };
-    await seedLibrary("shows", { lou: LOU });
+    // Sa « 🧪 Test packs Mario » (Paramètres) cite I(1) : une copie pour essayer, qui part avec le thème.
+    const TEST = { childName: "🧪 Test packs Mario", age: 9, date: day(10), status: "publiee", updatedAt: 1,
+      rounds: [{ type: "quiz", seriesQuiz: [{ id: "s1", origine: "biblio", questions: [{ id: "pk-y", text: "Qui est vert ?", choices: ["A", "B", "C", "D"], correct: 0, imageId: I(1) }] }] }] };
+    await seedLibrary("shows", { lou: LOU, "test-packs-mario": TEST });
     const page = await admin();
     await page.click("#nav button[data-screen=library]");
     await page.click('#library-tabs [data-lib-tab="questions"]');
@@ -9624,6 +9627,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await mario.locator(".theme-supprimer").click();
     const message = await repondreFenetre(page, { accepter: false });
     assert.match(message, /^Supprimer le thème « Mario » \?\n\n3 packs \(4 questions\) et 3 images partent de la bibliothèque, pour de bon\./);
+    assert.match(message, /Sa prestation de test « .*Test packs Mario.* » part aussi\./);
+    assert.match(message, /1 image reste : une prestation ou un autre pack s'en sert\./, "I(3), copiée chez Lou");
     assert.match(message, /Mes images, les autres thèmes et les questions déjà copiées dans une prestation ne changent pas\./);
     assert.equal(Object.keys(await library("quizzes")).length, 4);
     await mario.locator(".theme-supprimer").click();
@@ -9636,7 +9641,46 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(Object.keys(await library("quizzes")), ["kp"]);
     assert.deepEqual(Object.keys(await library("images")).sort(), [2, 3, 5, 7].map(I).sort());
     assert.deepEqual(Object.keys(await library("medias")).sort(), [I(2), I(7)].sort());
-    assert.deepEqual((await library("shows")).lou, LOU, "la prestation ne change pas");
+    assert.deepEqual(await library("shows"), { lou: LOU }, "la prestation ne change pas ; le test du thème est parti");
+    await page.context().close();
+  });
+
+  test("🧹 Images orphelines (cedric, 26/10 : les photos des thèmes supprimés restaient) : celles que plus rien n'utilise, sans fiche ou d'un thème qui n'existe plus, et les prestations de test de ces thèmes ; Mes images, les thèmes vivants et les prestations restent", async () => {
+    const I = (k) => `${k}`.repeat(16).slice(0, 16);
+    const PNG = `data:image/png;base64,${png([60, 120, 200]).toString("base64")}`;
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    await seedLibrary("quizzes", { kp: { title: "K-pop Facile", theme: "K-pop", niveau: "Facile", pack: true, source: "json", updatedAt: 1,
+      questions: [{ text: "Qui chante ?", choices: ["A", "B", "C", "D"], correct: 0, status: "validee", imageId: I(1) }] } });
+    await seedLibrary("images", Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((k) => [I(k), PNG])));
+    await seedLibrary("medias", {
+      [I(3)]: { name: "Woody", cat: "📦 Pixar", createdAt: 1, updatedAt: 1 }, // thème supprimé, rien ne la cite
+      [I(4)]: { name: "Rumi", cat: "📦 K-pop", createdAt: 1, updatedAt: 1 }, // nommée, thème vivant : gardée
+      [I(5)]: { name: "Mon chat", cat: "Animaux", createdAt: 1, updatedAt: 1 }, // Mes images : jamais touchée
+      [I(6)]: { name: "Buzz", cat: "📦 Pixar", createdAt: 1, updatedAt: 1 }, // citée seulement par le test de Pixar
+    });
+    const serie = (id) => [{ id: "s1", origine: "biblio", questions: [{ id: "pk", text: "Qui ?", choices: ["A", "B", "C", "D"], correct: 0, imageId: id }] }];
+    const LOU = { childName: "Lou", age: 9, date: day(10), status: "publiee", updatedAt: 1, rounds: [{ type: "quiz", seriesQuiz: serie(I(7)) }] };
+    await seedLibrary("shows", { lou: LOU, "test-packs-pixar": { childName: "🧪 Test packs Pixar", age: 9, date: day(10), status: "publiee", updatedAt: 1, rounds: [{ type: "quiz", seriesQuiz: serie(I(6)) }] } });
+    // I(2), I(8) : sans fiche, que rien ne cite (invisibles) ; I(7) : sans fiche, copiée chez Lou.
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="images"]');
+    await page.click('#media-groups [data-groupe="packs"]');
+    await page.click(".orphelines-nettoyer");
+    const fenetre = page.locator("dialog[data-fenetre][open]");
+    await fenetre.locator(".orphelines-apercu figure").first().waitFor();
+    assert.equal(await fenetre.locator(".orphelines-apercu figure").count(), 4);
+    assert.deepEqual((await fenetre.locator(".orphelines-apercu figcaption").allTextContents()).sort(), ["Buzz", "Sans nom", "Sans nom", "Woody"]);
+    assert.equal(await repondreFenetre(page, { accepter: false }), "Effacer 4 images orphelines et 1 prestation de test ?");
+    assert.equal(Object.keys(await library("images")).length, 8, "annuler n'efface rien");
+    await page.click(".orphelines-nettoyer");
+    await repondreFenetre(page);
+    await page.locator("#annonce", { hasText: "✓ 4 images orphelines effacées, 1 prestation de test." }).waitFor();
+    assert.deepEqual(Object.keys(await library("images")).sort(), [1, 4, 5, 7].map(I).sort());
+    assert.deepEqual(Object.keys(await library("medias")).sort(), [4, 5].map(I).sort());
+    assert.deepEqual(await library("shows"), { lou: LOU });
+    await page.click(".orphelines-nettoyer");
+    await page.locator("#annonce", { hasText: "Aucune image orpheline : tout ce qui reste sert encore." }).waitFor();
     await page.context().close();
   });
 
