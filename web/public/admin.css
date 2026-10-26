@@ -1122,7 +1122,7 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 /* Petit menu d'une chanson du blind test (cedric, 24/10) : écouter l'extrait, le refrain, régler. */
 .blind-ecouter { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 16px; }
 .blind-ecouter.active { background: var(--gold-pale); box-shadow: inset 0 0 0 2px var(--gold); }
-.blind-chanson.ouverte { border-radius: 10px; background: var(--gold-pale); box-shadow: inset 4px 0 0 var(--gold); padding-left: 8px; }
+.blind-chanson.ouverte, .blind-complet-q.ouverte { border-radius: 10px; background: var(--gold-pale); box-shadow: inset 4px 0 0 var(--gold); padding-left: 8px; }
 .blind-reglage { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 4px 58px; padding-bottom: 6px; }
 .blind-reglage .btn { padding: 6px 12px; font-size: 14px; }
 .blind-reglage .blind-regler { margin-left: auto; }
@@ -1161,7 +1161,7 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
   .blind-chanson .blind-titre .hint, .sons-playlist-chanson .tirage-texte .hint { display: block; }
   .blind-pochette { width: 40px; height: 40px; }
   .blind-paroles { padding: 4px 8px; font-size: 13px; }
-  .blind-chanson .blind-paroles + .blind-ecouter, .sons-playlist-chanson .blind-paroles + .tirage-retirer { margin-left: auto; }
+  .blind-chanson .blind-paroles + .blind-ecouter, .blind-complet-q .blind-paroles + .blind-ecouter, .sons-playlist-chanson .blind-paroles + .tirage-retirer { margin-left: auto; }
   .blind-liste, .blind-complet-liste, .sons-playlist-liste { padding: 4px 0; }
 }
 
