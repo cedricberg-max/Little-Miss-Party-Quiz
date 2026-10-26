@@ -215,6 +215,37 @@ export function imagesOrphelines({ ids = [], medias = {}, citees = new Set(), th
   }).sort();
 }
 
+/**
+ * « 🗑 Tout effacer » des images des packs (cedric, 26/10 : « repartir sur une base saine ») : [x] (une prestation, un
+ * jeu gardé) sans ce qui cite une image de [ids] : chaque question ou personnage qui en montre une part de sa liste, une
+ * série vidée ainsi part aussi. Rend `{ valeur, retires }` (retires : combien d'éléments sont partis).
+ */
+export function sansImages(x, ids) {
+  let retires = 0;
+  // Ce qu'un élément montre lui-même (ses champs, sans ses listes : celles-ci sont nettoyées à leur tour).
+  const cite = (v) => {
+    if (typeof v === "string") return ids.has(v);
+    if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+    return Object.entries(v).some(([k, w]) => ids.has(k) || (!Array.isArray(w) && cite(w)));
+  };
+  const videe = (avant, apres) => ["questions", "mots"].some((k) => Array.isArray(avant?.[k]) && avant[k].length && Array.isArray(apres?.[k]) && !apres[k].length);
+  const nettoyer = (v) => {
+    if (Array.isArray(v)) {
+      const out = [];
+      for (const e of v) {
+        if (cite(e)) { retires++; continue; }
+        const n = nettoyer(e);
+        if (videe(e, n)) continue;
+        out.push(n);
+      }
+      return out;
+    }
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, w]) => [k, nettoyer(w)]));
+    return v;
+  };
+  return { valeur: nettoyer(x), retires };
+}
+
 /** Une image est une image de pack si sa fiche est rangée dans « Images des packs », ou si un pack s'en sert sans qu'elle l'ait rangée ailleurs. */
 const estImagePack = (id, fiche, packs) => estFicheDePack(fiche) || (!fiche?.cat && packs.has(id));
 

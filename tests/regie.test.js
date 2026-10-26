@@ -9616,6 +9616,8 @@ describe("bibliothèque de quiz et prestations", () => {
     const TEST = { childName: "🧪 Test packs Mario", age: 9, date: day(10), status: "publiee", updatedAt: 1,
       rounds: [{ type: "quiz", seriesQuiz: [{ id: "s1", origine: "biblio", questions: [{ id: "pk-y", text: "Qui est vert ?", choices: ["A", "B", "C", "D"], correct: 0, imageId: I(1) }] }] }] };
     await seedLibrary("shows", { lou: LOU, "test-packs-mario": TEST });
+    // Son jeu gardé à l'enregistrement (« manche » du test) part avec lui.
+    await seedLibrary("manches", { m1: { type: "quiz", title: "Quiz", showId: "test-packs-mario", origin: "admin", createdAt: 1, updatedAt: 1, round: TEST.rounds[0] } });
     // Ses personnages de Qui suis-je ? (cedric, 26/10 : leurs images restaient) : Yoshi, de la série « Mario », part ;
     // Rumi (K-pop) reste.
     const RUMI = { answer: "Rumi", clues: ["chanteuse", "Huntrix"], serie: "K-pop", niveau: "Facile" };
@@ -9652,6 +9654,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual([qui.extra, qui.images], [[RUMI], { rumi: I(9) }]);
     assert.deepEqual(Object.keys(await library("medias")).sort(), [I(2), I(7)].sort());
     assert.deepEqual(await library("shows"), { lou: LOU }, "la prestation ne change pas ; le test du thème est parti");
+    assert.equal(await library("manches"), null, "le jeu gardé du test aussi");
     await page.context().close();
   });
 
@@ -9667,6 +9670,7 @@ describe("bibliothèque de quiz et prestations", () => {
       [I(4)]: { name: "Rumi", cat: "📦 K-pop", createdAt: 1, updatedAt: 1 }, // nommée, thème vivant : gardée
       [I(5)]: { name: "Mon chat", cat: "Animaux", createdAt: 1, updatedAt: 1 }, // Mes images : jamais touchée
       [I(6)]: { name: "Buzz", cat: "📦 Pixar", createdAt: 1, updatedAt: 1 }, // citée seulement par le test de Pixar
+      [I(7)]: { name: "Woody et Buzz", cat: "📦 Pixar", createdAt: 1, updatedAt: 1 }, // copiée chez Lou : reste
     });
     const serie = (id) => [{ id: "s1", origine: "biblio", questions: [{ id: "pk", text: "Qui ?", choices: ["A", "B", "C", "D"], correct: 0, imageId: id }] }];
     const LOU = { childName: "Lou", age: 9, date: day(10), status: "publiee", updatedAt: 1, rounds: [{ type: "quiz", seriesQuiz: serie(I(7)) }] };
@@ -9679,7 +9683,16 @@ describe("bibliothèque de quiz et prestations", () => {
     await seedLibrary("medias/aaaaaaaaaaaaaaaa", { name: "Buzz l'Éclair", cat: "📦 Disney Pixar", createdAt: 1, updatedAt: 1 });
     await seedLibrary("contents/quisuis", { extra: [{ answer: "Buzz l'Éclair", clues: ["espace", "ranger"], serie: "Disney Pixar", niveau: "Facile" }, RUMI, MARIO],
       images: { "buzz l'éclair": "a".repeat(16), rumi: I(4) }, updatedAt: 1 });
-    // I(2), I(8) : sans fiche, que rien ne cite (invisibles) ; I(7) : sans fiche, copiée chez Lou.
+    // Le jeu gardé d'un ancien test de Mario, déjà effacé (cedric, 26/10 : 52 images Mario restaient) : I(11), rangée à
+    // Mario, part avec lui ; celui de Lou reste.
+    await seedLibrary(`images/${"b".repeat(16)}`, PNG);
+    await seedLibrary(`medias/${"b".repeat(16)}`, { name: "Bill Balle", cat: "📦 Super Mario", createdAt: 1, updatedAt: 1 });
+    const MANCHE_LOU = { type: "quiz", title: "Quiz de Lou", showId: "lou", origin: "admin", createdAt: 1, updatedAt: 1, round: { type: "quiz", seriesQuiz: serie(I(7)) } };
+    await seedLibrary("manches", {
+      vieille: { type: "quiz", title: "Quiz", showId: "test-packs-supermario", origin: "admin", createdAt: 1, updatedAt: 1, round: { type: "quiz", seriesQuiz: serie("b".repeat(16)) } },
+      lou: MANCHE_LOU,
+    });
+    // I(2), I(8) : sans fiche, que rien ne cite (invisibles) ; I(7) : rangée à Pixar, mais copiée chez Lou.
     const page = await admin();
     await page.click("#nav button[data-screen=library]");
     await page.click('#library-tabs [data-lib-tab="images"]');
@@ -9687,21 +9700,68 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click(".orphelines-nettoyer");
     const fenetre = page.locator("dialog[data-fenetre][open]");
     await fenetre.locator(".orphelines-apercu figure").first().waitFor();
-    assert.equal(await fenetre.locator(".orphelines-apercu figure").count(), 5);
-    assert.deepEqual((await fenetre.locator(".orphelines-apercu figcaption").allTextContents()).sort(), ["Buzz", "Buzz l'Éclair", "Sans nom", "Sans nom", "Woody"]);
-    assert.equal(await fenetre.locator(".orphelines-persos").textContent(), "Et 1 personnage de Qui suis-je ? de thèmes supprimés : Disney Pixar.");
-    assert.equal(await repondreFenetre(page, { accepter: false }), "Effacer 5 images orphelines, 1 personnage, 1 prestation de test ?");
-    assert.equal(Object.keys(await library("images")).length, 9, "annuler n'efface rien");
+    assert.equal(await fenetre.locator(".orphelines-apercu figure").count(), 6);
+    assert.deepEqual((await fenetre.locator(".orphelines-apercu figcaption").allTextContents()).sort(), ["Bill Balle", "Buzz", "Buzz l'Éclair", "Sans nom", "Sans nom", "Woody"]);
+    // Une seule phrase sur les images (cedric, 26/10) ; en petit, ce qui part avec elles et pourquoi d'autres restent.
+    assert.equal(await fenetre.locator(".orphelines-avec").textContent(), "Ce qui s'en servait dans ces thèmes part avec elles. Mes images et les pochettes ne sont jamais touchées.");
+    assert.equal(await fenetre.locator(".orphelines-restent").textContent(), "1 autre image reste : la prestation « Anniversaire de Lou », le jeu gardé « Quiz de Lou » s'en servent.");
+    assert.equal(await repondreFenetre(page, { accepter: false }), "Effacer les 6 images des thèmes supprimés (Pixar, Disney Pixar, Super Mario) ?");
+    assert.equal(Object.keys(await library("images")).length, 10, "annuler n'efface rien");
     await page.click(".orphelines-nettoyer");
     await repondreFenetre(page);
-    await page.locator("#annonce", { hasText: "✓ 5 images orphelines effacées, 1 personnage, 1 prestation de test." }).waitFor();
+    await page.locator("#annonce", { hasText: "✓ 6 images effacées." }).waitFor();
     assert.deepEqual(Object.keys(await library("images")).sort(), [1, 4, 5, 7].map(I).sort());
-    assert.deepEqual(Object.keys(await library("medias")).sort(), [4, 5].map(I).sort());
+    assert.deepEqual(Object.keys(await library("medias")).sort(), [4, 5, 7].map(I).sort());
     assert.deepEqual(await library("shows"), { lou: LOU });
+    assert.deepEqual(await library("manches"), { lou: MANCHE_LOU });
     const qui = await library("contents/quisuis");
     assert.deepEqual([qui.extra, qui.images], [[RUMI, MARIO], { rumi: I(4) }]);
     await page.click(".orphelines-nettoyer");
     await page.locator("#annonce", { hasText: "Aucune image orpheline : tout ce qui reste sert encore." }).waitFor();
+    await page.context().close();
+  });
+
+  test("🗑 Tout effacer les images des packs (cedric, 26/10 : « repartir sur une base saine ») : les images, les questions et personnages qui les montrent dans les prestations et les jeux gardés ; la prestation reste, Mes images aussi", async () => {
+    const I = (k) => `${k}`.repeat(16).slice(0, 16);
+    const PNG = `data:image/png;base64,${png([90, 160, 60]).toString("base64")}`;
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    await seedLibrary("images", Object.fromEntries([1, 2, 3, 5].map((k) => [I(k), PNG])));
+    await seedLibrary("medias", {
+      [I(1)]: { name: "Bill Balle", cat: "📦 Super Mario", createdAt: 1, updatedAt: 1 },
+      [I(2)]: { name: "Bowser", cat: "📦 Super Mario", createdAt: 1, updatedAt: 1 },
+      [I(3)]: { name: "Yoshi", cat: "📦 Super Mario", createdAt: 1, updatedAt: 1 },
+      [I(5)]: { name: "Mon chat", cat: "Animaux", createdAt: 1, updatedAt: 1 },
+    });
+    const q = (text, imageId) => ({ id: `pk-${text}`, text, choices: ["A", "B", "C", "D"], correct: 0, ...(imageId ? { imageId } : {}) });
+    const LOU = { childName: "Lou", age: 9, date: day(10), status: "publiee", updatedAt: 1, rounds: [
+      { type: "quiz", seriesQuiz: [{ id: "s1", origine: "biblio", questions: [q("Qui vole ?", I(1)), q("Capitale ?", null), q("Mon chat ?", I(5))] }] },
+      { type: "quisuis", seriesMots: [{ id: "m1", origine: "biblio", mots: [{ answer: "Yoshi", clues: ["vert", "dino"], imageId: I(3) }] }] },
+      { type: "statues", duration: 60 }] };
+    await seedLibrary("shows", { lou: LOU });
+    await seedLibrary("manches", { m: { type: "quiz", title: "Quiz Mario", origin: "admin", createdAt: 1, updatedAt: 1, round: { type: "quiz", seriesQuiz: [{ id: "s", origine: "biblio", questions: [q("Qui tire ?", I(2)), q("Couleur ?", null)] }] } } });
+    await seedLibrary("contents/quisuis", { extra: [{ answer: "Yoshi", clues: ["vert", "dino"], serie: "Super Mario", niveau: "Facile" }], images: { yoshi: I(3) }, updatedAt: 1 });
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="images"]');
+    await page.click('#media-groups [data-groupe="packs"]');
+    await page.click(".tout-effacer");
+    const fenetre = page.locator("dialog[data-fenetre][open]");
+    await fenetre.locator(".tout-effacer-retirees").waitFor();
+    assert.equal(await fenetre.locator(".tout-effacer-retirees").textContent(), "Les questions qui les montrent sont retirées de : la prestation « Anniversaire de Lou », le jeu gardé « Quiz Mario ».");
+    assert.equal(await repondreFenetre(page, { accepter: false }), "Effacer les 3 images des packs ?");
+    assert.equal(Object.keys(await library("images")).length, 4, "annuler n'efface rien");
+    await page.click(".tout-effacer");
+    await repondreFenetre(page);
+    await page.locator("#annonce", { hasText: "✓ 3 images des packs effacées." }).waitFor();
+    assert.deepEqual(Object.keys(await library("images")), [I(5)]);
+    assert.deepEqual(Object.keys(await library("medias")), [I(5)]);
+    const lou = (await library("shows")).lou;
+    assert.deepEqual(lou.rounds[0].seriesQuiz[0].questions.map((x) => x.text), ["Capitale ?", "Mon chat ?"]);
+    assert.equal((lou.rounds[1].seriesMots ?? []).length, 0, "la série Qui suis-je vidée part");
+    assert.deepEqual(lou.rounds[2], LOU.rounds[2]);
+    assert.deepEqual((await library("manches/m")).round.seriesQuiz[0].questions.map((x) => x.text), ["Couleur ?"]);
+    assert.equal((await library("contents/quisuis"))?.extra ?? null, null, "Yoshi part du jeu Qui suis-je ?");
+    await page.locator(".tout-effacer").waitFor({ state: "detached" });
     await page.context().close();
   });
 

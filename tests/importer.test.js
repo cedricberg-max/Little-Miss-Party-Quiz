@@ -2444,6 +2444,21 @@ describe("bibliothèque d'images de la Régie PC (émojis, photos libres, ses im
       [I(3)]: { name: "Chat", cat: "Animaux" }, [I(4)]: { name: "Vieille", cat: B.PACKS } };
     assert.deepEqual(B.imagesOrphelines({ ids: [1, 2, 3, 4, 5, 6].map(I), medias: fiches, citees: new Set([I(6)]), themeVivant: (f) => B.themeDeFiche(f) === "K-pop" }),
       [I(1), I(4), I(5)].sort());
+    // 🗑 Tout effacer : la question ou le personnage qui montre une image effacée part de sa liste ; une série vidée
+    // part aussi ; le reste de la prestation ne bouge pas.
+    const show = { childName: "Lou", rounds: [
+      { type: "quiz", seriesQuiz: [
+        { id: "a", origine: "biblio", questions: [{ text: "Q1", imageId: I(1) }, { text: "Q2", choiceImages: { 0: I(2), 1: "" } }] },
+        { id: "b", origine: "de", questions: [{ text: "Q3", imageId: I(3) }, { text: "Q4", imageId: I(9) }] }], ordreQuiz: ["a:0", "b:1"] },
+      { type: "quisuis", seriesMots: [{ id: "c", mots: [{ answer: "Yoshi", imageId: I(1) }, { answer: "Lion" }] }] },
+      { type: "statues", duration: 60 }] };
+    const { valeur, retires } = B.sansImages(show, new Set([I(1), I(2), I(3)]));
+    assert.equal(retires, 4);
+    assert.deepEqual(valeur, { childName: "Lou", rounds: [
+      { type: "quiz", seriesQuiz: [{ id: "b", origine: "de", questions: [{ text: "Q4", imageId: I(9) }] }], ordreQuiz: ["a:0", "b:1"] },
+      { type: "quisuis", seriesMots: [{ id: "c", mots: [{ answer: "Lion" }] }] },
+      { type: "statues", duration: 60 }] });
+    assert.deepEqual(B.sansImages(show, new Set([I(7)])), { valeur: show, retires: 0 });
   });
 
   test("la recherche : chaque mot dans le nom, la catégorie ou les mots-clés, sans accents ni majuscules", () => {
