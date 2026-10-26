@@ -9616,6 +9616,13 @@ describe("bibliothèque de quiz et prestations", () => {
     const TEST = { childName: "🧪 Test packs Mario", age: 9, date: day(10), status: "publiee", updatedAt: 1,
       rounds: [{ type: "quiz", seriesQuiz: [{ id: "s1", origine: "biblio", questions: [{ id: "pk-y", text: "Qui est vert ?", choices: ["A", "B", "C", "D"], correct: 0, imageId: I(1) }] }] }] };
     await seedLibrary("shows", { lou: LOU, "test-packs-mario": TEST });
+    // Ses personnages de Qui suis-je ? (cedric, 26/10 : leurs images restaient) : Yoshi, de la série « Mario », part ;
+    // Rumi (K-pop) reste.
+    const RUMI = { answer: "Rumi", clues: ["chanteuse", "Huntrix"], serie: "K-pop", niveau: "Facile" };
+    await seedLibrary(`images/${I(8)}`, PNG);
+    await seedLibrary(`images/${I(9)}`, PNG);
+    await seedLibrary("contents/quisuis", { extra: [{ answer: "Yoshi", clues: ["vert", "dinosaure"], serie: "Mario", niveau: "Facile" }, RUMI],
+      images: { yoshi: I(8), rumi: I(9) }, updatedAt: 1 });
     const page = await admin();
     await page.click("#nav button[data-screen=library]");
     await page.click('#library-tabs [data-lib-tab="questions"]');
@@ -9626,20 +9633,23 @@ describe("bibliothèque de quiz et prestations", () => {
     // Annuler ne supprime rien.
     await mario.locator(".theme-supprimer").click();
     const message = await repondreFenetre(page, { accepter: false });
-    assert.match(message, /^Supprimer le thème « Mario » \?\n\n3 packs \(4 questions\) et 3 images partent de la bibliothèque, pour de bon\./);
+    assert.match(message, /^Supprimer le thème « Mario » \?\n\n3 packs \(4 questions\) et 4 images partent de la bibliothèque, pour de bon\./);
+    assert.match(message, /1 personnage de Qui suis-je \? part aussi\./);
     assert.match(message, /Sa prestation de test « .*Test packs Mario.* » part aussi\./);
     assert.match(message, /1 image reste : une prestation ou un autre pack s'en sert\./, "I(3), copiée chez Lou");
     assert.match(message, /Mes images, les autres thèmes et les questions déjà copiées dans une prestation ne changent pas\./);
     assert.equal(Object.keys(await library("quizzes")).length, 4);
     await mario.locator(".theme-supprimer").click();
     await repondreFenetre(page);
-    await page.locator("#annonce", { hasText: "✓ Thème « Mario » supprimé : 3 packs et 3 images." }).waitFor();
+    await page.locator("#annonce", { hasText: "✓ Thème « Mario » supprimé : 3 packs et 4 images." }).waitFor();
     await mario.waitFor({ state: "detached" });
     await page.locator('.q-theme[data-theme="K-pop"]').waitFor();
     // Partis : les deux packs et la série de photos Mario, I(1) et I(4) (citées), I(6) (nommée « Toad » sans pack).
     // Gardées : I(2) (Mes images), I(3) (copiée dans la prestation de Lou), I(5) et I(7) (K-pop).
     assert.deepEqual(Object.keys(await library("quizzes")), ["kp"]);
-    assert.deepEqual(Object.keys(await library("images")).sort(), [2, 3, 5, 7].map(I).sort());
+    assert.deepEqual(Object.keys(await library("images")).sort(), [2, 3, 5, 7, 9].map(I).sort());
+    const qui = await library("contents/quisuis");
+    assert.deepEqual([qui.extra, qui.images], [[RUMI], { rumi: I(9) }]);
     assert.deepEqual(Object.keys(await library("medias")).sort(), [I(2), I(7)].sort());
     assert.deepEqual(await library("shows"), { lou: LOU }, "la prestation ne change pas ; le test du thème est parti");
     await page.context().close();
@@ -9661,6 +9671,14 @@ describe("bibliothèque de quiz et prestations", () => {
     const serie = (id) => [{ id: "s1", origine: "biblio", questions: [{ id: "pk", text: "Qui ?", choices: ["A", "B", "C", "D"], correct: 0, imageId: id }] }];
     const LOU = { childName: "Lou", age: 9, date: day(10), status: "publiee", updatedAt: 1, rounds: [{ type: "quiz", seriesQuiz: serie(I(7)) }] };
     await seedLibrary("shows", { lou: LOU, "test-packs-pixar": { childName: "🧪 Test packs Pixar", age: 9, date: day(10), status: "publiee", updatedAt: 1, rounds: [{ type: "quiz", seriesQuiz: serie(I(6)) }] } });
+    // Buzz, personnage de Qui suis-je ? de Disney Pixar (supprimé) : son image I(10) y est rangée, il part avec elle.
+    // Rumi (K-pop, vivant) et Mario (série tapée à la main, sans image de pack) restent.
+    const RUMI = { answer: "Rumi", clues: ["chanteuse", "Huntrix"], serie: "K-pop", niveau: "Facile" };
+    const MARIO = { answer: "Mario", clues: ["plombier", "moustache"], serie: "Mes héros", niveau: "Facile" };
+    await seedLibrary(`images/${"a".repeat(16)}`, PNG);
+    await seedLibrary("medias/aaaaaaaaaaaaaaaa", { name: "Buzz l'Éclair", cat: "📦 Disney Pixar", createdAt: 1, updatedAt: 1 });
+    await seedLibrary("contents/quisuis", { extra: [{ answer: "Buzz l'Éclair", clues: ["espace", "ranger"], serie: "Disney Pixar", niveau: "Facile" }, RUMI, MARIO],
+      images: { "buzz l'éclair": "a".repeat(16), rumi: I(4) }, updatedAt: 1 });
     // I(2), I(8) : sans fiche, que rien ne cite (invisibles) ; I(7) : sans fiche, copiée chez Lou.
     const page = await admin();
     await page.click("#nav button[data-screen=library]");
@@ -9669,16 +9687,19 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click(".orphelines-nettoyer");
     const fenetre = page.locator("dialog[data-fenetre][open]");
     await fenetre.locator(".orphelines-apercu figure").first().waitFor();
-    assert.equal(await fenetre.locator(".orphelines-apercu figure").count(), 4);
-    assert.deepEqual((await fenetre.locator(".orphelines-apercu figcaption").allTextContents()).sort(), ["Buzz", "Sans nom", "Sans nom", "Woody"]);
-    assert.equal(await repondreFenetre(page, { accepter: false }), "Effacer 4 images orphelines et 1 prestation de test ?");
-    assert.equal(Object.keys(await library("images")).length, 8, "annuler n'efface rien");
+    assert.equal(await fenetre.locator(".orphelines-apercu figure").count(), 5);
+    assert.deepEqual((await fenetre.locator(".orphelines-apercu figcaption").allTextContents()).sort(), ["Buzz", "Buzz l'Éclair", "Sans nom", "Sans nom", "Woody"]);
+    assert.equal(await fenetre.locator(".orphelines-persos").textContent(), "Et 1 personnage de Qui suis-je ? de thèmes supprimés : Disney Pixar.");
+    assert.equal(await repondreFenetre(page, { accepter: false }), "Effacer 5 images orphelines, 1 personnage, 1 prestation de test ?");
+    assert.equal(Object.keys(await library("images")).length, 9, "annuler n'efface rien");
     await page.click(".orphelines-nettoyer");
     await repondreFenetre(page);
-    await page.locator("#annonce", { hasText: "✓ 4 images orphelines effacées, 1 prestation de test." }).waitFor();
+    await page.locator("#annonce", { hasText: "✓ 5 images orphelines effacées, 1 personnage, 1 prestation de test." }).waitFor();
     assert.deepEqual(Object.keys(await library("images")).sort(), [1, 4, 5, 7].map(I).sort());
     assert.deepEqual(Object.keys(await library("medias")).sort(), [4, 5].map(I).sort());
     assert.deepEqual(await library("shows"), { lou: LOU });
+    const qui = await library("contents/quisuis");
+    assert.deepEqual([qui.extra, qui.images], [[RUMI, MARIO], { rumi: I(4) }]);
     await page.click(".orphelines-nettoyer");
     await page.locator("#annonce", { hasText: "Aucune image orpheline : tout ce qui reste sert encore." }).waitFor();
     await page.context().close();

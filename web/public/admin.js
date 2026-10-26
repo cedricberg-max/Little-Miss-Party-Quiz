@@ -8233,6 +8233,24 @@ async function renommerTheme(nom, cartes) {
 }
 
 /**
+ * Les personnages de Qui suis-je ? venus de mes packs (cedric, 26/10 : ils restaient après « 🗑 Supprimer », avec leurs
+ * images) : ceux que [retirer](personnage, son image) désigne partent ; rend `{ retires, images, contenu }`, [contenu] :
+ * library/contents/quisuis sans eux (null si rien ne part).
+ */
+function persosARetirer(retirer) {
+  const c = contents.quisuis ?? {};
+  const jeu = CONTENT_GAMES.quisuis;
+  const extra = Array.isArray(c.extra) ? c.extra : Object.values(c.extra ?? {});
+  const images = { ...(c.images ?? {}) };
+  const retires = extra.filter((x) => x && retirer(x, images[contentSlot(jeu.key(x))] ?? null));
+  if (!retires.length) return { retires, images: [], contenu: null };
+  const ids = retires.map((x) => images[contentSlot(jeu.key(x))]).filter((id) => typeof id === "string");
+  for (const x of retires) delete images[contentSlot(jeu.key(x))];
+  const reste = extra.filter((x) => x && !retires.includes(x));
+  return { retires, images: ids, contenu: { ...c, extra: reste.length ? reste : null, images: Object.keys(images).length ? images : null, updatedAt: serverTimestamp() } };
+}
+
+/**
  * « 🗑 Supprimer ce thème » (cedric, 26/10 : effacer les anciens packs Mario, leurs questions et leurs photos avant
  * d'importer les nouveaux) : tous ses packs et séries de photos, et les images qui ne servent qu'à eux, en un seul envoi.
  * Mes images, les autres thèmes et les séries déjà copiées dans une prestation ne bougent pas.
@@ -8247,12 +8265,17 @@ async function supprimerTheme(nom) {
   // Sa « 🧪 Test packs » (Paramètres) : une copie pour essayer le thème, qui part avec lui et ne garde pas ses images.
   const test = shows[idTestDuTheme(nom)] ? idTestDuTheme(nom) : null;
   const autresShows = Object.fromEntries(Object.entries(shows).filter(([id]) => id !== test));
-  const ailleurs = { quizzes: Object.fromEntries(Object.entries(quizzes).filter(([id]) => !ids.has(id))), shows: autresShows, manches, mimes, contents, songs, playlists };
-  const images = imagesDuTheme({ packs, medias, duTheme, ailleurs });
-  const gardees = imagesDuTheme({ packs, medias, duTheme }).length - images.length;
+  // Ses personnages de Qui suis-je ? : leur série porte le nom du thème, ou leur image y est rangée.
+  const qui = persosARetirer((x, img) => (cleTheme(x.serie ?? "") || x.serie) === cle || (img != null && duTheme(medias[img])));
+  const resteContents = qui.contenu ? { ...contents, quisuis: qui.contenu } : contents;
+  const ailleurs = { quizzes: Object.fromEntries(Object.entries(quizzes).filter(([id]) => !ids.has(id))), shows: autresShows, manches, mimes, contents: resteContents, songs, playlists };
+  const avecPersos = { ...packs, "\u0000qui": qui.images };
+  const images = imagesDuTheme({ packs: avecPersos, medias, duTheme, ailleurs });
+  const gardees = imagesDuTheme({ packs: avecPersos, medias, duTheme }).length - images.length;
   const questions = cartes.reduce((t, c) => t + (c.total ?? 0), 0);
   const utilisent = Object.values(autresShows).filter((s) => (s.rounds ?? []).some((r) => roundQuizIds(r).some((id) => ids.has(id)))).map(showTitle);
   const message = `Supprimer le thème « ${nom} » ?\n\n${plural(cartes.length, "pack")} (${plural(questions, "question")}) et ${plural(images.length, "image")} partent de la bibliothèque, pour de bon.`
+    + (qui.retires.length ? `\n\n${plural(qui.retires.length, "personnage", "personnages")} de Qui suis-je ? ${qui.retires.length > 1 ? "partent" : "part"} aussi.` : "")
     + (test ? `\n\nSa prestation de test « ${showTitle(shows[test])} » part aussi.` : "")
     + (gardees ? `\n\n${plural(gardees, "image reste", "images restent")} : une prestation ou un autre pack s'en sert.` : "")
     + "\n\nMes images, les autres thèmes et les questions déjà copiées dans une prestation ne changent pas."
@@ -8260,6 +8283,7 @@ async function supprimerTheme(nom) {
   if (!(await confirmer(message, { ok: "Supprimer le thème", danger: true }))) return;
   const ecritures = {};
   if (test) ecritures[`library/shows/${test}`] = null;
+  if (qui.contenu) ecritures["library/contents/quisuis"] = qui.contenu;
   for (const id of ids) ecritures[`library/quizzes/${id}`] = null;
   for (const id of images) { ecritures[`library/images/${id}`] = null; ecritures[`library/medias/${id}`] = null; }
   try {
@@ -9051,24 +9075,32 @@ async function nettoyerImagesOrphelines() {
   const themeVivant = (f) => { const t = themeDeFiche(f); return t != null && (vivants.has(cleTheme(t)) || [...vivants].some((v) => catDePack(v) === f.cat)); };
   const vivantsTest = new Set([...vivants].map((c) => idTestDuTheme(c)));
   const testsMorts = Object.keys(shows).filter((id) => id.startsWith(PREFIXE_TEST_THEME) && !vivantsTest.has(id));
-  const citees = imagesCitees({ quizzes, shows: Object.fromEntries(Object.entries(shows).filter(([id]) => !testsMorts.includes(id))), manches, mimes, contents, songs, playlists });
+  // Les personnages de Qui suis-je ? d'un thème supprimé : leur image est rangée à ce thème, et leur série n'est pas un thème vivant.
+  const qui = persosARetirer((x, img) => img != null && estFicheDePack(medias[img]) && themeDeFiche(medias[img]) != null
+    && !themeVivant(medias[img]) && !vivants.has(cleTheme(x.serie ?? "")));
+  const resteContents = qui.contenu ? { ...contents, quisuis: qui.contenu } : contents;
+  const citees = imagesCitees({ quizzes, shows: Object.fromEntries(Object.entries(shows).filter(([id]) => !testsMorts.includes(id))), manches, mimes, contents: resteContents, songs, playlists });
   const orphelines = imagesOrphelines({ ids, medias, citees, themeVivant });
-  if (!orphelines.length && !testsMorts.length) return annonce("Aucune image orpheline : tout ce qui reste sert encore.", true);
+  if (!orphelines.length && !testsMorts.length && !qui.retires.length) return annonce("Aucune image orpheline : tout ce qui reste sert encore.", true);
   const MONTREES = 24;
   const contenu = h("div", { class: "doublons-apercu orphelines-apercu" },
     h("p", { class: "hint small", text: "Plus aucun pack, quiz, jeu ni prestation ne s'en sert. Mes images et les pochettes ne sont jamais touchées." }),
+    qui.retires.length ? h("p", { class: "hint small orphelines-persos", text: `Et ${plural(qui.retires.length, "personnage", "personnages")} de Qui suis-je ? de thèmes supprimés : ${[...new Set(qui.retires.map((x) => x.serie).filter(Boolean))].join(", ") || "sans série"}.` }) : null,
     testsMorts.length ? h("p", { class: "hint small", text: `Et ${testsMorts.length > 1 ? "les prestations de test" : "la prestation de test"} de thèmes supprimés : ${testsMorts.map((id) => showTitle(shows[id])).join(", ")}.` } ) : null,
     h("div", { class: "doublons-groupe" }, ...orphelines.slice(0, MONTREES).map((id) => h("figure", { class: "doublon" },
       photoBibliotheque(id, { loading: "lazy" }), h("figcaption", { text: medias[id]?.name ?? "Sans nom" })))),
     orphelines.length > MONTREES ? h("p", { class: "hint small", text: `… et ${orphelines.length - MONTREES} autres.` }) : null);
-  const titre = `Effacer ${plural(orphelines.length, "image orpheline", "images orphelines")}${testsMorts.length ? ` et ${plural(testsMorts.length, "prestation de test", "prestations de test")}` : ""} ?`;
+  const titre = `Effacer ${[plural(orphelines.length, "image orpheline", "images orphelines"), qui.retires.length ? plural(qui.retires.length, "personnage", "personnages") : null,
+    testsMorts.length ? plural(testsMorts.length, "prestation de test", "prestations de test") : null].filter(Boolean).join(", ")} ?`;
   if (!(await apercu(titre, contenu, { ok: "Effacer", danger: true }))) return;
   const ecritures = {};
   for (const id of testsMorts) ecritures[`library/shows/${id}`] = null;
+  if (qui.contenu) ecritures["library/contents/quisuis"] = qui.contenu;
   for (const id of orphelines) { ecritures[`library/images/${id}`] = null; ecritures[`library/medias/${id}`] = null; }
   try {
     await update(ref(db), ecritures);
-    annonce(`✓ ${plural(orphelines.length, "image orpheline effacée", "images orphelines effacées")}${testsMorts.length ? `, ${plural(testsMorts.length, "prestation de test", "prestations de test")}` : ""}.`, true);
+    annonce(`✓ ${[plural(orphelines.length, "image orpheline effacée", "images orphelines effacées"), qui.retires.length ? plural(qui.retires.length, "personnage", "personnages") : null,
+      testsMorts.length ? plural(testsMorts.length, "prestation de test", "prestations de test") : null].filter(Boolean).join(", ")}.`, true);
   } catch (err) {
     console.error(err);
     annonce("Le nettoyage n'a pas pu se faire : vérifiez la connexion. Rien n'a été effacé.");
