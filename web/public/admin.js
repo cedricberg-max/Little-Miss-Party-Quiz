@@ -3144,11 +3144,38 @@ function pictoSeriesPicker(r) {
 const STATUES_NOMBRES = [3, 5, 8, 10];
 /** « 🧩 Statues complet » : ouvert d'office ; refermé, le temps de l'écran. */
 const statuesCompletsFermes = new WeakSet();
+/** « 3:42 » : la durée d'une chanson, en minutes et secondes. */
+const minSec = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+/** Chansons des statues dont on vérifie en ce moment si la chanson entière est en ligne. */
+const entieresEnCours = new Set();
+
+/** 🎧 des statues : la chanson entière, depuis 0:00 (gardée sur ce PC, sinon téléchargée) ; null si elle n'est pas en ligne. */
+async function ecouterEntiere(id, bouton) {
+  stopPreview();
+  try {
+    let f = await fichierGarde(id);
+    if (!f) {
+      f = await telechargerEntiere(id);
+      if (f) await garderFichier(id, f);
+    }
+    if (!f) return annonce(`La chanson entière de « ${songs[id]?.title?.trim() ?? "cette chanson"} » n'est pas encore en ligne : redéposez son MP3 dans Bibliothèque › Sons.`);
+    // Un autre bouton a été touché pendant le téléchargement : c'est lui qui joue.
+    if (preview) return;
+    const url = URL.createObjectURL(f);
+    const audio = new Audio(url);
+    preview = { audio, url };
+    await audio.play();
+    enLecture(audio, bouton);
+  } catch (e) {
+    console.error(e);
+    annonce("Écoute impossible sur cet ordinateur.");
+  }
+}
 
 /**
  * Statues musicales sur vos chansons (cedric, 24/10 : « je devrais pouvoir entendre des musiques présélectionnées dans
  * ma playlist ») : comme au blind test, le 🎲 dans la bibliothèque des sons, « 🎵 Choisir mes chansons » et « 🎶 Ajouter
- * une playlist » ; la liste dans l'ordre de passage (↑ ↓ ✕). La TV joue le refrain de chacune, l'une après l'autre.
+ * une playlist » ; la liste dans l'ordre de passage (↑ ↓ ✕). Chaque chanson se joue en entier (cedric, 27/10), l'une après l'autre.
  * Aucune : la musique de la fête. Une manche d'avant garde ses extraits cochés tant qu'aucune chanson n'est choisie ici.
  */
 function statuesChansons(r) {
@@ -3241,16 +3268,19 @@ function statuesChansons(r) {
       [l[i], l[i + d]] = [l[i + d], l[i]];
       ranger(l);
     };
-    const refrain = /^[0-9a-f]{16}$/.test(song.refrainId ?? "");
+    // La chanson se joue en entier (cedric, 27/10) : sa durée et 🎧 pour l'écouter ; ☁ si elle n'est pas entière en ligne.
+    const duree = Number.isFinite(song.length) && song.length > 0 ? minSec(song.length) : null;
     return h("li", { class: "tirage-q blind-chanson statues-chanson quiz-complet-q", "data-chanson": id },
       h("div", { class: "tirage-q-ligne" },
         h("span", { class: "quiz-complet-num", text: `${i + 1}` }),
         miniPochette(song),
         h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
-        h("span", {
-          class: `blind-paroles statues-son${refrain ? " ok" : " non"}`, text: refrain ? "♪ Refrain" : "♪ Début",
-          title: refrain ? "La TV joue le refrain réglé de la chanson" : "Refrain pas encore réglé : la TV joue l'extrait du début (Bibliothèque › Sons, ⏱ Régler)",
-        }),
+        entieres.get(id) === false ? h("span", {
+          class: "song-nuage statues-nuage", role: "img", "aria-label": "Chanson entière pas en ligne", text: "☁",
+          title: "La chanson entière n'est pas encore en ligne : la TV ne pourra pas la jouer en entier. Redéposez son MP3 une fois dans Bibliothèque › Sons (« Ajouter des chansons… »).",
+        }) : null,
+        duree ? h("span", { class: "hint statues-duree", text: duree, title: "Durée de la chanson, jouée en entier" }) : null,
+        boutonEcoute({ class: "icon statues-ecouter", text: "🎧", title: "Écouter la chanson entière, depuis le début", "aria-label": `Écouter « ${song.title.trim()} »` }, (b) => ecouterEntiere(id, b)),
         h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Jouer cette chanson plus tôt", "aria-label": "Monter cette chanson", disabled: i === 0, onclick: () => bouger(-1) }),
         h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Jouer cette chanson plus tard", "aria-label": "Descendre cette chanson", disabled: i === ids.length - 1, onclick: () => bouger(1) }),
         enlever));
@@ -3282,7 +3312,16 @@ function statuesChansons(r) {
       h("button", { type: "button", class: "chip quiz-melanger statues-melanger", text: "🔀 Mélanger", title: "Mélanger toutes les chansons des statues", disabled: ids.length < 2, onclick: melanger })),
     liste);
   const avant = ids.length ? [] : roundSongs(r, playlists);
-  const resume = ids.length ? `${pluriel(ids.length, "chanson")}, ${ids.length > 1 ? "jouées l'une après l'autre" : "jouée en boucle"} : la TV joue leur refrain.`
+  // Chanson entière en ligne ? Vérifié une fois par chanson et par visite ; un ☁ apparaît sur celles qui manquent.
+  const aVerifier = ids.filter((id) => chansonJouable(songs[id]) && !entieres.has(id) && !entieresEnCours.has(id));
+  if (aVerifier.length) {
+    aVerifier.forEach((id) => entieresEnCours.add(id));
+    Promise.all(aVerifier.map(async (id) => entieres.set(id, await entiereEnLigne(id).catch(() => true)))).then(() => {
+      aVerifier.forEach((id) => entieresEnCours.delete(id));
+      if (aVerifier.some((id) => entieres.get(id) === false)) roundCtx.refresh();
+    });
+  }
+  const resume = ids.length ? `${pluriel(ids.length, "chanson")}, ${ids.length > 1 ? "jouées en entier l'une après l'autre" : "jouée en entier"}.`
     : avant.length ? `Pour l'instant : ${pluriel(avant.length, "extrait")} coché${avant.length > 1 ? "s" : ""} avant dans vos playlists. Ajoutez vos chansons pour les remplacer.`
     : "Aucune chanson : la musique de la fête.";
   return h("div", { class: "statues-chansons" },
