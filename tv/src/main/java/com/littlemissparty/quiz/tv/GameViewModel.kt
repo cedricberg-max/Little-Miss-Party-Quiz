@@ -40,6 +40,8 @@ import com.littlemissparty.quiz.engine.Pump
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
+import com.littlemissparty.quiz.engine.STATUES_ANNONCE_MS
+import com.littlemissparty.quiz.engine.StatuesRound
 import com.littlemissparty.quiz.engine.execute
 import com.littlemissparty.quiz.engine.programProblem
 import com.littlemissparty.quiz.engine.gameGains
@@ -178,6 +180,10 @@ sealed interface UiState {
         val potato: PotatoRound? = null,
         /** « Ça va exploser ! » : heure du serveur où la bombe explose si l'équipe ne l'a pas envoyée (null en pause). */
         val holdUntil: Long? = null,
+        /** Statues musicales : la chanson en cours (musique, statue, gagnantes), null hors de ce jeu. */
+        val statues: StatuesRound? = null,
+        /** Statues musicales : chansons entières déjà sur la box (chanson de la bibliothèque → fichier MP3 local). */
+        val songs: Map<String, String> = emptyMap(),
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -683,6 +689,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val ref = db.getReference("games/$code")
         gameRef = ref
         soundMarks.clear()
+        // Chansons entières : relues dans la partie ouverte (même chanson, peut-être redéposée depuis).
+        songFiles.clear()
         // Partie rouverte ou relue : les corrections du journal ne se rejouent jamais à l'écran.
         coups.vider()
         _coup.value = null
@@ -867,6 +875,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     if (g.state.buzz?.waiting == true) commit(g.blindPlay(serverNow(), unblock = allBlocked(g)))
                     else if (!g.justStarted(serverNow())) commit(g.blindStop(serverNow()))
                 }
+                // Statues musicales : OK coupe la musique (STATUE !) ou la relance ; chanson finie : « Personne » (les
+                // gagnantes se choisissent sur la régie) ; après l'annonce : chanson suivante, puis jeu suivant.
+                else if (g.question?.isStatues == true) {
+                    val st = g.state.statues ?: return@withLock
+                    val r = st.result
+                    commit(
+                        when {
+                            r != null -> if (serverNow() < r.at + STATUES_ANNONCE_MS) null
+                            else if (st.song + 1 < g.question!!.statuesTours) g.statuesNextSong(serverNow()) else g.next(serverNow())
+                            st.ended -> g.statuesSongWin(emptyList(), teams().map { it.uid }, serverNow())
+                            st.dancing -> g.statuesStop(serverNow())
+                            else -> g.statuesPlay(serverNow())
+                        },
+                    )
+                }
                 // Gonfleur fou : OK arrête la course, le plus gros ballon gagne.
                 else if (g.question?.isGonfleur == true) {
                     if (!g.justStarted(serverNow())) commit(g.balloon(pumps, teams().map { it.uid }, serverNow(), stop = true))
@@ -885,6 +908,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val ids = teams().map { it.uid }
         return blocked.isNotEmpty() && ids.isNotEmpty() && blocked.containsAll(ids)
     }
+
+    /** Statues musicales : la box a joué la chanson [song] jusqu'au bout ; Sarah choisit les gagnantes. */
+    fun statuesSongEnded(song: Int) = act { it.statuesSongEnded(song, serverNow()) }
 
     /** Blind test à la télécommande : révéler sans gagnant, passer le morceau. */
     fun blindReveal() = act { it.blindReveal(serverNow()) }
@@ -1151,6 +1177,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 pumpGoAt = g.pumpGoAt,
                 potato = s.potato.takeIf { q?.isPatate == true && s.phase != Phase.LOBBY },
                 holdUntil = g.holdDeadline(),
+                statues = s.statues.takeIf { q?.isStatues == true && s.phase != Phase.LOBBY },
                 openedAt = s.openedAt,
                 multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),
@@ -1204,6 +1231,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
         // plus du réseau une fois la partie lancée.
         programSounds(g.quiz).forEach(::prefetchSound)
+        programSongs(g.quiz).forEach(::prefetchSong)
         // Ménage du cache des médias de la box, au salon d'attente ou à la fin seulement.
         rangerMedias()
     }
@@ -1282,6 +1310,63 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             }
             soundsLoading -= id
             markSound(id, "missing")
+        }
+    }
+
+    /** Statues musicales : chansons entières déjà sur la box (chanson → fichier), nom de chacune dans le cache. */
+    private val songFiles = mutableMapOf<String, String>()
+    private val songKeys = mutableMapOf<String, String>()
+    private val songsLoading = mutableSetOf<String>()
+
+    /**
+     * Statues musicales : copie une chanson entière de la partie (games/<code>/songs/<chanson>, copiée par la régie
+     * depuis la bibliothèque) dans le cache de la box. La régie écrit `n` en dernier : la box attend qu'il soit là. Le
+     * nom dans le cache porte sa taille et son débit : une chanson redéposée dans la bibliothèque est recopiée. Absente
+     * ou abîmée : la TV joue l'extrait de la chanson.
+     */
+    private fun prefetchSong(songId: String) {
+        if (songId in songFiles) {
+            if ((_state.value as? UiState.Playing)?.songs?.containsKey(songId) == false) updatePlaying { it.copy(songs = songFiles.toMap()) }
+            return
+        }
+        val ref = gameRef ?: return
+        if (!songsLoading.add(songId)) return
+        viewModelScope.launch {
+            val file = runCatching { telechargerChanson(ref.child("songs/$songId"), songId) }
+                .onFailure { Log.w(TAG, "Statues : chanson entière $songId illisible", it) }.getOrNull()
+            songsLoading -= songId
+            if (gameRef != ref) return@launch
+            if (file == null) return@launch run { Log.w(TAG, "Statues : chanson entière $songId absente, l'extrait la remplace") }
+            songFiles[songId] = file.absolutePath
+            updatePlaying { it.copy(songs = songFiles.toMap()) }
+        }
+    }
+
+    private suspend fun telechargerChanson(node: DatabaseReference, songId: String): java.io.File? {
+        val n = (node.child("n").readWhenPresent(SONG_WAIT_MS)?.value as? Number)?.toInt()?.takeIf { it in 1..24 } ?: return null
+        val length = (node.child("length").readWhenPresent(PHOTO_WAIT_MS)?.value as? Number)?.toLong() ?: 0L
+        val kbps = (node.child("kbps").readWhenPresent(PHOTO_WAIT_MS)?.value as? Number)?.toLong() ?: 0L
+        val cle = "e_${songId}_${n}_${length}_$kbps"
+        songKeys[songId] = cle
+        val file = medias.extrait(cle)
+        if (kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { file.isFile && file.length() > 0 }) {
+            medias.toucher(file)
+            return file
+        }
+        val part = java.io.File(medias.extraits, "$cle.part")
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { medias.extraits.mkdirs(); part.delete() }
+        // Parts lues une à une et décodées au fil de l'eau (base64 recollé sur 4 caractères) : jamais toute la chanson en mémoire.
+        var reste = ""
+        for (i in 0 until n) {
+            val data = node.child("p/$i").readWhenPresent(PHOTO_WAIT_MS)?.getValue(String::class.java) ?: return null
+            val tout = reste + data
+            val utile = tout.length - tout.length % 4
+            val octets = Base64.decode(tout.substring(0, utile), Base64.DEFAULT)
+            reste = tout.substring(utile)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { part.appendBytes(octets) }
+        }
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            if (reste.isNotEmpty() || part.length() == 0L || !part.renameTo(file)) { part.delete(); null } else file
         }
     }
 
@@ -1367,6 +1452,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun programSounds(quiz: Quiz): Set<String> =
         quiz.questions.flatMapTo(LinkedHashSet()) { listOfNotNull(it.audioId, it.refrainId) + it.audioIds }
 
+    /** Statues musicales : chansons entières du programme. */
+    private fun programSongs(quiz: Quiz): Set<String> = quiz.questions.flatMapTo(LinkedHashSet()) { q -> q.songs.mapNotNull { it.songId } }
+
     /** Photos du programme, avec le dossier de la partie où la régie les copie. */
     private fun programPhotos(quiz: Quiz): Map<String, String> {
         val wanted = LinkedHashMap<String, String>()
@@ -1413,7 +1501,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             rangePour = ouverte
             val perdus = mediasLock.withLock {
                 // Médias de la partie ouverte et téléchargements en cours : jamais effacés.
-                val sons = programSounds(g.quiz) + soundsLoading
+                // Chansons entières des statues comprises, et celles en cours de copie.
+                val sons = programSounds(g.quiz) + soundsLoading + programSongs(g.quiz).mapNotNull { songKeys[it] } +
+                    songsLoading.mapNotNull { songKeys[it] }
                 val images = programPhotos(g.quiz).keys + imagesLoading
                 val publies = soundFiles.toMap()
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -1444,7 +1534,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val r = mediasLock.withLock {
                 // Les téléchargements en cours se terminent normalement.
-                val sonsEnCours = soundsLoading.toSet()
+                val sonsEnCours = soundsLoading.toSet() + songsLoading.mapNotNull { songKeys[it] }
                 val imagesEnCours = imagesLoading.toSet()
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { medias.vider(sonsEnCours, imagesEnCours) } }
             }
@@ -1452,11 +1542,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 .onFailure { Log.e(TAG, "Cache des médias pas entièrement vidé", it) }
             // Les extraits connus n'ont plus de fichier : la partie ouverte recopie les siens et ses photos tout de suite.
             soundFiles.clear()
-            updatePlaying { it.copy(sounds = emptyMap()) }
+            songFiles.clear()
+            updatePlaying { it.copy(sounds = emptyMap(), songs = emptyMap()) }
             photosSavedFor = null
             game?.let { g ->
                 savePhotos(g)
                 programSounds(g.quiz).forEach(::prefetchSound)
+                programSongs(g.quiz).forEach(::prefetchSong)
             }
             _vidage.value = r.getOrNull()?.let { VidageCache.Fait(it) } ?: VidageCache.Echec
         }
@@ -2412,6 +2504,8 @@ private suspend fun DatabaseReference.readWhenPresent(timeoutMs: Long = 60_000L)
 }
 
 private const val PHOTO_WAIT_MS = 30_000L
+/** Statues : la régie copie les chansons entières (plusieurs Mo chacune) pendant la fête ; la box les attend longtemps. */
+private const val SONG_WAIT_MS = 20 * 60_000L
 /** Ménage du cache des médias : laissé à la partie qui s'ouvre le temps de démarrer et de lancer ses copies. */
 private const val RANGEMENT_DELAI_MS = 15_000L
 

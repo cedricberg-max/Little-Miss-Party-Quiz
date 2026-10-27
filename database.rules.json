@@ -233,6 +233,14 @@
             "color": {
               ".validate": "newData.isString() && newData.val().matches(/^#[0-9A-Fa-f]{6}$/)"
             },
+            "teams": {
+              "$i": {
+                ".validate": "$i.matches(/^[0-7]$/) && newData.isString() && newData.val().length <= 128"
+              }
+            },
+            "personne": {
+              ".validate": "newData.val() === true"
+            },
             "$other": {
               ".validate": "$other === 'type' || $other === 'expectSeq' || $other === 'by' || $other === 'at'"
             }

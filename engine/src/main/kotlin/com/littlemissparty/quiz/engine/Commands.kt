@@ -111,8 +111,12 @@ sealed interface Command {
                 "buzz_ko" -> Judge(id, seq, false)
                 // Blind test : bon titre et bon artiste.
                 "buzz_bonus" -> Judge(id, seq, true, bonus = true)
-                // Régie d'avant le 27/10 : une seule gagnante, `team`.
-                "statues_win" -> StatuesWin(id, seq, (m["teams"] as? List<*>)?.map { it as String } ?: listOfNotNull(m["team"] as String?))
+                // « Personne » arrive en { personne: true } (Firebase efface une liste vide) ; régie d'avant le 27/10 : `team`.
+                "statues_win" -> StatuesWin(
+                    id, seq,
+                    if (m["personne"] == true) emptyList()
+                    else (m["teams"] as? List<*>)?.map { it as String } ?: listOf(m["team"] as String),
+                )
                 "statues_stop" -> StatuesStop(id, seq)
                 "statues_play" -> StatuesPlay(id, seq)
                 "statues_song" -> StatuesSong(id, seq)

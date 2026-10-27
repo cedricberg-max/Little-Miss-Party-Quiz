@@ -100,7 +100,8 @@ class StatuesMusicalesTest {
     fun `Personne ne donne rien à personne, équipe inconnue refusée, ancienne régie à une gagnante acceptée`() {
         val g = Game(Quiz("p", "P", listOf(jeu))).apply { next(t0) }
         assertEquals(CommandStatus.REFUSED, g.run("statues_win", t0 + 10_000, "teams" to listOf("rose", "inconnue")).status)
-        assertEquals(CommandStatus.APPLIED, g.run("statues_win", t0 + 11_000, "teams" to emptyList<String>()).status)
+        assertEquals(null, Command.decode("v", mapOf("type" to "statues_win", "expectSeq" to 1)), "ni gagnantes, ni « Personne » : illisible")
+        assertEquals(CommandStatus.APPLIED, g.run("statues_win", t0 + 11_000, "personne" to true).status)
         assertEquals(emptyList(), g.state.statues!!.result!!.winners)
         assertEquals(emptyMap(), g.state.scores().filterValues { it != 0 })
         g.run("statues_song", t0 + 20_000)
