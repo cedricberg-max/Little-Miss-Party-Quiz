@@ -20,6 +20,9 @@ on:
       prestation:
         description: "Avec audit : un mot du nom de la prestation à vérifier (ses questions à réponses en images)"
         default: ""
+      touki:
+        description: "« apercu » ou « ecrire » : la « Prestation test touki touki » (cedric, 27/10), remplie avec les packs ; ecrire l'ajoute sans rien remplacer ni effacer"
+        default: ""
       noms:
         description: "Captures à afficher, séparées par des virgules"
         default: "question-1,question-8-equipes,revelation,revelation-8-equipes,question-fermee,reponses-en-images,reponses-en-images-revelation,express-affirmation,zoom-mystere-question,zoom-mystere-revelation,image-floue-buzz,image-floue-revelation,juste-chiffre-question,juste-chiffre-revelation,quiz-musical-revelation,mimes-tour,mimes-6-equipes-tour"
@@ -126,7 +129,7 @@ jobs:
           node .github/scripts/journal-bombe.mjs
 
   lire:
-    if: inputs.captures == '' && inputs.audit == ''
+    if: inputs.captures == '' && inputs.audit == '' && inputs.touki == ''
     runs-on: ubuntu-latest
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -150,3 +153,19 @@ jobs:
           echo "== Plantages, en entier =="
           jq -r '[.[]?] | map(select(.kind == "crash")) | .[] | "--- \(.at / 1000 | strftime("%Y-%m-%d %H:%M:%SZ")) \(.version) \(.device)\n\(.text)"' \
             "$RUNNER_TEMP/rapports.json"
+
+  touki:
+    if: inputs.touki == 'apercu' || inputs.touki == 'ecrire'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      MODE: ${{ inputs.touki }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prestation test touki touki
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npm i --no-save --silent google-auth-library@9 > /dev/null
+          node .github/scripts/prestation-touki.mjs
