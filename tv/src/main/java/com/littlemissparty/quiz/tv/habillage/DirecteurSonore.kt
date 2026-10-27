@@ -354,6 +354,10 @@ class DirecteurSonore {
             if (i.duel && i.duelEtape != p.duelEtape) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.duelEtape == "standoff") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
+            // Simon du Prof : la musique se tait net quand une suite démarre (les notes des boules), revient après.
+            if (i.simonSuite != p.simonSuite) {
+                o += Ordre.Musique(ambiance(i), fonduMs = if (i.simonSuite) Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
+            }
             // Statues musicales : « gel ! » quand la musique s'arrête, petit élan quand elle repart.
             if (i.statue && !p.statue) o += Ordre.Jouer(Son.STATUE_GEL)
             if (!i.statue && p.statue && i.statuesAnnonce == 0) o += Ordre.Jouer(Son.STATUE_REPART)
