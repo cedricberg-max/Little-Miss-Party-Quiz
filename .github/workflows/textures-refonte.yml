@@ -1,0 +1,30 @@
+# Refonte 3D du Game Show : télécharge des matières PBR libres (CC0, ambientCG + Poly Haven) et les dépose sur une branche à part
+# « textures-refonte-candidats » (jamais fusionnée) que Claude lit avec git. Ne publie rien sur le site ni sur la TV.
+name: Textures refonte 3D (candidates)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/project-thread-qsnctv]
+    paths: [scripts/textures-refonte.py, .github/workflows/textures-refonte.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  textures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Télécharger les matières
+        run: python3 scripts/textures-refonte.py "$RUNNER_TEMP/textures"
+      - name: Déposer sur la branche textures-refonte-candidats
+        run: |
+          cd "$RUNNER_TEMP/textures"
+          git init -q -b textures-refonte-candidats
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Matières CC0 pour la refonte 3D ($GITHUB_SHA)"
+          git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/textures-refonte-candidats"
