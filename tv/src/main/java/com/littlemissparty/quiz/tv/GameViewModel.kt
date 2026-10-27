@@ -21,6 +21,7 @@ import com.littlemissparty.quiz.engine.Award
 import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.BlindTrack
 import com.littlemissparty.quiz.engine.ChestRound
+import com.littlemissparty.quiz.engine.DuelRound
 import com.littlemissparty.quiz.engine.Codec
 import com.littlemissparty.quiz.engine.Command
 import com.littlemissparty.quiz.engine.CommandResult
@@ -40,8 +41,11 @@ import com.littlemissparty.quiz.engine.Pump
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
+import com.littlemissparty.quiz.engine.STATUES_ANNONCE_MS
+import com.littlemissparty.quiz.engine.StatuesRound
 import com.littlemissparty.quiz.engine.execute
 import com.littlemissparty.quiz.engine.programProblem
+import com.littlemissparty.quiz.engine.duelsGagnes
 import com.littlemissparty.quiz.engine.gameGains
 import com.littlemissparty.quiz.engine.gameStep
 import com.littlemissparty.quiz.engine.nextGameTitle
@@ -178,6 +182,19 @@ sealed interface UiState {
         val potato: PotatoRound? = null,
         /** « Ça va exploser ! » : heure du serveur où la bombe explose si l'équipe ne l'a pas envoyée (null en pause). */
         val holdUntil: Long? = null,
+        /** Statues musicales : la chanson en cours (musique, statue, gagnantes), null hors de ce jeu. */
+        val statues: StatuesRound? = null,
+        /** Statues musicales : chansons entières déjà sur la box (chanson de la bibliothèque → fichier MP3 local). */
+        val songs: Map<String, String> = emptyMap(),
+        /** Le Duel des robots : le duel prêt, en cours ou jugé (l'heure du PAN, que seule la box connaît), null hors de ce jeu. */
+        val duel: DuelRound? = null,
+        /** Le Duel des robots : duels prévus pour que tout le monde joue, et tous les joueurs sont passés. */
+        val duelTotal: Int = 0,
+        val duelTousPasses: Boolean = false,
+        /** Le Duel des robots : duels gagnés par chaque équipe dans ce jeu (affiches WANTED de la fin). */
+        val duelGagnes: Map<String, Int> = emptyMap(),
+        /** Le Duel des robots : décalage fin de l'horloge de la box avec le serveur (meilleure de 5 mesures), ou null. */
+        val duelOffset: Long? = null,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -272,6 +289,20 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var chestListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var pumpListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var potatoListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var duelListener: Pair<DatabaseReference, ValueEventListener>? = null
+
+    /**
+     * Le Duel des robots (cedric, 27/10 : « le timing doit être vraiment juste ») : décalage fin de l'horloge de la box
+     * avec le serveur et son aller-retour (ms), la meilleure de 5 mesures ; le duel pour lequel il a été mesuré ; les
+     * mesures des tablettes du face-à-face en cours (aller-retour, décalage) et le dernier duel rapporté.
+     */
+    private var horlogeFine: Pair<Long, Long>? = null
+    private var horlogeMesuree: String? = null
+    private val duelMesures = mutableMapOf<String, Pair<Long?, Long?>>()
+    private var duelRapporte: String? = null
+
+    /** Heure du serveur pour le Duel : l'horloge fine si elle est mesurée. */
+    private fun duelNow() = System.currentTimeMillis() + (horlogeFine?.first ?: serverOffset)
 
     /** Gonfleur fou : dernières tapes reçues de chaque équipe, pour la course de [pumpListener]. */
     private var pumps: Map<String, Pump> = emptyMap()
@@ -683,6 +714,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val ref = db.getReference("games/$code")
         gameRef = ref
         soundMarks.clear()
+        // Chansons entières : relues dans la partie ouverte (même chanson, peut-être redéposée depuis).
+        songFiles.clear()
         // Partie rouverte ou relue : les corrections du journal ne se rejouent jamais à l'écran.
         coups.vider()
         _coup.value = null
@@ -829,8 +862,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun recover() {
         val g = game ?: return
         // Portes mystères et coffres mystères : pas de chrono, rien ne se ferme seul.
+        // Entre deux tours de mimes, rien ne se ferme seul, sauf le bilan d'une couleur quand son heure est passée.
+        val entreDeuxTours = g.state.mime != null && g.state.mime?.team == null && !g.mimeBilanDue(serverNow())
+        // Duel des robots : pas de chrono ; le jugement d'un face-à-face attend son heure ([schedule]).
         if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.question?.isCoffres != true &&
-            g.timeOver(serverNow())
+            g.question?.isDuel != true && !entreDeuxTours && g.timeOver(serverNow())
         ) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
             act { it.timeUp(serverNow()) ?: it.balloon(pumps, teams().map { t -> t.uid }, serverNow(), stop = true) }
@@ -851,6 +887,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val g = game ?: return@withLock
             // Décompte 3, 2, 1 en cours : un second appui sur « Reprendre » ne fait pas avancer la partie.
             if (g.state.resumeAt?.let { serverNow() < it } == true) return@withLock
+            // Mimes en file (cedric, 26/10) : OK sur la présentation des Mimes montre tout de suite la première image de
+            // l'équipe de la couleur ; au bilan d'une couleur, OK lance la manche de la couleur suivante avec son tour.
+            mimeEnFile(g)?.let { team -> commit(g.mimeStart(team, serverNow())); return@withLock }
             when (g.state.phase) {
                 Phase.LOBBY -> if (teams().isNotEmpty()) commit(g.next(serverNow()))
                 // Mimes : arrête le tour en cours, ou termine la manche entre deux tours (« Terminer les mimes »).
@@ -861,6 +900,36 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     if (g.state.buzz?.team != null) return@withLock
                     if (g.state.buzz?.waiting == true) commit(g.blindPlay(serverNow(), unblock = allBlocked(g)))
                     else if (!g.justStarted(serverNow())) commit(g.blindStop(serverNow()))
+                }
+                // Statues musicales : OK coupe la musique (STATUE !) ou la relance ; chanson finie : « Personne » (les
+                // gagnantes se choisissent sur la régie) ; après l'annonce : chanson suivante, puis jeu suivant.
+                else if (g.question?.isStatues == true) {
+                    val st = g.state.statues ?: return@withLock
+                    val r = st.result
+                    commit(
+                        when {
+                            r != null -> if (serverNow() < r.at + STATUES_ANNONCE_MS) null
+                            else if (st.song + 1 < g.question!!.statuesTours) g.statuesNextSong(serverNow()) else g.next(serverNow())
+                            st.ended -> g.statuesSongWin(emptyList(), teams().map { it.uid }, serverNow())
+                            st.dancing -> g.statuesStop(serverNow())
+                            else -> g.statuesPlay(serverNow())
+                        },
+                    )
+                }
+                // Duel des robots : OK lance le duel prêt ; après un duel, prépare le suivant, ou passe au jeu suivant
+                // quand tout le monde a joué (les duels à la volée se choisissent sur la régie).
+                else if (g.question?.isDuel == true) {
+                    val d = g.state.duel
+                    val ids = teams().map { it.uid }
+                    commit(
+                        when {
+                            d == null -> if (ids.size < 2) g.next(serverNow()) else null
+                            d.enCours -> null
+                            d.result == null -> g.startDuel(serverNow())
+                            g.duelTousPasses(ids) -> g.next(serverNow())
+                            else -> g.readyDuel(ids, serverNow())
+                        },
+                    )
                 }
                 // Gonfleur fou : OK arrête la course, le plus gros ballon gagne.
                 else if (g.question?.isGonfleur == true) {
@@ -881,6 +950,68 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         return blocked.isNotEmpty() && ids.isNotEmpty() && blocked.containsAll(ids)
     }
 
+    /** Statues musicales : la box a joué la chanson [song] jusqu'au bout ; Sarah choisit les gagnantes. */
+    fun statuesSongEnded(song: Int) = act { it.statuesSongEnded(song, serverNow()) }
+
+    /**
+     * Le Duel des robots : l'image du PAN vient d'être envoyée à l'écran ; la box juge les buzz par rapport à cet
+     * instant (heure du serveur, horloge fine), pris tout de suite, avant de passer la main.
+     */
+    fun duelPanShown() {
+        val vu = duelNow()
+        act { it.duelPanShown(vu, serverNow()) }
+    }
+
+    /** Duel des robots : 5 mesures de l'écart entre l'horloge de la box et celle du serveur ; la plus courte gagne. */
+    private fun mesurerHorloge(cle: String) {
+        if (horlogeMesuree == cle) return
+        horlogeMesuree = cle
+        val ref = gameRef?.child("horloge")?.child("box") ?: return
+        viewModelScope.launch {
+            val mesures = mutableListOf<Pair<Long, Long>>()
+            repeat(5) {
+                runCatching {
+                    val p0 = System.currentTimeMillis()
+                    withTimeoutOrNull(3_000L) { ref.setValue(mapOf("at" to ServerValue.TIMESTAMP)).await() } ?: return@runCatching
+                    val p1 = System.currentTimeMillis()
+                    val serveur = withTimeoutOrNull(3_000L) { ref.child("at").get().await() }?.getValue(Long::class.java) ?: return@runCatching
+                    mesures += (serveur - (p0 + p1) / 2) to (p1 - p0)
+                }
+            }
+            val m = mesures.minByOrNull { it.second } ?: return@launch
+            val ancienne = horlogeFine
+            if (ancienne == null || m.second < ancienne.second || kotlin.math.abs(m.first - ancienne.first) > m.second / 2 + 30) horlogeFine = m
+            Log.i(TAG, "Horloge fine du duel : décalage ${m.first} ms (Firebase $serverOffset ms), aller-retour ${m.second} ms")
+            updatePlaying { it.copy(duelOffset = horlogeFine?.first) }
+        }
+    }
+
+    /**
+     * Rapport de la box après chaque duel (cedric, 27/10 : prouver que le plus rapide gagne) : retard d'affichage du
+     * PAN, pour chaque équipe (identifiant seulement) l'appui depuis le PAN affiché, l'arrivée, l'aller-retour et le
+     * décalage de son horloge ; l'horloge de la box. Jamais de nom d'équipe.
+     */
+    private fun rapportDuel(d: DuelRound) {
+        val pan = d.panAt ?: return
+        val ref = d.reference ?: pan
+        val r = d.result ?: return
+        val equipes = d.buzzes.joinToString(" ; ") { b ->
+            val (rtt, o) = duelMesures[b.team] ?: (null to null)
+            "${b.team.take(6)} appui ${b.t - ref} ms, arrivé ${b.at - ref} ms, aller-retour ${rtt ?: "?"} ms, décalage ${o ?: "?"} ms"
+        }.ifBlank { "aucun buzz" }
+        val box = horlogeFine?.let { "décalage ${it.first} ms (Firebase $serverOffset), aller-retour ${it.second} ms" } ?: "Firebase $serverOffset ms"
+        val bilan = when {
+            r.early != null -> "trop tôt ${r.early!!.take(6)}"
+            r.winner != null -> "gagnante ${r.winner!!.take(6)} en ${r.ms} ms"
+            else -> "personne"
+        }
+        Reactivite.noter("pan affiché", (d.shownAt ?: pan) - pan)
+        val db = gameRef?.database ?: return
+        runCatching {
+            CrashReporter.report(db, "duel", "duel ${d.n} : PAN affiché ${d.shownAt?.let { "${it - pan} ms" } ?: "inconnu"} après l'heure prévue ; $equipes ; box $box ; $bilan")
+        }
+    }
+
     /** Blind test à la télécommande : révéler sans gagnant, passer le morceau. */
     fun blindReveal() = act { it.blindReveal(serverNow()) }
     fun blindSkip() = act { it.blindSkip(serverNow()) }
@@ -893,8 +1024,33 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun togglePause() = act { g -> if (g.state.paused) g.resume(serverNow()) else g.pause(serverNow()) }
 
-    /** Mimes à la télécommande : lancer le tour de [team] (null : l'équipe qui a le moins joué). */
-    fun mimeStart(team: String?) = act { g -> (team ?: g.nextMimeTeam(teams().map { it.uid }))?.let { g.mimeStart(it, serverNow()) } }
+    /**
+     * Mimes à la télécommande : lancer le tour de [team] (null : l'équipe de la couleur de la manche, sinon celle qui a
+     * le moins joué).
+     */
+    fun mimeStart(team: String?) = act { g ->
+        (team ?: equipeDeLaCouleur(g.question?.couleur)?.uid ?: g.nextMimeTeam(teams().map { it.uid }))?.let { g.mimeStart(it, serverNow()) }
+    }
+
+    /** L'équipe inscrite de la couleur [couleur] (« #F5D000 »), ou null. */
+    private fun equipeDeLaCouleur(couleur: String?): Team? = couleur?.let { c -> teams().firstOrNull { it.color.equals(c, ignoreCase = true) } }
+
+    /**
+     * Mimes en file (cedric, 26/10), une manche par couleur : l'équipe dont le tour part au bouton principal, ou null.
+     * Sur la présentation des Mimes ou au début de la manche : celle de sa couleur. Au bilan des scores d'une couleur :
+     * celle de la couleur suivante (sa manche s'ouvre avec son tour). Sans équipe de cette couleur : rien de spécial.
+     */
+    private fun mimeEnFile(g: Game): String? {
+        val s = g.state
+        val q = g.question ?: return null
+        if (s.paused || !q.isMime || q.couleur == null) return null
+        return when {
+            s.phase == Phase.QUESTION && (s.intro || (s.mime?.team == null && s.mime?.turns?.isEmpty() == true)) -> equipeDeLaCouleur(q.couleur)?.uid
+            s.phase == Phase.SCORES && s.leaveTo == null -> g.quiz.questions.getOrNull(s.index + 1)
+                ?.takeIf { it.isMime && it.roundTitle == q.roundTitle }?.couleur?.let { equipeDeLaCouleur(it)?.uid }
+            else -> null
+        }
+    }
 
     /**
      * Mime trouvé à la télécommande. Un appui juste après « Top départ » est le second appui d'un double clic
@@ -916,6 +1072,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (now - lastNextAt < NEXT_GUARD_MS) return
         lastNextAt = now
         act { it.mimePass(serverNow()) }
+    }
+
+    /** « ⏭ Passer » à la télécommande : le mimeur abandonne son image, les joueurs tournent. */
+    fun mimeSkip() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNextAt < NEXT_GUARD_MS) return
+        lastNextAt = now
+        act { g -> if (g.justStarted(serverNow())) null else g.mimeSkip(serverNow()) }
     }
 
     /** Image floue à la télécommande (secours de la régie) : verdict sur la réponse orale de l'équipe qui a buzzé. */
@@ -970,7 +1134,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         ref.updateChildren(
             mapOf(
                 "log/${Codec.key(event.seq)}" to clean(Codec.encode(event)),
-                "state" to clean(Codec.publicState(g, round)),
+                "state" to clean(Codec.publicState(g, round, teams().map { it.uid })),
             ) + replayed + extra
         ).addOnFailureListener { Log.e(TAG, "Écriture refusée", it) }
         refresh()
@@ -980,7 +1144,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun publishState() {
         val g = game ?: return
         val round = (_state.value as? UiState.Playing)?.round ?: 1
-        gameRef?.child("state")?.setValue(clean(Codec.publicState(g, round)))
+        gameRef?.child("state")?.setValue(clean(Codec.publicState(g, round, teams().map { it.uid })))
     }
 
     /** Réponses retenues : celles des équipes inscrites (8 au plus), relues sur le serveur si possible. */
@@ -1013,7 +1177,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         scheduleExpress()
         scheduleArm()
         val g = game ?: return
-        // Fin du chrono, ou (« Ça va exploser ! ») bombe gardée plus de 3 secondes.
+        // Fin du chrono, ou (« Ça va exploser ! ») bombe gardée plus de 2 secondes.
         val deadline = g.wakeAt() ?: return
         timer = viewModelScope.launch {
             // Réveil trop tôt (heure du serveur corrigée entre-temps) : on attend encore, sans jamais abandonner.
@@ -1022,7 +1186,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val done = actions.withLock {
                     val now = serverNow()
                     // Bombe gardée trop longtemps par une équipe dont la tablette vient de se couper : jamais sa faute, on
-                    // attend la pause automatique (après la reprise, l'équipe a de nouveau 3 secondes) ou son retour.
+                    // attend la pause automatique (après la reprise, l'équipe a de nouveau 2 secondes) ou son retour.
                     val coupee = g.remainingMs(now) > 0 && g.state.potato?.holder?.let { it !in online } == true
                     if (g.state.phase == Phase.QUESTION && !g.state.paused && g.timeOver(now) && !coupee) {
                         // Fin de la question, ou fin du tour de mimes.
@@ -1113,6 +1277,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 pumpGoAt = g.pumpGoAt,
                 potato = s.potato.takeIf { q?.isPatate == true && s.phase != Phase.LOBBY },
                 holdUntil = g.holdDeadline(),
+                statues = s.statues.takeIf { q?.isStatues == true && s.phase != Phase.LOBBY },
+                duel = s.duel.takeIf { q?.isDuel == true && s.phase != Phase.LOBBY },
+                duelTotal = if (q?.isDuel == true) g.duelsAPrevoir(teams().size) else 0,
+                duelTousPasses = q?.isDuel == true && g.duelTousPasses(teams().map { it.uid }),
+                duelGagnes = if (q?.isDuel == true) g.duelsGagnes() else emptyMap(),
                 openedAt = s.openedAt,
                 multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),
@@ -1145,6 +1314,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // puis écoute l'envoi de la tablette de l'équipe qui tient la bombe.
         if (g.needsPotato() && teams().size >= 2) act { it.lightPotato(teams().map { t -> t.uid }, serverNow()) }
         watchPotato(Codec.potatoKey(g)?.takeIf { !s.paused })
+        // Duel des robots : la box prépare le premier duel dès le lancement du jeu (« la ronde »), puis écoute les buzz
+        // des 2 équipes pendant chaque face-à-face.
+        if (g.needsDuel() && teams().size >= 2) act { it.readyDuel(teams().map { t -> t.uid }, serverNow()) }
+        watchDuel(Codec.duelKey(g))
+        s.duel?.takeIf { q?.isDuel == true }?.let { d ->
+            // Pendant que les joueurs se placent : l'horloge de la box est recalée finement sur celle du serveur.
+            if (d.step == "ready") mesurerHorloge("${s.qid}-${d.n}")
+            d.result?.let { r -> "${s.qid}-${d.n}-${r.at}".takeIf { it != duelRapporte }?.let { duelRapporte = it; rapportDuel(d) } }
+        }
         // Jeux au buzzer : la question ne se ferme plus quand toutes les équipes se sont trompées, elles rebuzzent 3 s après
         // le verdict (cedric, 25/10, règle 2) ; le chrono, ou l'animatrice, la termine.
         // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
@@ -1166,6 +1344,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
         // plus du réseau une fois la partie lancée.
         programSounds(g.quiz).forEach(::prefetchSound)
+        programSongs(g.quiz).forEach(::prefetchSong)
         // Ménage du cache des médias de la box, au salon d'attente ou à la fin seulement.
         rangerMedias()
     }
@@ -1244,6 +1423,63 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             }
             soundsLoading -= id
             markSound(id, "missing")
+        }
+    }
+
+    /** Statues musicales : chansons entières déjà sur la box (chanson → fichier), nom de chacune dans le cache. */
+    private val songFiles = mutableMapOf<String, String>()
+    private val songKeys = mutableMapOf<String, String>()
+    private val songsLoading = mutableSetOf<String>()
+
+    /**
+     * Statues musicales : copie une chanson entière de la partie (games/<code>/songs/<chanson>, copiée par la régie
+     * depuis la bibliothèque) dans le cache de la box. La régie écrit `n` en dernier : la box attend qu'il soit là. Le
+     * nom dans le cache porte sa taille et son débit : une chanson redéposée dans la bibliothèque est recopiée. Absente
+     * ou abîmée : la TV joue l'extrait de la chanson.
+     */
+    private fun prefetchSong(songId: String) {
+        if (songId in songFiles) {
+            if ((_state.value as? UiState.Playing)?.songs?.containsKey(songId) == false) updatePlaying { it.copy(songs = songFiles.toMap()) }
+            return
+        }
+        val ref = gameRef ?: return
+        if (!songsLoading.add(songId)) return
+        viewModelScope.launch {
+            val file = runCatching { telechargerChanson(ref.child("songs/$songId"), songId) }
+                .onFailure { Log.w(TAG, "Statues : chanson entière $songId illisible", it) }.getOrNull()
+            songsLoading -= songId
+            if (gameRef != ref) return@launch
+            if (file == null) return@launch run { Log.w(TAG, "Statues : chanson entière $songId absente, l'extrait la remplace") }
+            songFiles[songId] = file.absolutePath
+            updatePlaying { it.copy(songs = songFiles.toMap()) }
+        }
+    }
+
+    private suspend fun telechargerChanson(node: DatabaseReference, songId: String): java.io.File? {
+        val n = (node.child("n").readWhenPresent(SONG_WAIT_MS)?.value as? Number)?.toInt()?.takeIf { it in 1..24 } ?: return null
+        val length = (node.child("length").readWhenPresent(PHOTO_WAIT_MS)?.value as? Number)?.toLong() ?: 0L
+        val kbps = (node.child("kbps").readWhenPresent(PHOTO_WAIT_MS)?.value as? Number)?.toLong() ?: 0L
+        val cle = "e_${songId}_${n}_${length}_$kbps"
+        songKeys[songId] = cle
+        val file = medias.extrait(cle)
+        if (kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { file.isFile && file.length() > 0 }) {
+            medias.toucher(file)
+            return file
+        }
+        val part = java.io.File(medias.extraits, "$cle.part")
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { medias.extraits.mkdirs(); part.delete() }
+        // Parts lues une à une et décodées au fil de l'eau (base64 recollé sur 4 caractères) : jamais toute la chanson en mémoire.
+        var reste = ""
+        for (i in 0 until n) {
+            val data = node.child("p/$i").readWhenPresent(PHOTO_WAIT_MS)?.getValue(String::class.java) ?: return null
+            val tout = reste + data
+            val utile = tout.length - tout.length % 4
+            val octets = Base64.decode(tout.substring(0, utile), Base64.DEFAULT)
+            reste = tout.substring(utile)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { part.appendBytes(octets) }
+        }
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            if (reste.isNotEmpty() || part.length() == 0L || !part.renameTo(file)) { part.delete(); null } else file
         }
     }
 
@@ -1329,6 +1565,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun programSounds(quiz: Quiz): Set<String> =
         quiz.questions.flatMapTo(LinkedHashSet()) { listOfNotNull(it.audioId, it.refrainId) + it.audioIds }
 
+    /** Statues musicales : chansons entières du programme. */
+    private fun programSongs(quiz: Quiz): Set<String> = quiz.questions.flatMapTo(LinkedHashSet()) { q -> q.songs.mapNotNull { it.songId } }
+
     /** Photos du programme, avec le dossier de la partie où la régie les copie. */
     private fun programPhotos(quiz: Quiz): Map<String, String> {
         val wanted = LinkedHashMap<String, String>()
@@ -1375,7 +1614,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             rangePour = ouverte
             val perdus = mediasLock.withLock {
                 // Médias de la partie ouverte et téléchargements en cours : jamais effacés.
-                val sons = programSounds(g.quiz) + soundsLoading
+                // Chansons entières des statues comprises, et celles en cours de copie.
+                val sons = programSounds(g.quiz) + soundsLoading + programSongs(g.quiz).mapNotNull { songKeys[it] } +
+                    songsLoading.mapNotNull { songKeys[it] }
                 val images = programPhotos(g.quiz).keys + imagesLoading
                 val publies = soundFiles.toMap()
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -1406,7 +1647,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val r = mediasLock.withLock {
                 // Les téléchargements en cours se terminent normalement.
-                val sonsEnCours = soundsLoading.toSet()
+                val sonsEnCours = soundsLoading.toSet() + songsLoading.mapNotNull { songKeys[it] }
                 val imagesEnCours = imagesLoading.toSet()
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { medias.vider(sonsEnCours, imagesEnCours) } }
             }
@@ -1414,11 +1655,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 .onFailure { Log.e(TAG, "Cache des médias pas entièrement vidé", it) }
             // Les extraits connus n'ont plus de fichier : la partie ouverte recopie les siens et ses photos tout de suite.
             soundFiles.clear()
-            updatePlaying { it.copy(sounds = emptyMap()) }
+            songFiles.clear()
+            updatePlaying { it.copy(sounds = emptyMap(), songs = emptyMap()) }
             photosSavedFor = null
             game?.let { g ->
                 savePhotos(g)
                 programSounds(g.quiz).forEach(::prefetchSound)
+                programSongs(g.quiz).forEach(::prefetchSong)
             }
             _vidage.value = r.getOrNull()?.let { VidageCache.Fait(it) } ?: VidageCache.Echec
         }
@@ -1556,7 +1799,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * reprendre la fête d'une box en panne ; la régie (et les règles) ne confient jamais une fête à une box plus ancienne.
      * `prestation` : la prestation de la bibliothèque jouée ici (liste des prestations de la régie, règles des lancements).
      * `teamColors` : les seules couleurs que les tablettes proposent aux équipes (bracelets et bandeaux de la prestation).
+     * `look` : le design de cette TV ; les pupitres le suivent, même ouverts sans le QR (vieil onglet, cedric 26/10).
      */
+    fun publierDesign() = publishPublic()
+
     private fun publishPublic() {
         val s = _state.value as? UiState.Playing ?: return
         val title = s.title.ifBlank { game?.quiz?.title.orEmpty() }
@@ -1564,6 +1810,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             clean(mapOf(
                 "title" to title.take(120), "childName" to s.childName.take(40).ifBlank { null }, "changeBox" to true,
                 "prestation" to prestation?.take(40), "teamColors" to couleursPrevues.ifEmpty { null },
+                "look" to if (com.littlemissparty.quiz.tv.habillage.Look.gs) "gs" else "classique",
             ))
         )
     }
@@ -1769,6 +2016,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             CrashReporter.report(db, "sante", bilan.ligne())
             // Fluidité des 5 dernières minutes : où la box a accroché (cedric, 25/10 : la Mi Box comme référence).
             Fluidite.releve()?.let { CrashReporter.report(db, "fluidite", it) }
+            Reactivite.releve()?.let { CrashReporter.report(db, "fluidite", it) }
         }
     }
 
@@ -1969,6 +2217,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val team = snapshot.child("team").getValue(String::class.java) ?: return
+                snapshot.child("at").getValue(Long::class.java)?.let { Reactivite.noter("buzz", serverNow() - it) }
                 act { g -> if (Codec.buzzKey(g) == key && teams().any { it.uid == team }) g.buzz(team, serverNow()) else null }
             }
 
@@ -2035,8 +2284,45 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Duel des robots : les buzz des 2 tablettes du face-à-face en cours (games/<code>/duel/<clé>/<équipe> = { t, at }) :
+     * [t] = heure de l'appui estimée par la tablette, [at] = arrivée sur le serveur. Les règles n'acceptent qu'un buzz par
+     * équipe du duel, et une clé par face-à-face : un vieux buzz ne compte jamais. La box juge (trop tôt, plus rapide).
+     */
+    private fun watchDuel(key: String?) {
+        if (key == duelListener?.first?.key) return
+        duelListener?.let { (r, l) -> r.removeEventListener(l) }
+        duelListener = null
+        duelMesures.clear()
+        val ref = gameRef?.child("duel")?.child(key ?: return) ?: return
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val buzz = snapshot.children.mapNotNull { c ->
+                    val at = c.child("at").getValue(Long::class.java) ?: return@mapNotNull null
+                    Triple(c.key ?: return@mapNotNull null, c.child("t").getValue(Long::class.java) ?: at, at)
+                }.sortedBy { it.third }
+                snapshot.children.forEach { c ->
+                    c.key?.let { duelMesures[it] = c.child("r").getValue(Long::class.java) to c.child("o").getValue(Long::class.java) }
+                }
+                buzz.forEach { (team, t, at) ->
+                    Reactivite.noter("duel", serverNow() - at)
+                    act { g ->
+                        if (Codec.duelKey(g) != key || g.state.duel?.buzzes?.any { it.team == team } == true) null
+                        else g.duelBuzz(team, t, minOf(at, serverNow()))
+                    }
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Buzz du duel : ${error.message}")
+            }
+        }
+        duelListener = ref to listener
+        ref.addValueEventListener(listener)
+    }
+
+    /**
      * « Ça va exploser ! » : l'envoi de la tablette de l'équipe qui tient la bombe (games/<code>/potatoPass/<clé> =
-     * { to, at }). Les règles de la base n'acceptent que l'appareil de cette équipe, après la mèche qui colle, vers
+     * { to, at }). Les règles de la base n'acceptent que l'appareil de cette équipe, dès la réception (cedric, 27/10), vers
      * une équipe permise. Une clé par réception : un envoi ne peut servir qu'une fois.
      */
     private fun watchPotato(key: String?) {
@@ -2048,6 +2334,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val to = snapshot.child("to").getValue(String::class.java) ?: return
                 val at = snapshot.child("at").getValue(Long::class.java) ?: serverNow()
+                Reactivite.noter("bombe", serverNow() - at)
                 act { g ->
                     val holder = g.state.potato?.holder
                     if (Codec.potatoKey(g) != key || holder == null) null else g.passPotato(holder, to, serverNow(), sentAt = at)
@@ -2101,9 +2388,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         drawListener = null
         _dessin.value = Dessin(key)
         val ref = gameRef?.child("drawing")?.child(key ?: return) ?: return
+        // Délai tablette → box de chaque paquet en direct (heure de la tablette lue dans sa clé), pour les rapports ; pas
+        // ceux d'avant l'écoute (box relancée), relus d'un coup.
+        val depuis = serverNow()
         val listener = object : ChildEventListener {
             override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
                 val paquet = snapshot.value as? Map<*, *> ?: return
+                Dessin.heureDeCle(snapshot.key)?.takeIf { it >= depuis }?.let { Reactivite.noter("dessin", serverNow() - it) }
                 _dessin.update { d -> if (d.cle == key) d.avec(paquet) else d }
             }
 
@@ -2209,6 +2500,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         watchChest(null)
         watchPumps(null)
         watchPotato(null)
+        watchDuel(null)
         watchDrawing(null)
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
@@ -2272,6 +2564,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "intros" to quiz.intros,
             // Cette box sait jouer les mimes : la régie prévient avant d'en envoyer à une TV trop ancienne.
             "mimes" to true,
+            // Mimes en file (cedric, 26/10) : 1re image au lancement, « ⏭ Passer » (mime_skip), couleur suivante d'un geste.
+            "mimesEnFile" to true,
             "pictionary" to true,
             "numbers" to true,
             "express" to true,
@@ -2293,9 +2587,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "gonfleur" to true,
             // « Ça va exploser ! » : envois des tablettes dans potatoPass/, mèche et explosion par la box, envoi au hasard (potato_random).
             "patate" to true,
+            // « Ça va exploser ! » : « 🏁 Dernière bombe » / « ⏭ Jeu suivant » du téléphone (potato_stop), nombre de bombes réglé.
+            "patateStop" to true,
             // Statues musicales : les chansons choisies (audioIds) jouées l'une après l'autre.
             "statuesChansons" to true,
             "disparu" to true,
+            // Le Duel des robots : buzz des tablettes dans duel/, PAN et jugement par la box, duel_start / duel_next / duel_stop.
+            "duel" to true,
             // Mauvaise prestation : une autre prestation remplace celle-ci tant qu'aucun point n'a été donné (retour au salon).
             "programReset" to true,
             "questions" to quiz.questions.map {
@@ -2309,6 +2607,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },
                     // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.
                     "points" to it.points?.takeIf { _ -> it.isBlind }, "reveal" to it.revealSec.takeIf { _ -> it.isBlind },
+                    // « Ça va exploser ! » : nombre de bombes réglé dans la Régie PC.
+                    "bombs" to it.bombs.takeIf { _ -> it.isPatate },
+                    // Mimes en file : la couleur de l'équipe seule de la manche, relue après un redémarrage.
+                    "couleur" to it.couleur,
+                    // Le Duel des robots : joueurs par équipe et durée du face-à-face, relus après un redémarrage.
+                    "joueurs" to it.joueurs.takeIf { _ -> it.isDuel }, "faceMin" to it.faceMin.takeIf { _ -> it.isDuel },
+                    "faceMax" to it.faceMax.takeIf { _ -> it.isDuel }, "longs" to it.longs.takeIf { _ -> it.isDuel },
                 ))
             },
         )
@@ -2355,6 +2660,8 @@ private suspend fun DatabaseReference.readWhenPresent(timeoutMs: Long = 60_000L)
 }
 
 private const val PHOTO_WAIT_MS = 30_000L
+/** Statues : la régie copie les chansons entières (plusieurs Mo chacune) pendant la fête ; la box les attend longtemps. */
+private const val SONG_WAIT_MS = 20 * 60_000L
 /** Ménage du cache des médias : laissé à la partie qui s'ouvre le temps de démarrer et de lancer ses copies. */
 private const val RANGEMENT_DELAI_MS = 15_000L
 

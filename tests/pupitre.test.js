@@ -462,16 +462,22 @@ describe("pupitre", () => {
     await roses.locator(".pc-equipe", { hasText: "Les Bleus" }).click();
     await waitFor(async () => (await read("potatoPass/pt-a"))?.to === b, "envoi aux Bleus reçu par la box");
     await roses.locator(".pc-texte", { hasText: "Envoyée à l'équipe Les Bleus !" }).waitFor();
-    // Chez les Bleus : la mèche colle 2 s, puis seuls les Verts sont permis (pas de retour aux Roses).
+    // Chez les Bleus : plus de mèche qui colle (cedric, 27/10), seuls les Verts sont permis tout de suite (pas de retour
+    // aux Roses).
     now = Date.now();
-    await hostState(question({ ...base, potato: potato({ holder: b, from: r, since: now, readyAt: now + 2000, targets: [v], hit: [r, b], passes: 1, key: "pt-b" }) }));
-    await bleus.locator(".pc-texte", { hasText: "La mèche colle" }).waitFor();
-    assert.equal(await bleus.locator(".pc-equipe:not([disabled])").count(), 0, "rien avant la fin de la mèche qui colle");
+    await hostState(question({ ...base, potato: potato({ holder: b, from: r, since: now, readyAt: now, holdUntil: now + 2000, targets: [v], hit: [r, b], passes: 1, key: "pt-b" }) }));
+    await bleus.locator(".pc-texte", { hasText: "Vite, envoyez-la à une autre équipe !" }).waitFor();
+    assert.equal(await bleus.locator(".pc-colle:not([hidden])").count(), 0, "plus de barre de mèche qui colle");
+    assert.equal(await bleus.locator(".pc-equipe", { hasText: "Les Verts" }).isEnabled(), true, "Verts permis dès la réception");
     await bleus.locator(".pc-equipe", { hasText: "Les Roses" }).locator("small", { hasText: "vient de vous l'envoyer" }).waitFor();
-    await waitFor(() => bleus.locator(".pc-equipe", { hasText: "Les Verts" }).isEnabled(), "Verts permis après la mèche qui colle", 6000);
     assert.equal(await bleus.locator(".pc-equipe", { hasText: "Les Roses" }).isDisabled(), true, "pas de retour à l'envoyeur");
-    await bleus.locator(".pc-equipe", { hasText: "Les Verts" }).click();
-    await waitFor(async () => (await read("potatoPass/pt-b"))?.to === v, "envoi aux Verts reçu par la box");
+    // Le doigt touche l'écran (sans se relever) : la bombe part déjà.
+    await bleus.locator(".pc-equipe", { hasText: "Les Verts" }).dispatchEvent("pointerdown", { button: 0, pointerType: "touch", isPrimary: true });
+    await waitFor(async () => (await read("potatoPass/pt-b"))?.to === v, "envoi aux Verts reçu par la box, dès le doigt posé");
+    await bleus.locator(".pc-texte", { hasText: "Envoyée à l'équipe Les Verts !" }).waitFor();
+    // Le doigt se relève : le clic qui suit n'envoie rien de plus.
+    await bleus.locator(".pc-equipe", { hasText: "Les Verts" }).dispatchEvent("click");
+    assert.equal((await read("potatoPass/pt-b"))?.to, v);
     // La première bombe explose chez les Verts : ils perdent 100, les autres gagnent 100, et une autre bombe arrive.
     now = Date.now();
     const boom1 = { holder: v, at: now, lost: 100, gain: 100 };
@@ -518,7 +524,7 @@ describe("pupitre", () => {
     for (const p of [roses, bleus, verts]) await p.context().close();
   });
 
-  test("« Ça va exploser ! » : 3 secondes pour l'envoyer, un gros 3, 2, 1 sur la tablette, sinon BOUM « Gardée plus de 3 secondes » (cedric, 21/10)", async () => {
+  test("« Ça va exploser ! » : 2 secondes pour l'envoyer dès la réception, un gros 2, 1 sur la tablette, sinon BOUM « Gardée plus de 2 secondes » (cedric, 21/10 et 27/10)", async () => {
     const roses = await openPupitre();
     await joinTeam(roses, "Les Roses");
     const bleus = await openPupitre();
@@ -538,18 +544,16 @@ describe("pupitre", () => {
         if (t && window.chiffres.at(-1) !== t) window.chiffres.push(t);
       }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
     });
-    // La mèche colle encore : pas de décompte.
+    // Elle arrive : 2, 1 en grand sur la bombe tout de suite, chez les Roses seulement (un peu plus de 2 s : la machine de
+    // test peut être lente).
     let now = Date.now();
-    await hostState(question({ ...base, potato: potato({ holder: r, since: now, readyAt: now + 2500, holdUntil: now + 5500, key: "pt-a" }) }));
-    await roses.locator(".pc-texte", { hasText: "La mèche colle" }).waitFor();
-    assert.equal(await chiffre(roses).count(), 0, "pas de décompte pendant la mèche qui colle");
-    // Elle peut partir : 3, 2, 1 en grand sur la bombe, chez les Roses seulement.
-    await chiffre(roses).waitFor({ timeout: 5000 });
+    await hostState(question({ ...base, potato: potato({ holder: r, since: now, readyAt: now, holdUntil: now + 2500, key: "pt-a" }) }));
+    await chiffre(roses).waitFor({ timeout: 2000 });
     if (process.env.CAPTURES) await roses.screenshot({ path: `${process.env.CAPTURES}/patate-decompte-portrait.png` });
     assert.equal(await chiffre(bleus).count(), 0, "seule l'équipe qui tient la bombe voit le décompte");
     await roses.setViewportSize({ width: 1280, height: 800 });
     await chiffre(roses).filter({ hasText: /^1$/ }).waitFor({ timeout: 6000 });
-    assert.deepEqual(await roses.evaluate(() => window.chiffres), ["3", "2", "1"], "3, 2, 1 dans l'ordre");
+    assert.deepEqual(await roses.evaluate(() => window.chiffres), ["2", "1"], "2, 1 dans l'ordre");
     if (process.env.CAPTURES) await roses.screenshot({ path: `${process.env.CAPTURES}/patate-decompte-paysage.png` });
     // Le chiffre reste dans la bombe, entier, et ne cache pas les équipes.
     const cadre = await roses.evaluate(() => {
@@ -558,13 +562,13 @@ describe("pupitre", () => {
       return { dedans: c.left >= bombe.left - 1 && c.right <= bombe.right + 1 && c.top >= bombe.top - 1 && c.bottom <= bombe.bottom + 1, chevauche: !(c.right <= eq.left || c.left >= eq.right || c.bottom <= eq.top || c.top >= eq.bottom) };
     });
     assert.deepEqual(cadre, { dedans: true, chevauche: false });
-    // En pause : plus de décompte (la TV redonne 3 secondes à la reprise).
-    await hostState(question({ ...base, paused: true, potato: potato({ holder: r, since: now, readyAt: now + 2500, holdUntil: null, key: "pt-a" }) }));
+    // En pause : plus de décompte (la TV redonne 2 secondes à la reprise).
+    await hostState(question({ ...base, paused: true, potato: potato({ holder: r, since: now, readyAt: now, holdUntil: null, key: "pt-a" }) }));
     await waitFor(async () => (await chiffre(roses).count()) === 0, "plus de décompte en pause");
     // Gardée trop longtemps : BOUM chez les Roses, avant la fin de la mèche.
     now = Date.now();
     await hostState(question({ ...base, potato: potato({ holder: r, since: now - 6000, readyAt: now - 4000, key: null, exploded: true, booms: [{ holder: r, at: now, lost: 0, gain: 100, held: true }] }) }));
-    await roses.locator(".pc-titre", { hasText: "BOUM ! Gardée plus de 3 secondes" }).waitFor();
+    await roses.locator(".pc-titre", { hasText: "BOUM ! Gardée plus de 2 secondes" }).waitFor();
     await bleus.locator(".pc-titre", { hasText: "BOUM ! L'équipe Les Roses l'a gardée trop longtemps" }).waitFor();
     await bleus.locator(".pc-texte", { hasText: "+100 points pour vous !" }).waitFor();
     assert.equal(await chiffre(roses).count(), 0);
@@ -588,6 +592,97 @@ describe("pupitre", () => {
     await page.locator("#r-title", { hasText: "Pile le bon nombre ! +150 points" }).waitFor();
     await page.locator("#r-detail", { hasText: "206 (vous : 206)" }).waitFor();
     await page.context().close();
+  });
+
+  test("Statues musicales (cedric, 27/10) : DANSEZ !, STATUE !, « Regardez la TV ! » pendant l'annonce, puis les points de la chanson", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const uid = Object.keys(await read("teams"))[0];
+    const statues = (s) => question({ qid: "s1", kind: "statues", choices: null, text: "Statues musicales", statues: { songs: 3, annonceMs: 8000, song: 0, dancing: true, playedMs: 0, ended: false, ...s } });
+    await hostState(statues({ since: Date.now() }));
+    await page.locator("#play-status", { hasText: "DANSEZ !" }).waitFor();
+    assert.equal(await page.locator("#buzz").isVisible(), false, "rien à toucher");
+    await hostState(statues({ dancing: false, playedMs: 12000 }));
+    await page.locator("#play-status", { hasText: "STATUE !" }).waitFor();
+    await hostState(statues({ dancing: false, ended: true }));
+    await page.locator("#play-status", { hasText: "Fin de la chanson !" }).waitFor();
+    // Gagnantes désignées : la TV fait le suspense (la tablette ne dit rien), puis la tablette montre ses points.
+    await hostState(statues({ dancing: false, result: { song: 0, winners: [uid], gains: { [uid]: 300 }, at: Date.now() - 6500 } }));
+    await page.locator("#play-status", { hasText: "Regardez la TV" }).waitFor();
+    await page.locator("#play-status", { hasText: "Les meilleures statues ! +300 points" }).waitFor({ timeout: 5000 });
+    await hostState(statues({ song: 1, dancing: false, result: { song: 1, gains: {}, at: Date.now() - 9000 } }));
+    await page.locator("#play-status", { hasText: "Personne cette fois" }).waitFor();
+    await page.context().close();
+  });
+
+  test("Le Duel des robots (cedric, 27/10) : seules les 2 équipes du duel buzzent, une fois, avec l'heure de l'appui ; bravo, trop tôt, trop lent", async () => {
+    const roses = await openPupitre();
+    await joinTeam(roses, "Les Roses");
+    const bleus = await openPupitre();
+    await joinTeam(bleus, "Les Bleus");
+    const verts = await openPupitre();
+    await joinTeam(verts, "Les Verts");
+    const teams = await read("teams");
+    const id = (name) => Object.keys(teams).find((t) => teams[t].name === name);
+    const [r, b] = [id("Les Roses"), id("Les Bleus")];
+    const duel = (d) => question({ qid: "d1", kind: "duel", text: "Le Duel des robots", choices: null, deadline: null, durationMs: null,
+      duel: { n: 3, total: 6, teams: [r, b], players: [2, 1], step: "ready", key: null, ...d } });
+    await hostState(duel({}));
+    await roses.locator("#play-status", { hasText: "Duel n° 3 : à toi, joueur n° 2 !" }).waitFor();
+    await bleus.locator("#play-status", { hasText: "à toi, joueur n° 1 !" }).waitFor();
+    await verts.locator("#play-status", { hasText: "Duel n° 3 : Les Roses contre Les Bleus. Regardez la TV !" }).waitFor();
+    assert.equal(await verts.locator("#buzz").isVisible(), false, "les autres équipes regardent");
+    assert.equal(await roses.locator("#buzz").isDisabled(), true, "pas avant le lancement du duel");
+    // Les mots en lettre western néon (planche validée) : titre au-dessus du gros bouton « PAN ! ».
+    await roses.locator("#duel-titre", { hasText: "Main sur le buzzer !" }).waitFor();
+    assert.equal(await roses.locator("#buzz").textContent(), "PAN\u00a0!");
+    await verts.locator("#duel-titre", { hasText: "Duel en cours" }).waitFor();
+    // Pendant que les joueurs se placent, chaque tablette du duel cale son horloge sur celle du serveur.
+    await waitFor(async () => typeof (await read(`horloge/${r}`))?.at === "number", "horloge des Roses mesurée");
+    await waitFor(async () => typeof (await read(`horloge/${b}`))?.at === "number", "horloge des Bleus mesurée");
+    assert.equal(await read(`horloge/${id("Les Verts")}`), null, "pas les équipes qui regardent");
+    await roses.waitForTimeout(1_500);
+    // Face-à-face : rien ne dit quand tombe le PAN ; un appui envoie l'heure de l'appui (heure du serveur).
+    await hostState(duel({ step: "standoff", key: "d1-3-100" }));
+    await roses.locator("#play-status", { hasText: "Attends le PAN !" }).waitFor();
+    await verts.locator("#play-status", { hasText: "silence, ça va tirer" }).waitFor();
+    const avant = Date.now();
+    await roses.click("#buzz");
+    await waitFor(async () => typeof (await read(`duel/d1-3-100/${r}`))?.t === "number", "buzz des Roses enregistré");
+    const envoi = await read(`duel/d1-3-100/${r}`);
+    assert.ok(Math.abs(envoi.t - avant) < 5_000, "heure de l'appui proche de maintenant");
+    assert.equal(typeof envoi.at, "number");
+    assert.ok(envoi.t <= envoi.at + 50, "l'appui est avant l'arrivée");
+    assert.equal(typeof envoi.r, "number", "aller-retour de l'horloge fine, pour les rapports");
+    assert.equal(typeof envoi.o, "number", "décalage de l'horloge fine");
+    await roses.locator("#play-status", { hasText: "Buzz envoyé !" }).waitFor();
+    assert.equal(await roses.locator("#buzz").isDisabled(), true, "un seul buzz par face-à-face");
+    // Gros buzzer USB des Bleus : une touche.
+    await bleus.keyboard.press("Enter");
+    await waitFor(async () => typeof (await read(`duel/d1-3-100/${b}`))?.t === "number", "buzz des Bleus au buzzer USB");
+    await hostState(duel({ step: "result", result: { winner: r, loser: b, early: null, ms: 312, points: 100 } }));
+    await roses.locator("#play-status", { hasText: "BRAVO ! Le plus rapide en 0,31 s ! +100 points" }).waitFor();
+    await bleus.locator("#play-status", { hasText: "Trop lent" }).waitFor();
+    await roses.locator("#duel-titre", { hasText: "Le plus rapide !" }).waitFor();
+    assert.equal(await roses.locator("#buzz").textContent(), "BRAVO");
+    await bleus.locator("#duel-titre", { hasText: "Trop lent" }).waitFor();
+    await verts.locator("#play-status", { hasText: "Les Roses remporte le duel !" }).waitFor();
+    await hostState(duel({ step: "result", result: { winner: r, loser: b, early: b, ms: null, points: 100 } }));
+    await bleus.locator("#play-status", { hasText: "OUPS, trop tôt !" }).waitFor();
+    await bleus.locator("#duel-titre", { hasText: "Trop tôt !" }).waitFor();
+    assert.equal(await bleus.locator("#buzz").textContent(), "OUPS");
+    await verts.locator("#play-status", { hasText: "Les Bleus a buzzé trop tôt… Les Roses gagne le duel !" }).waitFor();
+    await hostState(duel({ step: "result", result: { winner: null, loser: null, early: null, ms: null, points: 0 } }));
+    await roses.locator("#play-status", { hasText: "Personne n'a tiré !" }).waitFor();
+    // Nouveau face-à-face : nouvelle clé, on peut rebuzzer.
+    await hostState(duel({ step: "standoff", key: "d1-4-200", n: 4 }));
+    await waitFor(async () => !(await roses.locator("#buzz").isDisabled()), "bouton de nouveau actif");
+    assert.equal(await roses.locator("#buzz").textContent(), "PAN\u00a0!");
+    // Jeu suivant (image floue) : le bouton redevient « BUZZ », plus de titre western.
+    await hostState(question({ qid: "f1", kind: "flou", choices: null, text: "Qu'est-ce qui se cache sous le flou ?", round: "f1-1000-1", buzzOpen: true }));
+    await waitFor(async () => (await roses.locator("#buzz").textContent()) === "BUZZ", "bouton « BUZZ » de retour");
+    assert.equal(await roses.locator("#duel-titre").isVisible(), false);
+    for (const p of [roses, bleus, verts]) await p.context().close();
   });
 
   test("blind test : après une erreur, l'équipe attend 3 s après la reprise de la musique puis peut rebuzzer", async () => {
@@ -623,6 +718,42 @@ describe("pupitre", () => {
     assert.equal(await page.locator("#buzz").isDisabled(), false);
     await page.click("#buzz");
     await waitFor(async () => (await read("buzz/f9-1000-1"))?.team === uid, "rebuzz accepté par la base");
+    await page.context().close();
+  });
+
+  test("Fin de la fête : ni place ni points sur la tablette avant que la TV annonce le gagnant ; rien du classement au dernier jeu", async () => {
+    // cedric, 26/10 : la place s'affichait sur les tablettes pendant le suspense des jauges.
+    const page = await openPupitre("&look=classique");
+    const uid = await joinTeam(page, "Sacha");
+    // Dernier jeu de la fête (index = total - 1) : son résultat ne dit rien du classement.
+    await hostState(question({ phase: "reveal", index: 2, total: 3, scores: { [uid]: 250 }, awards: { [uid]: { points: 100, correct: true } } }));
+    await page.locator("#r-total", { hasText: "Le classement, c'est sur la télé" }).waitFor();
+    assert.equal(await page.locator("#r-total", { hasText: "place" }).count(), 0);
+    // Classique : gagnant annoncé 7 s après la fin, + 1,5 s de marge ; la fin date d'il y a 6,5 s → 2 s de suspense.
+    await hostState(question({ phase: "ended", index: 2, total: 3, scores: { [uid]: 250 }, endedAt: Date.now() - 6_500 }));
+    await page.locator("#screen-ended.active.suspense #e-rank", { hasText: "Le grand gagnant est" }).waitFor();
+    assert.match(await page.locator("#e-total").textContent(), /^Regardez la télé\s!$/);
+    assert.doesNotMatch(await page.locator("#screen-ended").textContent(), /250|place|gagné/);
+    await page.locator("#e-rank", { hasText: "Vous avez gagné" }).waitFor({ timeout: 6_000 });
+    assert.equal(await page.locator("#e-total").textContent(), "250 points");
+    assert.equal(await page.locator("#screen-ended.suspense").count(), 0);
+    // Tablette rouverte bien après la fin : le résultat tout de suite.
+    await page.reload();
+    await page.locator("#e-rank", { hasText: "Vous avez gagné" }).waitFor();
+    await page.context().close();
+  });
+
+  test("Le design suit celui de la TV de la partie, même ouvert sans le QR (vieil onglet resté en Classique)", async () => {
+    // Téléphone de Sacha (cedric, 26/10) : un vieil onglet sans « &look=gs » gardait l'ancien design violet.
+    await set(ref(hostDb(), `games/${CODE}/public`), { title: "Fête", look: "gs" });
+    const page = await openPupitre("&look=classique");
+    await page.waitForFunction(() => document.body.classList.contains("look-gs"));
+    await joinTeam(page, "Sacha");
+    assert.equal(await page.evaluate(() => localStorage.getItem("lmp-look")), "gs", "retenu pour le prochain lien sans réglage");
+    // La TV repasse en Classique (menu Retour) : le pupitre suit en direct.
+    await set(ref(hostDb(), `games/${CODE}/public/look`), "classique");
+    await page.waitForFunction(() => !document.body.classList.contains("look-gs"));
+    assert.equal(await page.locator(".logo .gs-titre").count(), 0, "logo Classique remis");
     await page.context().close();
   });
 

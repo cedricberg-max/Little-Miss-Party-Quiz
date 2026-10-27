@@ -37,6 +37,39 @@ class DessinTest {
     }
 
     @Test
+    fun `l'heure d'envoi d'un paquet se lit dans sa clé de push`() {
+        // Clé au format du SDK Firebase (8 chiffres de l'heure, puis 12 au hasard) : 28/10/2026 à 06:40:00.123 UTC.
+        val heure = 1_793_169_600_123L
+        val chiffres = "-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz"
+        var t = heure
+        val debut = CharArray(8)
+        for (i in 7 downTo 0) { debut[i] = chiffres[(t % 64).toInt()]; t /= 64 }
+        assertEquals(heure, Dessin.heureDeCle(String(debut) + "abcdEFGHijkl"))
+        assertEquals(0L, Dessin.heureDeCle("--------xxxxxxxxxxxx"))
+        assertNull(Dessin.heureDeCle("court"))
+        assertNull(Dessin.heureDeCle("pas*une*cle-de-push"))
+        assertNull(Dessin.heureDeCle(null))
+    }
+
+    @Test
+    fun `au fil du dessin, seuls les nouveaux morceaux sont convertis pour le tableau`() {
+        val auFil = TableauAuFil()
+        val morceau = mapOf("c" to "#1B1035", "w" to 1L, "p" to "1,1 2,2")
+        val d1 = Dessin("k").avec(morceau).avec(morceau)
+        val t1 = auFil.pour(d1)
+        val d2 = d1.avec(morceau)
+        val t2 = auFil.pour(d2)
+        assertEquals(3, t2.size)
+        assertSame("le premier morceau garde son objet", t1[0], t2[0])
+        assertSame(t1[1], t2[1])
+        // « Tout effacer », puis un autre tour : tout repart de zéro.
+        assertEquals(0, auFil.pour(d2.avec(mapOf("clear" to true))).size)
+        val autre = auFil.pour(Dessin("k2").avec(morceau))
+        assertEquals(1, autre.size)
+        assertEquals(d2.pourTableau().map { it.points.toList() }, t2.map { it.points.toList() })
+    }
+
+    @Test
     fun `un paquet illisible est ignoré sans rien casser`() {
         val d = Dessin("k").avec(mapOf("c" to "#000000", "w" to 1L, "p" to "1,1"))
         assertSame(d, d.avec(mapOf("c" to "rouge", "w" to 1L, "p" to "1,1")))

@@ -23,12 +23,20 @@ class IntroJeuTest {
             QuestionKind.ZOOM to "zoom", QuestionKind.FLOU to "floue", QuestionKind.CHANTE to "chante",
             QuestionKind.QUISUIS to "quisuisje", QuestionKind.DISPARU to "disparu", QuestionKind.STATUES to "statues",
             QuestionKind.COFFRES to "coffres", QuestionKind.GONFLEUR to "gonfleur", QuestionKind.PATATE to "patate",
+            QuestionKind.DUEL to "duel",
         )
         for ((kind, nom) in attendu) assertEquals("$kind", nom, nomIntroJeu(familleType(kind)))
         assertEquals("illustre", nomIntroJeu(familleJeu(question(images = listOf("a", "b", null, "d")))))
         assertEquals("musical", nomIntroJeu(familleJeu(question(audio = "s1"))))
         // Sans question (écran pas encore chargé) : l'intro du quiz.
         assertEquals("quiz", nomIntroJeu(familleJeu(null)))
+    }
+
+    @Test
+    fun `l'intro du duel joue une fois puis tient son titre, les autres tournent en boucle`() {
+        assertEquals(REPRISE_INTRO_DUEL_MS, repriseIntroJeu("duel"))
+        assertNull(repriseIntroJeu("quiz"))
+        assertNull(repriseIntroJeu("mimes"))
     }
 
     @Test

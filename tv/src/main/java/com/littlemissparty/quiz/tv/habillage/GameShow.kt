@@ -75,7 +75,7 @@ object GS {
 
 /**
  * Polices du Game Show (SIL OFL 1.1, assets/licences) : Rajdhani pour tous les textes (étroite, très lisible de loin),
- * Orbitron pour les chiffres et étiquettes, Bungee pour les grands titres.
+ * Orbitron pour les chiffres et étiquettes, Bungee pour les grands titres, Rye pour le western du Duel des robots.
  */
 val PoliceGsTexte = FontFamily(
     Font(R.font.lmp_gs_rajdhani_semibold, FontWeight.Medium),
@@ -90,6 +90,7 @@ val PoliceGsChiffres = FontFamily(
     Font(R.font.lmp_gs_orbitron_black, FontWeight.Black),
 )
 val PoliceGsTitre = FontFamily(Font(R.font.lmp_gs_bungee, FontWeight.Normal))
+val PoliceGsWestern = FontFamily(Font(R.font.lmp_gs_rye, FontWeight.Normal))
 
 /** Classique ou Game Show : la valeur du design affiché. */
 fun <T> selonLook(classique: T, gameShow: T): T = if (Look.gs) gameShow else classique

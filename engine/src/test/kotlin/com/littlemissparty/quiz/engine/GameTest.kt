@@ -37,7 +37,8 @@ class GameTest {
         while (g.next(t) != null) { phases += g.state.phase; t += 1000 }
         assertEquals(Phase.ENDED, g.state.phase)
         assertEquals(
-            listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL, Phase.SCORES).let { it + it + it } + Phase.ENDED,
+            // Après la toute dernière révélation, plus de classement : les résultats finaux (cedric, 27/10).
+            listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL, Phase.SCORES).let { it + it } + listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL, Phase.ENDED),
             phases,
         )
         assertNull(g.next(t), "Après la fin, suivant ne fait plus rien")

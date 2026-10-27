@@ -60,6 +60,7 @@ internal fun familleType(kind: QuestionKind?, musique: Boolean = false, images: 
     QuestionKind.COFFRES -> "bombe"
     QuestionKind.GONFLEUR -> "gonfleur"
     QuestionKind.PATATE -> "patate"
+    QuestionKind.DUEL -> "duel"
     else -> when {
         musique -> "musical"
         images -> "illustre"
@@ -88,6 +89,7 @@ internal fun nomIntroJeu(famille: String): String? = when (famille) {
     "patate" -> "patate"
     "bombe" -> "coffres"
     "gonfleur" -> "gonfleur"
+    "duel" -> "duel"
     else -> null
 }
 
@@ -107,8 +109,16 @@ private fun ressourceIntroJeu(nom: String): Int = when (nom) {
     "mimes" -> R.raw.gs_intro_mimes
     "patate" -> R.raw.gs_intro_patate
     "coffres" -> R.raw.gs_intro_coffres
+    "duel" -> R.raw.gs_intro_duel
     else -> R.raw.gs_intro_gonfleur
 }
+
+/**
+ * Intro jouée une seule fois puis tenue sur sa fin (ms où elle reprend en boucle), ou null : en boucle entière.
+ * Duel des robots : 21,7 s avec le titre à la fin, les 2 dernières secondes figées tournent sans fin.
+ */
+internal fun repriseIntroJeu(nom: String): Int? = if (nom == "duel") REPRISE_INTRO_DUEL_MS else null
+internal const val REPRISE_INTRO_DUEL_MS = 19_800
 
 /** Le temps de laisser la grande intro du lancement prendre l'écran, si c'est le premier jeu de la fête. */
 internal const val DELAI_INTRO_JEU_MS = 300L
@@ -162,7 +172,7 @@ internal fun IntroJeuGameShow(titre: String, famille: String, nom: String, video
             AndroidView(
                 factory = {
                     LecteurFond(
-                        it, ressourceIntroJeu(nom), surPret = { prete = true },
+                        it, ressourceIntroJeu(nom), surPret = { prete = true }, repriseMs = repriseIntroJeu(nom),
                         surEchec = {
                             Sons.incident("Intro du jeu « $nom » : la vidéo a lâché (${GelFond.fondsOuverts} vidéos ouvertes), essai ${essai + 1}")
                             echec = true

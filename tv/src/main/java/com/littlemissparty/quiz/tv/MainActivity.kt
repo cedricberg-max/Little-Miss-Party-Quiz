@@ -78,12 +78,15 @@ class MainActivity : ComponentActivity() {
                     mimeStart = viewModel::mimeStart,
                     mimeFound = viewModel::mimeFound,
                     mimePass = viewModel::mimePass,
+                    mimeSkip = viewModel::mimeSkip,
                     mimeStop = viewModel::mimeStop,
                     judgeBuzz = { ok -> viewModel.judgeBuzz(ok) },
                     blindReveal = viewModel::blindReveal,
                     blindSkip = viewModel::blindSkip,
                     chestRandom = viewModel::chestRandom,
                     potatoRandom = viewModel::potatoRandom,
+                    statuesSongEnded = viewModel::statuesSongEnded,
+                    duelPanShown = viewModel::duelPanShown,
                     givePoints = viewModel::givePoints,
                     requestAgain = viewModel::requestAgain,
                     viderCache = viewModel::viderCacheMedias,
@@ -91,6 +94,8 @@ class MainActivity : ComponentActivity() {
                         val d = Look.design.suivant
                         Look.design = d
                         reglages.edit().putString(CLE_DESIGN, d.cle).apply()
+                        // Les pupitres de la partie en cours suivent le nouveau design.
+                        viewModel.publierDesign()
                         // Les sons suivent le design (sons sci-fi du Game Show).
                         com.littlemissparty.quiz.tv.habillage.Sons.recharger(this@MainActivity)
                     },

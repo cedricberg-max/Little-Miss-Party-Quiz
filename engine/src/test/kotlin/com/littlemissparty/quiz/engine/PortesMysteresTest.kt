@@ -61,9 +61,8 @@ class PortesMysteresTest {
         g.next(t0 + 13_000)
         assertEquals(4, g.state.doorsOpened)
         assertNull(g.openDoor(t0 + 13_500), "pas de cinquième porte")
+        // Dernier jeu de la prestation : plus de classement, les résultats finaux directement (cedric, 27/10).
         g.next(t0 + 14_000)
-        assertEquals(Phase.SCORES, g.state.phase, "classement final")
-        g.next(t0 + 15_000)
         assertEquals(Phase.ENDED, g.state.phase, "puis la grande finale")
     }
 

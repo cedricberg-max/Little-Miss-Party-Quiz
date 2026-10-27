@@ -12,7 +12,7 @@ import { ref, get, set, update, push, onValue, serverTimestamp } from "firebase/
 import { chromium } from "playwright";
 import { loadRules, seedAdmin, allowBox, ADMIN_PASSWORD } from "./rules-loader.js";
 import { faireZip } from "./zip-outil.js";
-import { lockedUntil, isoDay, heureCourte, jourHeure } from "../web/public/show.js";
+import { lockedUntil, isoDay, heureCourte, jourHeure, MIME_RESERVE } from "../web/public/show.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
@@ -105,6 +105,7 @@ const hostDb = () => env.authenticatedContext(HOST).database();
 const read = async (path) => (await get(ref(hostDb(), `games/${CODE}/${path}`))).val();
 const gameRef = (path = "") => ref(hostDb(), `games/${CODE}${path ? `/${path}` : ""}`);
 
+const TEAM_COLORS_TEST = ["#2B86C5", "#9B5DE5", "#F94144", "#2EE8E0", "#FF6B1A", "#39FF14"];
 const QUESTIONS = [
   { text: "Couleur du ciel ?", choices: ["Vert", "Bleu", "Rouge", "Jaune"], correct: 1 },
   { text: "Le soleil est une étoile", choices: ["Vrai", "Faux"], correct: 0 },
@@ -159,7 +160,7 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
       if (handled.has(id)) continue;
       handled.add(id);
       if (cmd.type === "admit" || cmd.type === "replace") { await admitDevice(id, cmd); continue; }
-      const advance = ["next", "close", "end", "pause", "resume", "mime_start", "mime_found", "mime_pass", "mime_stop", "goto", "buzz_ok", "buzz_ko", "picto_show", "picto_draw"].includes(cmd.type);
+      const advance = ["next", "close", "end", "pause", "resume", "mime_start", "mime_found", "mime_pass", "mime_skip", "mime_stop", "goto", "buzz_ok", "buzz_ko", "picto_show", "picto_draw"].includes(cmd.type);
       let status = { status: "applied" };
       if (advance && cmd.expectSeq !== state.seq) status = { status: "stale", reason: "stale" };
       else {
@@ -266,6 +267,11 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
         if (!m.team || deck.length < 2) return null;
         deck = [...deck.slice(1), deck[0]];
         return { ...st, seq, mime: { ...m, card: deck[0], passed: m.passed + 1 } };
+      case "mime_skip":
+        // Mimes en file (MimeSkipped) : l'image repart sous le paquet, sans point, et les joueurs tournent.
+        if (!m.team || m.relais) return null;
+        if (deck.length > 1) deck = [...deck.slice(1), deck[0]];
+        return { ...st, seq, mime: { ...m, card: null, relais: Date.now(), passed: m.passed + 1 } };
       case "mime_fix": {
         if ((counts[cmd.team] ?? 0) + cmd.delta < 0) return null;
         const scores = add(cmd.team, cmd.delta);
@@ -360,7 +366,7 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
       if (started) state = { phase: "lobby", seq: state.seq + 1, total: show.quiz.questions.length, scores: {}, round: 1, buzzOpen: true };
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
-        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, programReset: true, questions: show.quiz.questions },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, programReset: true, questions: show.quiz.questions },
         public: { title: show.title, ...(show.childName ? { childName: show.childName } : {}), ...(show.prestation ? { prestation: show.prestation } : {}) },
         ...(started ? { state } : {}),
       });
@@ -399,7 +405,8 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
       deck = cards;
       allCards = cards;
       state = {
-        ...state, phase: "question", seq: state.seq + 1, index: 2, qid: "m1", kind: "mime", text: "Animaux", durationMs: 60000,
+        // Au milieu de la fête (un jeu suit) : la fin du tour mène au classement, pas aux résultats finaux.
+        ...state, phase: "question", seq: state.seq + 1, index: 2, total: 4, qid: "m1", kind: "mime", text: "Animaux", durationMs: 60000,
         choices: null, deadline: null, scores, buzzOpen: false,
         mime: { team: null, card: null, found: 0, passed: 0, left: cards.length, turns: [], counts: {}, points: 50 },
       };
@@ -441,7 +448,7 @@ beforeEach(async () => {
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
-    conducteur: { id: "essai", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
+    conducteur: { id: "essai", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
   });
 });
 afterEach(() => { box?.stop(); box = null; });
@@ -846,6 +853,64 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("mimes en file (cedric, 26/10) : le bouton principal lance l'équipe de la couleur, « ⏭ Passer » fait tourner, « 👁 Image suivante » à la main", async () => {
+    box = startBox();
+    await addTeam("jaune", "Les Soleils", "#FFE600");
+    await addTeam("vert", "Les Pousses", "#39FF14");
+    const cards = [{ word: "Pompier", image: "🧑‍🚒" }, { word: "Singe", image: "🐒" }, { word: "Pirate", image: "🏴‍☠️" }];
+    const plan = [
+      { id: "r1m1", text: "Équipe Jaune", kind: "mime", duration: 90, round: "Mimes", couleur: "#FFE600", cards },
+      { id: "r1m2", text: "Équipe Vert", kind: "mime", duration: 90, round: "Mimes", couleur: "#39FF14", cards },
+    ];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, mimesEnFile: true, questions: plan });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await box.mimes(cards);
+    await box.set({ index: 0, qid: "r1m1", text: "Équipe Jaune", total: 2 });
+    await page.locator("#mime-info", { hasText: "Tous en file : le mimeur face à l'écran, les autres dos à l'écran" }).waitFor();
+    // Bouton principal : le tour de l'équipe de la couleur part tout de suite, sans choisir d'équipe.
+    await page.click("#c-next");
+    await page.locator("#mime-now .word", { hasText: "Pompier" }).waitFor();
+    await page.locator("#mime-skip:not([hidden])").waitFor();
+    assert.equal(await page.locator("#mime-pass").isHidden(), true, "Pas d'image suivante sans faire tourner les joueurs");
+    // « ⏭ Passer » : l'écran se vide, les joueurs tournent ; « 👁 Image suivante » devient le bouton principal.
+    await page.click("#mime-skip");
+    await page.locator("#mime.relais").waitFor();
+    await page.locator("#mime-info", { hasText: "🔄 On tourne" }).waitFor();
+    assert.equal(await page.locator("#mime-now").isHidden(), true);
+    assert.equal(await page.textContent("#mime-pass"), "👁 Image suivante");
+    assert.equal(await page.locator("#mime-skip").isDisabled(), true, "Pendant que les joueurs tournent, rien à passer");
+    await capture(page, "regie-mimes-en-file-on-tourne");
+    await page.click("#mime-pass");
+    await page.locator("#mime-now .word", { hasText: "Singe" }).waitFor();
+    await page.click("#mime-found");
+    await page.locator("#mime.relais").waitFor();
+    await page.click("#mime-pass");
+    await page.locator("#mime-now .word", { hasText: "Pirate" }).waitFor();
+    const envoyees = await commands();
+    assert.deepEqual(envoyees.map((c) => c.type), ["mime_start", "mime_skip", "mime_pass", "mime_found", "mime_pass"]);
+    assert.equal(envoyees[0].team, "jaune");
+    await page.context().close();
+  });
+
+  test("mimes en file : une box d'avant le 26/10 garde le déroulé habituel (Top départ, Image suivante)", async () => {
+    box = startBox();
+    await addTeam("jaune", "Les Soleils", "#FFE600");
+    const cards = [{ word: "Pompier", image: "🧑‍🚒" }, { word: "Singe", image: "🐒" }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, questions: [{ id: "r1m1", text: "Équipe Jaune", kind: "mime", duration: 90, round: "Mimes", cards }] });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await box.mimes(cards);
+    await box.set({ index: 0, qid: "r1m1", text: "Équipe Jaune", total: 1 });
+    await page.locator("#mime-go", { hasText: "Top départ ! (Les Soleils)" }).click();
+    await page.locator("#mime-now .word", { hasText: "Pompier" }).waitFor();
+    assert.equal(await page.locator("#mime-skip").isHidden(), true);
+    assert.equal(await page.textContent("#mime-pass"), "Image suivante");
+    await page.context().close();
+  });
+
   test("mimes : choisir l'équipe, lancer le tour, trouvé, passer, corriger ; les points vont au classement", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");
@@ -958,7 +1023,9 @@ describe("régie", () => {
     // Aucune équipe verte dans la partie : Sarah peut faire mimer une autre équipe, ou passer.
     await box.set(mime(2));
     await page.locator("#mime-info", { hasText: "Aucune équipe Vert dans la partie" }).waitFor();
-    await page.locator("#c-next", { hasText: "Voir le classement" }).waitFor();
+    // Dernier jeu de la fête : pas de classement juste avant, « suivant » lance les résultats finaux (cedric, 27/10).
+    await page.locator("#mime-info", { hasText: "ou passez avec « Résultats finaux 🏆 »" }).waitFor();
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).waitFor();
     assert.equal(await page.locator(".mime-team").count(), 2);
     await page.context().close();
   });
@@ -1434,9 +1501,13 @@ describe("régie", () => {
     await page.locator("#c-next", { hasText: "Titre suivant" }).waitFor();
     await page.click("#blind-cut");
     await waitFor(async () => (await commands()).includes("blind_cut"), "raccourcir envoyé");
-    // Dernier morceau, à double valeur : le bouton mène au bilan.
+    // Dernier morceau, à double valeur, du dernier jeu de la fête : le bouton mène aux résultats finaux, sans bilan
+    // juste avant (cedric, 27/10).
     await box.set({ ...(await read("state")), qid: "b3", index: 2, blind: blindState({ points: 200, played: true, tracks: tracks(["found", "skipped", "revealed"], "bleu") }) });
     await page.locator("#blind-head", { hasText: "Morceau 3 / 3 · 200 points" }).locator(".double", { hasText: "POINTS DOUBLÉS" }).waitFor();
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).waitFor();
+    // Un jeu suit : le bilan du blind test.
+    await box.set({ ...(await read("state")), total: 4 });
     await page.locator("#c-next", { hasText: "Bilan du blind test" }).waitFor();
     await page.context().close();
   });
@@ -1470,6 +1541,241 @@ describe("régie", () => {
     assert.equal(await page.locator("#c-answered").textContent(), "");
     await page.locator(".statues-team", { hasText: "Les Bleus" }).click();
     await waitFor(async () => Object.values((await read("commands")) ?? {}).some((c) => c.type === "statues_win" && c.team === "bleu"), "gagnante envoyée");
+    await page.context().close();
+  });
+
+  /** Statues avec une box qui publie state.statues (cedric, 26/10) : arrêts à la main, gagnantes par chanson. */
+  async function statuesEnCours(statues, teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"]], query = `?g=${CODE}&emu=1`) {
+    box = startBox();
+    for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
+    const plan = [{ id: "s1", text: "Statues musicales", kind: "statues", round: "Statues musicales", songs: [{ songId: "danse", audioId: "0123456789abcdef", title: "Danse" }, { songId: "bouge", audioId: "fedcba9876543210", title: "Bouge" }] }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, questions: plan });
+    const etat = { song: 0, songs: 2, titles: ["Danse", "Bouge"], dancing: true, since: Date.now(), playedMs: 0, ended: false, result: null, ...statues };
+    await box.set({ ...questionState(1), qid: "s1", kind: "statues", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, statues: etat });
+    const page = await openRegie(undefined, query);
+    await pair(page);
+    await inRegie(page);
+    return { page, etat };
+  }
+  const commandes = async (type) => Object.values((await read("commands")) ?? {}).filter((c) => c.type === type);
+
+  test("statues : STATUE ! / On danse !, plusieurs gagnantes, annonce à la TV puis chanson suivante ou résultats", async () => {
+    const { page, etat } = await statuesEnCours({});
+    await page.locator("#statues-info", { hasText: "Chanson 1 sur 2 · « Danse ». 💃 Les enfants dansent." }).waitFor();
+    assert.equal(await page.locator("#statues-teams").isVisible(), false, "pas de gagnante à choisir pendant la chanson");
+    await page.locator("#statues-bascule", { hasText: "✋ STATUE !" }).click();
+    await waitFor(async () => (await commandes("statues_stop")).length === 1, "musique coupée");
+    await box.set({ statues: { ...etat, dancing: false } });
+    await page.locator("#statues-info", { hasText: "✋ Statue ! Éliminez ceux qui bougent." }).waitFor();
+    await page.locator("#statues-bascule.danse", { hasText: "💃 On danse !" }).click();
+    await waitFor(async () => (await commandes("statues_play")).length === 1, "musique relancée");
+    await box.set({ statues: { ...etat, dancing: true } });
+    await page.locator("#statues-bascule", { hasText: "✋ STATUE !" }).waitFor();
+    await page.locator("#statues-points", { hasText: "300 points pour chaque gagnante, 150 pour les autres équipes" }).waitFor();
+
+    // Écran gagnant : tuiles à cocher, plusieurs gagnantes possibles ; « Valider » attend un choix.
+    await page.click("#statues-choisir");
+    await page.locator("#statues-info", { hasText: "Qui a gagné ?" }).waitFor();
+    assert.equal(await page.locator("#statues-bascule").isVisible(), false, "une seule décision par écran");
+    // « Valider » est le gros bouton du bas ; il attend un choix.
+    await page.locator("#c-next", { hasText: "Touchez la ou les gagnantes" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    await page.locator(".statues-tuile", { hasText: "Les Roses" }).click();
+    await page.locator("#c-next", { hasText: "✓ Valider : Les Roses" }).waitFor();
+    await page.locator(".statues-tuile", { hasText: "Les Verts" }).click();
+    await page.locator('.statues-tuile[aria-pressed="true"]', { hasText: "Les Verts" }).waitFor();
+    assert.equal(await page.locator(".statues-tuile.personne").getAttribute("aria-pressed"), "false");
+    await page.locator("#c-next", { hasText: "✓ Valider : 2 gagnantes" }).click();
+    await waitFor(async () => (await commandes("statues_win")).some((c) => JSON.stringify(c.teams) === JSON.stringify(["rose", "vert"])), "gagnantes envoyées");
+
+    // La TV annonce : rien à toucher pendant le suspense, puis « ▶ Chanson suivante » et « Résultats finaux ».
+    const result = { song: 0, winners: ["rose", "vert"], gains: { rose: 300, vert: 300, bleu: 150 }, at: Date.now() };
+    await box.set({ statues: { ...etat, dancing: false, result } });
+    await page.locator("#statues-info", { hasText: "🏆 Les Roses, Les Verts gagnent la chanson. Annonce sur la TV…" }).waitFor();
+    await page.locator("#c-next", { hasText: "Annonce sur la TV…" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    assert.equal(await page.locator("#statues-suivante").isVisible(), false);
+    await page.locator("#statues-suivante", { hasText: "▶ Chanson suivante" }).waitFor({ timeout: 12000 });
+    await page.locator("#statues-info", { hasText: "Bilan des scores sur la TV." }).waitFor();
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).waitFor();
+    await page.click("#statues-suivante");
+    await waitFor(async () => (await commandes("statues_song")).length === 1, "chanson suivante demandée");
+    await box.set({ statues: { ...etat, song: 1, dancing: true, result: null } });
+    await page.locator("#statues-info", { hasText: "Chanson 2 sur 2 · « Bouge »." }).waitFor();
+    await page.locator("#c-next", { hasText: "⏭ Finir la chanson" }).waitFor();
+    // Dernière chanson jouée : plus de « Chanson suivante », seulement « Résultats finaux ».
+    await box.set({ statues: { ...etat, song: 1, dancing: false, result: { song: 1, winners: ["bleu"], gains: {}, at: Date.now() - 9000 } } });
+    await page.locator("#statues-info", { hasText: "🏆 Les Bleus gagne la chanson." }).waitFor();
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).click();
+    await waitFor(async () => (await commandes("next")).length === 1, "fin du jeu demandée");
+    assert.equal(await page.locator("#statues-suivante").isVisible(), false);
+    await page.context().close();
+  });
+
+  test("statues : chanson finie toute seule → écran gagnant direct ; « Personne » ; Chanson suivante passe par la gagnante ; pause", async () => {
+    const { page, etat } = await statuesEnCours({ ended: true, dancing: false });
+    await page.locator("#statues-info", { hasText: "La chanson est finie. Qui a gagné ?" }).waitFor();
+    assert.equal(await page.locator("#statues-retour").isVisible(), false, "pas de retour à une chanson finie");
+    await page.locator(".statues-tuile", { hasText: "Les Bleus" }).click();
+    await page.locator(".statues-tuile.personne").click();
+    assert.equal(await page.locator('.statues-tuile[aria-pressed="true"]').count(), 1, "Personne décoche les équipes");
+    await page.locator("#c-next", { hasText: "✓ Valider : personne" }).click();
+    await waitFor(async () => (await commandes("statues_win")).some((c) => c.personne === true && c.teams == null && c.team == null), "« Personne » envoyé");
+    await box.set({ statues: { ...etat, ended: true, dancing: false, result: { song: 0, winners: null, gains: {}, at: Date.now() - 9000 } } });
+    await page.locator("#statues-info", { hasText: "Personne ne gagne cette chanson." }).waitFor();
+
+    // Chanson suivante pendant une chanson : jamais sans gagnante, l'écran gagnant s'ouvre d'abord.
+    await box.set({ statues: { ...etat, song: 0, dancing: true, ended: false, result: null }, seq: 5 });
+    const avant = (await read("commands")) ?? {};
+    await page.locator("#c-next", { hasText: "⏭ Chanson suivante" }).click();
+    await page.locator("#statues-info", { hasText: "Qui a gagné ?" }).waitFor();
+    assert.deepEqual(Object.keys((await read("commands")) ?? {}), Object.keys(avant), "rien n'est envoyé à la box");
+    await page.click("#statues-retour");
+    await page.locator("#statues-bascule", { hasText: "✋ STATUE !" }).waitFor();
+
+    // Pause générale : le gros bouton attend la reprise.
+    await box.set({ paused: true, pauseReason: "regie", statues: { ...etat, dancing: false, result: null } });
+    await waitFor(async () => page.locator("#statues-bascule").isDisabled(), "bouton figé pendant la pause");
+    await page.context().close();
+  });
+
+  test("statues sur 8 équipes (régie cockpit) : noms entiers, « Valider » toujours sous le doigt", async () => {
+    const huit = ["Orange", "Vert", "Rose", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"].map((n, i) => [`e${i}`, `Les ${n}s`, TEAM_COLORS_TEST[i % TEAM_COLORS_TEST.length]]);
+    const { page } = await statuesEnCours({ ended: true, dancing: false }, huit, `?g=${CODE}&emu=1&cockpit=1`);
+    await page.locator(".statues-tuile.personne").waitFor();
+    await page.locator(".statues-tuile", { hasText: "Les Turquoises" }).click();
+    await page.locator("#c-next", { hasText: "✓ Valider : Les Turquoises" }).waitFor();
+    // Le gros bouton « Valider » reste à l'écran (barre du bas), sans faire défiler la page.
+    const vue = page.viewportSize();
+    const bas = await page.locator("#c-next").boundingBox();
+    assert.ok(bas && bas.y + bas.height <= vue.height + 1, "Valider visible sans défiler");
+    assert.equal(await page.locator(".statues-tuile").count(), 9);
+    assert.equal(await page.locator("#statues-teams.serree").count(), 1);
+    // Largeur du nom lui-même (la pastille ✓ déborde exprès du coin de la tuile cochée).
+    const deborde = await page.evaluate(() => [...document.querySelectorAll(".statues-tuile")].some((b) => {
+      const r = document.createRange();
+      r.selectNodeContents(b);
+      const t = r.getBoundingClientRect();
+      const c = b.getBoundingClientRect();
+      return t.left < c.left + 3 || t.right > c.right - 3;
+    }));
+    assert.equal(deborde, false, "aucun nom coupé");
+    await capture(page, "regie-statues-8-equipes");
+    await page.context().close();
+  });
+
+  /** Duel des robots : la box publie state.duel (contrat du 27/10) ; l'heure du PAN n'y est jamais. */
+  async function duelEnCours(duel, teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"]], query = `?g=${CODE}&emu=1&cockpit=1`) {
+    box = startBox();
+    for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
+    const plan = [{ id: "d1", kind: "duel", text: "Le Duel des robots", round: "Le Duel des robots", joueurs: 2, faceMin: 20, faceMax: 40, longs: true }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, questions: plan });
+    const etat = { n: 1, total: 3, teams: ["rose", "bleu"], players: [1, 1], step: "ready", extra: false, key: "d1-1", result: null, played: {}, allPlayed: false, ...duel };
+    await box.set({ ...questionState(1), qid: "d1", kind: "duel", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, duel: etat });
+    const page = await openRegie(undefined, query);
+    await pair(page);
+    await inRegie(page);
+    return { page, etat };
+  }
+
+  test("duel des robots : lancer, face-à-face (arrêt en deux appuis), gagnante, trop tôt, personne, duel suivant, résultats", async () => {
+    const { page, etat } = await duelEnCours({});
+    await page.locator("#duel-info", { hasText: "Duel 1 sur 3 : appelez les deux joueurs." }).waitFor();
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Roses" }).locator("small", { hasText: "Joueur n°1" }).waitFor();
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Bleus" }).waitFor();
+    await page.locator("#duel-points", { hasText: "100 points par duel gagné" }).waitFor();
+    assert.equal(await page.locator("#c-tuiles").isVisible(), false, "le milieu est au duel");
+    await page.locator("#c-next", { hasText: "🤠 Lancer le duel" }).click();
+    await waitFor(async () => (await commandes("duel_start")).some((c) => c.teams == null), "face-à-face lancé");
+
+    await box.set({ duel: { ...etat, step: "standoff", key: "d1-1b" } });
+    await page.locator("#duel-info", { hasText: "Face-à-face… mains sur les buzzers" }).waitFor();
+    await page.locator("#c-next", { hasText: "Face-à-face… 🤠" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true, "rien à lancer pendant le face-à-face");
+    assert.equal(await page.locator("#duel-autres").isVisible(), false);
+    await page.click("#duel-stop");
+    await page.locator("#duel-stop", { hasText: "Touchez encore" }).waitFor();
+    assert.equal((await commandes("duel_stop")).length, 0, "un seul appui n'arrête rien");
+    await page.click("#duel-stop");
+    await waitFor(async () => (await commandes("duel_stop")).length === 1, "face-à-face arrêté");
+
+    await box.set({ duel: { ...etat, step: "result", result: { winner: "rose", loser: "bleu", early: null, ms: 312, points: 100 } } });
+    await page.locator("#duel-resultat", { hasText: "🏆 Les Roses gagne le duel en 0,31 s !" }).waitFor();
+    await page.locator("#c-next", { hasText: "▶ Duel suivant" }).click();
+    await waitFor(async () => (await commandes("duel_next")).length === 1, "duel suivant demandé");
+    await box.set({ duel: { ...etat, step: "result", result: { winner: "rose", loser: "bleu", early: "bleu", ms: null, points: 100 } } });
+    await page.locator("#duel-resultat", { hasText: "💥 Les Bleus a tiré trop tôt : Les Roses gagne le duel." }).waitFor();
+    await box.set({ duel: { ...etat, step: "result", result: { winner: null, loser: null, early: null, ms: null, points: 0 } } });
+    await page.locator("#duel-resultat", { hasText: "Personne n'a tiré ! Duel nul, aucun point." }).waitFor();
+
+    // Tous les joueurs passés : le gros bouton finit le jeu, un duel en plus reste possible.
+    await box.set({ duel: { ...etat, n: 3, step: "result", allPlayed: true, result: { winner: "vert", loser: "rose", early: null, ms: 420, points: 100 } } });
+    await page.locator("#duel-autres", { hasText: "🤠 Duel en plus" }).waitFor();
+    // Duel en plus : comme la box, les 2 équipes qui ont le moins joué sont cochées d'avance (pas la paire d'avant).
+    await box.set({ duel: { ...etat, n: 3, step: "result", allPlayed: true, teams: ["vert", "rose"], played: { rose: 2, bleu: 1, vert: 1 }, result: { winner: "vert", loser: "rose", early: null, ms: 420, points: 100 } } });
+    await page.click("#duel-autres");
+    await page.locator("#c-next", { hasText: "🤠 Les Bleus contre Les Verts" }).waitFor();
+    await page.click("#duel-retour");
+    assert.equal(await page.locator("#duel-fin").isVisible(), false, "« Jeu suivant » est déjà le gros bouton");
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).click();
+    await waitFor(async () => (await commandes("next")).length === 1, "jeu suivant");
+    await page.context().close();
+  });
+
+  test("duel des robots : duel à la volée entre 2 équipes choisies, « Jeu suivant » confirmé, pause, une seule équipe", async () => {
+    const { page, etat } = await duelEnCours({});
+    // Qui affronte qui (cedric, 27/10) : la paire proposée par la box est cochée d'avance, Sarah la change.
+    await page.click("#duel-autres");
+    await page.locator("#c-next", { hasText: "🤠 Les Roses contre Les Bleus" }).waitFor();
+    assert.equal(await page.locator("#duel-face").isVisible(), false);
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
+    await page.locator("#c-next", { hasText: "Touchez 2 équipes" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Verts" }).click();
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
+    assert.deepEqual(await page.locator('#duel-choix [aria-pressed="true"]').allTextContents(), ["Les Roses", "Les Verts"], "2 équipes au plus : la plus ancienne part");
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Bleus" }).click();
+    await page.locator("#c-next", { hasText: "🤠 Les Verts contre Les Bleus" }).click();
+    await waitFor(async () => (await commandes("duel_start")).some((c) => JSON.stringify(c.teams) === JSON.stringify(["vert", "bleu"])), "duel à la volée lancé");
+    await page.locator("#duel-face").waitFor();
+
+    // Retour sans rien lancer.
+    await page.click("#duel-autres");
+    await page.click("#duel-retour");
+    await page.locator("#c-next", { hasText: "🤠 Lancer le duel" }).waitFor();
+
+    // « Jeu suivant » avant la fin des duels prévus : confirmé, on dit combien il en reste.
+    await page.click("#duel-fin");
+    assert.match(await respond(page, false), /Arrêter les duels \? 3 duels prévus pas encore joués/);
+    assert.equal((await commandes("next")).length, 0);
+    await page.click("#duel-fin");
+    await respond(page);
+    await waitFor(async () => (await commandes("next")).length === 1, "jeu suivant après confirmation");
+
+    await box.set({ paused: true, pauseReason: "regie", duel: { ...etat, step: "ready" }, seq: 9 });
+    await waitFor(async () => page.locator("#duel-autres").isDisabled(), "pause : rien ne part");
+    await page.context().close();
+  });
+
+  test("duel des robots : une seule équipe, la régie le dit et propose le jeu suivant", async () => {
+    const { page } = await duelEnCours({ teams: [] }, [["rose", "Les Roses", "#FF2D8A"]]);
+    await page.locator("#duel-info", { hasText: "Il faut au moins 2 équipes pour un duel" }).waitFor();
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).click();
+    await waitFor(async () => (await commandes("next")).length === 1, "jeu suivant");
+    await page.context().close();
+  });
+
+  test("duel des robots sur 8 équipes : joueur appelé, choix de 2 équipes, gros bouton toujours visible", async () => {
+    const huit = ["Orange", "Vert", "Rose", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"].map((n, i) => [`e${i}`, `Les ${n}s`, TEAM_COLORS_TEST[i % TEAM_COLORS_TEST.length]]);
+    const { page } = await duelEnCours({ teams: ["e0", "e7"], players: [3, 2] }, huit);
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Turquoises" }).locator("small", { hasText: "Joueur n°2" }).waitFor();
+    await capture(page, "regie-duel-pret");
+    await page.click("#duel-autres");
+    assert.equal(await page.locator("#duel-choix .statues-tuile").count(), 8);
+    const bas = await page.locator("#c-next").boundingBox();
+    assert.ok(bas && bas.y + bas.height <= page.viewportSize().height + 1, "le gros bouton reste visible");
+    await capture(page, "regie-duel-choix");
     await page.context().close();
   });
 
@@ -1993,7 +2299,7 @@ describe("régie", () => {
     const bombe = { id: "b1", text: "Les Coffres mystères", kind: "coffres", choices: [], correct: -1, round: "Les Coffres mystères" };
     await set(gameRef("conducteur"), { ...plan, coffres: true, questions: [...plan.questions, bombe] });
     const chests = { ready: true, count: 10, order: ["bleu", "rose"], team: "bleu", turn: 0, safe: 6, safeLeft: 6, danger: false, exploded: false, key: "b1-1-0", readyAt: Date.now() + 2500, opened: [], gains: { bleu: 0, rose: 0 } };
-    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "b1", kind: "coffres", text: "Les Coffres mystères", choices: null, deadline: null, total: 3, chests });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "b1", kind: "coffres", text: "Les Coffres mystères", choices: null, deadline: null, total: 4, chests });
     await page.locator("#coffres-info", { hasText: "Au tour de l'équipe Les Bleus" }).waitFor();
     await page.locator("#coffres-info", { hasText: "Encore 6 coffres sans danger" }).waitFor();
     // Le bouton principal n'ouvre jamais de coffre : ce sont les équipes qui jouent.
@@ -2038,7 +2344,7 @@ describe("régie", () => {
     const ballon = { id: "g1", text: "Le Gonfleur fou", kind: "gonfleur", choices: [], correct: -1, round: "Le Gonfleur fou" };
     await set(gameRef("conducteur"), { ...plan, gonfleur: true, questions: [...plan.questions, ballon] });
     const goAt = Date.now() - 2000;
-    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "g1", kind: "gonfleur", text: "Le Gonfleur fou", choices: null, total: 3, resumeAt: goAt, pump: { key: "g1-1", goAt, target: 100 } });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "g1", kind: "gonfleur", text: "Le Gonfleur fou", choices: null, total: 4, resumeAt: goAt, pump: { key: "g1-1", goAt, target: 100 } });
     await page.locator("#gonfleur-info", { hasText: "le premier ballon qui éclate gagne" }).waitFor();
     assert.equal(await page.locator("#c-answer").isVisible(), false, "rien à révéler");
     // Les tapes des tablettes arrivent : la régie montre où en est chaque ballon.
@@ -2066,7 +2372,7 @@ describe("régie", () => {
     await set(gameRef("conducteur"), { ...plan, patate: true, questions: [...plan.questions, bombe] });
     const now = Date.now();
     const potato = { lit: true, holder: "rose", from: null, since: now - 3000, readyAt: now - 1000, canReturn: true, targets: ["bleu"], teams: ["rose", "bleu"], hit: ["rose"], passes: 0, key: "p1-1" };
-    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "patate", text: "Ça va exploser !", choices: null, deadline: null, total: 3, potato });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "patate", text: "Ça va exploser !", choices: null, deadline: null, total: 4, potato });
     await page.locator("#patate-info", { hasText: "La bombe est chez Les Roses" }).waitFor();
     await page.locator("#patate-info", { hasText: "Pas encore touchées : Les Bleus" }).waitFor();
     assert.equal(await page.locator("#c-next").isDisabled(), true, "la mèche décide de la fin, pas la régie");
@@ -2088,6 +2394,58 @@ describe("régie", () => {
     await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", awards: { rose: { correct: false, points: -100, bonus: 0 }, bleu: { correct: true, points: 100, bonus: 0 } } });
     await page.locator("#patate[hidden]").waitFor({ state: "attached" });
     await page.locator("#c-next", { hasText: "Voir les scores" }).waitFor();
+    await page.context().close();
+  });
+
+  test("« Ça va exploser ! » (cedric, 26/10) : « 🏁 Dernière bombe » pendant une bombe, « ⏭ Jeu suivant » entre deux, un seul appui ; rien après la dernière", async () => {
+    box = startBox();
+    const page = await openRegie(await contexteSansChoix({ viewport: { width: 360, height: 640 } }));
+    await pair(page);
+    await inRegie(page);
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const plan = (await read("conducteur")) ?? { questions: [] };
+    const bombe = { id: "p1", text: "Ça va exploser !", kind: "patate", choices: [], correct: -1, round: "Ça va exploser !" };
+    await set(gameRef("conducteur"), { ...plan, patate: true, patateStop: true, questions: [...plan.questions, bombe] });
+    const now = Date.now();
+    const potato = { lit: true, holder: "rose", from: null, since: now - 3000, readyAt: now - 1000, canReturn: true, targets: ["bleu"], teams: ["rose", "bleu"], hit: ["rose"], passes: 0, key: "p1-1", bomb: 1, bombs: 3, exploded: false, booms: [] };
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "patate", text: "Ça va exploser !", choices: null, deadline: null, total: 3, potato });
+    const stop = page.locator("#patate-stop");
+    // Bombe 1 sur 3 en cours : « 🏁 Dernière bombe », dans l'écran, un seul appui.
+    await page.locator("#patate-stop:not([hidden])", { hasText: "🏁 Dernière bombe" }).waitFor();
+    const r = await stop.boundingBox();
+    assert.ok(r.y >= 0 && r.y + r.height <= 640, `bouton dans l'écran : ${JSON.stringify(r)}`);
+    await stop.click();
+    await waitFor(async () => (await commands()).filter((c) => c.type === "potato_stop").length === 1, "« Dernière bombe » envoyé en un appui");
+    // La box l'a pris en compte : cette bombe est la dernière, plus de bouton.
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, bombs: 1 } });
+    await page.locator("#patate-stop").waitFor({ state: "hidden" });
+    // Elle explose : « C'était la dernière bombe », jamais « La bombe 2 s'allume ».
+    const boom = { holder: "rose", at: Date.now(), lost: 100, gain: 100 };
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, bombs: 1, exploded: true, key: null, booms: [boom] } });
+    await page.locator("#patate-info", { hasText: "C'était la dernière bombe" }).waitFor();
+    assert.doesNotMatch(await page.textContent("#patate-info"), /s'allume/);
+    assert.equal(await stop.isHidden(), true);
+    // Autre partie de 3 bombes : BOUM de la bombe 1 → « ⏭ Jeu suivant ».
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, exploded: true, key: null, booms: [boom] } });
+    await page.locator("#patate-info", { hasText: "La bombe 2 s'allume…" }).waitFor();
+    await page.locator("#patate-stop:not([hidden])", { hasText: "⏭ Jeu suivant" }).waitFor();
+    // La bombe 2 allumée mais pas encore partie : toujours « ⏭ Jeu suivant », puis « 🏁 Dernière bombe » une fois partie.
+    const go = Date.now() + 2500;
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, holder: "bleu", since: go, readyAt: go + 2000, bomb: 2, exploded: false, key: "p1-2", booms: [boom] } });
+    await page.locator("#patate-info", { hasText: "Bombe 2 sur 3" }).waitFor();
+    assert.equal(await stop.textContent(), "⏭ Jeu suivant");
+    await page.locator("#patate-stop", { hasText: "🏁 Dernière bombe" }).waitFor({ timeout: 6000 });
+    // Bombe 3 sur 3 : déjà la dernière, pas de bouton.
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, holder: "rose", since: Date.now() - 1000, bomb: 3, exploded: false, key: "p1-3", booms: [boom, { ...boom, holder: "bleu" }] } });
+    await page.locator("#patate-info", { hasText: "Bombe 3 sur 3" }).waitFor();
+    assert.equal(await stop.isHidden(), true);
+    // Ancienne box (sans patateStop) : jamais de bouton.
+    await set(gameRef("conducteur"), { ...plan, patate: true, questions: [...plan.questions, bombe] });
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, bomb: 1 } });
+    await page.locator("#patate-info", { hasText: "Bombe 1 sur 3" }).waitFor();
+    assert.equal(await stop.isHidden(), true);
+    await capture(page, "patate-derniere-bombe-360x640", { pleinePage: false });
     await page.context().close();
   });
 
@@ -2704,6 +3062,30 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
     await waitFor(async () => (await read(`images/${PHOTO}`)) === PNG && (await read(`sounds/${SON}`)) === MP3, "photo et extrait recopiés dans la partie");
     await regie.context().close();
   });
+  test("statues : « Aller à ce jeu » recopie dans la partie les chansons entières (n en dernier) ; une chanson absente ne bloque rien", async () => {
+    box = startBox();
+    const P0 = "A".repeat(800000);
+    const P1 = "B".repeat(1200);
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "library/entieres/danse"), { n: 2, kbps: 96, length: 187, at: 1, p: { 0: P0, 1: P1 } }));
+    await set(gameRef("conducteur"), {
+      id: "p", title: "L'anniversaire de Léa", rev: "s1", mimes: true, statues: true, programReset: true,
+      questions: [
+        { id: "q1", text: "Couleur du ciel ?", choices: ["Vert", "Bleu"], correct: 1, round: "Couleurs" },
+        { id: "s1", text: "Statues musicales", kind: "statues", round: "Statues musicales", songs: [{ songId: "absente", audioId: "fedcba9876543210", title: "Pas en ligne" }, { songId: "danse", audioId: "0123456789abcdef", title: "Danse" }] },
+      ],
+    });
+    await box.set(questionState(2));
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.click("#c-rescue");
+    await regie.locator('#rescue-list [data-start="1"] button', { hasText: "Aller à ce jeu" }).click();
+    await respond(regie);
+    await waitFor(async () => (await read("songs/danse/n")) === 2, "chanson entière recopiée", 20000);
+    assert.deepEqual(await read("songs/danse"), { n: 2, kbps: 96, length: 187, p: [P0, P1] });
+    assert.equal(await read("songs/absente"), null, "chanson pas en ligne : la box jouera l'extrait");
+    await regie.context().close();
+  });
 });
 
 describe("remplacement d'un appareil en cours de partie", () => {
@@ -2825,6 +3207,63 @@ describe("remplacement d'un appareil en cours de partie", () => {
     assert.ok(boutons.every((b) => !b.deborde && b.gauche >= 0 && b.droite <= 360), `boutons du bas : ${JSON.stringify(boutons)}`);
     await capture(regie, "regie-bas-360-pause");
     for (const p of [regie, fresh]) await p.context().close();
+  });
+
+  test("« ＋ Ajouter une équipe » dans ☰ Plus (test Mi Box de cedric, 26/10) : QR direct en nouvelle équipe, carte « Nouvelle équipe en attente », jusqu'à 8 équipes (360×640)", async () => {
+    box = startBox();
+    const regie = await openRegie(await contexteSansChoix({ viewport: { width: 360, height: 640 } }));
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#regie.cockpit").waitFor();
+    const touk = await tablet();
+    await accepter(regie, "Touk");
+    await touk.locator("#screen-play.active").waitFor();
+    await regie.locator("#c-next", { hasText: "Lancer la fête !" }).click();
+    await touk.locator("#screen-question.active").waitFor();
+    // En pleine partie : « ☰ Plus » → « ＋ Ajouter une équipe », un gros bouton bien visible.
+    await regie.click("#c-plus");
+    const bouton = regie.locator("#plus:not([hidden]) #c-equipe");
+    await bouton.waitFor();
+    const r = await bouton.boundingBox();
+    assert.ok(r.y >= 0 && r.y + r.height <= 640 && r.x + r.width <= 360, `bouton dans l'écran : ${JSON.stringify(r)}`);
+    assert.equal(await bouton.isDisabled(), false);
+    await bouton.click();
+    await regie.locator("#plus").waitFor({ state: "hidden" });
+    await regie.locator("#tablette:not([hidden]) #tablette-qr svg path").waitFor();
+    assert.equal(await regie.textContent("#tablette-titre"), "Ajouter une équipe");
+    // Le QR ouvre la partie sans « reprise » : la tablette ne propose pas de reprendre une équipe.
+    const lien = await regie.locator("#tablette-qr").getAttribute("data-texte");
+    assert.equal(lien, `${baseUrl}/?g=${CODE}&emu=1`);
+    assert.equal(await regie.locator("#tablette-bloquee").isHidden(), true);
+    await capture(regie, "regie-ajouter-equipe-360x640", { pleinePage: false });
+    const nouvelle = await openRegie(null, new URL(lien).search);
+    await nouvelle.locator("#screen-waiting.active").waitFor();
+    assert.equal(await nouvelle.locator("#screen-takeover.active").count(), 0);
+    // La demande arrive : la fenêtre se referme sur la carte « Nouvelle équipe en attente ».
+    await regie.locator("#tablette").waitFor({ state: "hidden" });
+    const carte = regie.locator("#c-requests .request", { hasText: "Nouvelle équipe en attente" });
+    await carte.waitFor();
+    // La carte se voit sans rien faire défiler, au-dessus des boutons du bas.
+    const c = await carte.boundingBox();
+    const bas = await regie.locator(".regie .actions").boundingBox();
+    assert.ok(c.y >= 0 && c.y + 60 <= bas.y, `carte visible : ${JSON.stringify({ c, bas })}`);
+    await capture(regie, "regie-ajouter-equipe-carte-360x640", { pleinePage: false });
+    await accepter(regie, "Les Tard-Venus");
+    await nouvelle.locator("#screen-question.active").waitFor();
+    assert.equal(await nouvelle.locator("#screen-question .team-label").textContent(), "Les Tard-Venus");
+    await regie.locator("#c-tuiles .tuile", { hasText: "Les Tard-Venus" }).waitFor();
+    // Reconnecter une tablette garde son QR « reprise ».
+    await regie.click("#c-plus");
+    await regie.click("#c-tablette");
+    await regie.locator("#tablette-titre", { hasText: "Reconnecter une tablette" }).waitFor();
+    assert.match(await regie.locator("#tablette-qr").getAttribute("data-texte"), /reprise=1/);
+    await regie.click("#tablette-close");
+    // 8 équipes : le bouton se grise, avec la raison.
+    for (let k = 0; k < 6; k++) await addTeam(`t${k}`, `Équipe ${k + 3}`, TEAM_COLORS_TEST[k]);
+    await regie.click("#c-plus");
+    await regie.locator("#plus #c-equipe[disabled]").waitFor();
+    assert.equal(await regie.locator("#c-equipe").getAttribute("title"), "8 équipes au maximum");
+    for (const p of [regie, touk, nouvelle]) await p.context().close();
   });
 
   test("nouvelle équipe en cours de partie, ou demande ignorée", async () => {
@@ -4841,7 +5280,14 @@ describe("bibliothèque de quiz et prestations", () => {
     // Une manche de mimes par équipe, dans l'ordre des couleurs ; chacune ses cartes, dans l'ordre de la Régie PC.
     assert.deepEqual(questions.slice(4, 8).map((q) => [q.kind, q.text]),
       [["mime", "Équipe Rose"], ["mime", "Équipe Orange"], ["mime", "Équipe Vert"], ["mime", "Équipe Jaune"]]);
-    assert.deepEqual(questions.slice(4, 8).map((q) => q.cards.map((c) => c.word)), saved[1].equipes.map((l) => l.map((c) => c.word)));
+    assert.deepEqual(questions.slice(4, 8).map((q) => q.cards.slice(0, saved[1].equipes[0].length).map((c) => c.word)), saved[1].equipes.map((l) => l.map((c) => c.word)));
+    // Mimes en file (cedric, 26/10) : chaque manche a sa couleur, et une réserve d'images mimables suit les siennes si
+    // l'équipe les épuise, jamais une image déjà dans la fête.
+    assert.deepEqual(questions.slice(4, 8).map((q) => q.couleur), ["#FF2D95", "#FF6B1A", "#39FF14", "#FFE600"]);
+    const reserves = questions.slice(4, 8).map((q, i) => q.cards.slice(saved[1].equipes[i].length).map((c) => c.word.toLowerCase()));
+    assert.ok(reserves.every((r) => r.length >= 20 && r.length <= MIME_RESERVE), "Quelques dizaines d'images de secours pour chaque équipe");
+    const tous = [...saved[1].equipes.flat().map((c) => c.word.toLowerCase()), ...reserves.flat()];
+    assert.equal(new Set(tous).size, tous.length, "Jamais deux fois la même image");
     assert.deepEqual(questions.slice(8).map((q) => q.text), ["soleil", "maman"]);
     await regie.context().close();
   });
@@ -7656,9 +8102,10 @@ describe("bibliothèque de quiz et prestations", () => {
     // En haut : la source, les images par équipe (20 d'office), la durée du tour (2 min d'office).
     assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["mime-source", "mime-par-equipe", "mime-duree"]);
     assert.deepEqual(await ligne.locator(".mime-source option").allTextContents(), ["Images : 📷 Photos libres", "Images : 😀 Émojis", "Images : 🖼️ Mes images"]);
-    assert.deepEqual(await ligne.locator(".mime-par-equipe option").allTextContents(), [10, 15, 20, 25, 30].map((k) => `${k} images par équipe`));
+    assert.deepEqual(await ligne.locator(".mime-par-equipe option").allTextContents(), [10, 15, 20, 25, 30, 40, 50, 60].map((k) => `${k} images par équipe`));
     assert.equal(await ligne.locator(".mime-par-equipe").inputValue(), "20");
-    assert.deepEqual(await ligne.locator(".mime-duree option").allTextContents(), ["1 min", "1 min 30", "2 min", "2 min 30", "3 min"].map((d) => `Tour de ${d}`));
+    assert.deepEqual(await ligne.locator(".mime-duree option").allTextContents(), ["30 s", "45 s", "1 min", "1 min 15", "1 min 30", "1 min 45", "2 min", "2 min 15", "2 min 30", "2 min 45", "3 min", "3 min 15",
+      "3 min 30", "3 min 45", "4 min", "4 min 15", "4 min 30", "4 min 45", "5 min"].map((d) => `Tour de ${d}`), "Mimes en file (cedric, 26/10) : réglé à la seconde près, jusqu'à 5 min");
     assert.equal(await ligne.locator(".mime-duree").inputValue(), "120");
     assert.equal(await compteur.textContent(), "Aucune image pour l'instant : touchez 🎲 sur chaque équipe");
     assert.equal(await round.locator(".reprendre").count(), 0, "pas de « Reprendre une manche » pour les Mimes");
@@ -7777,7 +8224,9 @@ describe("bibliothèque de quiz et prestations", () => {
     const qs = snapshot.quiz.questions.filter((q) => q.kind === "mime");
     assert.deepEqual(qs.map((q) => q.text), ["Équipe Rose", "Équipe Orange", "Équipe Vert"]);
     assert.ok(qs.every((q) => q.round === "Mimes" && q.duration === 90));
-    assert.deepEqual(qs.map((q) => q.cards.map((c) => c.word)), listes);
+    // Ses images d'abord, puis la réserve mimable (mimes en file, cedric 26/10).
+    assert.deepEqual(qs.map((q, i) => q.cards.slice(0, listes[i].length).map((c) => c.word)), listes);
+    assert.ok(qs.every((q, i) => q.cards.length >= listes[i].length + 20 && q.cards.length <= listes[i].length + MIME_RESERVE));
     // Lancée par la régie : les photos libres des cartes sont copiées dans la partie, l'ordre ne bouge pas.
     await seedLibrary("shows/zoe", { ...zoe, date: "2099-12-02", status: "publiee" });
     box = startBox();
@@ -7788,13 +8237,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const jouees = (await read("show")).quiz.questions.filter((q) => q.kind === "mime");
-    assert.deepEqual(jouees.map((q) => q.cards.map((c) => c.word)), listes);
+    assert.deepEqual(jouees.map((q, i) => q.cards.slice(0, listes[i].length).map((c) => c.word)), listes);
     // Rangées avec les images des cartes (choiceImages), comme celles d'un paquet de mimes.
     await waitFor(async () => {
       const show = await read("show");
       const copiees = (await read("choiceImages")) ?? {};
+      // Réserve : la photo si la banque de ce test l'a, sinon son émoji (une carte sans photo n'empêche rien).
       return show.quiz.questions.filter((q) => q.kind === "mime")
-        .every((q) => q.cards.every((c) => c.banque === undefined && /^[0-9a-f]{16}$/.test(c.imageId ?? "") && copiees[c.imageId]));
+        .every((q, i) => q.cards.slice(0, listes[i].length).every((c) => c.banque === undefined && /^[0-9a-f]{16}$/.test(c.imageId ?? "") && copiees[c.imageId])
+          && q.cards.slice(listes[i].length).every((c) => c.banque === undefined && ((c.imageId && copiees[c.imageId]) || c.image)));
     }, "photos des mimes copiées dans la partie");
     await regie.context().close();
   });

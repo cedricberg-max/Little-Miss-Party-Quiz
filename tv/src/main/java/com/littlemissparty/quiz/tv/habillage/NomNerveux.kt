@@ -247,7 +247,8 @@ internal fun PointsNerveux(points: Int, longueurNom: Int, ligneDeBase: Dp, ms: (
             if (d <= 0f) 0 else if (d >= 0.6f) points else (points * (1 - (1 - d / 0.6f).pow(3))).roundToInt()
         }
     }
-    val style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = 28.sp, color = GS.Jaune, shadow = Shadow(GS.Jaune.copy(alpha = 0.8f), Offset.Zero, 22f))
+    // Chiffres espacés : en Black, « 1217 » se touchait (« 1 » collés, Mi Box, cedric 26/10).
+    val style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = 28.sp, color = GS.Jaune, letterSpacing = 2.5.sp, shadow = Shadow(GS.Jaune.copy(alpha = 0.8f), Offset.Zero, 22f))
     Box(
         Modifier.fillMaxSize().clearAndSetSemantics {}.graphicsLayer {
             val t = u()

@@ -1,8 +1,10 @@
 package com.littlemissparty.quiz.tv.test
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.littlemissparty.quiz.tv.habillage.Tempo
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -73,6 +75,41 @@ class PodiumCasLimitesTest : TestTv() {
         val victoire = attendreQue("noms des gagnants") { ecran.elements().firstOrNull { "Victoire de" in it.texte }?.texte }
         assertTrue(victoire, "Licornes" in victoire && "Dragons" in victoire && "Chats" !in victoire)
         ecran.voit("50 POINTS")
+        // Seuls les gagnants : les Chats (3es) n'apparaissent plus dessous (cedric, 26/10).
+        seulementLesGagnants("Chats")
         ecran.capture("podium-egalite")
+    }
+
+    @Test
+    fun gagnantSeulSansLesAutresEquipes() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regieReliee(code)
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQuestion(licornes, code, 0)
+
+        for ((equipe, points) in listOf(licornes to 80, dragons to 30)) {
+            val id = regie.envoyer(code, "adjust", extra = mapOf("team" to equipe.uid, "delta" to points))!!
+            assertEquals("applied", regie.verdict(code, id))
+            attendreQue("points de ${equipe.uid}") { points(licornes, code, equipe.uid).takeIf { it == points.toLong() } }
+        }
+
+        assertEquals("applied", regie.commande(code, "end"))
+        ecran.voit("Bravo à toutes les équipes", 45_000)
+        // Écran final : le gagnant seul (cedric, 26/10 : « 2 Sacha 250 » sous le gagnant, « je ne vois pas l'intérêt »).
+        seulementLesGagnants("Dragons")
+        ecran.capture("podium-gagnant-seul")
+    }
+
+    /**
+     * Les noms des tubes restent jusqu'à leur descente sous le plateau ([Tempo.PODIUM_REVELATION]), et les textes de la
+     * révélation sont déjà là, invisibles, avant : on attend que [perdante] quitte l'écran avec les tubes, puis on
+     * vérifie qu'elle ne revient pas dessous (l'ancienne bande des autres équipes arrivait après le nom du gagnant).
+     */
+    private fun seulementLesGagnants(perdante: String) {
+        ecran.neVoitPas(perdante, Tempo.PODIUM_REVELATION + 10_000)
+        Thread.sleep(4_000)
+        assertFalse("« $perdante » revenue sous les gagnants", ecran.affiche(perdante))
     }
 }

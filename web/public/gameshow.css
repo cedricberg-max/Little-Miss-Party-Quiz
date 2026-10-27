@@ -6,6 +6,7 @@
 @font-face { font-family: "GS Rajdhani"; font-weight: 700 900; font-display: swap; src: url(fonts/gs-rajdhani-700.woff2) format("woff2"); }
 @font-face { font-family: "GS Orbitron"; font-weight: 500 900; font-display: swap; src: url(fonts/gs-orbitron.woff2) format("woff2"); }
 @font-face { font-family: "GS Bungee"; font-weight: 400; font-display: swap; src: url(fonts/gs-bungee.woff2) format("woff2"); }
+@font-face { font-family: "GS Rye"; font-weight: 400; font-display: swap; src: url(fonts/gs-rye.woff2) format("woff2"); }
 
 body.look-gs {
   --gs-rose: #ff2d95; --gs-orange: #ff6b1a; --gs-vert: #39ff14; --gs-jaune: #ffe600;
@@ -199,3 +200,20 @@ body.look-gs::after {
 .look-gs .paused { background: rgba(5, 1, 13, .93); color: #e6fdff; font-family: "GS Bungee"; font-weight: 400; text-shadow: 0 0 22px var(--gs-cyan); }
 .look-gs .paused p { font-family: "GS Rajdhani"; text-shadow: none; }
 .look-gs .countdown { background: rgba(5, 1, 13, .8); }
+
+/* 🤠 Le Duel des robots (planche validée par cedric, 27/10) : les mots en lettre western (Rye, SIL OFL 1.1) et en néon,
+   à la couleur de l'équipe ; le gros bouton dit « PAN ! », puis « BRAVO » ou « OUPS », en lettres western cerclées. */
+.duel-titre {
+  --n: var(--team, #ff7a1a);
+  margin: 0; max-width: 100%; font-family: "GS Rye", Georgia, serif; font-weight: 400; font-size: clamp(40px, 8.5vw, 78px);
+  line-height: 1.05; text-align: center; color: #fff; overflow-wrap: anywhere;
+  text-shadow: 0 0 4px #fff, 0 0 10px var(--n), 0 0 24px var(--n), 0 0 49px var(--n), 0 0 77px var(--n);
+}
+.duel-titre.etoiles::before, .duel-titre.etoiles::after { content: "★"; font-size: .45em; vertical-align: .35em; margin: 0 .25em; }
+body[data-duel] #buzz {
+  font-family: "GS Rye", Georgia, serif; font-weight: 400; letter-spacing: .02em; padding: 0;
+  -webkit-text-stroke: calc(var(--t, 300px) * .016) #1a0a10; paint-order: stroke fill;
+  text-shadow: 0 calc(var(--t, 300px) * .014) 0 #1a0a10, 0 0 26px rgba(255, 255, 255, .7);
+}
+.look-gs[data-duel] #app .buzz { font-size: calc(var(--t) * .17); }
+body[data-duel] #buzz.oups { --team: #5a3a5a; }

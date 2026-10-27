@@ -180,6 +180,12 @@ data class MimeFound(override val seq: Int, override val at: Long) : GameEvent
  */
 data class MimePassed(override val seq: Int, override val at: Long) : GameEvent
 
+/**
+ * Mimes en file (cedric, 26/10) : « ⏭ Passer », le mimeur abandonne son image. Elle repart sous le paquet, sans point,
+ * et les joueurs tournent comme après un mime trouvé : l'écran se vide jusqu'à « Image suivante ».
+ */
+data class MimeSkipped(override val seq: Int, override val at: Long) : GameEvent
+
 /** Correction de l'animatrice (+1 ou −1) sur les mimes trouvés par [team] pendant cette manche, jamais sous zéro. */
 data class MimeCorrected(override val seq: Int, override val at: Long, val team: String, val delta: Int) : GameEvent
 
@@ -220,6 +226,26 @@ data class Buzzed(override val seq: Int, override val at: Long, val team: String
  */
 data class StatuesWon(override val seq: Int, override val at: Long, val team: String, val others: List<String>) : GameEvent
 
+/** Statues musicales (depuis le 27/10) : « ✋ STATUE ! », Sarah coupe la musique de la chanson en cours. */
+data class StatuesStopped(override val seq: Int, override val at: Long, val qid: String) : GameEvent
+
+/** Statues musicales : « 💃 On danse ! », la musique reprend là où elle s'était arrêtée. */
+data class StatuesDanced(override val seq: Int, override val at: Long, val qid: String) : GameEvent
+
+/** Statues musicales : la chanson [song] est allée au bout (la box le voit à sa lecture) ; Sarah désigne les gagnantes. */
+data class StatuesSongEnded(override val seq: Int, override val at: Long, val qid: String, val song: Int) : GameEvent
+
+/**
+ * Statues musicales : Sarah désigne les gagnantes de la chanson [song] ([winners], vide pour « Personne ») ; la chanson
+ * s'arrête. [others] : les autres équipes inscrites, qui marquent un peu moins (rien pour « Personne »).
+ */
+data class StatuesSongWon(
+    override val seq: Int, override val at: Long, val qid: String, val song: Int, val winners: List<String>, val others: List<String>,
+) : GameEvent
+
+/** Statues musicales : « ▶ Chanson suivante », la chanson [song] part de 0:00. */
+data class StatuesSongStarted(override val seq: Int, override val at: Long, val qid: String, val song: Int) : GameEvent
+
 /**
  * Le Gonfleur fou : fin de la course de [qid]. [team] = le ballon gagnant ([NO_WINNER] si personne n'a tapé) ;
  * [teams] = toutes les équipes qui jouaient (les autres marquent leurs points de participation). Révélation.
@@ -238,7 +264,15 @@ data class PotatoLit(
     val fuseMs: Long,
     val teams: List<String>,
     val bomb: Int = 1,
+    /** Nombre de bombes de la partie (absent des journaux d'avant le 26/10 : 3). */
+    val total: Int = POTATO_BOMBS,
 ) : GameEvent
+
+/**
+ * « Ça va exploser ! » : Sarah arrête après cette bombe (téléphone). Bombe en cours : c'est la dernière. Entre deux
+ * bombes (la suivante pas encore partie) : on s'arrête là, bilan des scores, puis le jeu suivant.
+ */
+data class PotatoStopped(override val seq: Int, override val at: Long, val qid: String) : GameEvent
 
 /** « Ça va exploser ! » : [from] envoie la bombe à [to]. */
 data class PotatoPassed(override val seq: Int, override val at: Long, val qid: String, val from: String, val to: String) : GameEvent
@@ -247,6 +281,39 @@ data class PotatoPassed(override val seq: Int, override val at: Long, val qid: S
 data class PotatoExploded(override val seq: Int, override val at: Long, val qid: String, val holder: String) : GameEvent
 
 data class BuzzJudged(override val seq: Int, override val at: Long, val ok: Boolean, val bonus: Boolean = false) : GameEvent
+
+/**
+ * Le Duel des robots : le duel n° [n] est prêt entre [teams] (2 équipes), avec leurs joueurs [players] ; [extra] =
+ * choisi à la volée par Sarah. Un duel prêt pas encore lancé peut être remplacé (même numéro).
+ */
+data class DuelReady(
+    override val seq: Int,
+    override val at: Long,
+    val qid: String,
+    val n: Int,
+    val teams: List<String>,
+    val players: List<Int>,
+    val extra: Boolean = false,
+) : GameEvent
+
+/** Le Duel des robots : le face-à-face du duel [n] commence ; le PAN tombera à [panAt] (heure du serveur, secrète). */
+data class DuelStarted(override val seq: Int, override val at: Long, val qid: String, val n: Int, val panAt: Long) : GameEvent
+
+/** Le Duel des robots : la tablette de [team] a buzzé, appui à [t] (heure du serveur estimée par la tablette). */
+data class DuelBuzzed(override val seq: Int, override val at: Long, val qid: String, val n: Int, val team: String, val t: Long) : GameEvent
+
+/**
+ * Le Duel des robots : le PAN est apparu à l'écran de la TV à [shownAt] (heure du serveur, image réellement envoyée à
+ * l'écran) ; la box juge les buzz par rapport à cet instant (cedric, 27/10 : un PAN affiché en retard ne doit
+ * pénaliser personne).
+ */
+data class DuelPanShown(override val seq: Int, override val at: Long, val qid: String, val n: Int, val shownAt: Long) : GameEvent
+
+/** Le Duel des robots : plus d'appui à attendre (fenêtre après le premier buzz, ou personne 10 s après le PAN). */
+data class DuelSettled(override val seq: Int, override val at: Long, val qid: String, val n: Int) : GameEvent
+
+/** Le Duel des robots : Sarah arrête le face-à-face ; la même paire reste prête, sans points. */
+data class DuelStopped(override val seq: Int, override val at: Long, val qid: String, val n: Int) : GameEvent
 
 /**
  * Saut de la régie vers la question [index] (début d'un jeu de la prestation), en avant comme en arrière.

@@ -2,7 +2,9 @@ package com.littlemissparty.quiz.tv.habillage
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,7 +33,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.tv.EtapeStatues
+import com.littlemissparty.quiz.tv.Team
 import com.littlemissparty.quiz.tv.UiState
 import com.littlemissparty.quiz.tv.toColor
 import kotlin.math.PI
@@ -52,19 +55,74 @@ private val GLACE = listOf(Color.White, Color(0xFFC9F7FF), Color(0xFF5FDcFF), Co
 private val OR = listOf(Color(0xFFFFF7B0), Color(0xFFFFE600), Color(0xFFFFA51F))
 private val BARRES = listOf(GS.Rose, GS.Jaune, GS.Cyan, GS.Vert, GS.Orange, Color(0xFFB56BFF))
 
-/** Le plateau des statues en Game Show ; [danse] : la musique joue. La musique elle-même reste dans StatuesBoard. */
+/**
+ * Le plateau des statues en Game Show, à l'[etape] de la chanson (cedric, 27/10 : une chanson par tour, plusieurs
+ * gagnantes possibles, [gagnantes] dans l'ordre de Sarah). La musique elle-même reste dans StatuesBoard.
+ */
 @Composable
-internal fun StatuesGameShow(state: UiState.Playing, danse: Boolean, modifier: Modifier = Modifier) {
-    val enCours = state.phase == Phase.QUESTION
+internal fun StatuesGameShow(state: UiState.Playing, etape: EtapeStatues, gagnantes: List<Team>, modifier: Modifier = Modifier) {
     EchelleSansCoupe(LARGEUR, HAUTEUR, modifier) {
         val centre = Modifier.align(Alignment.Center).padding(top = 40.dp)
-        when {
-            enCours && danse -> Dansez(centre)
-            enCours -> StatueGlace(centre)
-            state.phase == Phase.CLOSED -> QuiAGagne(centre)
-            else -> {
-                val gagnant = state.teams.find { state.awards[it.uid]?.correct == true }
-                StatueDOr(gagnant?.name, gagnant?.color?.toColor(), gagnant?.let { state.awards[it.uid]?.points } ?: 0, centre)
+        when (etape) {
+            EtapeStatues.DANSE -> Dansez(centre)
+            EtapeStatues.STATUE -> StatueGlace(centre)
+            EtapeStatues.FINIE -> FinDeLaChanson(centre)
+            EtapeStatues.SUSPENSE -> QuiAGagne(centre)
+            EtapeStatues.GAGNANTES -> {
+                val gains = state.statues?.result?.gains.orEmpty()
+                StatueDOr(gagnantes.map { Triple(it.name, it.color.toColor(), gains[it.uid] ?: 0) }, centre)
+            }
+            EtapeStatues.RECAP -> RecapGameShow(state, centre)
+            EtapeStatues.AUTRE -> {}
+        }
+    }
+}
+
+/** La chanson est allée au bout : tout le monde reste figé pendant que Sarah choisit les gagnantes. */
+@Composable
+private fun FinDeLaChanson(modifier: Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            "FIN DE LA CHANSON !", maxLines = 1, softWrap = false, modifier = Modifier.apparition(0, "fin"),
+            style = TextStyle(brush = Brush.verticalGradient(OR), fontFamily = PoliceGsTitre, fontSize = 110.sp, shadow = Shadow(Color(0xFFFFB000), Offset.Zero, 40f)),
+        )
+        Spacer(Modifier.height(26.dp))
+        LigneBuzz("PLUS PERSONNE NE BOUGE", 30.sp, Modifier.apparition(300, "fin"))
+    }
+}
+
+/** Récap de la chanson : chaque équipe, à sa couleur, ses points de la chanson et son total ; les gagnantes d'abord. */
+@Composable
+private fun RecapGameShow(state: UiState.Playing, modifier: Modifier) {
+    val r = state.statues?.result ?: return
+    val tours = state.question?.statuesTours ?: 1
+    val lignes = state.teams.sortedWith(compareByDescending<Team> { r.gains[it.uid] ?: 0 }.thenByDescending { state.scores[it.uid] ?: 0 })
+    // Jusqu'à 8 équipes : deux colonnes au-delà de 4, rien n'est coupé.
+    val colonnes = if (lignes.size > 4) 2 else 1
+    val taille = if (lignes.size > 4) 40f else 52f
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        LigneBuzz(if (tours > 1) "CHANSON ${r.song + 1} / $tours" else "LES POINTS DE LA CHANSON", 30.sp, Modifier.apparition(0, r.at))
+        Spacer(Modifier.height(24.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(70.dp)) {
+            lignes.chunked((lignes.size + colonnes - 1) / colonnes).forEach { colonne ->
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    colonne.forEachIndexed { i, team ->
+                        val gain = r.gains[team.uid] ?: 0
+                        Row(Modifier.apparition(120L * i, team.uid), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.width(if (colonnes > 1) 420.dp else 620.dp)) { NomUneLigne(team.name, team.color.toColor(), taille, if (colonnes > 1) 420.dp else 620.dp) }
+                            Spacer(Modifier.width(18.dp))
+                            Text(
+                                if (gain > 0) "+$gain" else "0", maxLines = 1, softWrap = false,
+                                modifier = Modifier.width(150.dp),
+                                style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = (taille * 0.8f).sp, color = if (gain > 0) GS.Jaune else Color.White.copy(alpha = 0.6f)),
+                            )
+                            Text(
+                                "${state.scores[team.uid] ?: 0}", maxLines = 1, softWrap = false,
+                                style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = (taille * 0.6f).sp, color = Color.White),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -172,14 +230,14 @@ private fun StatueGlace(modifier: Modifier) {
     }
 }
 
-/** S3 : fin de la musique, Sarah choisit sur la régie : « QUI A GAGNÉ ? », compte 3, 2, 1 dans un anneau, puis « ? » qui bat. */
+/** S3 : Sarah a choisi : « ET L'ÉQUIPE GAGNANTE EST… », roulement de tambour, compte 3, 2, 1 dans un anneau, puis « ? » qui bat. */
 @Composable
 private fun QuiAGagne(modifier: Modifier) {
     val ms = horloge(Unit)
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            "QUI A GAGNÉ ?", maxLines = 1, softWrap = false, modifier = Modifier.apparition(0, "qui"),
-            style = TextStyle(brush = Brush.verticalGradient(OR), fontFamily = PoliceGsTitre, fontSize = 110.sp, shadow = Shadow(Color(0xFFFFB000), Offset.Zero, 40f)),
+            "ET L'ÉQUIPE GAGNANTE EST…", maxLines = 1, softWrap = false, modifier = Modifier.apparition(0, "qui"),
+            style = TextStyle(brush = Brush.verticalGradient(OR), fontFamily = PoliceGsTitre, fontSize = 72.sp, shadow = Shadow(Color(0xFFFFB000), Offset.Zero, 40f)),
         )
         Spacer(Modifier.height(18.dp))
         Box(Modifier.size(230.dp), contentAlignment = Alignment.Center) {
@@ -212,21 +270,61 @@ private fun QuiAGagne(modifier: Modifier) {
     }
 }
 
-/** S4 : la statue d'or. Le nom de l'équipe gagnante couronné, à sa couleur, et ses vrais points ; personne : bravo à tous. */
+/**
+ * S4 : la statue d'or. Les équipes gagnantes ([gagnantes] : nom, couleur, points de la chanson) couronnées, à leur
+ * couleur, avec leurs vrais points ; personne : « Personne cette fois ! ».
+ */
 @Composable
-private fun StatueDOr(nom: String?, couleur: Color?, points: Int, modifier: Modifier) {
-    val ms = horloge(nom)
-    Box(Modifier.fillMaxSize()) {
-        Rayons(ms)
-        Gerbe(cle = nom, modifier = Modifier.fillMaxSize())
-    }
-    if (nom == null || couleur == null) {
-        Text(
-            "BRAVO À TOUS LES DANSEURS !", textAlign = TextAlign.Center, modifier = modifier.padding(horizontal = 60.dp).apparition(0, "tous"),
-            style = TextStyle(brush = Brush.verticalGradient(OR), fontFamily = PoliceGsTitre, fontSize = 84.sp, lineHeight = 92.sp, shadow = Shadow(Color(0xFFFFB000), Offset.Zero, 36f)),
-        )
+private fun StatueDOr(gagnantes: List<Triple<String, Color, Int>>, modifier: Modifier) {
+    val cle = gagnantes.joinToString { it.first }
+    val ms = horloge(cle)
+    if (gagnantes.isEmpty()) {
+        Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "PERSONNE CETTE FOIS !", textAlign = TextAlign.Center, maxLines = 1, softWrap = false, modifier = Modifier.apparition(0, "personne"),
+                style = TextStyle(brush = Brush.verticalGradient(OR), fontFamily = PoliceGsTitre, fontSize = 96.sp, shadow = Shadow(Color(0xFFFFB000), Offset.Zero, 36f)),
+            )
+            Spacer(Modifier.height(22.dp))
+            LigneBuzz("ON SE RATTRAPE À LA PROCHAINE CHANSON", 28.sp, Modifier.apparition(300, "personne"))
+        }
         return
     }
+    Box(Modifier.fillMaxSize()) {
+        Rayons(ms)
+        Gerbe(cle = cle, modifier = Modifier.fillMaxSize())
+    }
+    if (gagnantes.size > 1) {
+        // Plusieurs gagnantes : la couronne, puis chaque nom à sa couleur, l'un sous l'autre (jusqu'à 8 sur deux colonnes).
+        val colonnes = if (gagnantes.size > 4) 2 else 1
+        val taille = when { gagnantes.size > 4 -> 52f; gagnantes.size > 2 -> 70f; else -> 100f }
+        val largeur = if (colonnes > 1) 700.dp else 1300.dp
+        Column(modifier.clearAndSetSemantics { contentDescription = "Bravo ${gagnantes.joinToString(", ") { it.first }} ! La statue d'or" }, horizontalAlignment = Alignment.CenterHorizontally) {
+            Couronne(visible = true, Modifier.size(120.dp, 84.dp))
+            Spacer(Modifier.height(6.dp))
+            LigneBuzz("LES STATUES D'OR", 30.sp, Modifier.apparition(150, cle))
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
+                gagnantes.chunked((gagnantes.size + colonnes - 1) / colonnes).forEach { colonne ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        colonne.forEachIndexed { i, (nom, couleur, _) ->
+                            Box(Modifier.apparition(300L + 150L * i, nom)) { NomUneLigne(nom, couleur, taille, largeur) }
+                        }
+                    }
+                }
+            }
+            val points = gagnantes.first().third
+            if (points > 0) {
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "+$points POINTS CHACUNE", maxLines = 1, softWrap = false,
+                    modifier = Modifier.apparition(700, cle).background(Brush.verticalGradient(OR), RoundedCornerShape(50)).padding(horizontal = 34.dp, vertical = 8.dp),
+                    style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = 30.sp, color = Color(0xFF3A1600)),
+                )
+            }
+        }
+        return
+    }
+    val (nom, couleur, points) = gagnantes.single()
     // Lu d'un seul bloc : « Bravo X ! » et la statue d'or.
     Column(modifier.clearAndSetSemantics { contentDescription = "Bravo $nom ! La statue d'or" }, horizontalAlignment = Alignment.CenterHorizontally) {
         Couronne(visible = true, Modifier.size(150.dp, 104.dp))

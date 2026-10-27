@@ -74,6 +74,11 @@ class ChangerDeBoxTest : TestTv() {
         assertEquals("reveal", licornes.etat(code).child("phase").value)
 
         // Cette TV redevient la box de la fête, depuis son salon (sa copie locale de la partie est ancienne).
+        // Les règles ne confient la fête qu'à un salon en accueil qui s'annonce capable de la reprendre : l'écran
+        // « Scannez pour jouer » peut s'afficher avant ces deux écritures (« Permission denied », 27/10).
+        attendreQue("salon prêt à reprendre la fête", 30_000) {
+            (Boite.controle.lire("games/$salon/public/changeBox") == true && Boite.controle.etat(salon).child("phase").value == "lobby").takeIf { it }
+        }
         assertTrue("Changement vers cette TV refusé", regie.changerDeBox(code, salon))
         ecran.voit("Voir les scores", 30_000)
         ecran.capture("fete-reprise")

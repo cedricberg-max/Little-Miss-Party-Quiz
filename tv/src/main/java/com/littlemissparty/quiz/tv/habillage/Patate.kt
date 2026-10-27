@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv.habillage
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -22,6 +23,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -69,6 +71,15 @@ private fun placePatate(i: Int, n: Int): Triple<Float, Float, Float> {
     return Triple(90f + 780f * f, 462f - creux * arc, k * (1f - 0.2f * arc))
 }
 
+/** Durée du vol de la bombe d'un socle à l'autre : court, pour suivre un ping-pong rapide (cedric, 27/10). */
+internal const val VOL_BOMBE_MS = 320
+
+/** Hauteur de la bombe au sommet de son vol. */
+private const val HAUT_VOL = 80f
+
+/** La bombe à un instant : posée sur un socle ou en l'air entre deux, [haut] au-dessus du sol, teintée par l'équipe. */
+private class PoseBombe(val x: Float, val y: Float, val s: Float, val haut: Float, val teinte: Color)
+
 /** La mèche montrée : elle raccourcit au rythme de la mèche et est entièrement consumée pile à l'explosion. */
 private fun mecheMontree(tension: Float): Float = 1f - tension.coerceIn(0f, 1f)
 
@@ -88,16 +99,39 @@ fun ScenePatate(
     val p = porteur.coerceIn(0, n - 1)
     val joue by rememberUpdatedState(jouer)
     val tens by rememberUpdatedState(tension.coerceIn(0f, 1f))
-    // Le vol de la bombe d'un socle à l'autre, à chaque passe.
-    var depart by remember { mutableIntStateOf(p) }
+    // Le vol de la bombe d'un socle à l'autre, à chaque passe : vif, il part fort et se pose en douceur (« pas au
+    // taquet » à 600 ms linéaires, cedric 26/10). Ses images sont comptées à part dans les rapports de fluidité.
+    // Ping-pong rapide (cedric, 27/10 : renvoi permis dès la réception) : un envoi qui arrive pendant le vol fait repartir
+    // la bombe de là où elle est, en l'air, vers sa nouvelle équipe, sans saut ni retour au socle précédent.
+    var cible by remember { mutableIntStateOf(p) }
+    var origine by remember { mutableStateOf<PoseBombe?>(null) }
     val vol = remember { Animatable(1f) }
+    fun pose(i: Int): PoseBombe {
+        val k = i.coerceIn(0, n - 1)
+        val (x, y, s) = placePatate(k, n)
+        return PoseBombe(x, y, s, 0f, equipes[k].second)
+    }
+    fun enVol(u: Float): PoseBombe {
+        val b = pose(cible)
+        val a = origine ?: b
+        return PoseBombe(
+            a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, a.s + (b.s - a.s) * u,
+            a.haut * (1f - u) + HAUT_VOL * sin(PI.toFloat() * u), lerp(a.teinte, b.teinte, u),
+        )
+    }
     LaunchedEffect(p) {
-        if (depart != p) {
+        if (cible != p) {
+            origine = enVol(vol.value)
+            cible = p
             joue(Son.PATATE_PASSE)
-            vol.snapTo(0f)
-            vol.animateTo(1f, tween(600, easing = LinearEasing))
+            com.littlemissparty.quiz.tv.Fluidite.moment = "vol"
+            try {
+                vol.snapTo(0f)
+                vol.animateTo(1f, tween(VOL_BOMBE_MS, easing = FastOutSlowInEasing))
+            } finally {
+                com.littlemissparty.quiz.tv.Fluidite.moment = null
+            }
         }
-        depart = p
     }
     // Tic-tac de plus en plus rapide et de plus en plus fort ; la bombe bat au même rythme.
     val pouls = remember { Animatable(0f) }
@@ -115,7 +149,12 @@ fun ScenePatate(
     LaunchedEffect(explosion) {
         if (!explosion) { boum.snapTo(0f); return@LaunchedEffect }
         joue(Son.BOMBE_BOUM)
-        boum.animateTo(1f, tween(1_500, easing = LinearEasing))
+        com.littlemissparty.quiz.tv.Fluidite.moment = "boum"
+        try {
+            boum.animateTo(1f, tween(1_500, easing = LinearEasing))
+        } finally {
+            com.littlemissparty.quiz.tv.Fluidite.moment = null
+        }
     }
     val annonce = remember(p) { Animatable(0f) }
     LaunchedEffect(p) { delay(450); annonce.animateTo(1f, tween(420, easing = LinearEasing)) }
@@ -147,13 +186,11 @@ fun ScenePatate(
             val b = boum.value
             // Une poursuite de scène suit la bombe d'un socle à l'autre.
             if (!explosion) {
-                val (xa, ya, sa) = placePatate(depart.coerceIn(0, n - 1), n)
-                val (xb, yb, sb) = placePatate(p, n)
-                val u = vol.value
-                val px = (xa + (xb - xa) * u) * d
-                val py = (ya + (yb - ya) * u) * d
-                val ps = sa + (sb - sa) * u
-                val teinte = lerp(equipes[depart.coerceIn(0, n - 1)].second, equipes[p].second, u)
+                val e = enVol(vol.value)
+                val px = e.x * d
+                val py = e.y * d
+                val ps = e.s
+                val teinte = e.teinte
                 val cone = Path().apply {
                     moveTo(px - 26f * d, 0f); lineTo(px + 26f * d, 0f)
                     lineTo(px + 95f * ps * d, py); lineTo(px - 95f * ps * d, py); close()
@@ -185,15 +222,13 @@ fun ScenePatate(
             }
             // La bombe : posée sur le socle du porteur, ou en vol entre deux socles.
             if (!explosion || b < 0.08f) {
-                val (x1, y1, s1) = placePatate(p, n)
-                val (x0, y0, s0) = placePatate(depart.coerceIn(0, n - 1), n)
-                val u = vol.value
-                val s = s0 + (s1 - s0) * u
-                val r = 44f * s * d
-                val x = (x0 + (x1 - x0) * u) * d
-                val sol = (y0 + (y1 - y0) * u) * d
-                val haut = 80f * d * sin(PI.toFloat() * u)
-                drawOval(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f * (1f - 0.7f * sin(PI.toFloat() * u))), Color.Transparent)), Offset(x - r * 1.1f, sol - 6f * d), androidx.compose.ui.geometry.Size(r * 2.2f, 12f * d))
+                val e = enVol(vol.value)
+                val r = 44f * e.s * d
+                val x = e.x * d
+                val sol = e.y * d
+                val haut = e.haut * d
+                val enLAir = (e.haut / HAUT_VOL).coerceIn(0f, 1f)
+                drawOval(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f * (1f - 0.7f * enLAir)), Color.Transparent)), Offset(x - r * 1.1f, sol - 6f * d), androidx.compose.ui.geometry.Size(r * 2.2f, 12f * d))
                 val gonfle = 1f + 0.09f * pouls.value
                 if (Look.gs) bombeNeon(Offset(x, sol - r * gonfle - haut), r * gonfle, ms, 0.55f, chauffe = (tens * tens).coerceIn(0f, 1f))
                 else dessineBombe(Offset(x, sol - r * gonfle - haut), r * gonfle, ms, 0.55f)

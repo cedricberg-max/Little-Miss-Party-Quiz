@@ -111,7 +111,7 @@ class MauvaisePrestationTest {
             "malus de la régie" to seul(q("a", "Quiz")) { adjust("rose", -10, "régie", t0 + 1_000) },
             "points à la télécommande" to seul(q("a", "Quiz")) { remotePoints("rose", 50, t0 + 1_000) },
             "statues musicales" to seul(Question("s", "Statues", emptyList(), -1, durationSec = 90, kind = QuestionKind.STATUES)) {
-                statuesWin("rose", listOf("bleu"), t0 + 30_000)
+                statuesSongWin(listOf("rose"), listOf("bleu"), t0 + 30_000)
             },
             "gonfleur fou" to seul(Question("g", "Gonfleur", emptyList(), -1, durationSec = 45, kind = QuestionKind.GONFLEUR)) {
                 balloon(mapOf("rose" to Pump(PUMP_TARGET, t0 + PUMP_GO_MS + 5_000)), equipes, t0 + PUMP_GO_MS + 5_000, stop = false)

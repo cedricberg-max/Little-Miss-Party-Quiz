@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.engine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -86,9 +87,12 @@ class VraiOuFauxExpressTest {
         g.close(t0 + 2_000)
         g.expressStep(t0 + 3_000, mapOf("rose" to Answer(0, t0 + 1_500)))
         assertEquals(2 * Scoring.EXPRESS, g.state.awards["f1"]!!["rose"]!!.points)
-        // Fin de la partie : la dernière affirmation mène aux scores, l'animatrice termine.
-        g.expressStep(t0 + 7_000, emptyMap())
-        assertEquals(Phase.SCORES, g.state.phase)
+        // Fin de la partie : la box attend l'animatrice après la toute dernière affirmation, puis les résultats finaux
+        // (plus de classement juste avant, cedric 27/10).
+        assertNull(g.expressStep(t0 + 7_000, emptyMap()))
+        assertEquals(Phase.REVEAL, g.state.phase)
+        assertNotNull(g.next(t0 + 8_000))
+        assertEquals(Phase.ENDED, g.state.phase)
     }
 
     @Test

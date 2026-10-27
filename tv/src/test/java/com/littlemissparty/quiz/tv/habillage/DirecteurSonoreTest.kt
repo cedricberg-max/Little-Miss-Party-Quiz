@@ -350,12 +350,30 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `mimes en file, passer fait tourner les joueurs et l'image suivante fait pop`() {
+        val d = DirecteurSonore()
+        d.observer(tour)
+        // « ⏭ Passer » (cedric, 26/10) : le son du passage, puis le souffle qui fait tourner les joueurs.
+        val passe = d.observer(tour.copy(passes = 1, onTourne = true))
+        assertEquals(listOf(Son.MIME_PASSE, Son.WHOOSH), passe.sons())
+        assertTrue("La musique du tour ne change pas", passe.filterIsInstance<Ordre.Musique>().isEmpty())
+        // Sarah montre l'image suivante : un seul petit pop.
+        val image = d.observer(tour.copy(passes = 1))
+        assertEquals(1, image.sons().size)
+        assertTrue(image.sons().single().name.startsWith("POP"))
+        // Trouvé : le son du mime trouvé et le même souffle, puis le pop de l'image suivante.
+        assertEquals(listOf(Son.MIME_TROUVE, Son.WHOOSH), d.observer(tour.copy(trouves = 1, passes = 1, onTourne = true)).sons())
+        assertTrue(d.observer(tour.copy(trouves = 1, passes = 1)).sons().single().name.startsWith("POP"))
+    }
+
+    @Test
     fun `tension des 10 dernieres secondes une seule fois, coupee par la fin du tour`() {
         val d = DirecteurSonore()
         d.observer(tour)
         val tension = d.observer(tour.copy(urgent = true))
         assertEquals(listOf(Son.MIME_TENSION), tension.sons())
-        assertEquals(Ambiance.SUSPENSE, tension.musique())
+        // La boucle des mimes, qui monte, ne s'arrête jamais pendant le tour (cedric, 26/10).
+        assertTrue(tension.filterIsInstance<Ordre.Musique>().isEmpty())
         assertTrue(d.observer(tour.copy(urgent = true)).isEmpty())
         val fin = d.observer(mimes.copy(urgent = false))
         assertEquals(Ordre.Couper, fin.first())
@@ -735,6 +753,22 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `statues musicales, roulement de tambour puis fanfare pour les gagnantes, rien pour Personne, pas d'elan a l'annonce`() {
+        val d = DirecteurSonore()
+        val statue = Instant(Ecran.QUESTION, partie = "ABCD", index = 15, equipes = 2, propositions = 0, musical = true, statue = true)
+        d.observer(statue)
+        val suspense = statue.copy(statue = false, statuesAnnonce = 1, statuesGagnantes = true)
+        assertEquals(listOf(Son.ROULEMENT_LONG), d.observer(suspense).sons())
+        assertEquals(listOf(Son.FANFARE), d.observer(suspense.copy(statuesAnnonce = 2)).sons())
+        assertTrue(d.observer(suspense.copy(statuesAnnonce = 3)).sons().isEmpty())
+        // Chanson suivante, puis « Personne » : le roulement, et pas de fanfare.
+        d.observer(statue.copy(statue = false, index = 15))
+        val personne = statue.copy(statue = false, statuesAnnonce = 1)
+        assertEquals(listOf(Son.ROULEMENT_LONG), d.observer(personne).sons())
+        assertTrue(d.observer(personne.copy(statuesAnnonce = 2)).sons().isEmpty())
+    }
+
+    @Test
     fun `ca va exploser, sa propre musique, ni boucle, ni bips, ni tension par-dessus`() {
         val d = DirecteurSonore()
         val bombe = Instant(Ecran.QUESTION, partie = "ABCD", index = 20, equipes = 4, propositions = 0, patate = true)
@@ -893,5 +927,52 @@ class DirecteurSonoreTest {
         assertTrue(Son.TRANSITION in rideau.sons())
         assertEquals(Ambiance.PRESENTATION, rideau.musique())
         assertTrue(Son.MANCHE in d.observer(suivant.copy(ecran = Ecran.QUESTION)).sons())
+    }
+
+    @Test
+    fun `duel des robots, Game Show - le debut de l'air western a la presentation puis sa boucle, silence au face-a-face`() {
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true))
+        val presentation = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "duel|", gameShow = true, duel = true)
+        val o = d.observer(presentation)
+        assertEquals(listOf(Son.DUEL_INTRO), o.sons())
+        // La boucle prend le relais pile à la fin du début, repartie de sa première mesure.
+        val relais = o.filterIsInstance<Ordre.Musique>().last()
+        assertEquals(Ambiance.DUEL_PRESENTATION, relais.ambiance)
+        assertEquals(Tempo.DUEL_INTRO_BOUCLE, relais.dansMs)
+        assertTrue(Ordre.Caler(Tempo.DUEL_INTRO_BOUCLE) in o)
+        assertEquals(1f, Ambiance.DUEL_PRESENTATION.volume(Lit.DUEL, gs = true))
+        assertTrue(d.observer(presentation).isEmpty())
+        val pret = presentation.copy(ecran = Ecran.QUESTION, duelEtape = "ready")
+        assertEquals(Ambiance.DUEL_ANNONCE, d.observer(pret).musique())
+        // Le face-à-face : la boucle se tait net (avant, elle restait sous la musique du face-à-face).
+        val face = d.observer(pret.copy(duelEtape = "standoff")).filterIsInstance<Ordre.Musique>().single()
+        assertEquals(Ambiance.SILENCE, face.ambiance)
+        assertEquals(Tempo.FONDU_RELAIS, face.fonduMs)
+        assertEquals(Ambiance.DUEL_ENTRE, d.observer(pret.copy(duelEtape = "result")).musique())
+        // Duel suivant : la boucle revient pour l'annonce ; rien ne se rejoue tant que l'étape ne change pas.
+        assertEquals(Ambiance.DUEL_ANNONCE, d.observer(pret).musique())
+        assertTrue(d.observer(pret).isEmpty())
+    }
+
+    @Test
+    fun `duel des robots, Classique - presentation habituelle, sans l'air western`() {
+        val d = DirecteurSonore()
+        d.observer(salon)
+        val o = d.observer(Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "duel|", duel = true))
+        assertFalse(Son.DUEL_INTRO in o.sons())
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET), Ambiance.DUEL_PRESENTATION.volume(Lit.COMPLET))
+        assertEquals(0f, Ambiance.DUEL_PRESENTATION.volume(Lit.DUEL))
+    }
+
+    @Test
+    fun `un son long du Game Show lit son propre fichier`() {
+        assertEquals("gs_duel_face", Son.DUEL_FACE.fichierLong(gameShow = true))
+        assertEquals("lmp_drumroll_2b", Son.DUEL_FACE.fichierLong(gameShow = false))
+        assertEquals("lmp_generique", Son.GENERIQUE.fichierLong(gameShow = true))
+        // Chaque son long propre au Game Show existe bien dans l'appli.
+        Son.entries.filter { it.long }.map { it.fichierLong(true) }.filter { it.startsWith("gs_") }.forEach { n ->
+            assertTrue("$n manquant", java.io.File("src/main/res/raw").listFiles().orEmpty().any { it.nameWithoutExtension == n })
+        }
     }
 }

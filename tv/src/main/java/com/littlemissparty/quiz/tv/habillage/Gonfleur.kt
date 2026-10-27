@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.engine.PUMP_TARGET
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
@@ -62,6 +63,47 @@ const val POINTS_GONFLEUR_GAGNANT = 300
 const val POINTS_GONFLEUR_AUTRES = 150
 
 private val jouerSonGonfleur: (Son) -> Unit = { Sons.executer(listOf(Ordre.Jouer(it))) }
+
+/**
+ * Game Show (cedric, 27/10, son B) : le ballon qui couine, toutes les [COUINE_TAPES] tapes de chaque équipe. Plus aigu à
+ * mesure qu'il gonfle (un fichier par tiers, et la vitesse de 0,95 à 1,10 dans chaque tiers), placé en stéréo selon la
+ * place de l'équipe (gauche → droite), environ 6 dB sous la musique. Au plus un couinement toutes les [COUINE_ECART_MS]
+ * par équipe et [COUINE_MAX] en même temps (Mi Box).
+ */
+const val COUINE_TAPES = 2
+const val COUINE_ECART_MS = 90L
+const val COUINE_MAX = 4
+private const val COUINE_DUREE_MS = 130L
+private const val COUINE_VOLUME = 0.5f
+
+/** Le couinement d'un ballon gonflé à [progres] (0 à 1), à la place [place] sur [n] équipes : son, gauche, droite, vitesse. */
+fun couinement(progres: Float, place: Int, n: Int): Ordre.Jouer {
+    val p = progres.coerceIn(0f, 1f)
+    val tiers = (p * 3f).toInt().coerceIn(0, 2)
+    val dansTiers = (p * 3f - tiers).coerceIn(0f, 1f)
+    val pan = if (n <= 1) 0.5f else place.toFloat() / (n - 1)
+    return Ordre.Jouer(
+        listOf(Son.COUINE_1, Son.COUINE_2, Son.COUINE_3)[tiers],
+        gauche = COUINE_VOLUME * (2f * (1f - pan)).coerceAtMost(1f),
+        droite = COUINE_VOLUME * (2f * pan).coerceAtMost(1f),
+        vitesse = 0.95f + 0.15f * dansTiers,
+    )
+}
+
+/** Les couinements en cours (fin prévue, horloge de la box) et le dernier de chaque équipe : les limites de la Mi Box. */
+private object Couines {
+    private val fins = ArrayDeque<Long>()
+    private val dernier = mutableMapOf<Int, Long>()
+
+    @Synchronized
+    fun permis(place: Int, maintenant: Long): Boolean {
+        while (fins.isNotEmpty() && fins.first() <= maintenant) fins.removeFirst()
+        if (fins.size >= COUINE_MAX || maintenant - (dernier[place] ?: Long.MIN_VALUE / 2) < COUINE_ECART_MS) return false
+        dernier[place] = maintenant
+        fins.addLast(maintenant + COUINE_DUREE_MS)
+        return true
+    }
+}
 
 private val styleGonfleur = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontWeight = FontWeight.ExtraBold)
 
@@ -109,11 +151,20 @@ fun DepartGonfleur(onFini: () -> Unit, modifier: Modifier = Modifier, jouer: (So
 fun SceneGonfleur(equipes: List<Triple<String, Color, Float>>, gagnante: Int?, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonGonfleur) {
     val n = equipes.size.coerceAtLeast(1)
     val joue by rememberUpdatedState(jouer)
-    // Petit « pfff » de gonflage chaque fois que le ballon de tête franchit un palier.
+    // Classique : petit « pfff » de gonflage chaque fois que le ballon de tête franchit un palier. Game Show : chaque
+    // ballon couine toutes les 2 tapes de son équipe ([couinement]).
     val tete = equipes.maxOfOrNull { it.third } ?: 0f
     val palier = (tete * 8f).toInt().coerceIn(0, 7)
     LaunchedEffect(palier) {
-        if (palier > 0 && gagnante == null) joue(if (palier < 3) Son.GONFLE_1 else if (palier < 6) Son.GONFLE_2 else Son.GONFLE_3)
+        if (!Look.gs && palier > 0 && gagnante == null) joue(if (palier < 3) Son.GONFLE_1 else if (palier < 6) Son.GONFLE_2 else Son.GONFLE_3)
+    }
+    if (Look.gs) equipes.forEachIndexed { i, (_, _, progres) ->
+        val paires = (progres.coerceIn(0f, 1f) * PUMP_TARGET).toInt() / COUINE_TAPES
+        LaunchedEffect(i, paires) {
+            if (paires > 0 && gagnante == null && Couines.permis(i, android.os.SystemClock.uptimeMillis())) {
+                Sons.executer(listOf(couinement(progres, i, equipes.size)))
+            }
+        }
     }
     val eclat = remember(gagnante) { Animatable(0f) }
     LaunchedEffect(gagnante) {

@@ -826,6 +826,11 @@ describe("statues musicales", () => {
     const { snapshot } = buildSnapshot("s", { childName: "Léa", age: 7, rounds: [round] }, {}, {}, Math.random, {}, {}, {}, songs);
     assert.deepEqual(snapshot.quiz.questions[0].audioIds, [hex("c"), hex("b")]);
     assert.deepEqual(soundIds(snapshot.quiz.questions), [hex("c"), hex("b")]);
+    // Statues du 27/10 : chaque chanson jouée entière (copiée dans la partie par la régie), son extrait en secours.
+    assert.deepEqual(snapshot.quiz.questions[0].songs, [
+      { songId: "c", audioId: hex("c"), title: "Sous l'océan" },
+      { songId: "a", audioId: hex("b"), title: "Libérée" },
+    ]);
     // Plus aucune chanson jouable : les extraits cochés avant, sinon la musique de la fête.
     const playlists = { p: { title: "P", tracks: [{ title: "F", audioId: hex("f") }] } };
     assert.deepEqual(sonsDesStatues({ ...round, chansons: ["r"] }, playlists, songs), [hex("f")]);
@@ -3321,12 +3326,26 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
     assert.deepEqual(qs.map((q) => q.id), ["r1m1", "r1m2", "r1m3"]);
     assert.ok(qs.every((q) => q.kind === "mime" && q.round === "Mimes" && q.duration === 45));
     assert.deepEqual(snapshot.rounds.map((r) => [r.title, r.count]), [["Mimes", 3]]);
-    // Chaque équipe ne mime que ses images ; une case retirée ne se joue pas.
-    assert.deepEqual(qs[0].cards.map((c) => c.word).sort(), ["Chat", "Vache"]);
-    assert.deepEqual(qs[1].cards.map((c) => c.word).sort(), ["Lion", "Ma tata", "Pomme"]);
+    // Chaque équipe mime d'abord ses images ; une case retirée ne se joue pas.
+    assert.deepEqual(qs[0].cards.slice(0, 2).map((c) => c.word).sort(), ["Chat", "Vache"]);
+    assert.deepEqual(qs[1].cards.slice(0, 3).map((c) => c.word).sort(), ["Lion", "Ma tata", "Pomme"]);
     assert.equal(qs[1].cards.find((c) => c.word === "Ma tata").imageId, "0123456789abcdef");
-    // Photos libres : copiées dans la partie par la régie au lancement.
-    assert.deepEqual(B.banqueRefs(qs).map((x) => x.cle).sort(), ["chat", "vache"]);
+    // Mimes en file (cedric, 26/10) : la couleur de l'équipe, puis une réserve d'images mimables si elle épuise les
+    // siennes, jamais deux fois la même dans la fête.
+    assert.deepEqual(qs.map((q) => q.couleur), show.teamColors.slice(0, 3));
+    const reserves = qs.map((q) => q.cards.filter((c) => !show.rounds[0].equipes.flat().some((x) => x?.word === c.word)));
+    assert.ok(reserves.every((r) => r.length >= 25 && r.length <= S.MIME_RESERVE), "Quelques dizaines d'images de secours par équipe");
+    assert.ok(Math.max(...reserves.map((r) => r.length)) - Math.min(...reserves.map((r) => r.length)) <= 1, "Autant pour chaque équipe");
+    // 8 équipes : la réserve se partage, toujours à parts égales et sans doublon.
+    const huit = S.reserveMimes(8, new Set(), () => 0.5);
+    assert.ok(huit.every((r) => r.length >= 15), huit.map((r) => r.length).join(","));
+    assert.equal(new Set(huit.flat().map((c) => c.word)).size, huit.flat().length);
+    const mots = qs.flatMap((q) => q.cards.map((c) => c.word.toLowerCase()));
+    assert.equal(new Set(mots).size, mots.length);
+    // Photos libres : copiées dans la partie par la régie au lancement, celles de la réserve comprises.
+    const refs = B.banqueRefs(qs).map((x) => x.cle);
+    assert.ok(refs.includes("chat") && refs.includes("vache"));
+    assert.ok(refs.length > 2, "La réserve vient de la banque de photos libres");
     // La régie copie aussi ses images à elle.
     assert.ok(S.choiceImageIds(qs).includes("0123456789abcdef"));
   });

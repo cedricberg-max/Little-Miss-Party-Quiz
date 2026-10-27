@@ -133,7 +133,8 @@ fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Badge("QUI SUIS-JE ?")
+            // Game Show : le titre est déjà dans l'enseigne, plus de pastille en double (cedric, planche du 27/10).
+            if (!Look.gs) Badge("QUI SUIS-JE ?")
             Spacer(Modifier.weight(1f))
             if (!revealed) Text("?", color = Palette.Gold, fontSize = 44.sp, fontWeight = FontWeight.Black)
         }
@@ -144,6 +145,8 @@ fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
                 emoji = q.emoji?.takeIf { it.isNotBlank() },
                 image = imagePersonnage(q, state),
                 modifier = Modifier.weight(1f).fillMaxWidth(),
+                // Game Show : le nom est déjà en néon dans la révélation à côté, pas deux fois à l'écran.
+                avecNom = !Look.gs,
             )
             return@Column
         }

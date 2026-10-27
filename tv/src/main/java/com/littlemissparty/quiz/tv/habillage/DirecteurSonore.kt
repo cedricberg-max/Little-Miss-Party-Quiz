@@ -118,7 +118,14 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.WHOOSH)
                 o += Ordre.Musique(Ambiance.SALON)
             }
-            Ecran.PRESENTATION -> if (nouvelleEpreuve) {
+            // Game Show, Duel des robots : le début de l'air western une fois, puis sa boucle repart de sa première
+            // mesure juste derrière, sans blanc (sous la vidéo d'intro du duel).
+            Ecran.PRESENTATION -> if (i.duel && i.gameShow) {
+                o += Ordre.Jouer(Son.DUEL_INTRO)
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Musique(Ambiance.DUEL_PRESENTATION, Tempo.DUEL_INTRO_BOUCLE, Tempo.FONDU_RELAIS)
+                o += Ordre.Caler(Tempo.DUEL_INTRO_BOUCLE)
+            } else if (nouvelleEpreuve) {
                 // Présentation d'un jeu : le jingle du rideau, puis une musique douce sous la voix de Sarah.
                 o += Ordre.Jouer(Son.TRANSITION)
                 o += Ordre.Musique(Ambiance.SILENCE)
@@ -342,9 +349,17 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.MAGIE_POUF)
                 o += Ordre.Musique(ambiance(i))
             }
+            // Duel des robots : chaque étape a sa musique (boucle western à l'annonce, rien au face-à-face, plus bas
+            // entre deux duels) ; au face-à-face, elle se tait net : sa propre musique part avec l'écran du duel.
+            if (i.duel && i.duelEtape != p.duelEtape) {
+                o += Ordre.Musique(ambiance(i), fonduMs = if (i.duelEtape == "standoff") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
+            }
             // Statues musicales : « gel ! » quand la musique s'arrête, petit élan quand elle repart.
             if (i.statue && !p.statue) o += Ordre.Jouer(Son.STATUE_GEL)
-            if (!i.statue && p.statue) o += Ordre.Jouer(Son.STATUE_REPART)
+            if (!i.statue && p.statue && i.statuesAnnonce == 0) o += Ordre.Jouer(Son.STATUE_REPART)
+            // « Et l'équipe gagnante est… » : roulement de tambour, puis la fanfare pour les gagnantes.
+            if (i.statuesAnnonce == 1 && p.statuesAnnonce == 0) o += Ordre.Jouer(Son.ROULEMENT_LONG)
+            if (i.statuesAnnonce == 2 && p.statuesAnnonce == 1 && i.statuesGagnantes) o += Ordre.Jouer(Son.FANFARE)
         }
         // Blind test : Sarah raccourcit la révélation, la fanfare s'arrête.
         if (i.ecran == Ecran.REVELATION && i.blind && i.blindCoupe && !p.blindCoupe) o += Ordre.Couper
@@ -353,14 +368,19 @@ class DirecteurSonore {
             // Mimes en roulement (cedric, 24/10) : « Changement de joueur ! » arrive dans un souffle, la musique ne change pas.
             if (i.trouves > p.trouves && !i.pictionary) o += Ordre.Jouer(Son.WHOOSH, Tempo.MIME_RELAIS)
             if (i.passes > p.passes) o += Ordre.Jouer(Son.MIME_PASSE)
-            // Dix dernières secondes du tour : la musique s'efface sous la tension.
+            // Mimes en file (cedric, 26/10) : « ⏭ Passer » fait tourner les joueurs, dans le même souffle qu'un mime trouvé.
+            if (i.passes > p.passes && i.onTourne) o += Ordre.Jouer(Son.WHOOSH, Tempo.MIME_RELAIS)
+            // Sarah montre l'image suivante : petit « pop », le mimeur peut y aller.
+            if (p.onTourne && !i.onTourne && i.trouves == p.trouves && i.passes == p.passes) o += Ordre.Jouer(Son.pop(i.trouves + i.passes))
+            // Dix dernières secondes du tour : la tension monte. Mimes (cedric, 26/10) : la boucle qui monte ne s'arrête
+            // jamais pendant le tour ; Pictionary : la musique s'efface sous la tension.
             if (i.urgent && !p.urgent) {
                 o += Ordre.Jouer(Son.MIME_TENSION)
-                o += Ordre.Musique(Ambiance.SUSPENSE)
+                if (i.pictionary) o += Ordre.Musique(Ambiance.SUSPENSE)
             }
             if (p.urgent && !i.urgent) {
                 o += Ordre.Arreter(Son.MIME_TENSION)
-                o += Ordre.Musique(Ambiance.MIMES)
+                if (i.pictionary) o += Ordre.Musique(Ambiance.MIMES)
             }
         }
         return o
@@ -407,6 +427,7 @@ class DirecteurSonore {
     private fun ambiance(i: Instant) = when (i.ecran) {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
+        Ecran.PRESENTATION -> if (i.duel) Ambiance.DUEL_PRESENTATION else Ambiance.PRESENTATION
         Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
             i.express -> Ambiance.EXPRESS
             // Extrait musical : rien ne doit couvrir la chanson.
@@ -415,6 +436,13 @@ class DirecteurSonore {
             // Qui a disparu ? : musique douce pour mémoriser, presque rien pendant le tour de magie.
             // « Ça va exploser ! » : sa propre musique, calée sur la mèche (MusiquePatate) ; les boucles se taisent.
             i.patate && i.ecran != Ecran.REVELATION -> Ambiance.SILENCE
+            // Le Duel des robots : un air de suspense pendant que les joueurs s'approchent, puis le silence du
+            // face-à-face, rompu seulement par les feintes et le PAN (DuelScreens).
+            i.duel -> when (i.duelEtape) {
+                "standoff" -> Ambiance.SILENCE
+                "ready" -> Ambiance.DUEL_ANNONCE
+                else -> Ambiance.DUEL_ENTRE
+            }
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             // Game Show : Qui suis-je ? est un jeu qui bouge, sur la musique des mimes (cedric, 23/10), en retrait sous les indices.
@@ -471,6 +499,8 @@ data class Instant(
     /** Mimes trouvés et passés pendant le tour en cours. */
     val trouves: Int = 0,
     val passes: Int = 0,
+    /** Mimes en file : les joueurs tournent, l'écran attend « Image suivante » (pas d'image montrée). */
+    val onTourne: Boolean = false,
     /** Jeu en cours (« quiz|Manche 1 », « mimes|… ») ; vide hors des questions. */
     val epreuve: String = "",
     /** Vrai ou Faux express (et la bonne réponse est « Vrai »), Zoom mystère. */
@@ -488,8 +518,18 @@ data class Instant(
     val musical: Boolean = false,
     /** Statues musicales : la musique du jeu est arrêtée, tout le monde se fige. */
     val statue: Boolean = false,
+    /** Statues musicales : annonce des gagnantes d'une chanson (1 roulement de tambour, 2 gagnantes, 3 récap), 0 sinon. */
+    val statuesAnnonce: Int = 0,
+    /** Statues musicales : la chanson a des gagnantes (sinon « Personne »). */
+    val statuesGagnantes: Boolean = false,
     /** « Ça va exploser ! » : le jeu a sa propre musique, calée sur la mèche ; ni boucle, ni bips, ni tension. */
     val patate: Boolean = false,
+    /**
+     * Le Duel des robots ; [duelEtape] : « ready » (les joueurs se placent), « standoff » (face-à-face, sa musique est
+     * jouée par l'écran du duel et coupée net au PAN), « result », ou vide.
+     */
+    val duel: Boolean = false,
+    val duelEtape: String = "",
     val flou: Boolean = false,
     val chante: Boolean = false,
     val quiSuis: Boolean = false,
@@ -556,6 +596,8 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
      * longueur ; la vidéo du robot qui dort tourne seule, à côté).
      */
     ACCUEIL(null, "gs_accueil"),
+    /** Game Show : la boucle western du Duel des robots (36 temps, 21,24 s, sans blanc), sous l'annonce et entre deux duels. */
+    DUEL(null, "gs_duel_intro_boucle"),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -581,6 +623,12 @@ enum class Ambiance(
     /** Plan de volumes du 25 octobre : la musique des questions remonte, le creux du suspense n'est plus que de 4 dB. */
     QUESTION(legere = 0.7f),
     SUSPENSE(legere = 0.45f),
+    /** Présentation du Duel des robots ; Game Show : la boucle western à plein volume (Classique : comme les autres). */
+    DUEL_PRESENTATION(complete = 0.5f, gameShow = mapOf(Lit.DUEL to 1f)),
+    /** Duel des robots : un duel est prêt, les joueurs se placent ; Game Show : la boucle western à −4 dB. */
+    DUEL_ANNONCE(legere = 0.45f, gameShow = mapOf(Lit.DUEL to 0.63f)),
+    /** Duel des robots : entre deux duels, sous le résultat ; Game Show : la boucle western à −10 dB. */
+    DUEL_ENTRE(legere = 0.3f, gameShow = mapOf(Lit.DUEL to 0.32f)),
     /**
      * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
      * trop éteint (cedric, 24/10).
@@ -619,7 +667,7 @@ enum class Ambiance(
             Lit.PAUSE -> pause
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
-            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL -> 0f
+            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL -> 0f
         }
     }
 }
@@ -707,7 +755,25 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     COFFRE_MALUS("lmp_coffre_malus", true),
     BOMBE_BOUM("lmp_bombe_boum", true),
     GONFLE_1("lmp_gonfle_1"), GONFLE_2("lmp_gonfle_2"), GONFLE_3("lmp_gonfle_3"),
+    /**
+     * Game Show seulement (cedric, 27/10, son B) : le ballon qui couine, de plus en plus aigu à mesure qu'il gonfle
+     * (un tiers chacun). Rien en Classique.
+     */
+    COUINE_1("gs_couine_1"), COUINE_2("gs_couine_2"), COUINE_3("gs_couine_3"),
     BALLON_ECLATE("lmp_ballon_eclate", true),
+    /**
+     * Le Duel des robots (cedric, 27/10) : le face-à-face commence, une feinte, le PAN, la victoire, un tir trop tôt.
+     * Design classique : des sons de l'appli ; Game Show : ceux du western néon quand ils sont livrés.
+     */
+    DUEL_FACE("lmp_drumroll_2b", true, gs = "gs_duel_face"),
+    DUEL_FEINTE("lmp_whoosh", gs = "gs_duel_feinte"),
+    DUEL_PAN("lmp_impact", gs = "gs_duel_coup"),
+    DUEL_VICTOIRE("lmp_crown_hit", gs = "gs_duel_victoire"),
+    DUEL_TROP_TOT("lmp_wrong_off", gs = "gs_duel_troptot"),
+    /** Game Show seulement : le début de l'air western à la présentation du duel (2,9 s), avant sa boucle. */
+    DUEL_INTRO("gs_duel_intro_debut", true),
+    /** Game Show seulement : la grande fin de l'air western sous les affiches WANTED du classement du duel (22,7 s). */
+    DUEL_CLASSEMENT("gs_duel_classement", true),
     TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
     PATATE_PASSE("lmp_patate_passe"),
     /** Musique de « Ça va exploser ! » (extrait choisi par cedric) : sa fin tombe sur l'explosion, voir [MusiquePatate]. */
@@ -716,6 +782,12 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     /** Game Show : un mot robot de Harder Better Faster Stronger par équipe, 8 en tout ; le Classique reprend ses 4 notes. */
     EQUIPE_5("lmp_team_sting_1", gs = "gs_team_sting_5"), EQUIPE_6("lmp_team_sting_2", gs = "gs_team_sting_6"),
     EQUIPE_7("lmp_team_sting_3", gs = "gs_team_sting_7"), EQUIPE_8("lmp_team_sting_4", gs = "gs_team_sting_8");
+
+    /**
+     * Fichier d'un son long : en Game Show, le sien propre ([gs]) s'il en a un. Avant, un son long lisait toujours la
+     * version gs_ de son fichier classique : le face-à-face du duel jouait un roulement au lieu de sa musique.
+     */
+    fun fichierLong(gameShow: Boolean): String = if (gameShow) gs ?: fichier else fichier
 
     companion object {
         private val pops = listOf(POP_1, POP_2, POP_3, POP_4)
@@ -729,7 +801,15 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
 
 sealed interface Ordre {
     /** [etireSurMs] : un son long plus court que ça est ralenti (sans changer sa hauteur) pour durer ce temps-là. */
-    data class Jouer(val son: Son, val dansMs: Long = 0, val etireSurMs: Long = 0) : Ordre
+    data class Jouer(
+        val son: Son,
+        val dansMs: Long = 0,
+        val etireSurMs: Long = 0,
+        /** Sons courts seulement : volume à gauche et à droite (stéréo par place d'équipe), et vitesse (hauteur) de 0,5 à 2. */
+        val gauche: Float = 1f,
+        val droite: Float = 1f,
+        val vitesse: Float = 1f,
+    ) : Ordre
     data class Musique(val ambiance: Ambiance, val dansMs: Long = 0, val fonduMs: Long = Tempo.FONDU_MUSIQUE) : Ordre
     /** Les boucles musicales repartent du début de leur première mesure (relais calé sur le générique). */
     data class Caler(val dansMs: Long = 0) : Ordre
@@ -759,6 +839,8 @@ object Tempo {
     /** Temps fort qui suit la dernière note du générique (16 temps) : la musique du salon prend le relais. */
     const val GENERIQUE_RELAIS = 8_000L
     const val FONDU_RELAIS = 120L
+    /** Duel des robots : la boucle western prend le relais à la fin de son début (gs_duel_intro_debut, 2,95 s). */
+    const val DUEL_INTRO_BOUCLE = 2_946L
     /** Après deux mesures au niveau du générique, la musique du salon redescend doucement à son volume de fond. */
     const val GENERIQUE_FIN = 12_000L
     const val FONDU_DESCENTE = 3_000L

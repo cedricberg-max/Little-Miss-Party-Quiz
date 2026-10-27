@@ -95,12 +95,15 @@ class ProgramTest {
     fun `sur la dernière question, un jeu ajouté à la fin prolonge la partie au lieu de la terminer`() {
         val g = Game(Quiz("demo", "Démo", animaux)).apply {
             next(t0); next(t0 + 4_000); next(t0 + 4_100); next(t0 + 4_200)
-            next(t0 + 5_000); next(t0 + 6_000); next(t0 + 6_100); next(t0 + 6_200)
+            next(t0 + 5_000); next(t0 + 6_000); next(t0 + 6_100)
         }
-        assertEquals(Phase.SCORES, g.state.phase)
+        // Révélation de la dernière question : sans ajout, « suivant » lancerait les résultats finaux.
+        assertEquals(Phase.REVEAL, g.state.phase)
         assertEquals(true, g.isLastQuestion)
         val edited = assertNotNull(g.withProgram(Quiz("demo", "Démo", animaux + ajout)))
         edited.next(t0 + 7_000)
+        assertEquals(Phase.SCORES, edited.state.phase, "le classement revient : ce n'est plus le dernier jeu")
+        edited.next(t0 + 7_100)
         assertEquals(Phase.QUESTION, edited.state.phase)
         assertEquals("x1q1", edited.state.qid)
     }

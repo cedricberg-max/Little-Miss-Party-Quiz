@@ -177,9 +177,9 @@ class BlindTestTest {
         g.cmd("blind_play", t0 + 42_000)
         g.buzz("vert", t0 + 43_000)
         g.cmd("buzz_ok", t0 + 44_000)
-        // Dernier morceau : « suivant » mène au bilan, puis à la suite de la prestation.
+        // Dernier morceau du dernier jeu : « suivant » mène aux résultats finaux, sans bilan (cedric, 27/10).
         g.cmd("next", t0 + 50_000)
-        assertEquals(Phase.SCORES, g.state.phase)
+        assertEquals(Phase.ENDED, g.state.phase)
         assertEquals(mapOf("vert" to 200), g.state.scores())
     }
 

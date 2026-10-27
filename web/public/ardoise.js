@@ -5,7 +5,7 @@
  * Contrat d'un trait (le même que la TV) : { id, c, w, p }
  *   c = index de couleur (COULEURS_DESSIN) ou GOMME, w = index d'épaisseur (EPAISSEURS),
  *   p = [x0, y0, x1, y1, …] en coordonnées 0..1 sur une feuille 4:3, arrondies à 3 décimales.
- * Pendant le geste, surTrait(trait, false) part au plus toutes les 80 ms avec le trait entier (même id, il grandit) ;
+ * Pendant le geste, surTrait(trait, false) part au plus toutes les 40 ms avec le trait entier (même id, il grandit) ;
  * au lever du doigt, surTrait(trait, true). Un geste très long est coupé en plusieurs traits (POINTS_MAX).
  */
 
@@ -17,7 +17,8 @@ export const GOMME = -1;
 export const EPAISSEURS = [0.006, 0.012, 0.028];
 export const RATIO = 4 / 3;
 export const POINTS_MAX = 600;
-const ENVOI_MS = 80;
+/** Cadence des envois pendant le geste : 40 ms (80 avant le 27/10, cedric trouvait le dessin en retard à la TV). */
+const ENVOI_MS = 40;
 const PAS_MIN = 0.002;
 
 const arrondi = (v) => Math.round(Math.min(1, Math.max(0, v)) * 1000) / 1000;
