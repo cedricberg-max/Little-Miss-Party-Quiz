@@ -508,6 +508,18 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         }
     }.onFailure { Log.i(TAG, "Tapes refusées : ${it.message}") }.isSuccess
 
+    /**
+     * Le Duel des robots : la tablette buzze, avec [t] = l'heure de l'appui (la box la ramène entre l'arrivée moins
+     * 1,5 s et l'arrivée : 0 = « tout de suite », Long.MAX_VALUE = « à l'arrivée ») ; false si le serveur refuse.
+     */
+    fun buzzerDuel(code: String, t: Long): Boolean = runCatching {
+        val cle = etat(code).child("duel/key").value?.toString() ?: error("pas de face-à-face en cours")
+        bloquer {
+            base.getReference("games/$code/duel/$cle/$uid")
+                .setValue(mapOf("t" to t, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Buzz du duel refusé : ${it.message}") }.isSuccess
+
     /** « Ça va exploser ! » : la tablette de l'équipe qui tient la bombe l'envoie à [vers] ; false si le serveur refuse. */
     fun envoyerPatate(code: String, vers: String): Boolean = runCatching {
         val cle = etat(code).child("potato/key").value?.toString() ?: error("pas de bombe en jeu")

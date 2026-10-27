@@ -10,7 +10,7 @@ import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFrom
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, dureeEstimee, playable, expressQuestions, zoomQuestions, showTitle, titreAuto, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
-  roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
+  roundFilled, MIME_TURN, MIME_TURN_MAX, MUSIC_GAMES, playableTracks, BLIND_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES, MIME_EQUIPES_MAX, mimePerTeam,
@@ -20,7 +20,8 @@ import {
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
   questionsDuQuiz, ordreAvecCasesVides, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
-  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects,
+  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie, DUEL_JOUEURS, DUEL_DUREES, reglagesDuel,
+  DISPARU_CARTES, famillesPourLAge,
   pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX, leurresDeChanson, parolesDuHook,
 } from "./show.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
@@ -50,8 +51,8 @@ import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from "./retour.js";
 import { confirmer, avertir, demanderTexte, apercu } from "./fenetre.js";
 import { lireZipEtSesZip } from "./zip.js";
-import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks, sourceDuDe } from "./pioche-packs.js";
-import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage, dossierDe } from "./pack-zip.js";
+import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks, sourceDuDe, avecSesImages } from "./pioche-packs.js";
+import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage, dossierDe, garderLesQuestionsIllustrees } from "./pack-zip.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
@@ -1110,10 +1111,16 @@ function mimeSelection(r) {
   });
 }
 
-/** Durées d'un tour de mimes proposées (secondes) : 2 min d'office (cedric, 24/10). */
-const MIME_DUREES = [60, 90, 120, 150, 180];
-/** Images par équipe proposées (cedric, 24/10 : « une vingtaine par équipe par sécurité »). */
-const MIME_IMAGES = [10, 15, 20, 25, 30];
+/**
+ * Durées d'un tour de mimes proposées (secondes) : 2 min d'office (cedric, 24/10), de 15 s en 15 s jusqu'à 5 min
+ * (cedric, 26/10 : « régler précisément le temps du chrono », une durée pour toutes les équipes).
+ */
+const MIME_DUREES = Array.from({ length: (MIME_TURN_MAX - 30) / 15 + 1 }, (_, k) => 30 + 15 * k);
+/**
+ * Images par équipe proposées (cedric, 24/10 : « une vingtaine par équipe par sécurité » ; 26/10 : « des dizaines et
+ * des dizaines », pour ne jamais en manquer).
+ */
+const MIME_IMAGES = [10, 15, 20, 25, 30, 40, 50, 60];
 const MIME_IMAGES_DEFAUT = 20;
 /** « 2 min », « 1 min 30 », « 45 s ». */
 const enMinutes = (sec) => (sec < 60 ? `${sec} s` : sec % 60 ? `${Math.floor(sec / 60)} min ${sec % 60}` : `${sec / 60} min`);
@@ -1973,28 +1980,13 @@ function mancheBlind(r) {
         h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette chanson", title: titreRetirer, onclick: retirer })));
     }
     const deja = autres.get(id) ?? autres.get(song.audioId);
-    const paroles = parolesSurTv(song);
     const ouvert = blindEcoute.get(r) === id;
-    // Quiz musical aussi (cedric, 24/10) : l'extrait pendant la question, le refrain et ses paroles à la révélation.
-    const badge = h("span", {
-      class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles",
-      title: paroles ? "Paroles présentes : elles défileront sur la TV à la révélation"
-        : song.lrc === true ? "Fichier .lrc présent, mais le refrain n'est pas encore réglé (Bibliothèque › Sons)" : "Pas de fichier .lrc : ajoutez-le dans Bibliothèque › Sons",
-    });
     return h("li", { class: `tirage-q blind-chanson${deja ? " deja" : ""}${ouvert ? " ouverte" : ""}`, "data-chanson": id, ...(deja ? { title: `Déjà dans ${deja}` } : {}) },
       h("div", { class: "tirage-q-ligne" },
         miniPochette(song),
         h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
-        badge,
-        h("button", {
-          type: "button", class: `icon blind-ecouter${ouvert ? " active" : ""}`, text: "🎧", "aria-expanded": ouvert ? "true" : "false",
-          "aria-label": `Écouter et régler « ${song.title.trim()} »`, title: "Écouter l'extrait et le refrain, et les régler",
-          onclick: () => {
-            stopPreview();
-            if (ouvert) blindEcoute.delete(r); else blindEcoute.set(r, id);
-            changer();
-          },
-        }),
+        pastilleParoles(song),
+        boutonCasque(r, id, song, ouvert, changer),
         h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${song.title.trim()} »`, title: titreRetirer, onclick: retirer })),
       musical ? leurresChanson(r, id, song) : null,
       ouvert ? menuChanson(id) : null);
@@ -2066,18 +2058,73 @@ function mancheBlind(r) {
   const aTirer = chansonsBrutes(r).filter((id) => !id).length;
   const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
     text: presentes.length || aTirer ? `${pluriel(presentes.length, "chanson")} à trouver${aTirer ? ` · ${aTirer} à tirer` : ""}`
-      : musical ? "Aucune chanson pour l'instant : touchez 🎲 ou ajoutez une playlist" : "Aucune chanson pour l'instant : touchez 🎲, « Sélectionner mes chansons » ou ajoutez une playlist" });
+      : "Aucune chanson pour l'instant : touchez 🎲, « Sélectionner mes chansons » ou ajoutez une playlist" });
   // Une manche préparée avant (une playlist entière, des extraits choisis) : elle se joue encore telle quelle.
   const ancienne = !r.seriesBlind.length && (r.playlistId || roundTracks(r).length)
     ? h("p", { class: "small hint blind-ancienne", text: `${musical ? "Quiz musical" : "Blind test"} préparé à l'ancienne : ${mancheSummary(r, { playlists })}, joué tel quel. Le 🎲${musical ? "" : ", vos chansons"} ou une playlist le remplacent.` })
     : null;
   return [
     compteur,
-    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de), musical ? null : aLaMain, ajoutPlaylist),
+    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de), aLaMain, ajoutPlaylist),
     ancienne,
     r.seriesBlind.length ? liste : null,
     blindComplet(r, presentes, ranger, changer),
   ].filter(Boolean);
+}
+
+/** [liste] avec l'élément de la place [k] passé à la place [j]. */
+const deplaceEn = (liste, k, j) => {
+  const l = [...liste];
+  l.splice(j, 0, ...l.splice(k, 1));
+  return l;
+};
+
+/**
+ * Glisser une ligne d'une liste « … complet » à la souris, plus haut ou plus bas (cedric, 26/10 : « tous les écrans de
+ * composition d'un jeu »), en plus de ↑ ↓. [lignes] : ses <li>, dans l'ordre ; [bouger(k, j)] : la ligne [k] passe à la
+ * place [j] ; [glissable(k)] : faux pour une place vide (on peut quand même poser une ligne à côté).
+ */
+function glisserDansLaListe(liste, lignes, bouger, glissable = () => true) {
+  let glissee = null;
+  const sans = (...classes) => liste.querySelectorAll(classes.map((c) => `.${c}`).join(", ")).forEach((li) => li.classList.remove(...classes));
+  const cible = (e) => {
+    let li = e.target;
+    while (li && !lignes.includes(li)) li = li.parentElement;
+    if (!li) return null;
+    const { top, height } = li.getBoundingClientRect();
+    return { li, k: lignes.indexOf(li), avant: e.clientY < top + height / 2 };
+  };
+  lignes.forEach((li, k) => {
+    if (!glissable(k)) return;
+    li.draggable = true;
+    li.addEventListener("dragstart", (e) => {
+      glissee = k;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", `${k + 1}`);
+      li.classList.add("glisse");
+    });
+    li.addEventListener("dragend", () => { glissee = null; sans("glisse", "depose-avant", "depose-apres"); });
+  });
+  liste.addEventListener("dragover", (e) => {
+    const c = glissee === null ? null : cible(e);
+    if (!c) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    sans("depose-avant", "depose-apres");
+    c.li.classList.add(c.avant ? "depose-avant" : "depose-apres");
+  });
+  liste.addEventListener("dragleave", (e) => { if (!liste.contains(e.relatedTarget)) sans("depose-avant", "depose-apres"); });
+  liste.addEventListener("drop", (e) => {
+    const k = glissee;
+    const c = k === null ? null : cible(e);
+    glissee = null;
+    sans("glisse", "depose-avant", "depose-apres");
+    if (!c) return;
+    e.preventDefault();
+    let j = c.avant ? c.k : c.k + 1;
+    if (j > k) j--;
+    if (j !== k) bouger(k, j);
+  });
 }
 
 /**
@@ -2085,6 +2132,26 @@ function mancheBlind(r) {
  * test complet », toutes les chansons dans l'ordre de passage. Déplié : chacune monte, descend ou s'enlève (de sa
  * série) ; 🔀 mélange tout. L'ordre rangé ici est gardé dans le blind test (`ordreBlind`).
  */
+// Quiz musical aussi (cedric, 24/10) : l'extrait pendant la question, le refrain et ses paroles à la révélation.
+const pastilleParoles = (song) => {
+  const paroles = parolesSurTv(song);
+  return h("span", {
+    class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles",
+    title: paroles ? "Paroles présentes : elles défileront sur la TV à la révélation"
+      : song.lrc === true ? "Fichier .lrc présent, mais le refrain n'est pas encore réglé (Bibliothèque › Sons)" : "Pas de fichier .lrc : ajoutez-le dans Bibliothèque › Sons",
+  });
+};
+/** 🎧 d'une chanson du blind test : ouvre ou ferme son petit menu (un seul ouvert à la fois, repéré par [cle]). */
+const boutonCasque = (r, cle, song, ouvert, changer) => h("button", {
+  type: "button", class: `icon blind-ecouter${ouvert ? " active" : ""}`, text: "🎧", "aria-expanded": ouvert ? "true" : "false",
+  "aria-label": `Écouter et régler « ${song.title.trim()} »`, title: "Écouter l'extrait et le refrain, et les régler",
+  onclick: () => {
+    stopPreview();
+    if (ouvert) blindEcoute.delete(r); else blindEcoute.set(r, cle);
+    changer();
+  },
+});
+
 function blindComplet(r, ordre, ranger, changer) {
   if (!ordre.length) return null;
   const tout = chansonsDe(r);
@@ -2114,16 +2181,28 @@ function blindComplet(r, ordre, ranger, changer) {
   };
   const lignes = ordre.map((id, k) => {
     const song = songs[id];
-    return h("li", { class: "tirage-q blind-complet-q", "data-chanson": id },
+    // 🎧 et « ✓ Paroles » ici aussi (cedric, 26/10), quelle que soit l'origine de la chanson.
+    const ouvert = blindEcoute.get(r) === `complet:${id}`;
+    return h("li", { class: `tirage-q blind-complet-q${ouvert ? " ouverte" : ""}`, "data-chanson": id },
       h("div", { class: "tirage-q-ligne" },
         h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
         miniPochette(song),
         h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
+        pastilleParoles(song),
+        boutonCasque(r, `complet:${id}`, song, ouvert, changer),
         h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Passer cette chanson plus tôt", "aria-label": "Monter cette chanson", disabled: k === 0, onclick: () => deplacer(k, -1) }),
         h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Passer cette chanson plus tard", "aria-label": "Descendre cette chanson", disabled: k === ordre.length - 1, onclick: () => deplacer(k, 1) }),
-        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever cette chanson du ${r.type === "musical" ? "quiz musical" : "blind test"}`, "aria-label": `Enlever « ${song.title.trim()} »`, onclick: () => enlever(id) })));
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever cette chanson du ${r.type === "musical" ? "quiz musical" : "blind test"}`, "aria-label": `Enlever « ${song.title.trim()} »`, onclick: () => enlever(id) })),
+      ouvert ? menuChanson(id) : null);
   });
   const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste blind-complet-liste" }, ...lignes);
+  // Glissée à la souris : les places des chansons du « complet » dans le blind test gardent leurs voisines d'ailleurs.
+  glisserDansLaListe(liste, lignes, (k, j) => {
+    const places = ordre.map((id) => tout.indexOf(id));
+    const nouvel = [...tout];
+    deplaceEn(ordre, k, j).forEach((id, n) => { nouvel[places[n]] = id; });
+    poser(nouvel);
+  });
   liste.hidden = !blindsCompletsDeplies.has(r);
   const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${r.type === "musical" ? "Quiz musical" : "Blind test"} complet : ${ordre.length} chanson${ordre.length > 1 ? "s" : ""}, dans l'ordre de passage`;
   const voir = h("button", {
@@ -2153,10 +2232,13 @@ let motAFocaliser = null;
 /** Nombres de mots proposés au 🎲 d'un jeu de mots ; Qui a disparu ? : nombres de grilles. */
 const MOTS_NOMBRES = [3, 4, 5, 6, 8, 10, 12, 15, 20];
 const GRILLES_NOMBRES = [1, 2, 3, 4, 5, 6, 8];
-/** Qui a disparu ? : objets d'une grille tirée (selon l'âge, 5 au moins), d'une grille composée avec vos images. */
-const objetsParGrille = (r) => Math.max(5, disparuObjects(r, roundCtx.profile?.() ?? "MOYENS"));
-const GRILLE_MIN = 5;
-const GRILLE_MAX = 12;
+/**
+ * Qui a disparu ? (cedric, 27/10) : cartes par tour, 4, 6 ou 8 (deux rangées égales sur la TV) ; d'office selon l'âge
+ * de la carte du jeu (4 aux petits, 6 aux moyens, 8 aux grands).
+ */
+const cartesDe = (r) => (DISPARU_CARTES.includes(r.objects) ? r.objects : disparuObjects({}, ageDuQuiz(r)));
+const objetsParGrille = cartesDe;
+const GRILLE_MIN = 4;
 /** Qui a disparu ? : panneau « ⭐ Composer une grille avec vos images » ouvert, par jeu (recherche, images cochées). */
 const panneauxGrille = new WeakMap();
 
@@ -2171,9 +2253,11 @@ const vignetteObjet = (o) => (o.imageId ? photoBibliotheque(o.imageId, { class: 
  */
 function ligneGrilleVosImages(r, ajouterGrille, changer) {
   const panneau = panneauxGrille.get(r);
+  // Autant d'images que de cartes par tour (cedric, 27/10).
+  const N = cartesDe(r);
   const titre = h("button", {
     type: "button", class: "quiz-ajout-titre vos-images-titre grille-images-titre", "aria-expanded": panneau ? "true" : "false",
-    text: `${panneau ? "▾" : "▸"} ⭐ Composer une grille avec vos images`,
+    text: `${panneau ? "▾" : "▸"} ⭐ Composer un tour avec vos images`,
     onclick: () => {
       if (panneau) panneauxGrille.delete(r);
       else panneauxGrille.set(r, { recherche: "", cochees: [], focus: true });
@@ -2181,7 +2265,7 @@ function ligneGrilleVosImages(r, ajouterGrille, changer) {
     },
   });
   if (!panneau) return h("div", { class: "quiz-ajouts vos-images grille-images" }, titre,
-    h("span", { class: "hint small", text: `De ${GRILLE_MIN} à ${GRILLE_MAX} de vos images (« Mes images ») pour une grille ; le nom de chaque image est le mot à trouver.` }));
+    h("span", { class: "hint small", text: `${N} de vos images (« Mes images ») pour un tour ; le nom de chaque image est le mot à trouver.` }));
   const { miennes: siennes, packs: desPacks } = groupesImages();
   const images = [...siennes, ...desPacks];
   const cherche = h("input", { type: "search", class: "vos-images-cherche", "aria-label": "Chercher dans vos images", value: panneau.recherche, placeholder: "Nom, catégorie, mot-clé…" });
@@ -2189,9 +2273,8 @@ function ligneGrilleVosImages(r, ajouterGrille, changer) {
   const ajouter = h("button", { type: "button", class: "btn vos-images-ajouter grille-images-ajouter" });
   const majAjouter = () => {
     const n = panneau.cochees.length;
-    ajouter.disabled = n < GRILLE_MIN || n > GRILLE_MAX;
-    ajouter.textContent = n > GRILLE_MAX ? `${GRILLE_MAX} images au plus par grille (${n} cochées)`
-      : n >= GRILLE_MIN ? `＋ Faire une grille avec ces ${n} images` : `Cochez de ${GRILLE_MIN} à ${GRILLE_MAX} images (${n})`;
+    ajouter.disabled = n !== N;
+    ajouter.textContent = n > N ? `${N} images par tour (${n} cochées)` : n === N ? `＋ Faire un tour avec ces ${n} images` : `Cochez ${N} images (${n})`;
   };
   const tuile = (x) => {
     const nom = `${x.nom ?? ""}`.trim();
@@ -2222,7 +2305,7 @@ function ligneGrilleVosImages(r, ajouterGrille, changer) {
     const parId = new Map(images.map((x) => [x.id, x]));
     const objets = panneau.cochees.map((id) => parId.get(id)).filter(Boolean)
       .map((x) => ({ word: `${x.nom ?? ""}`.trim().slice(0, 40) || "Image", imageId: x.id }));
-    if (objets.length < GRILLE_MIN || objets.length > GRILLE_MAX) return;
+    if (objets.length !== N) return;
     panneauxGrille.delete(r);
     ajouterGrille(objets);
   };
@@ -2262,8 +2345,7 @@ function versSeriesMots(r) {
  * « 📚 Rappeler » de Qui suis-je ? (cedric, 24/10) : les prestations archivées qui en ont un, la plus récente d'abord,
  * avec tous leurs personnages (dans l'ordre joué) et de quoi les retrouver (prénom, âge, date, notes).
  */
-function motsArchives(type) {
-  const unite = BUILTIN_GAMES[type].unit;
+function motsArchives(type, unite = BUILTIN_GAMES[type].unit) {
   return prestationsRecentes().filter(([, s]) => etatPrestation(s) === "archivee").map(([sid, s]) => {
     const mots = (s.rounds ?? []).filter((x) => x?.type === type).flatMap((x) => motsDuJeu(versSeriesMots(x)).map((y) => y.m));
     const date = s.date ? new Date(`${s.date}T12:00:00`) : null;
@@ -2448,7 +2530,161 @@ function desPersonnages(r, { piocherBanque, cles, ranger, changer }) {
     return (packs[0] ? versMot(packs[0]) : null) ?? duJeuTires[0] ?? null;
   };
   const champCase = (entree) => champSourceQuiz({ classe: "quiz-case-champ", catalogue, exclus: sans(null), libres, unite: "personnage", placeholder: "Au hasard, ou un thème", entree });
-  return { lignes, caseVide, ligneUnique, enTete, unPerso, champCase };
+  return { lignes, caseVide, ligneUnique, enTete, unMot: unPerso, champCase };
+}
+
+/** Qui a disparu ? : d'où viennent les images du 🎲 (cedric, 27/10 : « émojis, images réelles ou mixte »). */
+const SOURCES_DISPARU = { mixte: "Mixte : émojis et images réelles", emojis: "Émojis", reelles: "Images réelles" };
+const sourceDisparu = (r) => (SOURCES_DISPARU[r.images] ? r.images : "mixte");
+/** Une famille en images réelles : photos libres de droit, ou images des packs. */
+const familleReelle = (t) => (t?.objects ?? []).some((o) => o?.banque || o?.imageId);
+
+/**
+ * Qui a disparu ? en images réelles (cedric, 27/10) : des familles faites des images des packs, une par thème. Seulement
+ * les images carrées d'un personnage bien cadré (480 × 480 à l'import) : les réponses des Quiz illustrés et les
+ * personnages de Qui suis-je ?, jamais une photo de Zoom mystère ou d'Image floue ni une image de révélation (des
+ * paysages, en 4:3). Le mot à trouver : la réponse, ou le nom du personnage.
+ */
+function famillesDesPacks() {
+  const parTheme = new Map();
+  const ajouter = (theme, word, imageId) => {
+    const t = `${theme ?? ""}`.trim();
+    const w = `${word ?? ""}`.trim();
+    if (!t || !w || !IMAGE_ID.test(imageId ?? "")) return;
+    const cle = cleTheme(t) || t.toLowerCase();
+    const f = parTheme.get(cle) ?? { theme: t.slice(0, 60), objects: [] };
+    parTheme.set(cle, f);
+    if (f.objects.some((o) => o.imageId === imageId || o.word.toLowerCase() === w.toLowerCase())) return;
+    f.objects.push({ word: w.slice(0, 40), imageId });
+  };
+  for (const [id, q] of Object.entries(quizzes ?? {})) {
+    if (!q?.pack || estQuizDeTest(id) || quizKind(q) !== "photo") continue;
+    const theme = themeDe(q.theme, q.title);
+    for (const x of Object.values(q.questions ?? {})) {
+      const choix = Array.isArray(x?.choices) ? x.choices : Object.values(x?.choices ?? {});
+      choix.forEach((c, k) => ajouter(theme, c, x?.choiceImages?.[k]));
+    }
+  }
+  for (const x of activeItems("quisuis", contents.quisuis)) if (x.serie) ajouter(x.serie, x.answer, x.imageId);
+  return [...parTheme.values()].filter((f) => f.objects.length >= DISPARU_CARTES[0]);
+}
+
+/**
+ * Le champ du 🎲 de Qui a disparu ? (cedric, 27/10 : « comme pour les quiz ») : on tape librement ; dessous, les
+ * familles qui répondent (de la source choisie), filtrées en direct (celles qui commencent par le mot d'abord) ; un
+ * clic met son nom dans le champ. Entrée lance le 🎲.
+ */
+function champFamilles({ classe, valeur = "", placeholder = "Tout au hasard… ou une famille, un objet", familles, entree }) {
+  const champ = h("input", { type: "search", class: `quiz-ajout-cherche ${classe}`, placeholder, value: valeur, maxlength: "80",
+    "aria-label": "Où piocher : vide, au hasard dans toutes les familles ; ou une famille, un objet" });
+  const liste = h("div", { class: "quiz-ajout-liste packs-suggestions" });
+  liste.hidden = true;
+  liste.addEventListener("mousedown", (e) => e.preventDefault());
+  const dessiner = () => {
+    const t = champ.value.trim();
+    const toutes = familles();
+    const items = toutes.map((x) => ({ titre: x.theme, details: `${plural(x.objects.length, "objet")} · ${isPhotoTheme(x) ? "photos libres" : familleReelle(x) ? "images des packs" : "émojis"}`, mots: x.objects.map((o) => o.word) }));
+    const trouves = t ? parPertinence(items.filter((x) => contientTout([x.titre, ...(x.mots ?? [])], t)), t, (x) => [x.titre], (x) => x.mots ?? []) : items;
+    liste.replaceChildren(...trouves.slice(0, QUIZ_AJOUT_MAX + 2).map((x) => h("button", { type: "button", class: "quiz-ajout-item packs-suggestion", onclick: () => { champ.value = x.titre; champ.dispatchEvent(new Event("input")); liste.hidden = true; } },
+      h("b", { text: x.titre }), h("span", { class: "small", text: x.details }))));
+    liste.hidden = !trouves.length;
+  };
+  champ.addEventListener("input", dessiner);
+  champ.addEventListener("focus", dessiner);
+  champ.addEventListener("blur", () => { liste.hidden = true; });
+  champ.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); liste.hidden = true; entree?.(); } });
+  return { champ, bloc: h("div", { class: "quiz-ajout-champ" }, champ, liste) };
+}
+
+/**
+ * Qui a disparu ? (cedric, 27/10 : « comme les autres jeux ») : 1re ligne, l'âge (celui de la prestation d'office ; des
+ * familles plus simples pour les petits, plus dures pour les grands), les cartes par tour (4, 6 ou 8) et le nombre de
+ * tours du 🎲 ; 2e ligne, le 🎲 et son champ : vide, au hasard dans toutes les familles (émojis et photos libres, jamais
+ * « Mes images ») ; « émojis », « photos libres », ou un mot (une famille, un objet). Chaque clic ajoute ses tours à la
+ * suite du « complet », jamais une famille déjà là ; leurs objets d'abord parmi ceux qu'aucun autre jeu ne montre.
+ */
+function desGrilles(r, { sans, ranger, changer, ailleurs }) {
+  const type = "disparu";
+  const game = CONTENT_GAMES[type];
+  const n = cartesDe(r);
+  const reglage = reglageDuDe(r, "unique");
+  const nombre = () => (GRILLES_NOMBRES.includes(reglage.n) ? reglage.n : BUILTIN_GAMES[type].count);
+  // Émojis et photos libres (jamais « Mes images »), puis les images des packs bien cadrées ; selon la source choisie.
+  const toutes = () => [...activeItems(type, contents[type]).map((x) => pourLeHasard(type, x)).filter(Boolean), ...famillesDesPacks()];
+  const familles = () => {
+    const src = sourceDisparu(r);
+    return toutes().filter((t) => src === "mixte" || (src === "reelles") === familleReelle(t));
+  };
+  const repond = (t, terme) => !terme || t.theme.toLowerCase() === terme.toLowerCase() || contientTout([t.theme, ...t.objects.map((o) => o.word)], terme);
+  const enTour = (t) => ({ theme: t.theme, objects: shuffle(neufsSiPossible(t.objects, concepts, ailleurs, n)).slice(0, n) });
+  const choisir = (k, terme, exclus) => famillesPourLAge(familles().filter((t) => t.objects.length >= n && !exclus.has(game.key(t)) && repond(t, terme)), ageDuQuiz(r))
+    .slice(0, k).map(enTour);
+  /** Un tour à [k] cartes : coupé, ou complété par d'autres objets de sa famille (un tour de vos images reste tel quel). */
+  const ajuster = (m, k = n) => {
+    if (!m || m.vide || !Array.isArray(m.objects) || m.objects.length === k) return m;
+    if (m.objects.length > k) return { ...m, objects: m.objects.slice(0, k) };
+    const famille = toutes().find((t) => t.theme === m.theme);
+    const deja = new Set(m.objects.map((o) => o.word));
+    const plus = famille ? shuffle(neufsSiPossible(famille.objects.filter((o) => !deja.has(o.word)), concepts, ailleurs, k - m.objects.length)).slice(0, k - m.objects.length) : [];
+    return { ...m, objects: [...m.objects, ...plus] };
+  };
+  const age = menuAge(ageDuQuiz(r), { class: "tirage-profil quiz-age disparu-age", "aria-label": "Âge : des familles plus simples pour les petits, plus dures pour les grands" }, (v) => {
+    // Les tours déjà là gardent leurs cartes.
+    if (r.seriesMots.length) r.objects = n;
+    r.profil = v;
+    changer();
+  });
+  const cartes = h("select", { class: "tirage-nombre disparu-cartes", "aria-label": "Cartes par tour", onchange: (e) => {
+    const k = Number(e.target.value);
+    r.objects = k;
+    for (const x of r.seriesMots) x.mots = x.mots.map((m) => ajuster(m, k));
+    const courts = r.seriesMots.flatMap((x) => x.mots).filter((m) => !m.vide && m.objects.length < k);
+    if (courts.length) annonce(`${courts.map((m) => `« ${m.theme} »`).join(", ")} : moins de ${k} images, ${courts.length > 1 ? "ils restent" : "il reste"} tel${courts.length > 1 ? "s" : ""} quel${courts.length > 1 ? "s" : ""}.`);
+    ranger();
+    changer();
+    noterEcran();
+  } }, ...DISPARU_CARTES.map((k) => h("option", { value: k, selected: k === n, text: `${k} cartes par tour` })));
+  const images = h("select", { class: "tirage-nombre disparu-images", "aria-label": "Images du 🎲 : émojis, images réelles ou les deux", onchange: (e) => { r.images = e.target.value; changer(); } },
+    ...Object.entries(SOURCES_DISPARU).map(([k, texte]) => h("option", { value: k, selected: k === sourceDisparu(r), text: texte })));
+  const tours = h("select", { class: "tirage-nombre de-nombre de-nombre-unique disparu-tours", "aria-label": "Nombre de tours de ce 🎲", onchange: (e) => { reglage.n = Number(e.target.value); } },
+    ...GRILLES_NOMBRES.map((k) => h("option", { value: k, selected: k === nombre(), text: plural(k, "tour") })));
+  const source = champFamilles({ classe: "de-unique-champ", valeur: reglage.terme ?? "", familles, entree: () => tirer() });
+  source.champ.addEventListener("input", () => { reglage.terme = source.champ.value; });
+  const tirer = () => {
+    const terme = source.champ.value.trim();
+    reglage.terme = terme;
+    const place = MAX_MOTS - motsDuJeu(r).length;
+    if (place <= 0) { annonce(`Déjà ${MAX_MOTS} tours : c'est le maximum.`); return; }
+    const k = nombre();
+    const neufs = choisir(Math.min(k, place), terme, sans());
+    if (!neufs.length) {
+      annonce(terme ? `Aucune famille libre ne répond à « ${terme} » en ${SOURCES_DISPARU[sourceDisparu(r)].toLowerCase()} (${n} objets au moins) : essayez un autre mot, une autre source, ou videz le champ.` : "Plus aucune famille libre à tirer : changez la source des images, ou ajoutez-en dans la page du jeu.");
+      return;
+    }
+    if (neufs.length < k) annonce(`Seulement ${plural(neufs.length, "famille libre", "familles libres")}${terme ? ` pour « ${terme} »` : ""} : ${plural(neufs.length, "tour")}.`);
+    r.objects = n;
+    aLaSuite(r, () => {
+      let de = r.seriesMots.find((x) => x.origine === "de");
+      if (!de) { de = { id: "de", origine: "de", mots: [] }; r.seriesMots.unshift(de); }
+      de.mots = [...de.mots, ...neufs];
+      r.count = de.mots.length;
+    });
+    ranger();
+    changer();
+    noterEcran();
+  };
+  const lignes = [
+    h("div", { class: "de-ligne disparu-reglages" },
+      h("span", { class: "quiz-ajout-titre disparu-age-titre", text: "🎂 Âge" }), age, images, cartes, tours),
+    h("div", { class: "de-ligne de-unique-ligne" },
+      h("button", { type: "button", class: "btn packs-de de-unique", text: "🎲", "aria-label": "Tirer les tours", title: "Tirer les tours : au hasard, ou sur ce qui est tapé à droite", onclick: tirer }),
+      source.bloc),
+  ];
+  return {
+    lignes, ajuster,
+    unMot: (terme) => choisir(1, terme, sans())[0] ?? null,
+    champCase: (entree) => champFamilles({ classe: "quiz-case-champ", placeholder: "Au hasard, ou une famille", familles, entree }),
+  };
 }
 
 /**
@@ -2463,20 +2699,19 @@ function mancheMots(r) {
   const game = CONTENT_GAMES[type];
   const builtin = BUILTIN_GAMES[type];
   const jeu = ROUND_TYPES[type];
-  const unite = builtin.unit;
+  // Qui a disparu ? (cedric, 27/10) : des tours (une grille de cartes, l'une disparaît, puis la révélation).
+  const unite = type === "disparu" ? "tour" : builtin.unit;
   // Qui suis-je ? (cedric, 24/10) : pas de personnage écrit ici (il lui faut ses indices) ; à la place, les personnages
   // d'un ancien anniversaire et les séries de la bibliothèque ; chacun avec sa petite image, celle de la révélation.
   const quisuis = type === "quisuis";
   // Qui suis-je ? (cedric, 26/10) : la carte du Quiz, une seule ligne de 🎲, une place retirée reste à sa place.
-  const unique = quisuis && deUnique(r);
-  // Qui a disparu ? (cedric, 24/10) : le 🎲 tire des grilles dans les familles d'émojis ; puis une grille composée avec
-  // vos images, des grilles de photos libres ; chaque grille montre ses objets en petit.
+  // Qui a disparu ? (cedric, 27/10) : la même carte, chaque tour montre ses cartes en petit.
   const disparu = type === "disparu";
+  const unique = (quisuis && deUnique(r)) || disparu;
   const nomDe = (m) => m.word ?? m.answer ?? m.theme ?? "";
-  // « grille » est féminin.
-  const e = disparu ? "e" : "";
-  const ce = disparu ? "cette" : "ce";
-  const tous = disparu ? "toutes" : "tous";
+  const e = "";
+  const ce = "ce";
+  const tous = "tous";
   const NOMBRES = disparu ? GRILLES_NOMBRES : MOTS_NOMBRES;
   const nMots = (k) => `${k} ${unite}${k > 1 ? "s" : ""}`;
   const series = r.seriesMots;
@@ -2584,53 +2819,36 @@ function mancheMots(r) {
     changer();
     noterEcran();
   };
-  const rappel = quisuis ? ligneAjoutQuiz({
-    classe: "quiz-rappel", titre: "📚 Rappeler les personnages d'un ancien anniversaire", label: "Chercher une prestation archivée",
+  // Qui a disparu ? : les tours d'un ancien anniversaire, à autant de cartes que les autres.
+  const grilles = disparu ? desGrilles(r, { sans: ecartes, ranger, changer, ailleurs }) : null;
+  const rappel = quisuis || disparu ? ligneAjoutQuiz({
+    classe: "quiz-rappel", titre: `📚 Rappeler les ${disparu ? "tours" : "personnages"} d'un ancien anniversaire`, label: "Chercher une prestation archivée",
     placeholder: "Prénom, âge, date… d'une prestation archivée", vide: "Aucun ancien anniversaire avec ce jeu",
-    aucun: "Aucune prestation archivée ne correspond.", items: motsArchives(type), attr: (x) => ({ "data-show": x.id }),
-    choisir: (x) => ajouterSerie("reprise", x.titre, x.mots),
+    aucun: "Aucune prestation archivée ne correspond.", items: motsArchives(type, unite), attr: (x) => ({ "data-show": x.id }),
+    choisir: (x) => ajouterSerie("reprise", x.titre, disparu ? x.mots.map((m) => grilles.ajuster(m)) : x.mots),
   }) : null;
   // Qui a disparu ? : une grille composée avec vos images rejoint la série « vos images », à la fin.
   const ajouterGrille = (objets) => {
-    if (!place()) return annonce(`${MAX_MOTS} grilles au plus dans ${jeu} : retirez-en avant d'en ajouter.`);
-    let s = r.seriesMots.find((x) => x.origine === "images");
-    if (!s) { s = { id: nouvelId("i"), origine: "images", mots: [] }; r.seriesMots.push(s); }
+    if (!place()) return annonce(`${MAX_MOTS} tours au plus dans ${jeu} : retirez-en avant d'en ajouter.`);
     let k = 1;
     while (cles().has(`vos images ${k}`)) k++;
-    s.mots.push({ theme: `Vos images ${k}`, objects: objets });
-    seriesDepliees.add(s);
+    aLaSuite(r, () => {
+      let s = r.seriesMots.find((x) => x.origine === "images");
+      if (!s) { s = { id: nouvelId("i"), origine: "images", mots: [] }; r.seriesMots.push(s); }
+      s.mots.push({ theme: `Vos images ${k}`, objects: objets });
+    });
     ranger();
     changer();
     noterEcran();
   };
-  // Qui a disparu ? : des grilles de photos libres, au nombre choisi ; un nouveau 🎲 remplace celles d'avant.
-  const photosSerie = series.find((x) => x.origine === "photos") ?? null;
-  const nPhotos = photosSerie?.mots.length || 2;
-  const nombrePhotos = disparu ? h("select", { class: "tirage-nombre disparu-photos-nombre", "aria-label": "Nombre de grilles de photos libres" },
-    ...[...new Set([...GRILLES_NOMBRES, nPhotos])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === nPhotos, text: nMots(k) }))) : null;
-  const tirerPhotosLibres = (k) => {
-    const sans = cles(photosSerie);
-    const grilles = piocher(Math.min(k, MAX_MOTS - sans.size), sans, "photos");
-    if (!grilles.length) return annonce("Plus aucune famille de photos libres à tirer.");
-    const s = photosSerie ?? { id: nouvelId("f"), origine: "photos", mots: [] };
-    if (!photosSerie) r.seriesMots.push(s);
-    s.mots = grilles;
-    seriesDepliees.add(s);
-    ranger();
-    changer();
-  };
-  const lignePhotos = disparu ? h("div", { class: "quiz-ajouts disparu-photos" },
-    h("span", { class: "quiz-ajout-titre disparu-photos-titre", text: "📷 Piocher dans les photos libres" }),
-    h("div", { class: "tirage-ligne" }, nombrePhotos,
-      h("button", {
-        type: "button", class: "btn tirage-de disparu-photos-de", text: "🎲", "aria-label": "Tirer des grilles de photos libres",
-        title: "Tirer des grilles dans les familles de photos libres (une par famille)", onclick: () => tirerPhotosLibres(Number(nombrePhotos.value)),
-      }))) : null;
   const persos = quisuis ? desPersonnages(r, { piocherBanque: (k, sans, age) => piocher(k, sans, "de", age), cles, ranger, changer }) : null;
+  // Le petit 🎲 et le champ d'une place vide du « complet » : ceux des personnages, ou des tours.
+  const deCase = disparu ? grilles : persos;
   if (unique) rappel.classList.add("fine");
-  const outils = unique ? h("div", { class: "quiz-outils" }, persos.ligneUnique, rappel)
+  const outils = disparu ? h("div", { class: "quiz-outils" }, ...grilles.lignes, rappel, ligneGrilleVosImages(r, ajouterGrille, changer))
+    : unique ? h("div", { class: "quiz-outils" }, persos.ligneUnique, rappel)
     : quisuis ? h("div", { class: "quiz-outils" }, ...persos.lignes, rappel)
-    : h("div", { class: "quiz-outils" }, ligne, ...(disparu ? [ligneGrilleVosImages(r, ajouterGrille, changer), lignePhotos] : [ecrire]));
+    : h("div", { class: "quiz-outils" }, ligne, ecrire);
 
   // Qui suis-je ? : la petite image du personnage (cedric, 24/10 : « vérifier qu'elle me convient »), celle que la TV
   // montre à la révélation : son image, sinon son émoji ; tiré au 🎲, jamais une image téléversée.
@@ -2746,9 +2964,10 @@ function mancheMots(r) {
   // Une place vide : son petit 🎲 et son champ (mêmes règles que la ligne de 🎲), une ✕ qui la supprime pour de bon.
   const caseVideMot = (x, k) => {
     const changerOrdre = (f) => { if (x.cle && Object.values(r.ordreMots ?? {}).length) r.ordreMots = f(Object.values(r.ordreMots)); };
+    const libre = disparu ? "famille libre" : "personnage libre";
     const remplir = (terme) => {
-      const neuf = persos.unPerso(terme);
-      if (!neuf) { annonce(terme ? `Plus aucun personnage libre sur « ${terme} » : essayez un autre mot, ou videz le champ.` : "Plus aucun personnage libre ici : changez l'âge."); return; }
+      const neuf = deCase.unMot(terme);
+      if (!neuf) { annonce(terme ? `Plus aucun${disparu ? "e" : ""} ${libre} sur « ${terme} » : essayez un autre mot, ou videz le champ.` : `Plus aucun${disparu ? "e" : ""} ${libre} ici : changez l'âge.`); return; }
       x.serie.mots[x.i] = neuf;
       changerOrdre((liste) => liste.map((c) => (c === x.cle ? cleDuMot(type, neuf) : c)));
       ranger();
@@ -2762,11 +2981,11 @@ function mancheMots(r) {
       changer();
       noterEcran();
     };
-    const { champ, bloc } = persos.champCase(() => remplir(champ.value.trim()));
+    const { champ, bloc } = deCase.champCase(() => remplir(champ.value.trim()));
     bloc.classList.add("quiz-case-source");
     return h("li", { class: "tirage-q vide packs-case quiz-case-vide" }, h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
-      h("button", { type: "button", class: "btn packs-de petit quiz-case-de", text: "🎲", "aria-label": "Tirer un autre personnage", title: "Un autre personnage : au hasard, ou sur ce qui est tapé à côté", onclick: () => remplir(champ.value.trim()) }),
+      h("button", { type: "button", class: "btn packs-de petit quiz-case-de", text: "🎲", "aria-label": `Tirer un autre ${unite}`, title: `Un autre ${unite} : au hasard, ou sur ce qui est tapé à côté`, onclick: () => remplir(champ.value.trim()) }),
       bloc,
       h("button", { type: "button", class: "icon tirage-retirer quiz-case-retirer", text: "✕", title: "Supprimer cette place", "aria-label": "Supprimer cette place", onclick: supprimer })));
   };
@@ -2778,6 +2997,7 @@ function mancheMots(r) {
       h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer ${ce} ${unite} plus tard`, "aria-label": `Descendre « ${nomDe(x.m)} »`, disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
       h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever ${ce} ${unite} de ${jeu}`, "aria-label": `Enlever « ${nomDe(x.m)} »`, onclick: () => enleverDuComplet(x) })))));
   const listeComplete = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignesCompletes);
+  glisserDansLaListe(listeComplete, lignesCompletes, (k, j) => poser(deplaceEn(vue, k, j)), (k) => !vue[k].vide);
   listeComplete.hidden = unique ? motsCompletsFermes.has(r) : !motsCompletsDeplies.has(r);
   const titreComplet = () => `${listeComplete.hidden ? "▸" : "▾"} 🧩 ${jeu} complet : ${nMots(ordre.length)}, dans l'ordre de passage${nVides ? ` (${nVides} à tirer)` : ""}`;
   const complet = h("div", { class: "serie quiz-complet mots-complet" },
@@ -2805,7 +3025,7 @@ function mancheMots(r) {
     motAFocaliser = null;
     requestAnimationFrame(() => document.querySelector(`#show-rounds [data-manche="${editing?.rounds.indexOf(r)}"] .mots-ecrire`)?.focus());
   }
-  if (unique) return [compteur, persos.enTete, outils, vue.length ? complet : null];
+  if (unique) return [compteur, persos?.enTete ?? null, outils, vue.length ? complet : null];
   if (quisuis) {
     // Les personnages retirés (tirés au 🎲) : leurs dés en tête du « complet », qui s'ouvre.
     const vides = series.flatMap((x) => x.mots.map((m, i) => (m.vide ? persos.caseVide(x, i) : null)).filter(Boolean));
@@ -2928,11 +3148,40 @@ function pictoSeriesPicker(r) {
 
 /** Nombres de chansons proposés au 🎲 des statues. */
 const STATUES_NOMBRES = [3, 5, 8, 10];
+/** « 🧩 Statues complet » : ouvert d'office ; refermé, le temps de l'écran. */
+const statuesCompletsFermes = new WeakSet();
+/** « 3:42 » : la durée d'une chanson, en minutes et secondes. */
+const minSec = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+/** Chansons des statues dont on vérifie en ce moment si la chanson entière est en ligne. */
+const entieresEnCours = new Set();
+
+/** 🎧 des statues : la chanson entière, depuis 0:00 (gardée sur ce PC, sinon téléchargée) ; null si elle n'est pas en ligne. */
+async function ecouterEntiere(id, bouton) {
+  stopPreview();
+  try {
+    let f = await fichierGarde(id);
+    if (!f) {
+      f = await telechargerEntiere(id);
+      if (f) await garderFichier(id, f);
+    }
+    if (!f) return annonce(`La chanson entière de « ${songs[id]?.title?.trim() ?? "cette chanson"} » n'est pas encore en ligne : redéposez son MP3 dans Bibliothèque › Sons.`);
+    // Un autre bouton a été touché pendant le téléchargement : c'est lui qui joue.
+    if (preview) return;
+    const url = URL.createObjectURL(f);
+    const audio = new Audio(url);
+    preview = { audio, url };
+    await audio.play();
+    enLecture(audio, bouton);
+  } catch (e) {
+    console.error(e);
+    annonce("Écoute impossible sur cet ordinateur.");
+  }
+}
 
 /**
  * Statues musicales sur vos chansons (cedric, 24/10 : « je devrais pouvoir entendre des musiques présélectionnées dans
  * ma playlist ») : comme au blind test, le 🎲 dans la bibliothèque des sons, « 🎵 Choisir mes chansons » et « 🎶 Ajouter
- * une playlist » ; la liste dans l'ordre de passage (↑ ↓ ✕). La TV joue le refrain de chacune, l'une après l'autre.
+ * une playlist » ; la liste dans l'ordre de passage (↑ ↓ ✕). Chaque chanson se joue en entier (cedric, 27/10), l'une après l'autre.
  * Aucune : la musique de la fête. Une manche d'avant garde ses extraits cochés tant qu'aucune chanson n'est choisie ici.
  */
 function statuesChansons(r) {
@@ -2950,12 +3199,16 @@ function statuesChansons(r) {
     ...STATUES_NOMBRES.map((k) => h("option", { value: k, selected: k === n, text: `${k} chansons au hasard` })));
   const de = h("button", {
     type: "button", class: "btn tirage-de statues-de", text: "🎲", "aria-label": "Tirer les chansons au hasard",
-    title: "Tirer les chansons au hasard dans la bibliothèque des sons (elles remplacent la liste)",
+    title: "Tirer des chansons au hasard dans la bibliothèque des sons (elles s'ajoutent à la fin de la liste)",
+    // Chaque 🎲 ajoute ses chansons à la suite (cedric, 27/10), jamais une déjà dans la liste.
     onclick: () => {
       r.nbChansons = Number(nombre.value);
-      const tirees = piocherChansons(r, r.nbChansons, new Set());
-      if (!tirees.length) return annonce("Aucune chanson dans la bibliothèque des sons : ajoutez-en d'abord (Bibliothèque › Sons).");
-      ranger(tirees);
+      const place = MAX_STATUES_SONGS - ids.length;
+      if (place <= 0) return annonce(`Déjà ${MAX_STATUES_SONGS} chansons : c'est le maximum aux statues.`);
+      const tirees = piocherChansons(r, Math.min(r.nbChansons, place), new Set(ids));
+      if (!tirees.length) return annonce(Object.keys(songs ?? {}).length ? "Toutes les chansons de la bibliothèque des sons sont déjà dans la liste." : "Aucune chanson dans la bibliothèque des sons : ajoutez-en d'abord (Bibliothèque › Sons).");
+      if (tirees.length < r.nbChansons) annonce(`Seulement ${pluriel(tirees.length, "chanson")} de plus : les voici.`);
+      ranger([...ids, ...tirees]);
     },
   });
   const choisir = h("button", {
@@ -2985,6 +3238,30 @@ function statuesChansons(r) {
       ranger([...ids, ...neuves]);
     },
   });
+  // « 📚 Rappeler la liste d'un ancien anniversaire » (cedric, 27/10) : les chansons des statues d'une prestation
+  // archivée, ajoutées à la fin (sans celles déjà dans la liste ; les chansons supprimées depuis restent dehors).
+  const anciens = prestationsRecentes().filter(([, s]) => etatPrestation(s) === "archivee").map(([sid, s]) => {
+    const liste = [...new Set((s.rounds ?? []).flatMap((x) => chansonsStatues(x)))].filter((k) => chansonJouable(songs[k]));
+    const date = s.date ? new Date(`${s.date}T12:00:00`) : null;
+    return {
+      id: sid, ids: liste,
+      titre: `${showTitle(s)}${date ? ` (${date.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })})` : ""}`,
+      details: [date ? date.toLocaleDateString("fr-FR") : "", s.age != null && s.age !== "" ? `${s.age} ans` : "", pluriel(liste.length, "chanson")].filter(Boolean).join(" · "),
+      noms: [showTitle(s), s.childName],
+      autres: [...datesCherchables(s.date), s.age != null && s.age !== "" ? `${s.age} ans` : "", s.notes, s.themes, ...liste.flatMap((k) => [songs[k]?.title, songs[k]?.artist])],
+    };
+  }).filter((x) => x.ids.length);
+  const rappel = ligneAjoutQuiz({
+    classe: "quiz-rappel statues-rappel", titre: "📚 Rappeler la liste d'un ancien anniversaire", label: "Chercher une prestation archivée",
+    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: "Aucun ancien anniversaire avec des statues",
+    aucun: "Aucune prestation archivée ne correspond.", items: anciens, attr: (x) => ({ "data-show": x.id }),
+    choisir: (x) => {
+      const neuves = x.ids.filter((id) => !ids.includes(id));
+      if (!neuves.length) return annonce(`Les chansons de « ${x.titre} » sont déjà toutes dans les statues.`);
+      if (ids.length + neuves.length > MAX_STATUES_SONGS) annonce(`${MAX_STATUES_SONGS} chansons au plus aux statues : les dernières ne sont pas ajoutées.`, true);
+      ranger([...ids, ...neuves]);
+    },
+  });
   const ligne = (id, i) => {
     const song = songs[id];
     const enlever = h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: "Retirer cette chanson des statues", "aria-label": `Retirer « ${song?.title?.trim() ?? "cette chanson"} »`, onclick: () => ranger(ids.filter((x) => x !== id)) });
@@ -2997,35 +3274,101 @@ function statuesChansons(r) {
       [l[i], l[i + d]] = [l[i + d], l[i]];
       ranger(l);
     };
-    const refrain = /^[0-9a-f]{16}$/.test(song.refrainId ?? "");
-    return h("li", { class: "tirage-q blind-chanson statues-chanson", "data-chanson": id },
+    // La chanson se joue en entier (cedric, 27/10) : sa durée et 🎧 pour l'écouter ; ☁ si elle n'est pas entière en ligne.
+    const duree = Number.isFinite(song.length) && song.length > 0 ? minSec(song.length) : null;
+    return h("li", { class: "tirage-q blind-chanson statues-chanson quiz-complet-q", "data-chanson": id },
       h("div", { class: "tirage-q-ligne" },
+        h("span", { class: "quiz-complet-num", text: `${i + 1}` }),
         miniPochette(song),
         h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
-        h("span", {
-          class: `blind-paroles statues-son${refrain ? " ok" : " non"}`, text: refrain ? "♪ Refrain" : "♪ Début",
-          title: refrain ? "La TV joue le refrain réglé de la chanson" : "Refrain pas encore réglé : la TV joue l'extrait du début (Bibliothèque › Sons, ⏱ Régler)",
-        }),
+        entieres.get(id) === false ? h("span", {
+          class: "song-nuage statues-nuage", role: "img", "aria-label": "Chanson entière pas en ligne", text: "☁",
+          title: "La chanson entière n'est pas encore en ligne : la TV ne pourra pas la jouer en entier. Redéposez son MP3 une fois dans Bibliothèque › Sons (« Ajouter des chansons… »).",
+        }) : null,
+        duree ? h("span", { class: "hint statues-duree", text: duree, title: "Durée de la chanson, jouée en entier" }) : null,
+        boutonEcoute({ class: "icon statues-ecouter", text: "🎧", title: "Écouter la chanson entière, depuis le début", "aria-label": `Écouter « ${song.title.trim()} »` }, (b) => ecouterEntiere(id, b)),
         h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Jouer cette chanson plus tôt", "aria-label": "Monter cette chanson", disabled: i === 0, onclick: () => bouger(-1) }),
         h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Jouer cette chanson plus tard", "aria-label": "Descendre cette chanson", disabled: i === ids.length - 1, onclick: () => bouger(1) }),
         enlever));
   };
+  const lignes = ids.map(ligne);
+  const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste statues-liste" }, ...lignes);
+  glisserDansLaListe(liste, lignes, (k, j) => ranger(deplaceEn(ids, k, j)));
+  // « 🧩 Statues complet » (cedric, 27/10) : toutes les chansons dans l'ordre de passage ; 🔀 ↑ ↓ glisser ✕.
+  liste.hidden = statuesCompletsFermes.has(r);
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 Statues complet : ${pluriel(ids.length, "chanson")}, dans l'ordre de passage`;
+  const voir = h("button", {
+    type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir statues-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
+    title: "Voir toutes les chansons des statues, dans l'ordre",
+    onclick: (e) => {
+      liste.hidden = !liste.hidden;
+      if (liste.hidden) statuesCompletsFermes.add(r); else statuesCompletsFermes.delete(r);
+      e.currentTarget.textContent = titre();
+      e.currentTarget.setAttribute("aria-expanded", liste.hidden ? "false" : "true");
+    },
+  });
+  const melanger = () => {
+    let nouvel = shuffle(ids);
+    for (let essai = 0; essai < 5 && ids.length > 1 && nouvel.every((c, k) => c === ids[k]); essai++) nouvel = shuffle(ids);
+    ranger(nouvel);
+  };
+  const complet = h("div", { class: "serie quiz-complet statues-complet" },
+    h("div", { class: "serie-tete" },
+      voir,
+      h("button", { type: "button", class: "chip quiz-melanger statues-melanger", text: "🔀 Mélanger", title: "Mélanger toutes les chansons des statues", disabled: ids.length < 2, onclick: melanger })),
+    liste);
   const avant = ids.length ? [] : roundSongs(r, playlists);
-  const resume = ids.length ? `${pluriel(ids.length, "chanson")}, ${ids.length > 1 ? "jouées l'une après l'autre" : "jouée en boucle"} : la TV joue leur refrain.`
+  // Chanson entière en ligne ? Vérifié une fois par chanson et par visite ; un ☁ apparaît sur celles qui manquent.
+  const aVerifier = ids.filter((id) => chansonJouable(songs[id]) && !entieres.has(id) && !entieresEnCours.has(id));
+  if (aVerifier.length) {
+    aVerifier.forEach((id) => entieresEnCours.add(id));
+    Promise.all(aVerifier.map(async (id) => entieres.set(id, await entiereEnLigne(id).catch(() => true)))).then(() => {
+      aVerifier.forEach((id) => entieresEnCours.delete(id));
+      if (aVerifier.some((id) => entieres.get(id) === false)) roundCtx.refresh();
+    });
+  }
+  const resume = ids.length ? `${pluriel(ids.length, "chanson")}, ${ids.length > 1 ? "jouées en entier l'une après l'autre" : "jouée en entier"}.`
     : avant.length ? `Pour l'instant : ${pluriel(avant.length, "extrait")} coché${avant.length > 1 ? "s" : ""} avant dans vos playlists. Ajoutez vos chansons pour les remplacer.`
     : "Aucune chanson : la musique de la fête.";
   return h("div", { class: "statues-chansons" },
     h("div", { class: "tirage-ligne" }, nombre, de, choisir),
+    rappel,
     ajoutPlaylist,
     h("p", { class: "hint small statues-resume", text: resume }),
-    ids.length ? h("ol", { class: "tirage-liste statues-liste" }, ...ids.map(ligne)) : null);
+    ids.length ? complet : null);
+}
+
+/**
+ * « 🤠 Le Duel des robots » dans une prestation (cedric, 27/10) : rien à piocher ; le nombre approximatif de joueurs par
+ * équipe (la box en tire le nombre de duels, pour que tout le monde joue), la durée du face-à-face, au moins / au plus,
+ * et « de temps en temps un long duel, jusqu'à 60 s ».
+ */
+function reglagesDuDuel(r) {
+  const d = reglagesDuel(r);
+  Object.assign(r, d);
+  const choix = (classe, label, cle, valeurs, texte) => h("select", { class: `duel-reglage ${classe}`, "aria-label": label, onchange: (e) => {
+    r[cle] = Number(e.target.value);
+    // Le minimum ne dépasse jamais le maximum : l'autre suit.
+    if (cle === "dureeMin" && r.dureeMax < r.dureeMin) r.dureeMax = r.dureeMin;
+    if (cle === "dureeMax" && r.dureeMin > r.dureeMax) r.dureeMin = r.dureeMax;
+    roundCtx.refresh();
+    noterEcran();
+  } }, ...valeurs.map((n) => h("option", { value: n, selected: d[cle] === n, text: texte(n) })));
+  return h("div", { class: "grow picto-round duel-reglages" },
+    choix("duel-joueurs", "Joueurs par équipe, environ", "joueurs", DUEL_JOUEURS, (n) => `Environ ${n} joueur${n > 1 ? "s" : ""} par équipe`),
+    choix("duel-min", "Durée du face-à-face, au moins", "dureeMin", DUEL_DUREES, (n) => `Face-à-face : au moins ${n} s`),
+    choix("duel-max", "Durée du face-à-face, au plus", "dureeMax", DUEL_DUREES, (n) => `au plus ${n} s`),
+    h("label", { class: "inline duel-longs-label", title: d.dureeMax >= 60 ? "Déjà jusqu'à 60 s" : "Environ un duel sur quatre dure alors entre le maximum et 60 s" },
+      h("input", { type: "checkbox", class: "duel-longs", checked: d.longs, disabled: d.dureeMax >= 60, onchange: (e) => { r.longs = e.target.checked; roundCtx.summary(); noterEcran(); } }),
+      " De temps en temps un long duel, jusqu'à 60 s"),
+    h("span", { class: "hint small", text: "Rien d'autre à préparer : l'appli compte assez de duels pour que chaque joueur passe une fois. Pendant la partie, Sarah peut lancer un duel de plus entre deux équipes." }));
 }
 
 /** Jeux que « ＋ Ajouter un jeu » propose, par famille, dans l'ordre des tuiles de l'Accueil. */
 const jeuxProposes = () => GAME_GROUPS.map((g) => ({ title: g.title, games: g.games.filter((x) => ROUND_TYPES[x.type]) }));
 // Le « ? » de la tuile du Quiz devient ❓ hors de sa tuile (comme l'écran d'ouverture de la TV).
 const iconeJeu = (type) => (type === "quiz" ? "❓" : GAME_GROUPS.flatMap((g) => g.games).find((x) => x.type === type)?.icon ?? "");
-const SANS_CONTENU = ["coffres", "patate", "gonfleur"];
+const SANS_CONTENU = ["coffres", "patate", "gonfleur", "duel"];
 
 /**
  * Prestation (cedric, 21/10) : on ajoute un JEU, puis ses manches. Un bloc = les manches qui se suivent du même jeu,
@@ -3667,6 +4010,13 @@ function reponsesIllustrees(q) {
   }));
 }
 
+/**
+ * Une question du Quiz illustré dont une réponse n'a pas sa photo (cedric, 26/10 : une question d'un pack Marvel en texte
+ * seul sur la TV) : signalée en rouge dans le « Quiz illustré complet », pour l'enlever (✕) ou la retirer.
+ */
+const sansSesImages = (q) => !q.bougies && q.kind !== "number" && !Array.isArray(q.choiceBanque) && !avecSesImages(q);
+const alerteSansImages = () => h("span", { class: "alerte-sans-images", text: "⚠ Sans images", title: "Une réponse au moins n'a pas sa photo : la TV montrera cette question en texte seul. Enlevez-la (✕), ou réimportez son pack avec ses images." });
+
 /** Zoom mystère, Image floue : la photo à deviner, en petit (banque de photos libres, ou une de vos images). */
 const apercuPhoto = (q) => (q.banque ? h("img", { class: "tirage-photo", src: cheminPhotoBanque(q.banque), alt: "", loading: "lazy" })
   : IMAGE_ID.test(q.imageId ?? "") ? photoBibliotheque(q.imageId, { class: "tirage-photo", loading: "lazy" }) : null);
@@ -3675,6 +4025,76 @@ const apercuPhoto = (q) => (q.banque ? h("img", { class: "tirage-photo", src: ch
  * 24/10 : « on exploite exclusivement les photos », la photo est déjà à côté).
  */
 const reponsePhoto = (q) => `${q.choices?.[q.correct] ?? q.text ?? ""}`.replace(/^[^\p{L}\p{N}]+/u, "").trim();
+
+/**
+ * Le nom d'une photo du Zoom mystère ou de l'Image floue dans son « … complet », avec ✎ pour le renommer (cedric, 26/10 :
+ * « les noms des packs ne correspondent pas forcément au nom du personnage que l'on voit »). Le nouveau nom devient la
+ * réponse dans ce jeu, et aussi dans la bibliothèque (renommerImage) ; une photo libre de l'appli ne change que dans le jeu.
+ */
+function nomDePhoto(r, x, changer) {
+  const texte = h("span", { class: "tirage-texte", text: reponsePhoto(x.q), title: x.q.text });
+  const serie = x.serie;
+  const gardee = serie?.origine === "quiz" ? null : (serie?.questions ?? []).find((q) => q && cleQuestion(serie, q, r.type) === x.cle);
+  if (!gardee) return texte;
+  const ouvrir = () => {
+    const champ = h("input", { type: "text", class: "photo-nom", maxlength: 60, value: reponsePhoto(gardee), "aria-label": "Nouveau nom de la photo (la réponse à trouver)" });
+    let fini = false;
+    const finir = (garder) => {
+      if (fini) return;
+      fini = true;
+      const nom = champ.value.replace(/\s+/g, " ").trim();
+      if (garder && nom && nom !== reponsePhoto(gardee)) {
+        nommerQuestionPhoto(gardee, nom);
+        if (IMAGE_ID.test(gardee.imageId ?? "")) renommerImage(gardee.imageId, nom);
+        noterEcran();
+      }
+      changer();
+    };
+    champ.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); finir(true); }
+      if (e.key === "Escape") { e.preventDefault(); finir(false); }
+    });
+    champ.addEventListener("blur", () => finir(true));
+    texte.replaceWith(champ);
+    bouton.hidden = true;
+    // Pas de glisser pendant la saisie : la souris sélectionne le texte.
+    const li = champ.closest("li");
+    if (li) li.draggable = false;
+    champ.focus();
+    champ.select();
+  };
+  const bouton = h("button", { type: "button", class: "icon photo-renommer", text: "✎", title: "Renommer la photo (la réponse à trouver)", "aria-label": `Renommer « ${reponsePhoto(x.q)} »`, onclick: ouvrir });
+  return h("span", { class: "photo-nom-bloc" }, texte, bouton);
+}
+
+/** La bonne réponse de [q] devient [nom] ; une autre proposition qui s'écrivait déjà ainsi prend l'ancien nom. */
+function nommerQuestionPhoto(q, nom) {
+  const choices = Array.isArray(q.choices) ? [...q.choices] : Object.values(q.choices ?? {});
+  const ancien = choices[q.correct];
+  const meme = (t) => `${t ?? ""}`.trim().toLowerCase() === nom.toLowerCase();
+  q.choices = choices.map((c, k) => (k === q.correct ? nom : meme(c) ? ancien : c));
+}
+
+/**
+ * Renomme l'image [id] dans la bibliothèque : sa fiche (Mes images, Images des packs) et la bonne réponse des questions
+ * de packs (ou de séries de photos) qui la montrent, pour que les prochains 🎲 donnent le bon nom.
+ */
+async function renommerImage(id, nom) {
+  const chemins = {};
+  if (medias?.[id]) Object.assign(chemins, { [`library/medias/${id}/name`]: nom, [`library/medias/${id}/updatedAt`]: serverTimestamp() });
+  Object.entries(quizzes ?? {}).forEach(([qid, quiz]) => {
+    const qs = quiz?.questions;
+    Object.entries(qs && typeof qs === "object" ? qs : {}).forEach(([k, q]) => {
+      if (q?.imageId !== id || !Number.isInteger(q.correct)) return;
+      const copie = { ...q };
+      nommerQuestionPhoto(copie, nom);
+      chemins[`library/quizzes/${qid}/questions/${k}/choices`] = copie.choices;
+      chemins[`library/quizzes/${qid}/updatedAt`] = serverTimestamp();
+    });
+  });
+  if (!Object.keys(chemins).length) return;
+  try { await update(ref(db), chemins); } catch (e) { annonce(`Le nouveau nom n'a pas pu être gardé dans la bibliothèque : ${e.message}`, true); }
+}
 
 /** Petite étiquette des questions de la Super Finale, dans la liste (cedric, 23/10 : une seule, à la fin). */
 const etiquetteFinale = (r) => h("span", { class: "badge-finale", text: `🏆 ×${FACTEURS_FINALE.includes(r.facteur) ? r.facteur : FACTEURS_FINALE[0]}`, title: "Question de la Super Finale" });
@@ -4066,50 +4486,50 @@ const QUIZ_AJOUT_MAX = 6;
  * date…), les uns sous les autres, dans une liste posée à droite par-dessus l'écran (rien ne bouge en dessous). Un clic
  * sur un résultat l'ajoute.
  */
-/** Le panneau « ⭐ Composer avec vos images » ouvert (le temps de l'écran), par manche : sa recherche, les images cochées. */
+/** La recherche de « 🖼 Ajouter une image » (le temps de l'écran), par manche : le texte tapé, la main gardée au champ. */
 const panneauxVosImages = new WeakMap();
-/** Au plus autant d'images montrées à la fois dans ce panneau : la recherche trouve les autres. */
-const VOS_IMAGES_MAX = 60;
+/** Au plus autant d'images montrées à la fois : la recherche trouve les autres. */
+const VOS_IMAGES_MAX = 24;
 
 /**
- * Zoom mystère, Image floue (cedric, 23/10 : « créer une manche à travers mes images perso qui ont été uploadées dans
- * la bibliothèque ») : ses images de Bibliothèque › Images › « Mes images », cochées une par une (jamais au 🎲 :
- * règle 16), rejoignent la série « ⭐ Vos images » de la manche ; le nom de chaque image est la réponse à trouver.
- * Toute la bibliothèque d'images (cedric, 24/10) : les photos libres aussi, après « Mes images ». Pas les émojis : ces
- * jeux ne montrent que des photos.
- * Une image déjà dans un autre jeu de la fête, ou dans une autre série de ce jeu (cedric, 24/10), est signalée en rouge,
- * mais reste possible (« Jamais deux fois » : à Sarah de décider) ; seule celle déjà dans la composition ne se recoche pas.
+ * Zoom mystère, Image floue : « 🖼 Ajouter une image » (cedric, 26/10 : « une option de recherche qui va piocher dans
+ * toute ma bibliothèque […] une seule image qui vient se rajouter au jeu complet »). Une recherche en direct dans toute
+ * la bibliothèque d'images : « Mes images », les images des packs, les photos libres (jamais d'émoji : ces jeux ne
+ * montrent que des photos ; choisies à la main, jamais au 🎲 : règle 16). Un clic ajoute CETTE image à la fin du
+ * « … complet », dans la série « ⭐ Vos images » ; son nom est la réponse à trouver.
+ * Une image déjà dans un autre jeu de la fête, ou ailleurs dans ce jeu, est signalée en rouge mais reste possible
+ * (« Jamais deux fois » : à Sarah de décider) ; seule celle déjà ajoutée ici ne se reprend pas.
  */
 function ligneVosImages(r, changer) {
-  const panneau = panneauxVosImages.get(r);
-  const titre = h("button", {
-    type: "button", class: "quiz-ajout-titre vos-images-titre", "aria-expanded": panneau ? "true" : "false",
-    text: `${panneau ? "▾" : "▸"} ⭐ Composer avec vos images`,
-    onclick: () => {
-      if (panneau) panneauxVosImages.delete(r);
-      else panneauxVosImages.set(r, { recherche: "", cochees: new Set(), focus: true });
-      changer();
-    },
+  const panneau = panneauxVosImages.get(r) ?? { recherche: "", focus: false };
+  panneauxVosImages.set(r, panneau);
+  const cherche = h("input", {
+    type: "search", class: "quiz-ajout-cherche vos-images-cherche", "aria-label": "Chercher une image dans toute la bibliothèque", value: panneau.recherche,
+    placeholder: "Toute ma bibliothèque : nom, personnage, thème…",
   });
-  if (!panneau) return h("div", { class: "quiz-ajouts vos-images" }, titre,
-    h("span", { class: "hint small", text: "Toute la bibliothèque : « Mes images » et les photos libres ; le nom de chaque photo est la réponse à trouver." }));
-
+  const grille = h("div", { class: "media-grid vos-images-grille" });
+  const ligne = h("div", { class: "quiz-ajouts vos-images" },
+    h("span", { class: "quiz-ajout-titre vos-images-titre", text: "🖼 Ajouter une image" }), h("div", { class: "quiz-ajout-champ" }, cherche));
   const groupes = groupesImages();
   const images = [...groupes.miennes, ...groupes.packs, ...groupes.photos];
   const idImage = (q) => q?.imageId ?? (q?.banque ? `${BANQUE}${q.banque}` : null);
   const dansCeJeu = new Set(questionsDesSeries(r, quizzes).map(idImage).filter(Boolean));
   const dansLaComposition = new Set((seriesDe(r).find((x) => x.origine === "images")?.questions ?? []).map(idImage).filter(Boolean));
   const ailleurs = JSON.stringify((roundCtx === prestationCtx && editing ? editing.rounds : []).filter((m) => m && m !== r));
-  const cherche = h("input", {
-    type: "search", class: "vos-images-cherche", "aria-label": "Chercher dans vos images", value: panneau.recherche,
-    placeholder: "Nom, catégorie, mot-clé…",
-  });
-  const grille = h("div", { class: "media-grid vos-images-grille" });
-  const ajouter = h("button", { type: "button", class: "btn vos-images-ajouter" });
-  const majAjouter = () => {
-    const n = panneau.cochees.size;
-    ajouter.disabled = n === 0;
-    ajouter.textContent = n ? `＋ Ajouter ${n > 1 ? `ces ${n} photos` : "cette photo"}` : "Cochez vos photos";
+  const ajouterUne = (x) => {
+    const serie = seriesDe(r).find((y) => y.origine === "images");
+    // Les autres propositions des pupitres : les réponses de la série, puis ses autres images, puis des mots de la banque.
+    const motsBanque = banqueItems().map((y) => y.value?.choices?.[y.value.correct]).filter(Boolean);
+    const q = x.id.startsWith(BANQUE) ? versPhotoTiree(x.id.slice(BANQUE.length))
+      : photosDeMesImages([x], { voisines: (serie?.questions ?? []).filter(Boolean).map(reponsePhoto), secours: [...groupes.miennes, ...motsBanque], deja: [...dansLaComposition] })[0];
+    if (!q) return;
+    aLaSuite(r, () => {
+      const s = serie ?? { id: nouvelId("m"), origine: "images", questions: [] };
+      if (!serie) seriesDe(r).push(s);
+      s.questions = [...(s.questions ?? []).filter(Boolean), q];
+    });
+    panneau.focus = true;
+    changer();
   };
   const tuile = (x) => {
     const nom = `${x.nom ?? ""}`.trim();
@@ -4117,55 +4537,28 @@ function ligneVosImages(r, changer) {
     const libre = x.groupe === "photos";
     const ceJeu = !deja && dansCeJeu.has(x.id);
     const autreJeu = !deja && !ceJeu && (ailleurs.includes(x.id) || (libre && ailleurs.includes(`"${x.id.slice(BANQUE.length)}"`)));
-    const etat = deja ? "✓ Déjà dans votre composition" : !nom ? "À nommer dans Mes images" : ceJeu ? "Déjà utilisée dans ce jeu" : autreJeu ? "Déjà utilisée dans la fête" : "";
-    const b = h("button", {
-      type: "button", class: `media-tile vos-images-tuile${panneau.cochees.has(x.id) ? " on" : ""}`, "data-image": x.id,
-      "aria-pressed": panneau.cochees.has(x.id) ? "true" : "false", disabled: deja || !nom, title: etat || `Cocher « ${nom} »`,
-      onclick: () => {
-        if (panneau.cochees.has(x.id)) panneau.cochees.delete(x.id); else panneau.cochees.add(x.id);
-        b.classList.toggle("on", panneau.cochees.has(x.id));
-        b.setAttribute("aria-pressed", panneau.cochees.has(x.id) ? "true" : "false");
-        majAjouter();
-      },
+    const etat = deja ? "✓ Déjà dans le jeu" : !nom ? "À nommer dans Mes images" : ceJeu ? "Déjà utilisée dans ce jeu" : autreJeu ? "Déjà utilisée dans la fête" : "";
+    return h("button", {
+      type: "button", class: "media-tile vos-images-tuile", "data-image": x.id, disabled: deja || !nom, title: etat || `Ajouter « ${nom} » à la fin du jeu`,
+      onclick: () => ajouterUne(x),
     }, libre ? h("img", { src: x.src, alt: "", loading: "lazy" }) : photoBibliotheque(x.id, { loading: "lazy" }), h("span", { text: nom || "Sans nom" }),
     etat ? h("small", { class: `vos-images-etat${autreJeu || ceJeu ? " alerte" : ""}`, text: etat }) : null);
-    return b;
   };
+  // Rien tant qu'aucune lettre n'est tapée ; ensuite, à chaque lettre, les meilleures images.
   const dessiner = () => {
     const q = panneau.recherche;
-    const trouvees = parPertinence(images.filter((x) => contientTout([x.nom, x.cat, ...x.tags].filter(Boolean), q)), q,
-      (x) => [x.nom].filter(Boolean), (x) => [x.cat, ...x.tags].filter(Boolean));
+    grille.hidden = !q.trim();
+    if (grille.hidden) { grille.replaceChildren(); return; }
+    const trouvees = parPertinence(images.filter((x) => contientTout([x.nom, x.cat, ...(x.tags ?? []), ...(x.ou ?? [])].filter(Boolean), q)), q,
+      (x) => [x.nom].filter(Boolean), (x) => [x.cat, ...(x.tags ?? []), ...(x.ou ?? [])].filter(Boolean));
     grille.replaceChildren(...(trouvees.length ? trouvees.slice(0, VOS_IMAGES_MAX).map(tuile)
       : [h("p", { class: "hint small", text: "Aucune image de la bibliothèque ne correspond." })]),
     ...(trouvees.length > VOS_IMAGES_MAX ? [h("p", { class: "hint small", text: `Et ${plural(trouvees.length - VOS_IMAGES_MAX, "autre image", "autres images")} : précisez la recherche.` })] : []));
   };
   cherche.addEventListener("input", () => { panneau.recherche = cherche.value; dessiner(); });
-  ajouter.onclick = () => {
-    const serie = seriesDe(r).find((x) => x.origine === "images");
-    // Les autres propositions des pupitres : les réponses de la série, puis ses autres images, puis des mots de la banque.
-    const motsBanque = banqueItems().map((x) => x.value?.choices?.[x.value.correct]).filter(Boolean);
-    const miennes = photosDeMesImages([...groupes.miennes, ...groupes.packs].filter((x) => panneau.cochees.has(x.id)), {
-      voisines: (serie?.questions ?? []).filter(Boolean).map(reponsePhoto), secours: [...groupes.miennes, ...motsBanque], deja: [...dansLaComposition],
-    });
-    // Dans l'ordre des clics ; une photo libre garde les propositions de son mot dans la banque.
-    const parId = new Map(miennes.map((q) => [q.imageId, q]));
-    const nouvelles = [...panneau.cochees].map((id) => (id.startsWith(BANQUE) ? versPhotoTiree(id.slice(BANQUE.length)) : parId.get(id))).filter(Boolean);
-    if (!nouvelles.length) return;
-    const s = serie ?? { id: nouvelId("m"), origine: "images", questions: [] };
-    if (!serie) seriesDe(r).push(s);
-    s.questions = [...(s.questions ?? []).filter(Boolean), ...nouvelles];
-    seriesDepliees.add(s);
-    panneauxVosImages.delete(r);
-    changer();
-  };
   dessiner();
-  majAjouter();
   if (panneau.focus) { panneau.focus = false; requestAnimationFrame(() => cherche.focus()); }
-  return h("div", { class: "vos-images vos-images-ouvert" },
-    h("div", { class: "quiz-ajouts" }, titre, h("div", { class: "quiz-ajout-champ" }, cherche)),
-    grille,
-    h("div", { class: "vos-images-pied" }, ajouter,
-      h("button", { type: "button", class: "btn secondary vos-images-fermer", text: "Fermer", onclick: () => { panneauxVosImages.delete(r); changer(); } })));
+  return h("div", { class: "vos-images-bloc" }, ligne, grille);
 }
 
 function ligneAjoutQuiz({ classe, titre, label, placeholder, vide, aucun, items, attr, choisir }) {
@@ -4332,17 +4725,37 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
       bloc,
       h("button", { type: "button", class: "icon tirage-retirer quiz-case-retirer", text: "✕", title: "Supprimer cette place", "aria-label": "Supprimer cette place", onclick: () => enleverDuQuiz(x) })));
   };
+  // Les N dernières places restent la Super Finale (cedric, 26/10) : ni les bougies ni une case vide n'y tombent.
+  const reelles = new Set(assemblage.map((x) => x.cle));
+  const brasser = () => {
+    const vraies = shuffle(cles.filter((c) => reelles.has(c)));
+    const fin = vraies.splice(vraies.length - clesFinale.size);
+    return [...shuffle([...vraies, ...cles.filter((c) => !reelles.has(c))]), ...fin];
+  };
+  // Le thème du pack d'où vient la question, juste à gauche de sa photo (cedric, 26/10 : « Pokémon », « Mario », « Roblox »).
+  const themeDePack = (cle) => {
+    const quiz = quizzes[/\|pk-(.+):\d+$/.exec(cle ?? "")?.[1]];
+    return quiz ? h("span", { class: "quiz-complet-theme", text: themeDe(quiz.theme, quiz.title), title: `Question du pack « ${quiz.title ?? ""} »` }) : null;
+  };
   const melanger = () => {
-    let nouvel = shuffle(cles);
-    for (let essai = 0; essai < 5 && cles.length > 1 && nouvel.every((c, k) => c === cles[k]); essai++) nouvel = shuffle(cles);
+    let nouvel = brasser();
+    for (let essai = 0; essai < 5 && cles.length > 1 && nouvel.every((c, k) => c === cles[k]); essai++) nouvel = brasser();
     ranger(nouvel, true);
+  };
+  // Glisser une question à la souris plus haut ou plus bas (cedric, 26/10), en plus de ↑ ↓ : comme au 🔀, les N
+  // dernières places restent la Super Finale (les bougies ou une case vide posées là passent juste avant).
+  const garderFinale = (liste) => {
+    const fin = liste.filter((c) => reelles.has(c)).slice(-clesFinale.size);
+    return clesFinale.size ? [...liste.filter((c) => !fin.includes(c)), ...fin] : liste;
   };
   const lignes = vue.map((x, k) => (x.vide ? caseVideQuiz(x, k) : h("li", { class: `tirage-q quiz-complet-q${x.bougies ? " quiz-complet-bougies" : ""}${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
       photos ? apercuPhoto(x.q) : null,
-      h("span", { class: "tirage-texte", text: photos ? reponsePhoto(x.q) : `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}`, ...(photos ? { title: x.q.text } : {}) }),
+      photos ? nomDePhoto(r, x, changer) : h("span", { class: "tirage-texte", text: `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
+      themeDePack(x.cle),
       photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q) : r.type === "express" ? reponseVF(x.q) : miniature(x.q),
+      r.type === "illustre" && sansSesImages(x.q) ? alerteSansImages() : null,
       clesFinale.has(x.cle) ? etiquetteFinale(r) : null,
       h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer cette ${unite} plus tôt`, "aria-label": `Monter cette ${unite}`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
       h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer cette ${unite} plus tard`, "aria-label": `Descendre cette ${unite}`, disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
@@ -4357,6 +4770,7 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
     h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : photos ? "Photo à tirer" : unite === "affirmation" ? "Affirmation à tirer" : "Question à tirer" })));
   const lignesVides = vides.map((v) => (v.serie?.pioche ? caseVidePioche(r, v.serie, v.i, profilVides, changer) : caseVideDe(v)));
   const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignesVides, ...lignes);
+  glisserDansLaListe(liste, lignes, (k, j) => ranger(garderFinale(deplaceEn(cles, k, j)), vue[k].bougies), (k) => !vue[k].vide);
   // Le Quiz (cedric, 26/10) : son « complet » ouvert d'office.
   liste.hidden = unique ? quizCompletsFermes.has(r) : !quizCompletsDeplies.has(r);
   const nVides = unique ? vue.filter((x) => x.vide).length : vides.length;
@@ -4401,11 +4815,9 @@ function roundFields(r) {
       r.type === "disparu" ? photoSwitch(r) : null,
       picksSelection(r))
     : r.type === "statues"
-    // Statues musicales : la durée de la musique et vos chansons (aucune : la musique de la fête).
-    ? h("div", { class: "grow picto-round" },
-      h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); roundCtx.summary(); } },
-        ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` }))),
-      statuesChansons(r))
+    // Statues musicales : vos chansons (aucune : la musique de la fête). Plus de durée à régler (cedric, 27/10) :
+    // chaque chanson se joue en entier.
+    ? h("div", { class: "grow picto-round" }, statuesChansons(r))
     : r.type === "pictionary"
     // Pictionary : les mots viennent du catalogue (page du jeu) ; le temps de dessin et les séries de mots.
     ? h("div", { class: "grow picto-round" },
@@ -4417,9 +4829,15 @@ function roundFields(r) {
     // Les coffres mystères : rien à préparer, le nombre de coffres suit le nombre d'équipes.
     ? h("span", { class: "grow hint small", text: "Rien à préparer : le nombre de coffres suit le nombre d'équipes. Idéal en dernier jeu." })
     : r.type === "patate"
-    ? h("span", { class: "grow hint small", text: "Rien à préparer : la TV tire la mèche au sort, la bombe part d'une équipe au hasard." })
+    // « Ça va exploser ! » : seulement le nombre de bombes (cedric, 26/10, test Mi Box), 3 d'office.
+    ? h("div", { class: "grow picto-round" },
+      h("select", { class: "patate-bombes", "aria-label": "Nombre de bombes", onchange: (e) => { r.bombs = Number(e.target.value); roundCtx.summary(); } },
+        ...PATATE_BOMBES.map((n) => h("option", { value: n, selected: bombesDe(r) === n, text: `${bombesParPartie(n)}${n > 1 ? " (une nouvelle mèche après chaque explosion)" : ""}` }))),
+      h("span", { class: "hint small", text: "La TV tire chaque mèche au sort, la bombe part d'une équipe au hasard." }))
     : r.type === "gonfleur"
     ? h("span", { class: "grow hint small", text: "Rien à préparer : chaque équipe tapote sa tablette, le premier ballon qui éclate gagne." })
+    : r.type === "duel"
+    ? reglagesDuDuel(r)
     : MUSIC_GAMES[r.type]
     // Blind test, quiz musical : une playlist entière, ou des titres choisis un par un dans toutes les playlists.
     ? h("div", { class: "grow picto-round" },
@@ -4473,14 +4891,14 @@ function roundFields(r) {
   return [
     // Quiz, Quiz illustré (cedric, 23/10) : une seule manche faite de séries (🎲, quiz rappelés, questions écrites, reprises).
     ...(quiz ? mancheQuiz(r) : [content]),
-    // Qui a disparu ? : objets par grille, pour régler la difficulté (par défaut selon l'âge de la prestation).
+    // Qui a disparu ? : cartes par tour (4, 6 ou 8 depuis le 27/10), par défaut selon l'âge de la prestation.
     r.type === "disparu"
-      ? h("select", { class: "count", "aria-label": "Objets par grille", onchange: (e) => { r.objects = Number(e.target.value) || null; roundCtx.summary(); } },
-        h("option", { value: "", text: "Objets : selon l'âge" }),
-        ...[4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => h("option", { value: n, selected: r.objects === n, text: `${n} objets par grille` })))
+      ? h("select", { class: "count", "aria-label": "Cartes par tour", onchange: (e) => { r.objects = Number(e.target.value) || null; roundCtx.summary(); } },
+        h("option", { value: "", text: "Cartes : selon l'âge" }),
+        ...DISPARU_CARTES.map((n) => h("option", { value: n, selected: r.objects === n, text: `${n} cartes par tour` })))
       : null,
     // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
-    !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
+    !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "duel" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
       && !quiz
       ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Toutes les questions" }),
@@ -4639,7 +5057,7 @@ $("round-add-top").onclick = () => ouvrirChoixJeu("haut");
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
-  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate") return "";
+  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate" || r.type === "duel") return "";
   if (r.type === "mimes") return mimeEquipes(r).some((l) => l.length) ? mancheSummary(r, { mimes }) : r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
   if (roundTirees(r).length || roundSeriesQuiz(r).length) return mancheSummary(r, { quizzes });
@@ -5974,8 +6392,8 @@ async function lirePartie(code) {
  * Ne touche à rien. [progres](faites, total) pour l'écran.
  */
 async function controlerParties(progres = () => {}) {
-  const [codes, sons, images, maintenant] = await Promise.all([clesDe("games"), clesDe("library/sounds"), clesDe("library/images"), heureServeur()]);
-  const bibliotheque = { sounds: new Set(sons), images: new Set(images) };
+  const [codes, sons, images, chansons, maintenant] = await Promise.all([clesDe("games"), clesDe("library/sounds"), clesDe("library/images"), clesDe("library/songs"), heureServeur()]);
+  const bibliotheque = { sounds: new Set(sons), images: new Set(images), songs: new Set(chansons) };
   let faites = 0;
   progres(0, codes.length);
   return parPaquets(codes, PARTIES_EN_MEME_TEMPS, async (code) => {
@@ -6014,7 +6432,7 @@ function afficherBilan(parties) {
       cellule("Code", h("b", { text: r.code })),
       cellule("Prestation", [r.title, r.childName].filter((x) => typeof x === "string" && x).join(" · ") || "—"),
       cellule("État", etatPartie(r)),
-      cellule("Copies", `${nCopies(r.copies.sounds.length, "son", "sons")} · ${nCopies(images, "image", "images")}`),
+      cellule("Copies", `${nCopies(r.copies.sounds.length, "son", "sons")} · ${nCopies(images, "image", "images")}${r.copies.songs.length ? ` · ${nCopies(r.copies.songs.length, "chanson entière", "chansons entières")}` : ""}`),
       cellule("≈ Mo", texteMo(moDe(r.copies))),
       cellule("Décision",
         h("b", { class: "decision", text: r.decision === "nettoyer" ? "À nettoyer" : "Gardée" }),
@@ -6096,6 +6514,8 @@ async function nettoyerPartie(r) {
     [`maintenance/nettoyages/${cle}`]: {
       at: serverTimestamp(), code: r.code, mo: arrondi(r.mo),
       sounds: r.effacer.sounds.length, images: r.effacer.images.length, choiceImages: r.effacer.choiceImages.length,
+      // Seulement s'il y en a : le journal d'avant la régie téléphone des statues refuserait ce compteur.
+      ...(r.effacer.songs.length ? { songs: r.effacer.songs.length } : {}),
       ...(r.gardes.length ? { gardes: r.gardes.length } : {}),
     },
   });
@@ -6190,7 +6610,7 @@ async function afficherJournal() {
       h("ul", { class: "nettoyage-passages" }, ...(passages.length ? passages.map(lignePassage) : [h("li", { text: "Aucun passage pour l'instant." })])),
       nettoyages.length ? h("h3", { text: "Dernières parties nettoyées" }) : null,
       nettoyages.length ? h("ul", { class: "nettoyage-faits" }, ...nettoyages.map((n) => h("li", { "data-code": n.code, text:
-        `${dateHeure(n.at)} · ${n.code} : ${nCopies(n.sounds, "son", "sons")}, ${nCopies(n.images + n.choiceImages, "image", "images")} effacés · environ ${texteMo(n.mo)}${n.gardes ? ` · ${nCopies(n.gardes, "extrait gardé", "extraits gardés")} (chanson plus dans la bibliothèque)` : ""}` }))) : null);
+        `${dateHeure(n.at)} · ${n.code} : ${nCopies(n.sounds, "son", "sons")}, ${nCopies(n.images + n.choiceImages, "image", "images")}${n.songs ? `, ${nCopies(n.songs, "chanson entière", "chansons entières")}` : ""} effacés · environ ${texteMo(n.mo)}${n.gardes ? ` · ${nCopies(n.gardes, "extrait gardé", "extraits gardés")} (chanson plus dans la bibliothèque)` : ""}` }))) : null);
     box.hidden = false;
   } catch (err) {
     console.warn("Journal du nettoyage illisible :", err);
@@ -6230,7 +6650,8 @@ async function toucherLesDes({ packs = false } = {}) {
     // Le Quiz (cedric, 26/10 : un seul 🎲) : la prestation de test pioche dans les questions libres de droit, comme avant.
     const unique = bloc(i)?.querySelector(".de-unique");
     if (unique) {
-      const champ = bloc(i).querySelector(".de-unique-champ");
+      // (Qui a disparu ? : son champ ne cherche que des familles ; il reste vide, tout au hasard.)
+      const champ = bloc(i).dataset.jeu === "disparu" ? null : bloc(i).querySelector(".de-unique-champ");
       if (champ) { champ.value = "libre"; champ.dispatchEvent(new Event("input")); }
       unique.click();
       await tic();
@@ -7301,7 +7722,7 @@ const REFRAIN_PREVIEW_SEC = 20;
  * défilent au rythme de la chanson, la phrase chantée en gras, pour vérifier vite qu'elles sont justes et bien calées.
  * Sobre et lisible, rien de festif. [titre] et [fermer] : la petite fenêtre de la liste des sons.
  */
-function fenetreParoles({ titre = "", fermer = null } = {}) {
+function fenetreParoles({ titre = "", fermer = null, actions = null } = {}) {
   const defile = h("div", { class: "paroles-defile" });
   const el = h("div", { class: "paroles-fenetre", role: "region", "aria-label": titre ? `Paroles de « ${titre} »` : "Paroles" },
     titre ? h("div", { class: "paroles-tete" },
@@ -7316,9 +7737,34 @@ function fenetreParoles({ titre = "", fermer = null } = {}) {
     remplir(l, vide = "Chargement des paroles…") {
       lignes = l ?? [];
       actuelle = null;
-      defile.replaceChildren(...(lignes.length ? lignes.map((x) => h("p", { class: "paroles-ligne" },
-        h("span", { class: "paroles-temps", text: mmss(x.t) }),
-        h("span", { class: `paroles-texte${x.text ? "" : " vide"}`, text: x.text || "♪" })))
+      defile.replaceChildren(...(lignes.length ? lignes.map((x) => {
+        const p = h("p", { class: `paroles-ligne${actions ? " cliquable" : ""}` },
+          h("span", { class: "paroles-temps", text: mmss(x.t) }),
+          h("span", { class: `paroles-texte${x.text ? "" : " vide"}`, text: x.text || "♪" }));
+        // [actions] : cliquer une phrase propose ses boutons juste dessous (cedric, 26/10 : « Début ici », « Hook ici »).
+        if (actions) {
+          p.title = "Cliquez pour placer le début ou le hook sur cette phrase";
+          p.onclick = () => {
+            const ouverte = p.classList.contains("choisie");
+            defile.querySelectorAll(".choisie").forEach((y) => { y.classList.remove("choisie"); y.querySelector(".paroles-actions")?.remove(); });
+            if (ouverte) return;
+            p.classList.add("choisie");
+            p.append(h("span", { class: "paroles-actions" }, ...actions.map((a) => h("button", {
+              type: "button", class: `btn small secondary ${a.classe}`, text: a.texte,
+              onclick: (e) => {
+                e.stopPropagation();
+                p.classList.remove("choisie");
+                e.currentTarget.parentElement.remove();
+                a.faire(x.t);
+              },
+            }))));
+            // Les boutons restent visibles dans la fenêtre des paroles.
+            const bas = p.offsetTop + p.offsetHeight + 6;
+            if (bas > defile.scrollTop + defile.clientHeight) defile.scrollTo({ top: bas - defile.clientHeight });
+          };
+        }
+        return p;
+      })
         : [h("p", { class: "hint small", text: vide })]));
     },
     /** La phrase du moment [s] (secondes de la chanson), au milieu de la fenêtre : chantée pendant l'écoute, repère sinon. */
@@ -7596,13 +8042,25 @@ function ecranReglage(t) {
   });
   const bornes = (max) => h("div", { class: "reglage-bornes", "aria-hidden": "true" }, h("span", { text: "0:00" }), h("span", { text: mmss(max) }));
   // Les paroles défilent pendant l'écoute (cedric, 23/10) ; à l'arrêt, elles montrent le moment du curseur bougé.
-  const paroles = t.lrc ? fenetreParoles() : null;
+  // Cliquer une phrase : « Début de la chanson ici » ou « Hook ici » place le curseur sur son minutage (cedric, 26/10).
+  const placerSur = (input, max) => (s) => {
+    input.value = `${Math.max(0, Math.min(Math.floor(s), max))}`;
+    input.dispatchEvent(new Event("input"));
+  };
+  const paroles = t.lrc ? fenetreParoles({
+    actions: fichier ? [
+      { texte: "⏮ Début de la chanson ici", classe: "paroles-debut-ici", faire: (s) => placerSur(curseurDebut, maxDebut)(s) },
+      { texte: "🎤 Hook ici", classe: "paroles-hook-ici", faire: (s) => placerSur(curseurHook, maxHook)(s) },
+    ] : null,
+  }) : null;
   parolesReglage = paroles;
   const reperer = (v) => { if (paroles && preview?.paroles !== paroles) paroles.montrer(v, false); };
   // Lâcher un curseur joue la chanson à cet endroit, et son « ▶ Écouter » devient « ⏸ Pause ».
   const ecouter = (refrain) => boutonEcoute({ class: "btn small secondary", title: refrain ? "Écouter le hook" : "Écouter à partir du début", text: "▶ Écouter" }, (b) => listen(t, refrain, b, paroles));
   const ecouteDebut = ecouter(false);
   const ecouteHook = ecouter(true);
+  const curseurDebut = curseur("Début de la chanson", t.start, maxDebut, (v) => { t.start = v; t.debutMain = true; aRedecouper(t); tempsDebut.textContent = mmss(v); reperer(v); }, () => listen(t, false, ecouteDebut, paroles));
+  const curseurHook = curseur("Hook", t.refrain, maxHook, (v) => { t.refrain = v; t.regle = true; aRedecouper(t); tempsHook.textContent = mmss(v); origine.textContent = "réglé à la main"; reperer(v); }, () => listen(t, true, ecouteHook, paroles));
   if (paroles) {
     // Au départ, les paroles du hook.
     const placer = () => requestAnimationFrame(() => reperer(t.refrain ?? 0));
@@ -7623,7 +8081,7 @@ function ecranReglage(t) {
         h("div", { class: "reglage-liens" }, choisir, retirer, lyricsTools(t)))),
     h("div", { class: "reglage-curseur", "data-curseur": "debut" },
       h("div", { class: "reglage-ligne" }, h("span", { class: "reglage-nom", text: "Début de la chanson" }), tempsDebut, ecouteDebut),
-      curseur("Début de la chanson", t.start, maxDebut, (v) => { t.start = v; t.debutMain = true; aRedecouper(t); tempsDebut.textContent = mmss(v); reperer(v); }, () => listen(t, false, ecouteDebut, paroles)),
+      curseurDebut,
       bornes(maxDebut),
       h("p", { class: "hint small", text: "Réglé d'office 2 s avant les premiers mots chantés (0:00 sans paroles)." })),
     h("div", { class: "reglage-curseur", "data-curseur": "hook" },
@@ -7632,7 +8090,7 @@ function ecranReglage(t) {
           type: "button", class: "btn small secondary", disabled: !fichier, onclick: () => reidentifierHook(t), text: "↺ Réidentifier le hook",
           title: "Retrouver le refrain : le passage le plus chanté des paroles, là où la musique devient forte",
         })),
-      curseur("Hook", t.refrain, maxHook, (v) => { t.refrain = v; t.regle = true; aRedecouper(t); tempsHook.textContent = mmss(v); origine.textContent = "réglé à la main"; reperer(v); }, () => listen(t, true, ecouteHook, paroles)),
+      curseurHook,
       bornes(maxHook),
       h("p", { class: "hint small", text: "Le passage que tout le monde chante à la révélation (« on chante tous ensemble »)." })),
     paroles ? h("div", { class: "reglage-curseur reglage-paroles" },
@@ -9069,9 +9527,13 @@ async function importerPackZip(zip, statut = "pack-status") {
         }
       }
       p.manquantes.sort((a, b) => a.q - b.q || (a.case ?? -1) - (b.case ?? -1));
+      garderLesQuestionsIllustrees(p);
     }
     // Les images nommées qu'aucune question ne cite : importées aussi, en photo (pour « ⭐ Composer avec vos images »).
     for (const x of analyse.nommees) if (!preparees.has(x.chemin)) await preparer(x.fichier, "photo");
+    // Les images des questions laissées de côté (Quiz illustré sans toutes ses photos) : pas téléversées pour rien.
+    const citees = new Set(analyse.packs.flatMap((p) => (p.epreuve === "quisuis" ? p.personnages.map((x) => x.imageId) : p.questions.flatMap((q) => [q.imageId, ...(q.choiceImages ?? [])]))));
+    for (const id of [...aRanger.keys()]) if (!citees.has(id) && !nommes.has(id)) aRanger.delete(id);
     // Doublons (cedric, 25/10) : la même image sous deux noms de fichier (ou à deux tailles, ou préparée pour une
     // réponse et pour la révélation) ; une seule est gardée, la plus grande, et chaque question pointe vers elle.
     // Sans rien demander (cedric, 26/10 : « une image doit juste être affichée une seule fois »).
@@ -9144,7 +9606,7 @@ async function importerPackZip(zip, statut = "pack-status") {
   const vides = analyse.packs.filter((p) => (p.epreuve === "quisuis" ? !p.personnages.length : !p.questions.length));
   if (vides.length === analyse.packs.length && !nommes.size) {
     const absents = analyse.nomsAbsents.length ? `Les images nommées ne sont pas dans le ZIP (${analyse.nomsAbsents.slice(0, 5).join(", ")}${analyse.nomsAbsents.length > 5 ? "…" : ""}) : ajoutez-y le dossier d'images.` : "";
-    return avertir(`Ce pack ne peut pas être importé.\n\n${[...analyse.packs.flatMap((p) => p.ignorees), absents].filter(Boolean).join("\n") || "Aucune image n'a pu être lue."}\n\nRien n'a été enregistré.`);
+    return avertir(`Ce pack ne peut pas être importé.\n\n${(() => { const t = [...analyse.packs.flatMap((p) => p.ignorees), absents].filter(Boolean); return t.length > 8 ? [...t.slice(0, 8), `… et ${t.length - 8} autres.`].join("\n") : t.join("\n"); })() || "Aucune image n'a pu être lue."}\n\nRien n'a été enregistré.`);
   }
   const packs = analyse.packs.filter((p) => !vides.includes(p));
 
@@ -9177,6 +9639,11 @@ async function importerPackZip(zip, statut = "pack-status") {
   const contenu = h("div", { class: "pack-apercu" },
     themeDeTousLesPacks(fixeurs, existants),
     ...apercus,
+    // Un pack du Quiz illustré dont aucune question n'a toutes ses images (cedric, 26/10) : pas importé, dit en rouge.
+    ...vides.filter((p) => p.epreuve === "illustre").map((p) => h("div", { class: "pack-apercu-pack pack-refuse" },
+      h("h3", { text: p.titre }),
+      h("p", { class: "pack-erreur", text: "Pas importé : aucune de ses questions n'a une photo pour chaque réponse dans le ZIP. Ajoutez son dossier d'images au ZIP, puis réimportez-le." }),
+      ...p.ignorees.slice(0, 4).map((t) => h("p", { class: "pack-erreur", text: t })))),
     analyse.laisses.length ? h("p", { class: "hint small", text: `Laissé${analyse.laisses.length > 1 ? "s" : ""} de côté : ${analyse.laisses.join(", ")}.` }) : null,
     // Le dossier d'images téléchargé à côté des packs (cedric, 25/10) : seules les images citées sont téléversées.
     // Les images nommées (cedric, 25/10) : rangées sous leur nom, citées ou non, pour les retrouver en tapant.
@@ -10002,7 +10469,8 @@ const GAME_GROUPS = [
   ] },
   { title: "Sans contenu", hint: "Rien à préparer.", games: [
     { type: "coffres", icon: "🗝️", rule: "Une chance de se refaire… ou de dégringoler ! Chaque équipe à son tour ouvre un coffre sur sa tablette : bonus ou malus, tirés au sort à l'ouverture (l'équipe la plus en retard commence). Après quelques tours sans danger, une bombe se cache dans un des coffres, et un coffre en or qui rapporte 500 points : l'équipe qui ouvre la bombe perd 300 points (jamais sous 0) et le jeu s'arrête sur le bilan. Le classement s'affiche après chaque coffre. Personne ne connaît le contenu des coffres, régie comprise. Idéal en dernier jeu." },
-    { type: "patate", icon: "💣", rule: "La bombe peut exploser à tout moment ! Elle passe d'équipe en équipe : sur sa tablette, l'équipe qui la tient choisit à qui l'envoyer (jamais tout de suite à l'équipe qui vient de l'envoyer, sauf à 2 équipes ; on ne peut la renvoyer que 2 secondes après l'avoir reçue). La mèche, tirée au sort, reste secrète : à chaque explosion, l'équipe qui tient la bombe perd 100 points (jamais sous 0), toutes les autres en gagnent 100. Trois bombes par partie : après chaque explosion, une nouvelle mèche s'allume." },
+    { type: "patate", icon: "💣", rule: "La bombe peut exploser à tout moment ! Elle passe d'équipe en équipe : sur sa tablette, l'équipe qui la tient choisit à qui l'envoyer (jamais tout de suite à l'équipe qui vient de l'envoyer, sauf à 2 équipes ; on ne peut la renvoyer que 2 secondes après l'avoir reçue). La mèche, tirée au sort, reste secrète : à chaque explosion, l'équipe qui tient la bombe perd 100 points (jamais sous 0), toutes les autres en gagnent 100. Trois bombes par partie d'office, de 1 à 6 à régler dans la prestation : après chaque explosion, une nouvelle mèche s'allume." },
+    { type: "duel", icon: "🤠", rule: "Face-à-face entre un joueur de deux équipes, chacun sur sa tablette : la tension monte, les robots feintent… puis PAN ! Le premier qui tire après le PAN gagne 100 points ; celui qui tire trop tôt perd. L'appli fait passer chaque joueur une fois ; Sarah peut lancer un duel de plus depuis son téléphone." },
     { type: "gonfleur", icon: "🎈", rule: "Chaque équipe tapote sa tablette le plus vite possible pour gonfler son ballon sur la TV ; on peut se relayer. Le premier ballon qui éclate gagne 300 points, les autres équipes 150. Depuis la régie, « Arrêter la course » donne la victoire au plus gros ballon." },
   ] },
 ];

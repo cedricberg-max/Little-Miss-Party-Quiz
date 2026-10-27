@@ -242,7 +242,7 @@ object Sons {
         if (!Look.gs && s.fichier.startsWith("gs_")) return@essayer
         // Le générique part dès l'ouverture : seul prêt d'avance. Les autres se préparent quand ils jouent.
         val pret = s == Son.GENERIQUE
-        val principal = lecteur(app, s.fichier, boucle = false, pret = pret) ?: return@essayer
+        val principal = lecteur(app, s.fichierLong(Look.gs), boucle = false, pret = pret) ?: return@essayer
         longs[s] = principal
         if (!Look.gs) return@essayer
         val gs = s.fichier.replaceFirst("lmp_", "gs_")
@@ -274,7 +274,7 @@ object Sons {
                 when (o) {
                     Ordre.Couper -> couper()
                     is Ordre.Arreter -> essayer("arreter") { eteindre(o.son) }
-                    is Ordre.Jouer -> plus(o.dansMs) { jouer(o.son, o.etireSurMs) }
+                    is Ordre.Jouer -> plus(o.dansMs) { jouer(o.son, o.etireSurMs, o.gauche, o.droite, o.vitesse) }
                     is Ordre.Musique -> {
                         ambianceVoulue = o.ambiance
                         plus(o.dansMs) { versAmbiance(o.ambiance, o.fonduMs) }
@@ -369,7 +369,7 @@ object Sons {
         if (dansMs <= 0) r.run() else h.postAtTime(r, prevus, SystemClock.uptimeMillis() + dansMs)
     }
 
-    private fun jouer(s: Son, etireSurMs: Long = 0) {
+    private fun jouer(s: Son, etireSurMs: Long = 0, gauche: Float = 1f, droite: Float = 1f, vitesse: Float = 1f) {
         if (s.long) {
             variantes[s]?.let { v ->
                 longs[s]?.takeIf { it.isPlaying }?.let { it.pause(); endormir(it) }
@@ -413,7 +413,9 @@ object Sons {
         } else {
             val id = courts[s] ?: return absent(s)
             // 0 : la box a refusé le son (plus de voie libre, ou son pas encore chargé).
-            if (pool?.play(id, 1f, 1f, 1, 0, 1f) == 0) incident("Son court ${s.name} refusé par la box")
+            val g = gauche.coerceIn(0f, 1f)
+            val d = droite.coerceIn(0f, 1f)
+            if (pool?.play(id, g, d, 1, 0, vitesse.coerceIn(0.5f, 2f)) == 0) incident("Son court ${s.name} refusé par la box")
         }
     }
 

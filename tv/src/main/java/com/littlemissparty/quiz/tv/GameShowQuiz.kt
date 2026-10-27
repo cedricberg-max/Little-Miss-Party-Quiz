@@ -296,11 +296,12 @@ private fun Jauges(ranking: List<Pair<Team, Int>>, gains: Map<String, Int>, modi
                     Box(Modifier.height(22.dp), contentAlignment = Alignment.Center) {
                         if (i == 0) Couronne(couronne && score > 0, Modifier.size(30.dp, 20.dp))
                     }
+                    // Chiffres un peu espacés : en Black, « 117 » se touchait presque sur la Mi Box (cedric, 26/10).
                     Text(
                         "${compteur.value.roundToInt()}", maxLines = 1, softWrap = false,
                         style = TextStyle(
                             fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = if (serre) 22.sp else 30.sp,
-                            color = color, shadow = Shadow(color.copy(alpha = 0.8f), Offset.Zero, 20f), textAlign = TextAlign.Center,
+                            letterSpacing = if (serre) 1.5.sp else 2.5.sp, color = color, shadow = Shadow(color.copy(alpha = 0.8f), Offset.Zero, 20f), textAlign = TextAlign.Center,
                         ),
                     )
                     Text(

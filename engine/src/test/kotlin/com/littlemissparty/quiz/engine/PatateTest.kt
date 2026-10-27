@@ -17,7 +17,7 @@ class PatateTest {
     private val trois = listOf("licornes", "dragons", "pandas")
 
     /** Quiz joué (Licornes 100 et plus), puis « Ça va exploser ! » présenté et lancé. */
-    private fun partie(): Game = Game(Quiz("p", "P", listOf(quiz, patate, apres), intros = true)).apply {
+    private fun partie(bombes: Int? = null): Game = Game(Quiz("p", "P", listOf(quiz, bombes?.let { patate.copy(bombs = it) } ?: patate, apres), intros = true)).apply {
         next(t0)
         next(t0 + 100)
         close(t0 + 2_000)
@@ -36,9 +36,8 @@ class PatateTest {
     private val go = t0 + 7_000 + POTATO_GO_MS
 
     /**
-     * Les équipes se renvoient la bombe 500 ms après la mèche qui colle (jamais plus de 3 secondes chez elles) ; la
-     * dernière la reçoit au plus tard [jusqua] − [POTATO_STICKY_MS] : à [jusqua], elle peut l'envoyer et ne l'a pas
-     * gardée trop longtemps.
+     * Les équipes se renvoient la bombe 500 ms après l'avoir reçue (jamais plus de 2 secondes chez elles) ; à [jusqua],
+     * la dernière ne l'a pas gardée trop longtemps.
      */
     private fun Game.fairePasser(jusqua: Long) {
         while (true) {
@@ -50,7 +49,7 @@ class PatateTest {
     }
 
     @Test
-    fun `la mèche s'allume en secret, la bombe colle 2 secondes, puis passe sans retour à l'envoyeur`() {
+    fun `la mèche s'allume en secret, la bombe repart dès la réception, sans retour à l'envoyeur`() {
         val g = partie()
         val lit = g.allumer()
         // Mèche de la durée exacte de la musique du jeu (cedric, 23/10), acceptée par le journal de la partie.
@@ -63,28 +62,38 @@ class PatateTest {
         val porteur = lit.holder
         val autres = trois - porteur
         assertNull(g.passPotato(porteur, autres[0], go - 500), "pas avant le départ")
-        assertNull(g.passPotato(porteur, autres[0], go + 1_000), "la mèche colle encore")
-        assertNull(g.passPotato(autres[0], autres[1], go + 3_000), "seule l'équipe qui tient la bombe l'envoie")
-        assertNull(g.passPotato(porteur, porteur, go + 3_000))
-        val e = g.passPotato(porteur, autres[0], go + 3_000) as PotatoPassed
+        assertNull(g.passPotato(autres[0], autres[1], go + 100), "seule l'équipe qui tient la bombe l'envoie")
+        assertNull(g.passPotato(porteur, porteur, go + 100))
+        // Plus de « mèche qui colle » (cedric, 27/10) : elle part dès le départ, à l'heure de l'appui.
+        val e = g.passPotato(porteur, autres[0], go + 100) as PotatoPassed
+        assertEquals(go + 100, e.at)
         assertEquals(autres[0], g.state.potato!!.holder)
         assertEquals(e.at, g.state.potato!!.since)
         assertEquals(listOf(autres[1]), g.state.potato!!.targets, "pas de retour à l'envoyeur à 3 équipes")
-        assertNull(g.passPotato(autres[0], porteur, go + 6_000))
-        assertNotNull(g.passPotato(autres[0], autres[1], go + 6_000))
+        assertNull(g.passPotato(autres[0], porteur, go + 150))
+        val renvoi = assertNotNull(g.passPotato(autres[0], autres[1], go + 150), "renvoyée aussitôt reçue") as PotatoPassed
+        assertEquals(go + 150, renvoi.at)
         assertEquals(trois.toSet(), g.state.potato!!.hit, "tout le monde l'a eue")
         assertEquals(2, g.state.potato!!.passes)
     }
 
     @Test
-    fun `à 2 équipes la bombe repart chez l'envoyeur, seule la mèche qui colle compte`() {
+    fun `à 2 équipes la bombe repart chez l'envoyeur, un ping-pong aussi rapide qu'on veut`() {
         val g = partie()
         val lit = g.allumer(listOf("licornes", "dragons"))
         val autre = if (lit.holder == "licornes") "dragons" else "licornes"
-        g.passPotato(lit.holder, autre, go + 2_500)
+        assertNotNull(g.passPotato(lit.holder, autre, go + 1_500))
         assertEquals(listOf(lit.holder), g.state.potato!!.targets)
-        assertNull(g.passPotato(autre, lit.holder, go + 3_000), "colle encore")
-        assertNotNull(g.passPotato(autre, lit.holder, go + 5_000))
+        // Renvois à 50 ms d'intervalle : tous acceptés, chacun à l'heure de son appui.
+        var porteur = autre
+        for (k in 1..20) {
+            val to = if (porteur == "licornes") "dragons" else "licornes"
+            val e = assertNotNull(g.passPotato(porteur, to, go + 1_500 + 50L * k)) as PotatoPassed
+            assertEquals(go + 1_500 + 50L * k, e.at)
+            porteur = to
+        }
+        assertEquals(21, g.state.potato!!.passes)
+        assertEquals(porteur, g.state.potato!!.holder)
     }
 
     @Test
@@ -161,6 +170,85 @@ class PatateTest {
         }
     }
 
+    /** Joue la bombe en cours jusqu'à son explosion au bout de la mèche ; renvoie l'heure de l'explosion. */
+    private fun Game.jouerBombe(t: Long, random: Random): Long {
+        val lit = lightPotato(trois, t, random) as PotatoLit
+        val fin = state.potato!!.since + lit.fuseMs
+        fairePasser(fin)
+        assertNotNull(timeUp(fin) as? PotatoExploded)
+        return fin
+    }
+
+    @Test
+    fun `le nombre de bombes vient de la Régie PC (1 à 6), 3 par défaut`() {
+        for (n in listOf(1, 2, 5, POTATO_BOMBS_MAX)) {
+            val g = partie(bombes = n)
+            var t = t0 + 7_000
+            repeat(n) { k ->
+                assertTrue(g.needsPotato(), "$n bombes : bombe ${k + 1} à allumer")
+                t = g.jouerBombe(t, Random(k)) + 50
+                @Suppress("UNCHECKED_CAST")
+                assertEquals(n, (Codec.publicState(g)["potato"] as Map<String, Any?>)["bombs"], "compteur « Bombe x sur $n »")
+            }
+            assertEquals(Phase.REVEAL, g.state.phase, "bilan après la bombe $n")
+            assertTrue(!g.needsPotato())
+            assertEquals(g.state, Game(g.quiz, g.events.map { Codec.decode(Codec.encode(it))!! }).state, "$n bombes : partie relue")
+        }
+        // Valeur hors limites dans le programme : ramenée dans les limites, la partie se joue.
+        val json = """{"id":"p","title":"P","questions":[{"id":"p1","text":"Ça va exploser !","kind":"patate","choices":[],"bombs":40}]}"""
+        assertEquals(POTATO_BOMBS_MAX, QuizJson.parse(json).questions.single().bombs)
+        assertEquals(POTATO_BOMBS, QuizJson.parse(json.replace(""","bombs":40""", "")).questions.single().bombs)
+        // Ancien journal (sans « total ») : 3 bombes, comme avant.
+        val ancien = Codec.decode(mapOf("seq" to 9, "at" to 1L, "type" to "potato", "qid" to "p1", "holder" to "a", "fuseMs" to POTATO_FUSE_MS, "teams" to listOf("a", "b"), "bomb" to 1))
+        assertEquals(POTATO_BOMBS, (ancien as PotatoLit).total)
+    }
+
+    @Test
+    fun `Dernière bombe, la bombe en cours finit le jeu - Jeu suivant entre deux bombes, bilan tout de suite`() {
+        // Pendant la 1re bombe : « 🏁 Dernière bombe ».
+        val g = partie()
+        g.allumer()
+        val stop = g.stopPotato(go + 1_000) as PotatoStopped
+        assertEquals(1, g.state.potato!!.total)
+        assertNull(g.stopPotato(go + 1_100), "déjà la dernière")
+        assertEquals(Phase.QUESTION, g.state.phase, "la bombe en cours se joue jusqu'au bout")
+        val fin = go + POTATO_FUSE_MS
+        g.fairePasser(fin)
+        g.timeUp(fin)
+        assertEquals(Phase.REVEAL, g.state.phase, "bilan après cette bombe")
+        assertTrue(!g.needsPotato(), "pas de bombe 2")
+        assertEquals(1, g.state.potato!!.booms.size)
+        assertEquals(stop.at, (Codec.decode(Codec.encode(stop)) as PotatoStopped).at)
+
+        // Entre deux bombes (la 2e allumée, pas encore partie) : « ⏭ Jeu suivant ».
+        val h = partie()
+        val boum = h.jouerBombe(t0 + 7_000, Random(1))
+        val avant = h.state.scores()
+        h.lightPotato(trois, boum + 50, Random(2))
+        assertEquals(2, h.state.potato!!.bomb)
+        assertNotNull(h.stopPotato(boum + 2_000))
+        assertEquals(Phase.REVEAL, h.state.phase, "bilan tout de suite")
+        assertEquals(1, h.state.potato!!.bomb, "on reste sur la bombe qui a explosé")
+        assertTrue(h.state.potato!!.exploded && h.state.potato!!.last)
+        assertEquals(avant, h.state.scores(), "les points de la bombe 1 restent, rien de plus")
+        assertNull(h.passPotato(h.state.potato!!.holder, trois.first { it != h.state.potato!!.holder }, boum + 9_000), "plus aucun envoi")
+        assertNull(h.deadline(), "plus de mèche")
+        assertEquals(h.state, Game(h.quiz, h.events.map { Codec.decode(Codec.encode(it))!! }).state, "partie relue à l'identique")
+        h.next(boum + 10_000)
+        assertEquals(Phase.SCORES, h.state.phase)
+        h.next(boum + 11_000)
+        assertEquals("q2", h.question?.id, "puis le jeu suivant")
+
+        // Commande du téléphone, refusée en pause et hors du jeu.
+        val k = partie()
+        k.allumer()
+        k.pause(go + 500)
+        assertEquals(CommandStatus.REFUSED, k.execute(Command.PotatoStop("c1", k.state.lastSeq), go + 600, trois.toSet()).status)
+        k.resume(go + 1_000)
+        assertEquals(CommandStatus.APPLIED, k.execute(Command.PotatoStop("c2", k.state.lastSeq), go + 5_000, trois.toSet()).status)
+        assertEquals(Command.PotatoStop("c3", 4), Command.decode("c3", mapOf("type" to "potato_stop", "expectSeq" to 4)))
+    }
+
     @Test
     fun `l'état publié dit quelle bombe et où elles ont explosé, jamais la mèche`() {
         val g = partie()
@@ -214,17 +302,18 @@ class PatateTest {
     }
 
     @Test
-    fun `bombe gardée plus de 3 secondes, elle explose chez l'équipe avant la fin de la mèche, même pénalité`() {
+    fun `bombe gardée plus de 2 secondes, elle explose chez l'équipe avant la fin de la mèche, même pénalité`() {
         val g = partie()
         val avant = g.state.scores()
         val lit = g.allumer()
-        val limite = go + POTATO_STICKY_MS + POTATO_HOLD_MS
+        val limite = go + 2_000
+        assertEquals(POTATO_HOLD_MS, 2_000L, "2 secondes (cedric, 27/10)")
         assertEquals(limite, g.holdDeadline())
         assertEquals(limite, g.wakeAt(), "la box se réveille pour la faire exploser")
         assertEquals(go + lit.fuseMs, g.deadline(), "la mèche, elle, ne change pas")
         @Suppress("UNCHECKED_CAST")
         fun etat() = Codec.publicState(g)["potato"] as Map<String, Any?>
-        assertEquals(limite, etat()["holdUntil"], "la tablette compte 3, 2, 1 jusque-là")
+        assertEquals(limite, etat()["holdUntil"], "la tablette compte 2, 1 jusque-là")
         assertNull(Codec.publicState(g)["deadline"], "la mèche reste secrète")
         assertNull(g.explode(limite - 100), "encore 100 ms pour l'envoyer")
         // Écrit avant la limite, reçu après : il compte. Écrit après : refusé.
@@ -247,14 +336,14 @@ class PatateTest {
     }
 
     @Test
-    fun `chaque réception redonne 3 secondes, une pause aussi (tablette coupée, jamais la faute de l'équipe)`() {
+    fun `chaque réception redonne 2 secondes, une pause aussi (tablette coupée, jamais la faute de l'équipe)`() {
         val g = partie()
         val lit = g.allumer()
         val cible = (trois - lit.holder).first()
-        assertNotNull(g.passPotato(lit.holder, cible, go + 4_000))
-        assertEquals(go + 4_000 + POTATO_STICKY_MS + POTATO_HOLD_MS, g.holdDeadline())
-        // Pause 1 s avant la limite : rien n'explose ; à la reprise, 3 secondes après la fin du décompte.
-        g.pause(go + 8_000)
+        assertNotNull(g.passPotato(lit.holder, cible, go + 1_500))
+        assertEquals(go + 1_500 + POTATO_HOLD_MS, g.holdDeadline())
+        // Pause 0,5 s avant la limite : rien n'explose ; à la reprise, 2 secondes après la fin du décompte.
+        g.pause(go + 3_000)
         assertNull(g.holdDeadline())
         assertNull(g.explode(go + 20_000))
         g.resume(go + 30_000)
@@ -270,7 +359,7 @@ class PatateTest {
     fun `secours de la régie, rejeu, et journal relu à l'identique`() {
         val g = partie()
         val lit = g.allumer()
-        val res = g.execute(Command.PotatoRandom("c1", g.state.lastSeq), go + 2_500, trois.toSet())
+        val res = g.execute(Command.PotatoRandom("c1", g.state.lastSeq), go + 1_500, trois.toSet())
         assertEquals(CommandStatus.APPLIED, res.status)
         assertTrue((res.event as PotatoPassed).to != lit.holder)
         val relu = Game(g.quiz, g.events.map { Codec.decode(Codec.encode(it))!! })

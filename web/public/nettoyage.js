@@ -1,5 +1,6 @@
 // Nettoyage des copies des fêtes terminées (Régie PC, cedric, 21/10). Au lancement d'une prestation, la régie copie dans
-// la partie (games/<code>/sounds, images, choiceImages) les extraits et les photos dont la TV a besoin ; la TV les garde
+// la partie (games/<code>/sounds, images, choiceImages, songs) les extraits, les photos et les chansons entières des
+// statues musicales (copiées par la régie téléphone) dont la TV a besoin ; la TV les garde
 // ensuite sur la box. Une fois la fête finie, ces copies ne servent plus : elles s'effacent toutes seules 24 h après la
 // fin définitive notée par la TV, à la première ouverture de la Régie PC après ce délai, jamais avant. Seul l'état de la
 // partie compte, jamais la date ni l'archivage de la prestation. Rien d'autre n'est touché : bibliothèque, prestations,
@@ -20,11 +21,13 @@ export const UNE_HEURE_MS = 3600_000;
  * - extrait : 30 s de MP3 mono à 96 kbit/s ≈ 0,48 Mo une fois en base64, refrain de 90 s ≈ 0,84 Mo (SOUND_BUDGET
  *   880 000 caractères), statues jusqu'à 90 s : environ 0,6 Mo en moyenne ;
  * - photo d'illustration : 110 000 caractères au plus (IMAGE_BUDGET), photo de la banque ≈ 60 Ko : environ 0,08 Mo ;
- * - photo d'une réponse ou d'une carte : 45 000 caractères au plus (CHOICE_IMAGE) : environ 0,045 Mo.
+ * - photo d'une réponse ou d'une carte : 45 000 caractères au plus (CHOICE_IMAGE) : environ 0,045 Mo ;
+ * - chanson entière des statues musicales (games/<code>/songs/<songId>, en morceaux) : 3 min 30 de MP3 à 96 kbit/s
+ *   ≈ 2,5 Mo, environ 3,4 Mo en base64.
  */
-export const MO_MOYEN = { sounds: 0.6, images: 0.08, choiceImages: 0.045 };
+export const MO_MOYEN = { sounds: 0.6, images: 0.08, choiceImages: 0.045, songs: 3.4 };
 
-export const DOSSIERS = ["sounds", "images", "choiceImages"];
+export const DOSSIERS = ["sounds", "images", "choiceImages", "songs"];
 
 /** Raisons affichées dans la vérification, par clé (la clé va dans le journal). */
 export const RAISONS = {
@@ -55,25 +58,28 @@ export const extraitsGardes = (n) => `${pluriel(n, "extrait gardé", "extraits g
 export const photosDuSite = (n) => `${pluriel(n, "photo de la banque du site ou émoji dessiné", "photos de la banque du site ou émojis dessinés")} : refaits au prochain lancement`;
 
 const ID = /^[0-9a-f]{16}$/;
+/** Clé d'une chanson de la bibliothèque (library/songs). */
+const SONG_ID = /^[A-Za-z0-9_-]{1,40}$/;
 /** Code d'une partie que le journal accepte (règles : maintenance/nettoyages). */
 export const CODE_PARTIE = /^[A-Za-z0-9]{1,12}$/;
 
 const liste = (x) => [...new Set((Array.isArray(x) ? x : []).filter((id) => typeof id === "string"))];
 const compte = (copies) => DOSSIERS.reduce((n, d) => n + copies[d].length, 0);
-/** Taille estimée (Mo) de copies { sounds, images, choiceImages }. */
+/** Taille estimée (Mo) de copies { sounds, images, choiceImages, songs }. */
 export const moDe = (copies) => DOSSIERS.reduce((mo, d) => mo + (copies[d]?.length ?? 0) * MO_MOYEN[d], 0);
 
 /**
  * Décision pour une partie : { decision: "nettoyer" | "garder", cle, raison, effacer, gardes, notes, mo, prochain }.
- * [partie] : { code, phase, endedAt, createdAt, sounds, images, choiceImages } (identifiants des copies seulement) ;
- * [maintenant] : heure du serveur ; [bibliotheque] : { sounds: Set, images: Set } des originaux présents.
- * Effacées seulement : les copies d'une fête terminée depuis assez longtemps, que le prochain lancement refera (extrait
- * encore dans library/sounds ; photo de la bibliothèque, ou de la banque du site, ou émoji dessiné). [prochain] : heure
+ * [partie] : { code, phase, endedAt, createdAt, sounds, images, choiceImages, songs } (identifiants des copies
+ * seulement) ; [maintenant] : heure du serveur ; [bibliotheque] : { sounds: Set, images: Set, songs: Set } des originaux
+ * présents. Effacées seulement : les copies d'une fête terminée depuis assez longtemps, que le prochain lancement refera
+ * (extrait encore dans library/sounds ; photo de la bibliothèque, ou de la banque du site, ou émoji dessiné ; chanson
+ * encore dans library/songs). [prochain] : heure
  * à laquelle une fête terminée deviendra bonne à nettoyer (null sinon). [mo] : ce qui serait libéré.
  */
 export function classerPartie(partie, { maintenant, bibliotheque }) {
   const copies = Object.fromEntries(DOSSIERS.map((d) => [d, liste(partie?.[d])]));
-  const vide = { sounds: [], images: [], choiceImages: [] };
+  const vide = { sounds: [], images: [], choiceImages: [], songs: [] };
   const garder = (cle, extra = {}) => ({ decision: "garder", cle, raison: RAISONS[cle], copies, effacer: vide, gardes: [], notes: [], mo: 0, prochain: null, ...extra });
   if (!compte(copies)) return garder("sansCopie");
   if (!CODE_PARTIE.test(partie?.code ?? "")) return garder("codeInconnu");
@@ -87,12 +93,15 @@ export function classerPartie(partie, { maintenant, bibliotheque }) {
   // Assez ancienne : seulement les copies qu'un prochain lancement refera à partir des originaux.
   const sons = bibliotheque?.sounds ?? new Set();
   const images = bibliotheque?.images ?? new Set();
+  const chansons = bibliotheque?.songs ?? new Set();
   const effacer = {
     sounds: copies.sounds.filter((id) => ID.test(id) && sons.has(id)),
     images: copies.images.filter((id) => ID.test(id)),
     choiceImages: copies.choiceImages.filter((id) => ID.test(id)),
+    songs: copies.songs.filter((id) => SONG_ID.test(id) && chansons.has(id)),
   };
-  const gardes = copies.sounds.filter((id) => !effacer.sounds.includes(id));
+  // Extraits et chansons entières dont la chanson a quitté la bibliothèque : gardés (le seul exemplaire qui reste).
+  const gardes = [...copies.sounds.filter((id) => !effacer.sounds.includes(id)), ...copies.songs.filter((id) => !effacer.songs.includes(id))];
   const duSite = [...effacer.images, ...effacer.choiceImages].filter((id) => !images.has(id)).length;
   const notes = [...(gardes.length ? [extraitsGardes(gardes.length)] : []), ...(duSite ? [photosDuSite(duSite)] : [])];
   if (!compte(effacer)) return garder("orphelins", { raison: extraitsGardes(gardes.length), gardes });

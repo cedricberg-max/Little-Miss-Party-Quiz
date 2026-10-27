@@ -1,7 +1,7 @@
 import {
   ref, get, set, update, push, onValue, serverTimestamp, query, limitToFirst,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
-import { BRACELET_COLORS, CHOICE_LETTERS, TEAM_COLORS, TEAM_COLOR_NAMES, numeroTablette } from "./theme.js";
+import { BRACELET_COLORS, CHOICE_LETTERS, MAX_TEAMS, TEAM_COLORS, TEAM_COLOR_NAMES, numeroTablette } from "./theme.js";
 import { writeProof } from "./proof.js";
 import { parPertinence } from "./recherche.js";
 import { passwordCandidates } from "./secret.js";
@@ -160,7 +160,7 @@ function installerCockpit() {
   plus.textContent = "☰ Plus";
   $("c-pause").after(plus);
   const grille = $("plus-grille");
-  for (const id of ["c-add", "c-replay", "c-rescue", "c-points", "c-tablette", "c-box", "c-end"]) grille.append($(id));
+  for (const id of ["c-add", "c-replay", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-end"]) grille.append($(id));
   $("plus-onglets").append($("c-notes"), document.querySelector(".regie .tabs"),
     $("panel-teams"), $("panel-plan"), $("panel-show"), $("panel-defis"));
   // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer » : appui long, elle reste).
@@ -174,7 +174,8 @@ function installerCockpit() {
   tuiles.className = "tuiles";
   tuiles.setAttribute("aria-label", "Équipes");
   tuiles.hidden = true;
-  document.querySelector(".regie .control > .card").after(tuiles);
+  // Sous les demandes d'entrée : la carte « Nouvelle équipe en attente » reste juste sous la question, bien en vue.
+  $("c-requests").after(tuiles);
   $("c-plus").onclick = () => ($("plus").hidden ? ouvrirPlus() : fermerPlus());
   $("plus-fermer").onclick = fermerPlus;
   $("plus-fond").onclick = fermerPlus;
@@ -239,13 +240,13 @@ function questionSuivante(st) {
   const k = (st.index ?? -1) + 1;
   const q = questions[k];
   if (!q || (next && next.start === k) || st.leaveTo != null) return null;
-  if (["portes", "coffres", "gonfleur", "patate", "statues", "mime", "pictionary", "blind"].includes(q.kind)) return null;
+  if (["portes", "coffres", "gonfleur", "patate", "statues", "duel", "mime", "pictionary", "blind"].includes(q.kind)) return null;
   if (q.correct == null) return null;
   return { q, correct: q.correct, text: q.choices?.[q.correct] ?? "", number: q.kind === "number", flou: BUZZ_KINDS.includes(q.kind) };
 }
 
 /** Jeux qui ont déjà leur propre écran au milieu de la régie pendant la question (mimes, blind test, statues…). */
-const MILIEU_OCCUPE = ["mime", "blind", "statues", "coffres", "gonfleur", "patate"];
+const MILIEU_OCCUPE = ["mime", "blind", "statues", "duel", "coffres", "gonfleur", "patate"];
 
 /**
  * Une tuile par équipe (1 à 8) : sa couleur, ses points, ce qu'elle fait (a répondu, réfléchit, sa réponse et ses
@@ -579,21 +580,34 @@ function blindMode(st) {
   return st.kind === "blind" && st.blind != null && live.plan?.blindPlay === true;
 }
 
+/** Tout dernier jeu de la prestation : « suivant » lance directement les résultats finaux, sans classement juste avant (cedric, 27/10). */
+function derniere(st) {
+  return st.total != null && (st.index ?? 0) + 1 >= st.total;
+}
+
+function versClassement(st, libelle) {
+  return derniere(st) ? "Résultats finaux 🏆" : libelle;
+}
+
 function nextLabel(st, teamCount) {
   if (blindMode(st)) {
     const b = st.blind;
     if (st.phase === "question") return st.buzz?.team ? "Une équipe répond…" : b.waiting ? (b.played ? "▶ Relancer la musique" : "▶ Lancer le morceau") : "⏸ Arrêter la musique";
-    if (st.phase === "reveal") return blindHasNext(st) ? "Titre suivant ▶" : "Bilan du blind test";
+    if (st.phase === "reveal") return blindHasNext(st) ? "Titre suivant ▶" : versClassement(st, "Bilan du blind test");
   }
+  const statues = statuesEtape(st);
+  if (statues) return statuesBoutonPrincipal(statues, st);
+  const duel = duelEtape(st);
+  if (duel) return duelBoutonPrincipal(duel, st);
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
     case "intro": return "▶ Lancer l'épreuve";
     // Les coffres mystères : ce sont les équipes qui ouvrent les coffres, le bouton principal attend l'explosion.
-    case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
+    case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : versClassement(st, "Voir le classement")) : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
-    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : "Classement final 🏆") : "Voir les scores";
+    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : versClassement(st, "Voir les scores");
     case "scores": {
       const { next, questions } = gamesOf(st);
       // Bilan d'un jeu quitté en cours de route (cedric, 24/10) : « suivant » ouvre le jeu choisi.
@@ -672,7 +686,7 @@ function render() {
   }
   answerBtn.classList.toggle("grosse", COCKPIT && !answerBtn.hidden && !(portes && q?.doors));
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
+  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
 
   renderGames(st);
   renderRequests(st, teams);
@@ -685,6 +699,7 @@ function render() {
   renderCoffres(st);
   renderGonfleur(st, teams);
   renderPatate(st);
+  renderDuel(st, teams);
   renderTeams(st, teams);
   if (COCKPIT) renderTuiles(st, teams);
   renderPoints();
@@ -713,6 +728,10 @@ function render() {
   clearTimeout(countdownTimer);
   if (countdown > 0) countdownTimer = setTimeout(render, countdown + 50);
   next.disabled = next.disabled || st.paused === true || countdown > 0 || ((st.kind === "coffres" || st.kind === "patate") && st.phase === "question") || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
+  const statues = statuesEtape(st);
+  if (statues) next.disabled = next.disabled || (!!statues.choix && !statues.choix.personne && !statues.choix.equipes.size) || (!!statues.resultat && statues.annonce > 0);
+  const duel = duelEtape(st);
+  if (duel) next.disabled = next.disabled || duel.d.step === "standoff" || (!!duel.choix && duel.choix.length !== 2);
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
@@ -1052,12 +1071,21 @@ async function admit(device, type, extra, success) {
  * la régie, et dans le bandeau rouge quand une tablette est coupée.
  */
 let tabletteOpen = false;
+/**
+ * « ＋ Ajouter une équipe » (test Mi Box de cedric, 26/10 : introuvable en pleine partie) : la même fenêtre, avec un QR
+ * qui fait entrer la tablette comme nouvelle équipe, sans passer par « Reprendre une équipe ». Dès que la tablette
+ * demande à entrer, la fenêtre se referme sur la carte « Nouvelle équipe en attente » (nom et couleur).
+ */
+let tabletteMode = "reprise";
+/** Demandes d'entrée déjà là à l'ouverture d'« Ajouter une équipe » : seule une nouvelle referme la fenêtre. */
+let demandesConnues = new Set();
+const nouvellesDemandes = () => Object.entries(live.requests).filter(([, r]) => r && !r.replace).map(([d]) => d);
 
 /** Lien du QR code : la page des pupitres de cette partie, en mode « reprendre une équipe ». */
-function lienReprise() {
+function lienReprise(nouvelle = false) {
   const lien = new URL("./", location.href);
   lien.searchParams.set("g", code);
-  lien.searchParams.set("reprise", "1");
+  if (!nouvelle) lien.searchParams.set("reprise", "1");
   const emu = new URLSearchParams(location.search).get("emu");
   if (emu) lien.searchParams.set("emu", emu);
   return lien.href;
@@ -1087,10 +1115,32 @@ async function dessinerQr(box, texte) {
 
 function renderTablette(st) {
   $("c-tablette").disabled = st.phase === "ended";
+  const complet = Object.keys(live.teams).length >= MAX_TEAMS;
+  $("c-equipe").disabled = st.phase === "ended" || complet;
+  $("c-equipe").title = complet ? `${MAX_TEAMS} équipes au maximum` : "";
   if (st.phase === "ended") tabletteOpen = false;
+  const nouvelle = tabletteMode === "nouvelle";
+  // La nouvelle tablette a demandé à entrer : place à la carte « Nouvelle équipe en attente ».
+  if (tabletteOpen && nouvelle && nouvellesDemandes().some((d) => !demandesConnues.has(d))) {
+    tabletteOpen = false;
+    toast("Nouvelle tablette : donnez-lui un nom et une couleur.");
+  }
   $("tablette").hidden = !tabletteOpen;
   if (!tabletteOpen) return;
-  dessinerQr($("tablette-qr"), lienReprise()).catch((e) => console.error(e));
+  $("tablette-titre").textContent = nouvelle ? "Ajouter une équipe" : "Reconnecter une tablette";
+  $("tablette-consigne").textContent = nouvelle
+    ? "Scannez ce QR code avec la nouvelle tablette. Elle demande à entrer : vous lui donnez ici son nom et sa couleur. Les points des autres équipes ne bougent pas."
+    : "Scannez ce QR code avec la tablette, puis touchez le nom de l'équipe. Elle garde son nom, sa couleur et ses points.";
+  $("tablette-qr").setAttribute("aria-label", nouvelle ? "QR code pour ajouter une équipe" : "QR code pour reprendre une équipe");
+  $("tablette-qr").dataset.mode = tabletteMode;
+  dessinerQr($("tablette-qr"), lienReprise(nouvelle)).catch((e) => console.error(e));
+  $("tablette-bloquee").hidden = nouvelle;
+  if (nouvelle) {
+    $("tablette-attente").hidden = false;
+    $("tablette-demandes").replaceChildren();
+    $("tablette-demandes").dataset.key = "";
+    return;
+  }
   // Les tablettes qui ont touché le nom d'une équipe : un toucher (puis la confirmation) la leur confie.
   const demandes = Object.entries(live.requests).filter(([, r]) => r?.replace && live.teams[r.replace])
     .sort((a, b) => (a[1].at ?? 0) - (b[1].at ?? 0));
@@ -1113,10 +1163,17 @@ function renderTablette(st) {
 
 function ouvrirTablette(e) {
   e?.stopPropagation();
+  tabletteMode = "reprise";
   tabletteOpen = true;
   render();
 }
 $("c-tablette").onclick = ouvrirTablette;
+$("c-equipe").onclick = () => {
+  tabletteMode = "nouvelle";
+  demandesConnues = new Set(nouvellesDemandes());
+  tabletteOpen = true;
+  render();
+};
 $("tablette-close").onclick = () => { tabletteOpen = false; render(); };
 
 // ---------- Changer de box ----------
@@ -1416,6 +1473,8 @@ function renderMime(st, teams) {
   // Mimes en roulement (cedric, 24/10) : après un mime trouvé, deux autres joueurs prennent le relais ; l'image
   // suivante attend « Image suivante », une fois le nouveau devineur dos à l'écran. Le chrono continue.
   const relais = !picto && !!playing && m.relais != null;
+  // Mimes en file (cedric, 26/10) : une manche par couleur, sur une box qui sait faire tourner les joueurs avec « Passer ».
+  const enFile = !picto && !!seule && live.plan?.mimesEnFile === true;
   $("mime").classList.toggle("relais", relais);
   $("mime-now").hidden = !(playing || secret) || !card;
   if (card) {
@@ -1433,16 +1492,22 @@ function renderMime(st, teams) {
         : m.last
           ? `Tour terminé : ${name(m.last.team)} ${m.last.found ? `a trouvé « ${m.last.word ?? "?"} » !` : `n'a pas trouvé « ${m.last.word ?? "?"} ».`} ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
           : "Qui commence ? Choisissez l'équipe, faites retourner ses coéquipiers, puis montrez le mot au dessinateur."
+    : relais && enFile
+    ? `${name(playing)} : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · 🔄 On tourne : le mimeur file au bout, le suivant court face à l'écran. Quand chacun est à sa place, touchez « 👁 Image suivante ».`
     : relais
     ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · 🔄 Changement de joueur : dès que le nouveau devineur est dos à l'écran, touchez « Image suivante ».`
     : playing
     ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · ${m.left} image${m.left > 1 ? "s" : ""} restante${m.left > 1 ? "s" : ""}`
+    : seule && m.last && enFile
+      ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. Le classement arrive sur la TV ; ensuite, quand l'équipe suivante est en file, lancez-la.`
     : seule && m.last
-      ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. Touchez « Voir le classement », puis passez à l'équipe suivante.`
+      ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. Touchez « ${versClassement(st, "Voir le classement")} »${derniere(st) ? "." : ", puis passez à l'équipe suivante."}`
     : seule
       ? seule.length
-        ? `Au tour de ${lEquipe(titre)} : ${name(mimeTeam ?? seule[0])}. Faites retourner celui qui devine, puis « Top départ ! ».`
-        : `Aucune équipe ${titre.replace(/^Équipe /, "")} dans la partie : choisissez l'équipe qui mime ces images, ou passez avec « Voir le classement ».`
+        ? enFile
+          ? `Au tour de ${lEquipe(titre)} : ${name(mimeTeam ?? seule[0])}. Tous en file : le mimeur face à l'écran, les autres dos à l'écran, puis « Top départ ! ».`
+          : `Au tour de ${lEquipe(titre)} : ${name(mimeTeam ?? seule[0])}. Faites retourner celui qui devine, puis « Top départ ! ».`
+        : `Aucune équipe ${titre.replace(/^Équipe /, "")} dans la partie : choisissez l'équipe qui mime ces images, ou passez avec « ${versClassement(st, "Voir le classement")} ».`
     : m.last
         ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
         : "Qui commence ? Choisissez l'équipe puis « Top départ ! ».";
@@ -1451,12 +1516,12 @@ function renderMime(st, teams) {
   const remaining = mimeRemaining(st);
   const done = [...new Set(turns)].filter((id) => live.teams[id]).map(name);
   $("mime-progress").textContent = seule
-    ? done.length ? `Manche de ${lEquipe(titre)} jouée : touchez « Voir le classement ».` : `Manche de ${lEquipe(titre)} : ses ${m.left ?? 0} images`
+    ? done.length ? `Manche de ${lEquipe(titre)} jouée : touchez « ${versClassement(st, "Voir le classement")} ».` : `Manche de ${lEquipe(titre)} : ses ${m.left ?? 0} images`
     : !done.length
     ? `À faire passer : ${remaining.map(name).join(", ") || "aucune équipe"}`
     : remaining.length
       ? `Déjà passées : ${done.join(", ")} · Restent : ${remaining.map(name).join(", ")}`
-      : `Toutes les équipes sont passées (${done.join(", ")}) : touchez « Voir le classement ».`;
+      : `Toutes les équipes sont passées (${done.join(", ")}) : touchez « ${versClassement(st, "Voir le classement")} ».`;
   const box = $("mime-teams");
   box.hidden = !!playing;
   box.classList.toggle("picto", picto);
@@ -1488,7 +1553,13 @@ function renderMime(st, teams) {
   $("mime-found").querySelector("small").textContent = picto ? `+${m.points ?? 150} points` : "+1 mime";
   // Pictionary : « Autre mot » tant que le dessinateur découvre le sien ; pas de « Passer » ni de −1 pendant le dessin.
   $("mime-row").hidden = picto ? !secret : !playing;
-  $("mime-pass").textContent = picto ? "Proposer 3 autres mots" : relais ? "▶ Image suivante" : "Image suivante";
+  $("mime-pass").textContent = picto ? "Proposer 3 autres mots" : relais ? (enFile ? "👁 Image suivante" : "▶ Image suivante") : "Image suivante";
+  // Mimes en file : « Image suivante » seulement après Trouvé ou Passer, une fois chacun à sa place.
+  $("mime-pass").hidden = enFile && !relais;
+  // « ⏭ Passer » (cedric, 26/10) : le mimeur abandonne, les joueurs tournent ; à tout moment du tour, sauf pendant
+  // qu'ils tournent déjà (il n'y a alors pas d'image à passer).
+  $("mime-skip").hidden = !enFile || !playing;
+  $("mime-skip").disabled = busy || relais;
   // Changement de joueur : « Image suivante » devient le bouton principal, il montre l'image qui attendait.
   $("mime-pass").classList.toggle("main", relais);
   $("mime-pass").classList.toggle("secondary", !relais);
@@ -1713,17 +1784,147 @@ function renderFlou(st) {
   $("flou-bonus").querySelector("small").textContent = b.team ? `+${base + 50}${times} pour ${name(b.team)}` : "";
 }
 
-/** Statues musicales : un gros bouton par équipe pour désigner la gagnante, à la fin ou dès qu'il n'en reste qu'une. */
+/**
+ * Statues musicales (cedric, 26/10) : Sarah coupe la musique quand elle veut (✋ STATUE ! / 💃 On danse !), puis désigne
+ * la ou les gagnantes de chaque chanson (ou « Personne »). La TV fait le suspense et le bilan ; ensuite « ▶ Chanson
+ * suivante » ou « Jeu suivant ». Une TV d'avant (sans state.statues) garde l'ancien écran : un bouton par équipe.
+ */
+const STATUES_ANNONCE_MS = 8000; // suspense + gagnante(s) à la TV avant le bilan ; la box publie la sienne (annonceMs)
+let statuesChoix = null; // écran gagnant ouvert : { cle, equipes: Set, personne }
+let statuesAnnonce = null;
+
+/** Où en est la chanson : en cours, écran gagnant, annonce de la gagnante à la TV, ou bilan affiché. */
+function statuesEtape(st) {
+  const s = st.statues;
+  if (st.kind !== "statues" || !s || (st.phase !== "question" && st.phase !== "closed")) return null;
+  const cle = `${st.index ?? 0}:${s.song ?? 0}`;
+  const resultat = s.result && (s.result.song ?? s.song) === s.song ? s.result : null;
+  if (resultat || (statuesChoix && statuesChoix.cle !== cle)) statuesChoix = null;
+  // Chanson allée au bout toute seule : l'écran gagnant s'ouvre directement.
+  if (!resultat && s.ended === true && !statuesChoix) statuesChoix = { cle, equipes: new Set(), personne: false };
+  const annonce = resultat ? (resultat.at ?? 0) + (s.annonceMs ?? STATUES_ANNONCE_MS) - (Date.now() + serverOffset) : 0;
+  return { s, cle, resultat, choix: resultat ? null : statuesChoix, annonce, encore: (s.song ?? 0) + 1 < (s.songs ?? 1) };
+}
+
 function renderStatues(st, teams) {
   const on = (st.phase === "question" || st.phase === "closed") && st.kind === "statues";
   $("statues").hidden = !on;
-  if (!on) return;
+  clearTimeout(statuesAnnonce);
+  if (!on) { statuesChoix = null; return; }
+  const e = statuesEtape(st);
+  if (!e) return renderStatuesAvant(st, teams);
+  const { s, resultat, choix, annonce, encore } = e;
+  const busy = !!pending?.advance || st.paused === true;
+  const name = (id) => live.teams[id]?.name ?? "Une équipe";
+  const titre = s.titles?.[s.song ?? 0];
+  const chanson = [(s.songs ?? 1) > 1 ? `Chanson ${(s.song ?? 0) + 1} sur ${s.songs}` : "", titre ? `« ${titre} »` : ""].filter(Boolean).join(" · ");
+  const gagnantes = resultat ? (Array.isArray(resultat.winners) ? resultat.winners : Object.values(resultat.winners ?? {})) : [];
+  $("statues-info").textContent = resultat
+    ? `${gagnantes.length ? `🏆 ${gagnantes.map(name).join(", ")} ${gagnantes.length > 1 ? "gagnent" : "gagne"} la chanson.` : "Personne ne gagne cette chanson."} ${annonce > 0 ? "Annonce sur la TV…" : "Bilan des scores sur la TV."}`
+    : choix ? `${s.ended === true ? "La chanson est finie. " : ""}Qui a gagné ? Touchez une ou plusieurs équipes, ou «\u00a0Personne\u00a0».`
+      : `${chanson ? `${chanson}. ` : ""}${s.dancing === true ? "💃 Les enfants dansent." : "✋ Statue ! Éliminez ceux qui bougent."}`;
+  const bascule = $("statues-bascule");
+  bascule.hidden = !!resultat || !!choix;
+  bascule.textContent = s.dancing === true ? "✋ STATUE !" : "💃 On danse !";
+  bascule.classList.toggle("danse", s.dancing !== true);
+  bascule.disabled = busy;
+  $("statues-choisir").hidden = !!resultat || !!choix;
+  $("statues-choisir").disabled = busy;
+  // Écran gagnant : une grosse tuile par équipe dans sa couleur, à cocher, et « Personne ».
+  const box = $("statues-teams");
+  box.hidden = !choix;
+  const key = `choix|${teams.map(([id, t]) => `${id}:${t.name}:${t.color}`).join("|")}`;
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    const personne = document.createElement("button");
+    personne.className = "statues-tuile personne";
+    personne.dataset.team = "";
+    personne.textContent = "Personne";
+    personne.onclick = () => basculerGagnante(null);
+    box.replaceChildren(...teams.map(([id, t]) => {
+      const b = document.createElement("button");
+      b.className = "statues-tuile";
+      b.dataset.team = id;
+      b.style.setProperty("--team", t.color ?? "#fff");
+      b.textContent = t.name;
+      b.onclick = () => basculerGagnante(id);
+      return b;
+    }), personne);
+  }
+  box.classList.toggle("serree", teams.length > 4);
+  box.querySelectorAll("button").forEach((b) => {
+    const coche = !!choix && (b.dataset.team ? choix.equipes.has(b.dataset.team) : choix.personne);
+    b.classList.toggle("cochee", coche);
+    b.setAttribute("aria-pressed", String(coche));
+    b.disabled = busy;
+  });
+  $("statues-retour").hidden = !choix || s.ended === true;
+  $("statues-suivante").hidden = !resultat || annonce > 0 || !encore;
+  $("statues-suivante").disabled = busy;
+  if (resultat && annonce > 0) statuesAnnonce = setTimeout(render, annonce + 50);
+  $("statues-points").textContent = resultat ? "" : `${st.double ? "600" : "300"} points pour chaque gagnante, ${st.double ? "300" : "150"} pour les autres équipes. «\u00a0Personne\u00a0» : aucun point.`;
+}
+
+function basculerGagnante(id) {
+  const c = statuesChoix;
+  if (!c) return;
+  navigator.vibrate?.(30);
+  if (id == null) {
+    c.personne = !c.personne;
+    if (c.personne) c.equipes.clear();
+  } else {
+    c.personne = false;
+    if (c.equipes.has(id)) c.equipes.delete(id);
+    else c.equipes.add(id);
+  }
+  render();
+}
+
+$("statues-bascule").onclick = () => {
+  const s = live.state?.statues;
+  if (!s) return;
+  navigator.vibrate?.(80);
+  send(s.dancing === true ? "statues_stop" : "statues_play", {}, { advance: true });
+};
+$("statues-choisir").onclick = () => {
+  const e = statuesEtape(live.state ?? {});
+  if (!e || e.resultat) return;
+  statuesChoix = { cle: e.cle, equipes: new Set(), personne: false };
+  render();
+};
+$("statues-retour").onclick = () => { statuesChoix = null; render(); };
+async function validerGagnantes() {
+  const c = statuesChoix;
+  if (!c || (!c.personne && !c.equipes.size)) return;
+  navigator.vibrate?.(60);
+  // « Personne » : un tableau vide disparaît dans la base, la box reçoit donc aussi personne: true.
+  const r = await send("statues_win", c.personne ? { teams: [], personne: true } : { teams: [...c.equipes] }, { advance: true });
+  if (r?.status === "applied" && statuesChoix === c) statuesChoix = null;
+  render();
+}
+$("statues-suivante").onclick = () => { navigator.vibrate?.(60); send("statues_song", {}, { advance: true }); };
+
+/** Bouton principal pendant les statues : passer par l'écran gagnant, attendre l'annonce, puis « Jeu suivant ». */
+function statuesBoutonPrincipal(e, st) {
+  const c = e.choix;
+  if (c) return c.personne ? "✓ Valider : personne" : c.equipes.size > 1 ? `✓ Valider : ${c.equipes.size} gagnantes` : c.equipes.size ? `✓ Valider : ${live.teams[[...c.equipes][0]]?.name ?? "1 gagnante"}` : "Touchez la ou les gagnantes";
+  if (!e.resultat) return e.encore ? "⏭ Chanson suivante" : "⏭ Finir la chanson";
+  if (e.annonce > 0) return "Annonce sur la TV…";
+  if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
+  const { next, questions } = gamesOf(st);
+  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Jeu suivant ▶";
+}
+
+/** Ancienne TV : un gros bouton par équipe pour désigner la gagnante, à la fin ou dès qu'il n'en reste qu'une. */
+function renderStatuesAvant(st, teams) {
+  for (const id of ["statues-bascule", "statues-choisir", "statues-retour", "statues-suivante"]) $(id).hidden = true;
   const busy = !!pending?.advance || st.paused === true;
   $("statues-info").textContent = st.phase === "closed"
     ? "La musique est finie : touchez l'équipe gagnante."
     : "Musique en cours : les enfants dansent et se figent à chaque arrêt. Éliminez ceux qui bougent, puis touchez l'équipe gagnante.";
   const box = $("statues-teams");
-  const key = teams.map(([id, t]) => `${id}:${t.name}`).join("|");
+  box.hidden = false;
+  const key = `avant|${teams.map(([id, t]) => `${id}:${t.name}`).join("|")}`;
   if (box.dataset.key !== key) {
     box.dataset.key = key;
     box.replaceChildren(...teams.map(([id, t]) => {
@@ -1738,6 +1939,195 @@ function renderStatues(st, teams) {
   box.querySelectorAll("button").forEach((b) => { b.disabled = busy; });
   $("statues-points").textContent = `${st.double ? "600" : "300"} points pour l'équipe gagnante, ${st.double ? "300" : "150"} pour les autres.`;
 }
+
+/**
+ * Le Duel des robots (cedric, 27/10) : la box prépare chaque duel (2 équipes, un joueur appelé de chaque) et garde
+ * l'heure du PAN secrète, même pour la régie. Sarah lance le face-à-face, puis « ▶ Duel suivant ». Un duel à la volée
+ * (2 équipes choisies) sert à une équipe qui n'a pas fini de jouer, ou à rejouer une paire.
+ */
+let duelChoix = null; // équipes choisies pour un duel à la volée (tableau d'uid), null = pas d'écran de choix
+let duelStopArme = null;
+
+function duelEtape(st) {
+  const d = st.duel;
+  if (st.kind !== "duel" || !d || (st.phase !== "question" && st.phase !== "closed")) return null;
+  if (d.step === "standoff") duelChoix = null;
+  return { d, choix: d.step === "standoff" ? null : duelChoix, equipes: Object.keys(live.teams ?? {}).length };
+}
+
+const duelNom = (id) => live.teams[id]?.name ?? "Une équipe";
+const duelTemps = (ms) => `${(ms / 1000).toFixed(2).replace(".", ",")} s`;
+
+function duelResultat(r) {
+  if (!r) return "";
+  if (r.early && r.winner) return `💥 ${duelNom(r.early)} a tiré trop tôt : ${duelNom(r.winner)} gagne le duel.`;
+  if (r.early) return `💥 ${duelNom(r.early)} a tiré trop tôt.`;
+  if (r.winner) return `🏆 ${duelNom(r.winner)} gagne le duel${r.ms != null ? ` en ${duelTemps(r.ms)}` : ""} !`;
+  return "Personne n'a tiré ! Duel nul, aucun point.";
+}
+
+function renderDuel(st, teams) {
+  const on = (st.phase === "question" || st.phase === "closed") && st.kind === "duel";
+  $("duel").hidden = !on;
+  if (!on) { duelChoix = null; clearTimeout(duelStopArme); duelStopArme = null; return; }
+  const e = duelEtape(st);
+  const d = e?.d ?? {};
+  const busy = !!pending?.advance || st.paused === true;
+  const paire = Array.isArray(d.teams) ? d.teams : Object.values(d.teams ?? {});
+  const joueurs = Array.isArray(d.players) ? d.players : Object.values(d.players ?? {});
+  const choix = e?.choix;
+  const seule = teams.length < 2;
+  $("duel-info").textContent = seule ? "Il faut au moins 2 équipes pour un duel : passez au jeu suivant."
+    : choix ? "Qui affronte qui ? La paire proposée est cochée : touchez une équipe pour la changer."
+      : d.step === "standoff" ? "🤠 Face-à-face… mains sur les buzzers ! Le PAN tombe quand la TV le décide."
+        : d.step === "result" ? (d.allPlayed ? "Tous les joueurs sont passés." : `Duel ${d.n ?? 1} terminé.`)
+          : `${d.extra ? "Duel en plus" : `Duel ${d.n ?? 1} sur ${d.total ?? "?"}`} : appelez les deux joueurs.`;
+  // Les deux équipes face à face, dans leur couleur, avec le joueur appelé.
+  const face = $("duel-face");
+  face.hidden = seule || !!choix || !paire.length;
+  const cle = JSON.stringify([paire, joueurs, paire.map((id) => [live.teams[id]?.name, live.teams[id]?.color])]);
+  if (face.dataset.key !== cle) {
+    face.dataset.key = cle;
+    const carte = (id, i) => {
+      const c = document.createElement("div");
+      c.className = "duel-equipe";
+      c.style.setProperty("--team", live.teams[id]?.color ?? "#fff");
+      const nom = document.createElement("b");
+      nom.textContent = duelNom(id);
+      const j = document.createElement("small");
+      j.textContent = joueurs[i] ? `Joueur n°${joueurs[i]}` : "";
+      c.append(nom, j);
+      return c;
+    };
+    const vs = document.createElement("span");
+    vs.className = "duel-vs";
+    vs.textContent = "VS";
+    face.replaceChildren(...paire.slice(0, 2).flatMap((id, i) => (i ? [vs, carte(id, i)] : [carte(id, i)])));
+  }
+  face.classList.toggle("en-cours", d.step === "standoff");
+  // Résultat : bandeau dans la couleur de la gagnante.
+  const res = $("duel-resultat");
+  const r = d.step === "result" && !choix ? d.result : null;
+  res.hidden = !r;
+  res.textContent = duelResultat(r);
+  if (r?.winner) res.style.setProperty("--team", live.teams[r.winner]?.color ?? "var(--gold)");
+  else res.style.removeProperty("--team");
+  // Choix de 2 équipes pour un duel à la volée.
+  const box = $("duel-choix");
+  box.hidden = !choix;
+  const key = teams.map(([id, t]) => `${id}:${t.name}:${t.color}`).join("|");
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    box.replaceChildren(...teams.map(([id, t]) => {
+      const b = document.createElement("button");
+      b.className = "statues-tuile";
+      b.dataset.team = id;
+      b.style.setProperty("--team", t.color ?? "#fff");
+      b.textContent = t.name;
+      b.onclick = () => {
+        if (!duelChoix) return;
+        navigator.vibrate?.(30);
+        duelChoix = duelChoix.includes(id) ? duelChoix.filter((x) => x !== id) : [...duelChoix, id].slice(-2);
+        render();
+      };
+      return b;
+    }));
+  }
+  box.classList.toggle("serree", teams.length > 4);
+  box.querySelectorAll("button").forEach((b) => {
+    const coche = !!choix?.includes(b.dataset.team);
+    b.classList.toggle("cochee", coche);
+    b.setAttribute("aria-pressed", String(coche));
+    b.disabled = busy;
+  });
+  // Arrêter un face-à-face (buzzer en panne, enfant pas prêt) : deux appuis, jamais par erreur au moment du PAN.
+  const stop = $("duel-stop");
+  stop.hidden = d.step !== "standoff";
+  stop.disabled = busy;
+  stop.textContent = duelStopArme ? "Touchez encore : arrêter sans points" : "✋ Arrêter le face-à-face";
+  if (d.step !== "standoff") { clearTimeout(duelStopArme); duelStopArme = null; }
+  const pret = (d.step === "ready" || d.step === "result") && !choix && !seule;
+  $("duel-autres").hidden = !pret;
+  $("duel-autres").textContent = d.allPlayed && d.step === "result" ? "🤠 Duel en plus : choisir les 2 équipes" : "🎯 Choisir les 2 équipes";
+  $("duel-autres").disabled = busy;
+  $("duel-retour").hidden = !choix;
+  // « Jeu suivant » au milieu (le gros bouton du bas lance les duels) tant qu'il reste des joueurs à faire passer.
+  $("duel-fin").hidden = !pret || (d.step === "result" && !!d.allPlayed);
+  $("duel-fin").disabled = busy;
+  $("duel-points").textContent = `${st.double ? 200 : 100} points par duel gagné. Tirer avant le PAN fait perdre le duel.`;
+}
+
+/** Le gros bouton du bas : lancer le duel, puis le suivant ; tous les joueurs passés, le jeu suivant. */
+function duelBoutonPrincipal(e, st) {
+  const d = e.d;
+  if (e.equipes < 2) return finDuelLabel(st);
+  if (e.choix) return e.choix.length === 2 ? `🤠 ${duelNom(e.choix[0])} contre ${duelNom(e.choix[1])}` : "Touchez 2 équipes";
+  if (d.step === "standoff") return "Face-à-face… 🤠";
+  if (d.step === "result") return d.allPlayed ? finDuelLabel(st) : "▶ Duel suivant";
+  return "🤠 Lancer le duel";
+}
+
+function finDuelLabel(st) {
+  if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
+  const { next, questions } = gamesOf(st);
+  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Jeu suivant ▶";
+}
+
+function duelPrincipal(e) {
+  const d = e.d;
+  navigator.vibrate?.(60);
+  if (e.choix) {
+    if (e.choix.length !== 2) return;
+    const teams = e.choix;
+    duelChoix = null;
+    return send("duel_start", { teams }, { advance: true });
+  }
+  if (e.equipes < 2 || (d.step === "result" && d.allPlayed)) return send("next", {}, { advance: true });
+  if (d.step === "result") return send("duel_next", {}, { advance: true });
+  if (d.step === "ready") return send("duel_start", {}, { advance: true });
+}
+
+$("duel-stop").onclick = () => {
+  if (!duelStopArme) {
+    duelStopArme = setTimeout(() => { duelStopArme = null; render(); }, 4000);
+    return render();
+  }
+  clearTimeout(duelStopArme);
+  duelStopArme = null;
+  send("duel_stop", {}, { advance: true }).then((r) => { if (r?.status === "applied") toast("Face-à-face arrêté, sans points : relancez quand les joueurs sont prêts."); });
+};
+$("duel-autres").onclick = () => { duelChoix = pairePropose(live.state?.duel ?? {}); render(); };
+
+/**
+ * Paire cochée d'avance dans le choix des équipes (cedric, 27/10) : le duel prêt proposé par la box ; après un duel,
+ * comme la box, les 2 équipes qui ont le moins joué, sans redonner la même paire tout de suite. Sarah change si elle veut.
+ */
+function pairePropose(d) {
+  const presentes = Object.keys(live.teams ?? {});
+  const paire = (Array.isArray(d.teams) ? d.teams : Object.values(d.teams ?? {})).filter((id) => presentes.includes(id));
+  if (d.step === "ready" && paire.length === 2) return paire;
+  const joues = d.played ?? {};
+  const ordre = presentes.map((id, i) => [id, joues[id] ?? 0, i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(([id]) => id);
+  if (ordre.length < 2) return [];
+  const meme = (a, b) => paire.length === 2 && paire.includes(a) && paire.includes(b);
+  for (let i = 0; i < ordre.length; i++) {
+    for (let j = i + 1; j < ordre.length; j++) {
+      if (ordre.length === 2 || !meme(ordre[i], ordre[j])) return [ordre[i], ordre[j]];
+    }
+  }
+  return ordre.slice(0, 2);
+}
+$("duel-retour").onclick = () => { duelChoix = null; render(); };
+$("duel-fin").onclick = async () => {
+  const d = live.state?.duel ?? {};
+  const reste = d.allPlayed ? 0 : Math.max(0, (d.total ?? 0) - (d.n ?? 0) + (d.step === "ready" ? 1 : 0));
+  const ok = await demander({
+    title: "Arrêter les duels ?",
+    text: reste ? `${reste} duel${reste > 1 ? "s" : ""} prévu${reste > 1 ? "s" : ""} pas encore joué${reste > 1 ? "s" : ""} : certains joueurs ne seront pas passés.` : "",
+    ok: "⏭ Jeu suivant",
+  });
+  if (ok && duelEtape(live.state ?? {})) send("next", {}, { advance: true });
+};
 
 /**
  * Les coffres mystères : à qui le tour, combien de coffres sans danger, ce qui est sorti. Secours : ouvrir un coffre au
@@ -1824,8 +2214,9 @@ function renderPatate(st) {
   const booms = Array.isArray(p.booms) ? p.booms : Object.values(p.booms ?? {});
   const boom = booms[booms.length - 1];
   const numero = (p.bombs ?? 1) > 1 ? `Bombe ${p.bomb ?? 1} sur ${p.bombs}. ` : "";
+  const derniere = (p.bomb ?? 1) >= (p.bombs ?? 1);
   $("patate-info").textContent = p.lit !== true ? "La mèche s'allume sur la TV…"
-    : p.exploded === true ? `💥 BOUM chez ${name(boom?.holder)} ! La bombe ${(p.bomb ?? 1) + 1} s'allume…`
+    : p.exploded === true ? `💥 BOUM chez ${name(boom?.holder)} ! ${derniere ? "C'était la dernière bombe : le bilan arrive." : `La bombe ${(p.bomb ?? 1) + 1} s'allume…`}`
       : `${numero}💣 La bombe est chez ${name(p.holder)}${p.from ? ` (envoyée par ${name(p.from)})` : ""}. ${p.passes ?? 0} envoi${(p.passes ?? 0) > 1 ? "s" : ""}.`
         + (pas.length ? ` Pas encore touchées : ${pas.map(name).join(", ")}.` : " Toutes les équipes l'ont eue.")
         + (booms.length ? ` Déjà explosées chez : ${booms.map((x) => name(x.holder)).join(", ")}.` : "");
@@ -1835,7 +2226,28 @@ function renderPatate(st) {
   clearTimeout(patatePret);
   if (wait > 0) patatePret = setTimeout(render, wait + 50);
   btn.textContent = patateArme ? `Touchez encore : la bombe part de chez ${name(p.holder)}` : `🎲 Envoyer la bombe au hasard pour ${name(p.holder)}`;
+  // Finir le jeu sans jouer toutes les bombes (cedric, 26/10), seulement avec une box qui le sait (patateStop).
+  // Entre deux bombes (BOUM affiché, ou la suivante allumée mais pas encore partie) : « ⏭ Jeu suivant », bilan tout de
+  // suite. Pendant une bombe qui n'est pas la dernière : « 🏁 Dernière bombe ».
+  const maintenant = Date.now() + serverOffset;
+  const entreDeux = p.lit === true && p.exploded !== true && (p.bomb ?? 1) > 1 && booms.length === (p.bomb ?? 1) - 1 && (p.since ?? 0) > maintenant;
+  const apresBoum = p.lit === true && p.exploded === true && !derniere;
+  const pendant = p.lit === true && p.exploded !== true && !entreDeux && !derniere;
+  const stop = $("patate-stop");
+  stop.hidden = live.plan?.patateStop !== true || !(entreDeux || apresBoum || pendant);
+  stop.textContent = pendant ? "🏁 Dernière bombe" : "⏭ Jeu suivant";
+  stop.disabled = !!pending?.advance || st.paused === true;
+  clearTimeout(patateEntreDeux);
+  if (entreDeux) patateEntreDeux = setTimeout(render, p.since - maintenant + 50);
 }
+let patateEntreDeux = null;
+$("patate-stop").onclick = async () => {
+  const p = live.state?.potato ?? {};
+  const dernierePendant = $("patate-stop").textContent.startsWith("🏁");
+  navigator.vibrate?.(60);
+  const r = await send("potato_stop", {}, { advance: true });
+  if (r?.status === "applied") toast(dernierePendant ? `La bombe ${p.bomb ?? ""} est la dernière : bilan après son explosion.` : "Fin du jeu : le bilan s'affiche sur la TV.");
+};
 $("patate-random").onclick = () => {
   if (!patateArme) {
     patateArme = setTimeout(() => { patateArme = null; render(); }, 4000);
@@ -1860,6 +2272,7 @@ $("mime-go").onclick = () => {
 };
 $("mime-found").onclick = () => { navigator.vibrate?.(60); send("mime_found", {}, { advance: true }); };
 $("mime-pass").onclick = () => send("mime_pass", {}, { advance: true });
+$("mime-skip").onclick = () => { navigator.vibrate?.(30); send("mime_skip", {}, { advance: true }); };
 $("mime-minus").onclick = () => { const t = live.state?.mime?.team; if (t) send("mime_fix", { team: t, delta: -1 }); };
 $("mime-fix-minus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: -1 }); };
 $("mime-fix-plus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: 1 }); };
@@ -1886,6 +2299,27 @@ function equipesDeLaCouleur(st) {
   const c = couleurMimeEquipe(st?.text ?? live.plan?.questions?.[st?.index]?.text);
   if (!c) return null;
   return Object.entries(live.teams).filter(([, t]) => `${t?.color ?? ""}`.toUpperCase() === c.toUpperCase()).map(([id]) => id);
+}
+
+/**
+ * Mimes en file (cedric, 26/10), une manche par couleur : l'équipe dont le tour part au bouton principal, ou null.
+ * Présentation des Mimes (ou manche ouverte sans tour) : celle de la couleur, « ▶ Lancer l'épreuve » montre tout de
+ * suite sa première image. Bilan des scores d'une couleur : celle de la couleur suivante, sa manche s'ouvre avec son
+ * tour. Sans équipe inscrite de cette couleur : null, le bouton garde son rôle habituel.
+ */
+function mimeEnFile(st) {
+  // Une box d'avant le 26/10 ne sait pas lancer le tour depuis la présentation : déroulé habituel.
+  if (!st || st.paused || live.plan?.mimesEnFile !== true) return null;
+  const questions = live.plan?.questions ?? [];
+  const ici = questions[st.index];
+  const equipe = (q) => {
+    const c = q?.kind === "mime" ? couleurMimeEquipe(q.text) : null;
+    return c ? Object.entries(live.teams).find(([, t]) => `${t?.color ?? ""}`.toUpperCase() === c.toUpperCase())?.[0] ?? null : null;
+  };
+  if (st.phase === "intro" || (st.phase === "question" && st.mime && !st.mime.team && !(st.mime.turns ?? []).length)) return equipe(ici);
+  const suivante = questions[(st.index ?? -1) + 1];
+  if (st.phase === "scores" && st.leaveTo == null && ici?.kind === "mime" && couleurMimeEquipe(ici.text) && suivante?.round === ici.round) return equipe(suivante);
+  return null;
 }
 
 /** « l'équipe Rose » : le titre d'une manche de mimes d'une seule équipe, dans une phrase. */
@@ -2885,7 +3319,8 @@ function renderPreview() {
     const answer = document.createElement("b");
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
-    if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; une équipe qui la garde plus de 3 secondes la voit exploser. À l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
+    if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; une équipe qui la garde plus de 2 secondes la voit exploser. À l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
+    if (q.kind === "duel") { li.textContent = "Deux équipes face à face, un joueur de chaque : la première qui buzze après le PAN gagne, trop tôt elle perd."; list.appendChild(li); return; }
     if (q.kind === "gonfleur") { li.textContent = "Chaque équipe tapote sa tablette pour gonfler son ballon : le premier qui éclate gagne."; list.appendChild(li); return; }
     if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
     // Blind test et quiz musical : le titre (et l'artiste) de chaque extrait.
@@ -2946,6 +3381,7 @@ const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : s
 const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer aux Coffres mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à « Ça va exploser ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_DUEL = "La TV doit être mise à jour pour jouer au Duel des robots : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
@@ -2965,6 +3401,7 @@ function tvRefuses(questions) {
   if (live.plan.coffres !== true && questions.some((q) => q?.kind === "coffres")) return OLD_TV_COFFRES;
   if (live.plan.gonfleur !== true && questions.some((q) => q?.kind === "gonfleur")) return OLD_TV_GONFLEUR;
   if (live.plan.patate !== true && questions.some((q) => q?.kind === "patate")) return OLD_TV_PATATE;
+  if (live.plan.duel !== true && questions.some((q) => q?.kind === "duel")) return OLD_TV_DUEL;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
   if (live.plan.blindPlay !== true && questions.some((q) => q?.kind === "blind")) return OLD_TV_BLIND;
   if (live.plan.blind !== true && questions.some((q) => q?.audioId)) return OLD_TV_BLIND;
@@ -3289,6 +3726,40 @@ async function copySounds(questions) {
       console.warn("Extrait non copié", id, e);
     }
   }
+  for (const songId of chansonsEntieres(questions)) {
+    try {
+      await copierEntiere(songId);
+    } catch (e) {
+      console.warn("Chanson entière non copiée", songId, e);
+    }
+  }
+}
+
+/** Statues musicales : les chansons de la bibliothèque à jouer en entier (songs: [{ songId, audioId, title }]). */
+function chansonsEntieres(questions) {
+  const ids = (questions ?? []).filter((q) => q?.kind === "statues")
+    .flatMap((q) => (Array.isArray(q.songs) ? q.songs : Object.values(q.songs ?? {})).map((x) => x?.songId))
+    .filter((id) => typeof id === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(id));
+  return [...new Set(ids)];
+}
+
+/**
+ * Chanson entière copiée de library/entieres dans la partie, à l'identique et part par part (800 000 caractères au
+ * plus chacune) ; n, kbps et length ensemble en dernier : la box sait qu'elle est complète, et plus rien ne s'écrit
+ * dessus ensuite. Absente de la bibliothèque : la box joue l'extrait.
+ */
+async function copierEntiere(songId) {
+  const cible = `games/${code}/songs/${songId}`;
+  if (typeof (await get(ref(db, `${cible}/n`))).val() === "number") return;
+  const source = `library/entieres/${songId}`;
+  const [n, kbps, length] = await Promise.all(["n", "kbps", "length"].map((k) => get(ref(db, `${source}/${k}`)).then((x) => x.val())));
+  if (typeof n !== "number" || n < 1) return;
+  for (let i = 0; i < n; i++) {
+    const part = (await get(ref(db, `${source}/p/${i}`))).val();
+    if (typeof part !== "string") return;
+    await set(ref(db, `${cible}/p/${i}`), part);
+  }
+  await update(ref(db, cible), { n, ...(typeof kbps === "number" ? { kbps } : {}), ...(typeof length === "number" ? { length } : {}) });
 }
 
 /** « l'anniversaire de Chloé », ou le titre de la prestation entre guillemets (dans une phrase). */
@@ -3632,6 +4103,12 @@ $("c-next").onclick = async () => {
     switchTab("show");
     return;
   }
+  // Mimes en file : la première image de l'équipe de la couleur, ou la manche de la couleur suivante avec son tour.
+  const enFile = mimeEnFile(st);
+  if (enFile) {
+    send("mime_start", { team: enFile }, { advance: true });
+    return;
+  }
   // Mimes entre deux tours : « Terminer les mimes » passe au classement, après confirmation s'il reste des équipes.
   const left = st?.phase === "question" && st.mime && !st.mime.team ? mimeRemaining(st) : [];
   if (left.length) {
@@ -3639,6 +4116,13 @@ $("c-next").onclick = async () => {
     const game = st.kind === "pictionary" ? "le Pictionary" : "les mimes";
     if (!await demander({ title: `Terminer ${game} ?`, text: `${names} ${left.length > 1 ? "ne sont" : "n'est"} pas encore ${left.length > 1 ? "passées" : "passée"}.`, ok: `Terminer ${game}` })) return;
   }
+  // Statues : une chanson ne finit jamais sans sa gagnante ; après l'annonce, « next » passe au jeu suivant.
+  const statues = st ? statuesEtape(st) : null;
+  if (statues?.choix) return validerGagnantes();
+  const duel = st ? duelEtape(st) : null;
+  if (duel) return duelPrincipal(duel, st);
+  if (statues && !statues.resultat) { $("statues-choisir").click(); return; }
+  if (statues) { send("next", {}, { advance: true }); return; }
   // Blind test : « next » lance, relance ou arrête la musique (la box décide selon l'état du morceau).
   send(st?.phase === "question" && !(st.mime && !st.mime.team) && !blindMode(st) ? "close" : "next", {}, { advance: true });
 };

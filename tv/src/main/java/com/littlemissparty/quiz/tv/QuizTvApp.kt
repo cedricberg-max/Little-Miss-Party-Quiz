@@ -100,6 +100,7 @@ class TvActions(
     val mimeStart: (String?) -> Unit = {},
     val mimeFound: () -> Unit = {},
     val mimePass: () -> Unit = {},
+    val mimeSkip: () -> Unit = {},
     val mimeStop: () -> Unit = {},
     /** Image floue à la télécommande : bonne (true) ou mauvaise réponse de l'équipe qui a buzzé. */
     val judgeBuzz: (Boolean) -> Unit = {},
@@ -112,6 +113,10 @@ class TvActions(
     val chestRandom: () -> Unit = {},
     /** « Ça va exploser ! » à la télécommande : la bombe part au hasard (tablette en panne). */
     val potatoRandom: () -> Unit = {},
+    /** Statues musicales : la box a joué la chanson (son numéro) jusqu'au bout. */
+    val statuesSongEnded: (Int) -> Unit = {},
+    /** Le Duel des robots : l'image du PAN vient d'être envoyée à l'écran. */
+    val duelPanShown: () -> Unit = {},
     /** « Donner des points » (menu Retour) : équipes choisies, montant (fête sans Internet). */
     val givePoints: (List<String>, Int) -> Unit = { _, _ -> },
     /** « Vider le cache des médias » (menu Retour), une fois confirmé. */
@@ -254,6 +259,7 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
             else if (state.coffres != null || state.question?.isCoffres == true) CoffresScreen(state, actions)
             else if (state.question?.isGonfleur == true) GonfleurScreen(state, actions)
             else if (state.question?.isPatate == true) PatateScreen(state, actions)
+            else if (state.question?.isDuel == true) DuelScreen(state, actions)
             else if (state.portes != null) PortesScreen(state, actions)
             else if (state.mime?.picto == true) PictionaryScreen(state, actions)
             else if (state.mime != null) MimeScreen(state, actions) else QuestionScreen(state, actions)

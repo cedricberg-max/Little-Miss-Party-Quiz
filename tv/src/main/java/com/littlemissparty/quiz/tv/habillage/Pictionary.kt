@@ -37,13 +37,18 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.PaintingStyle
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
@@ -117,8 +122,11 @@ internal fun cheminDe(t: TraitDessin, l: Float, h: Float): Path {
 }
 
 /**
- * Le tableau du dessin : cadre doré, papier crème, et le dessin de la tablette en direct. Les chemins ne sont
- * recalculés que quand les traits ou la taille changent ; entre deux traits, rien ne se redessine.
+ * Le tableau du dessin : cadre doré, papier crème, et le dessin de la tablette en direct. La feuille quadrillée ne se
+ * redessine jamais pendant le dessin ; l'encre est une image où chaque nouveau morceau de trait s'ajoute sans retracer
+ * les autres (cedric, 27/10 : délai entre la tablette et la TV ; sur la Mi Box, retracer tout le dessin et les
+ * 1 100 points du quadrillage à chaque paquet, 12 fois par seconde, prenait de plus en plus de temps à mesure que le
+ * dessin grandissait).
  */
 @Composable
 fun TableauDessin(traits: List<TraitDessin>, modifier: Modifier = Modifier, vide: String? = null) {
@@ -132,41 +140,92 @@ fun TableauDessin(traits: List<TraitDessin>, modifier: Modifier = Modifier, vide
             .border(3.dp, Neon.Halo.copy(alpha = 0.7f), RoundedCornerShape(22.dp))
             .padding(12.dp),
     ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(Color(0xFFFFFDF6), Color(0xFFFFF8EA))), RoundedCornerShape(12.dp))
-                .drawWithCache {
-                    // La feuille garde exactement le format de l'ardoise, centrée dans le cadre.
-                    val l = minOf(size.width, size.height * RATIO_DESSIN)
-                    val h = l / RATIO_DESSIN
-                    val o = Offset((size.width - l) / 2, (size.height - h) / 2)
-                    val chemins = traits.map { t ->
-                        Triple(cheminDe(t, l, h), COULEURS_DESSIN.getOrNull(t.couleur) ?: PAPIER_DESSIN, EPAISSEURS_DESSIN[t.epaisseur] * l)
-                    }
-                    val pointilles = Color(0xFF6E28BE).copy(alpha = 0.07f)
-                    val pas = l / 40f
-                    onDrawBehind {
-                        var y = o.y + pas / 2
-                        while (y < o.y + h) {
-                            var x = o.x + pas / 2
-                            while (x < o.x + l) {
-                                drawCircle(pointilles, 1.2f, Offset(x, y))
-                                x += pas
-                            }
-                            y += pas
-                        }
-                        translate(o.x, o.y) {
-                            chemins.forEach { (chemin, couleur, largeur) ->
-                                drawPath(chemin, couleur, style = Stroke(largeur, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                            }
-                        }
-                    }
-                },
-            contentAlignment = Alignment.Center,
-        ) {
+        FeuilleQuadrillee()
+        val encre = remember { EncreDessin() }
+        Box(Modifier.fillMaxSize().drawBehind { encre.dessiner(this, traits) }, contentAlignment = Alignment.Center) {
             if (traits.isEmpty() && vide != null) CrayonQuiAttend(vide)
         }
+    }
+}
+
+/** La feuille de l'ardoise : papier crème et quadrillage en pointillés, dessinés une fois (ne dépend pas du dessin). */
+@Composable
+private fun FeuilleQuadrillee() {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFFFFFDF6), Color(0xFFFFF8EA))), RoundedCornerShape(12.dp))
+            .drawWithCache {
+                val (l, h, o) = feuille(size)
+                val pointilles = Color(0xFF6E28BE).copy(alpha = 0.07f)
+                val pas = l / 40f
+                onDrawBehind {
+                    var y = o.y + pas / 2
+                    while (y < o.y + h) {
+                        var x = o.x + pas / 2
+                        while (x < o.x + l) {
+                            drawCircle(pointilles, 1.2f, Offset(x, y))
+                            x += pas
+                        }
+                        y += pas
+                    }
+                }
+            },
+    )
+}
+
+/** La feuille garde exactement le format de l'ardoise, centrée dans le cadre : largeur, hauteur et coin haut gauche. */
+private fun feuille(cadre: Size): Triple<Float, Float, Offset> {
+    val l = minOf(cadre.width, cadre.height * RATIO_DESSIN)
+    val h = l / RATIO_DESSIN
+    return Triple(l, h, Offset((cadre.width - l) / 2, (cadre.height - h) / 2))
+}
+
+/**
+ * L'encre du tableau : une image à la taille de la feuille. Les traits arrivent toujours à la suite (la tablette envoie
+ * de petits morceaux) : seuls les nouveaux sont tracés dans l'image. Une autre liste (tour suivant, « Tout effacer »,
+ * nouvelle taille, plus anciens morceaux oubliés) repart d'une image vide.
+ */
+private class EncreDessin {
+    private var image: ImageBitmap? = null
+    private var toile: Canvas? = null
+    private var premier: TraitDessin? = null
+    private var dernier: TraitDessin? = null
+    private var faits = 0
+    private val pinceau = Paint().apply {
+        style = PaintingStyle.Stroke
+        strokeCap = StrokeCap.Round
+        strokeJoin = StrokeJoin.Round
+        isAntiAlias = true
+    }
+
+    fun dessiner(scope: DrawScope, traits: List<TraitDessin>) = with(scope) {
+        val (l, h, o) = feuille(size)
+        val w = l.toInt()
+        val hh = h.toInt()
+        if (w <= 0 || hh <= 0) return@with
+        val suite = image?.let { it.width == w && it.height == hh } == true && traits.size >= faits &&
+            (faits == 0 || (traits[0] === premier && traits[faits - 1] === dernier))
+        if (!suite) {
+            if (image?.let { it.width == w && it.height == hh } != true) {
+                image = ImageBitmap(w, hh)
+                toile = Canvas(image!!)
+            } else {
+                toile!!.drawRect(0f, 0f, l, h, Paint().apply { blendMode = BlendMode.Clear })
+            }
+            faits = 0
+        }
+        val t = toile!!
+        for (i in faits until traits.size) {
+            val trait = traits[i]
+            pinceau.color = COULEURS_DESSIN.getOrNull(trait.couleur) ?: PAPIER_DESSIN
+            pinceau.strokeWidth = EPAISSEURS_DESSIN[trait.epaisseur] * l
+            t.drawPath(cheminDe(trait, l, h), pinceau)
+        }
+        faits = traits.size
+        premier = traits.firstOrNull()
+        dernier = traits.lastOrNull()
+        image?.let { drawImage(it, topLeft = Offset(o.x, o.y)) }
     }
 }
 

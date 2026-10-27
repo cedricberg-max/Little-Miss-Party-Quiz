@@ -35,9 +35,38 @@ export const GONFLEUR_RULE = "chaque équipe tapote sa tablette le plus vite pos
 export const GONFLEUR_SEC = 45;
 /**
  * « Ça va exploser ! » : une bombe passe d'équipe en équipe depuis les tablettes, sa mèche (tirée au sort par la TV)
- * reste secrète. Rien à préparer.
+ * reste secrète. Seul réglage : le nombre de bombes (cedric, 26/10, test Mi Box), de 1 à 6, 3 d'office.
  */
-export const PATATE_RULE = "la bombe peut exploser à tout moment ! Chaque équipe s'en débarrasse en l'envoyant à une autre depuis sa tablette, en 3 secondes au plus, sinon elle lui explose dans les mains ; à chaque explosion, l'équipe qui la tient perd 100 points et toutes les autres en gagnent 100. Trois bombes par partie";
+export const PATATE_BOMBES = [1, 2, 3, 4, 5, 6];
+export const PATATE_BOMBES_DEFAUT = 3;
+/** Le nombre de bombes d'une manche « Ça va exploser ! », ramené dans ses limites (3 d'office). */
+export const bombesDe = (round) => (Number.isInteger(round?.bombs) ? Math.min(6, Math.max(1, round.bombs)) : PATATE_BOMBES_DEFAUT);
+/**
+ * « 🤠 Le Duel des robots » (cedric, 27/10 ; contrat : /mnt/project-files/regie-pc/duel-contrat-27-octobre.md) : des
+ * face-à-face entre joueurs d'équipes différentes. Réglages de la prestation : le nombre approximatif de joueurs par
+ * équipe (la box en tire le nombre de duels pour que tout le monde joue), la durée du face-à-face, au moins [dureeMin]
+ * et au plus [dureeMax] secondes, et [longs] : de temps en temps un long duel, jusqu'à 60 s.
+ */
+export const DUEL_JOUEURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+export const DUEL_JOUEURS_DEFAUT = 4;
+export const DUEL_DUREES = [10, 15, 20, 30, 40, 50, 60];
+export const DUEL_DUREE_MIN = 20;
+export const DUEL_DUREE_MAX = 40;
+const dansLaListe = (v, liste, defaut) => (liste.includes(v) ? v : defaut);
+/** Réglages d'une manche du Duel des robots, ramenés dans leurs limites (min ≤ max ; les longs duels d'office). */
+export function reglagesDuel(round) {
+  const joueurs = dansLaListe(round?.joueurs, DUEL_JOUEURS, DUEL_JOUEURS_DEFAUT);
+  const a = dansLaListe(round?.dureeMin, DUEL_DUREES, DUEL_DUREE_MIN);
+  const b = dansLaListe(round?.dureeMax, DUEL_DUREES, DUEL_DUREE_MAX);
+  return { joueurs, dureeMin: Math.min(a, b), dureeMax: Math.max(a, b), longs: round?.longs !== false };
+}
+/** Duels prévus : assez pour que chaque joueur passe une fois (arrondi supérieur de équipes × joueurs / 2). */
+export const duelsPrevus = (equipes, joueurs) => Math.ceil((equipes * joueurs) / 2);
+const EN_LETTRES = ["Une", "Deux", "Trois", "Quatre", "Cinq", "Six"];
+/** « Trois bombes par partie », « Une bombe par partie »… */
+export const bombesParPartie = (n = PATATE_BOMBES_DEFAUT) => `${EN_LETTRES[n - 1] ?? n} bombe${n > 1 ? "s" : ""} par partie`;
+export const regleDePatate = (n = PATATE_BOMBES_DEFAUT) => `la bombe peut exploser à tout moment ! Chaque équipe s'en débarrasse en l'envoyant à une autre depuis sa tablette, dès qu'elle la reçoit : au bout de 2 secondes, elle lui explose dans les mains ; à chaque explosion, l'équipe qui la tient perd 100 points et toutes les autres en gagnent 100. ${bombesParPartie(n)}`;
+export const PATATE_RULE = regleDePatate();
 /** Type de manche joué : les anciennes Portes mystères deviennent les Coffres mystères. */
 export const roundType = (type) => (type === "portes" ? "coffres" : type);
 
@@ -45,7 +74,7 @@ export const roundType = (type) => (type === "portes" ? "coffres" : type);
 // Super Finale : au Quiz, au Quiz illustré et au Vrai ou Faux express (cedric, 23/10 : « à l'image du quiz »).
 export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre" || type === "express";
 
-export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !" };
+export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -147,6 +176,8 @@ export const FLOU_SEC = 40;
  * joueurs, une minute était bien trop court).
  */
 export const MIME_TURN = 120;
+/** Tour de mimes le plus long réglable dans la Régie PC (cedric, 26/10 : « régler précisément le temps du chrono »). */
+export const MIME_TURN_MAX = 300;
 export const MAX_QUESTIONS = 200;
 
 /**
@@ -318,7 +349,8 @@ export const CONTENT_GAMES = {
           word: o.word.trim().slice(0, 40), ...(emoji(o) ? { image: o.image.trim().slice(0, 16) } : {}), ...(photo(o) ? { imageId: o.imageId } : {}),
           ...(libre(o) ? { banque: o.banque } : {}),
         })).slice(0, 12);
-      if (typeof x?.theme !== "string" || !x.theme.trim() || objects.length < 5) return null;
+      // 4 au moins : un tour de 4 cartes (cedric, 27/10).
+      if (typeof x?.theme !== "string" || !x.theme.trim() || objects.length < 4) return null;
       return { theme: x.theme.trim().slice(0, 60), objects };
     },
   },
@@ -377,13 +409,41 @@ export const isPhotoTheme = (t) => (t?.objects ?? []).some((o) => o?.banque);
 /** Catégorie d'une famille de Qui a disparu ? dans les listes : photos de la banque, photos à soi, ou émojis. */
 export const disparuGroup = (t) => (isPhotoTheme(t) ? "Photos de la banque" : (t?.objects ?? []).some((o) => o?.imageId) ? "Mes photos" : "Émojis");
 
-/** Qui a disparu ? : objets par grille selon l'âge, et temps de recherche après la mémorisation. */
-const DISPARU_OBJECTS = { PETITS: 5, MOYENS: 7, GRANDS: 9, ADULTES: 9 };
+/**
+ * Qui a disparu ? : cartes par tour (cedric, 27/10 : un nombre pair, sur deux rangées égales de la TV), d'office selon
+ * l'âge ; et temps de recherche après la mémorisation.
+ */
+export const DISPARU_CARTES = [4, 6, 8];
+const DISPARU_OBJECTS = { PETITS: 4, MOYENS: 6, GRANDS: 8, ADULTES: 8 };
 const DISPARU_SEARCH_SEC = 25;
 
-/** Objets par grille d'une manche Qui a disparu ? : le réglage de la manche (4 à 12), sinon celui de l'âge. */
+/** Cartes par tour d'une manche Qui a disparu ? : le réglage de la manche (4 à 12 avant le 27/10), sinon celui de l'âge. */
 export const disparuObjects = (round, profile) =>
-  Number.isInteger(round?.objects) && round.objects >= 4 && round.objects <= 12 ? round.objects : DISPARU_OBJECTS[profile] ?? 7;
+  Number.isInteger(round?.objects) && round.objects >= 4 && round.objects <= 12 ? round.objects : DISPARU_OBJECTS[profile] ?? 6;
+
+/**
+ * Difficulté d'une famille de Qui a disparu ? (cedric, 27/10 : « plus simple pour les tout-petits ») : 1, des objets
+ * de tous les jours bien différents (et les photos libres) ; 2, la moyenne ; 3, des objets qui se ressemblent.
+ */
+const NIVEAU_DES_FAMILLES = {
+  1: ["Fruits", "Animaux de la ferme", "Animaux sauvages", "Transports", "La fête", "À table", "La mer", "Jeux et jouets", "Le goûter", "Noël", "Les vêtements"],
+  3: ["Les émotions", "Les têtes rigolotes", "Les outils", "Le jardin"],
+};
+export const niveauDeFamille = (t) => (isPhotoTheme(t) ? 1 : NIVEAU_DES_FAMILLES[1].includes(t?.theme) ? 1 : NIVEAU_DES_FAMILLES[3].includes(t?.theme) ? 3 : 2);
+/** Les niveaux de familles qui vont d'abord à un âge : les petits le 1, les moyens le 2, les grands le 3 puis le 2. */
+const NIVEAUX_DE_L_AGE = { PETITS: [1], MOYENS: [2], GRANDS: [3, 2], ADULTES: [3, 2] };
+/**
+ * Familles de Qui a disparu ? rangées pour un âge : celles de son niveau d'abord (au hasard entre elles), puis les plus
+ * proches ; Neutre : toutes au hasard.
+ */
+export function famillesPourLAge(familles, profil, random = Math.random) {
+  const voulus = NIVEAUX_DE_L_AGE[profil];
+  if (!voulus) return shuffle(familles, random);
+  const ecart = (t) => Math.min(...voulus.map((n) => Math.abs(n - niveauDeFamille(t))));
+  const groupes = new Map();
+  for (const t of familles) groupes.set(ecart(t), [...(groupes.get(ecart(t)) ?? []), t]);
+  return [...groupes.keys()].sort((a, b) => a - b).flatMap((k) => shuffle(groupes.get(k), random));
+}
 
 /**
  * Une grille de Qui a disparu ? : [n] objets de la famille et celui qui disparaîtra. La durée suit le
@@ -474,7 +534,7 @@ export const pictoRoundSeries = (round) => {
   return list.length ? list : null;
 };
 
-export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" ? true
+export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" || round.type === "duel" ? true
   : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length || mimeEquipes(round).some((l) => l.length)
   : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length || chansonsDe(round).length
   : (round.type === "zoom" || round.type === "flou") && roundPicks(round).length ? true
@@ -484,7 +544,7 @@ export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || 
 const RIEN_DE_CHOISI = {
   quiz: "aucune question choisie", illustre: "aucune question choisie", express: "aucune affirmation choisie",
   zoom: "aucune photo choisie", flou: "aucune photo choisie", blind: "aucune chanson choisie", musical: "aucune chanson choisie",
-  mimes: "aucune image tirée", chante: "aucun mot choisi", quisuis: "aucun personnage choisi", disparu: "aucune grille choisie",
+  mimes: "aucune image tirée", chante: "aucun mot choisi", quisuis: "aucun personnage choisi", disparu: "aucun tour choisi",
   pictionary: "aucun mot choisi",
 };
 
@@ -804,7 +864,7 @@ export const mimeCards = (list) => listOf(list).filter((c) => typeof c?.word ===
  * tirées pour chaque équipe, dans l'ordre des couleurs de la prestation (`equipes` : une liste par équipe, la 1re pour
  * la 1re couleur…). Une image retirée ({ vide: true }, en attente de son 🎲) n'est pas jouée.
  */
-export const MIME_EQUIPES_MAX = 30;
+export const MIME_EQUIPES_MAX = 60;
 /**
  * Les présélections telles qu'enregistrées, une liste par équipe (au plus 8), cases vides comprises ({ vide: true }).
  * Lues par leur rang : la base garde une équipe sans images comme un trou (`{ 0: […], 2: […] }`), jamais décalée.
@@ -827,6 +887,31 @@ export function mimeAges(round) {
 }
 /** Sources du 🎲 des Mimes, choisies par Sarah (« Mes images » : exception à la règle du hasard accordée par cedric). */
 export const MIME_SOURCES = { photos: "📷 Photos libres", emojis: "😀 Émojis", miennes: "🖼️ Mes images" };
+/**
+ * Images de secours d'une manche de mimes (cedric, 26/10) : jusqu'à [MIME_RESERVE] cartes faciles à mimer par équipe,
+ * mises après celles de Sarah. D'abord des personnages et des métiers, puis des animaux et des actions, puis des sports
+ * et des objets ; en émoji, ou en photo libre quand la banque a celle du mot. Distribuées une à une à tour de rôle,
+ * pour que chaque équipe en ait autant ; jamais une image déjà dans la fête ([pris], complété au fur et à mesure).
+ */
+export const MIME_RESERVE = 30;
+export function reserveMimes(equipes, pris, random = Math.random) {
+  const paliers = [["Métiers", "Imaginaire"], ["Animaux", "Actions"], ["Sports", "Objets"]];
+  const out = Array.from({ length: equipes }, () => []);
+  let k = 0;
+  for (const themes of paliers) {
+    for (const c of shuffle(MIME_CATALOG.filter((x) => themes.includes(x.theme)), random)) {
+      if (k >= equipes * MIME_RESERVE) return out;
+      const carte = mimeCards([avecPhoto({ word: c.word, image: c.image })])[0];
+      const cles = concepts(carte);
+      if (!carte || cles.some((x) => pris.has(x))) continue;
+      cles.forEach((x) => pris.add(x));
+      out[k % equipes].push(carte);
+      k += 1;
+    }
+  }
+  return out;
+}
+
 /** Titre de la manche de mimes d'une équipe (« Équipe Rose ») : la régie y retrouve la couleur de l'équipe qui joue. */
 export const titreMimeEquipe = (couleur) => `Équipe ${TEAM_COLOR_NAMES[TEAM_COLORS.indexOf(couleur)] ?? "suivante"}`;
 /** La couleur d'une manche de mimes d'une équipe, d'après son titre ; null pour une manche de mimes ordinaire. */
@@ -1189,6 +1274,7 @@ export function alerteEquipes(round, teams, { mimes = {}, contents = {}, profile
   const besoin = PAR_EQUIPE_MIN * n;
   const pour = `pour ${n} équipe${n > 1 ? "s" : ""}, il en faut au moins ${besoin} (${PAR_EQUIPE_MIN} par équipe)`;
   if (round?.type === "patate" && n < 2) return "« Ça va exploser ! » se joue à 2 équipes au moins : une seule équipe est prévue.";
+  if (round?.type === "duel" && n < 2) return "« Le Duel des robots » se joue à 2 équipes au moins : une seule équipe est prévue.";
   if (round?.type === "pictionary" && pictoEnSeries(round)) {
     // Préparé par équipe (cedric, 24/10) : chaque équipe prévue a ses mots.
     const c = Array.isArray(couleurs) && couleurs.length === n ? couleurs : TEAM_COLORS.slice(0, n);
@@ -1239,15 +1325,21 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // joue la 1re présélection, et ainsi de suite. Chaque équipe ne mime que ses images, pendant un tour.
       const couleurs = couleursEquipes(show);
       const equipes = mimeEquipes(round);
-      const duration = Number.isInteger(round.duration) && round.duration >= 15 && round.duration <= 180 ? round.duration : MIME_TURN;
+      const duration = Number.isInteger(round.duration) && round.duration >= 15 && round.duration <= MIME_TURN_MAX ? round.duration : MIME_TURN;
       const vides = couleurs.filter((c, k) => !equipes[k]?.length);
       if (vides.length) problems.push(`Manche ${i + 1} (Mimes) : ${vides.map((c) => titreMimeEquipe(c).toLowerCase()).join(", ")} sans images (🎲 dans la Régie PC).`);
       const jouees = couleurs.map((c, k) => [c, equipes[k] ?? []]).filter(([, cartes]) => cartes.length);
       if (!jouees.length) return;
       rounds.push({ title: ROUND_TYPES.mimes, count: jouees.length, kind: "mime" });
+      // Images de secours (cedric, 26/10) : si une équipe trouve toutes les siennes avant la fin du chrono, la TV
+      // continue avec des personnages, métiers, animaux et actions faciles à mimer, jamais déjà vus dans la fête.
+      jouees.forEach(([, cartes]) => cartes.forEach((x) => concepts(x).forEach((k) => pris.add(k))));
+      const reserves = reserveMimes(jouees.length, pris, random);
       jouees.forEach(([c, cartes], k) => questions.push({
         // Dans l'ordre de la Régie PC (🔀 l'y mélange, cedric 24/10) : la TV montre les images dans cet ordre.
-        id: `r${i + 1}m${k + 1}`, text: titreMimeEquipe(c), kind: "mime", duration, cards: cartes, round: ROUND_TYPES.mimes,
+        id: `r${i + 1}m${k + 1}`, text: titreMimeEquipe(c), kind: "mime", duration, round: ROUND_TYPES.mimes,
+        // Mimes en file : la couleur de l'équipe seule de la manche (la box lance son tour d'un seul geste).
+        couleur: c, cards: [...cartes, ...reserves[k]],
       }));
       return;
     }
@@ -1265,12 +1357,19 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       return;
     }
     if (round.type === "statues") {
-      // Un seul élément : la musique joue et s'arrête par moments, l'animatrice désigne l'équipe gagnante.
+      // Un seul élément : une chanson par tour, Sarah coupe la musique (STATUE !) et désigne les gagnantes de chaque chanson.
+      // `duration` ne sert plus qu'aux box d'avant le 27/10.
       const duration = STATUES_SECONDS.includes(round.duration) ? round.duration : STATUES_SEC;
-      // Chansons choisies dans la prestation, jouées l'une après l'autre ; aucune : la musique maison de la TV.
+      // Chansons choisies dans la prestation, jouées entières l'une après l'autre (`songs`, copiées dans la partie par la
+      // régie) ; leur extrait reste dans `audioIds`, joué si la chanson entière manque. Aucune : la musique maison de la TV.
       const sons = sonsDesStatues(round, playlists, songs);
+      const entieres = chansonsStatues(round).filter((id) => chansonJouable(songs?.[id]))
+        .map((id) => ({ songId: id, audioId: sonDesStatues(songs[id]), ...(songs[id].title ? { title: String(songs[id].title).slice(0, 120) } : {}) }));
       rounds.push({ title: ROUND_TYPES.statues, count: 1 });
-      questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues, ...(sons.length ? { audioIds: sons } : {}) });
+      questions.push({
+        id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues,
+        ...(sons.length ? { audioIds: sons } : {}), ...(entieres.length ? { songs: entieres } : {}),
+      });
       return;
     }
     if (round.type === "coffres" || round.type === "portes") {
@@ -1283,13 +1382,23 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     if (round.type === "patate") {
       // Un seul élément : la TV tire la mèche au sort et la bombe part d'une équipe au hasard.
       rounds.push({ title: ROUND_TYPES.patate, count: 1 });
-      questions.push({ id: `r${i + 1}p`, text: ROUND_TYPES.patate, kind: "patate", choices: [], correct: -1, duration: 40, double: false, round: ROUND_TYPES.patate });
+      // Le nombre de bombes réglé dans la Régie PC (cedric, 26/10) ; sans réglage, la TV en met 3.
+      questions.push({ id: `r${i + 1}p`, text: ROUND_TYPES.patate, kind: "patate", choices: [], correct: -1, duration: 40, double: false, round: ROUND_TYPES.patate,
+        ...(Number.isInteger(round.bombs) ? { bombs: bombesDe(round) } : {}) });
       return;
     }
     if (round.type === "gonfleur") {
       // Un seul élément : la course de ballons, le chrono de secours en durée.
       rounds.push({ title: ROUND_TYPES.gonfleur, count: 1 });
       questions.push({ id: `r${i + 1}g`, text: ROUND_TYPES.gonfleur, kind: "gonfleur", choices: [], correct: -1, duration: GONFLEUR_SEC, double: false, round: ROUND_TYPES.gonfleur });
+      return;
+    }
+    if (round.type === "duel") {
+      // Un seul élément : la box enchaîne les duels (contrat du 27/10, section 2).
+      const d = reglagesDuel(round);
+      rounds.push({ title: ROUND_TYPES.duel, count: 1 });
+      questions.push({ id: `r${i + 1}d`, text: ROUND_TYPES.duel, kind: "duel", choices: [], correct: -1, duration: d.dureeMax, double: false, round: ROUND_TYPES.duel,
+        joueurs: d.joueurs, faceMin: d.dureeMin, faceMax: d.dureeMax, longs: d.longs });
       return;
     }
     if (round.type === "pictionary" && pictoEnSeries(round)) {
@@ -1583,7 +1692,9 @@ export const DUREE_ESTIMEE = {
   // Mimes : passages par équipe (sauf nombre réglé dans la manche), et le changement d'équipe après chacun.
   mimesParEquipe: 2, apresMime: 15,
   // Pictionary : un dessin par équipe ; statues : la durée choisie ; coffres : un tour par équipe.
-  apresDessin: 30, apresStatues: 30, coffreParEquipe: 60, coffres: 60, gonfleur: 90, patate: 120,
+  apresDessin: 30, apresStatues: 30, coffreParEquipe: 60, coffres: 60, gonfleur: 90, bombe: 50,
+  // Duel des robots : par duel, le face-à-face (entre le minimum et le maximum), puis le résultat.
+  apresDuel: 20,
   presentation: 60, accueil: 180, podium: 120, pauses: 0.1,
 };
 
@@ -1596,7 +1707,9 @@ function secondesDeJeu(q, equipes, parEquipe = 0) {
   if (q.kind === "statues") return q.duration + D.apresStatues;
   if (q.kind === "coffres" || q.kind === "portes") return equipes * D.coffreParEquipe + D.coffres;
   if (q.kind === "gonfleur") return D.gonfleur;
-  if (q.kind === "patate") return D.patate;
+  if (q.kind === "duel") return duelsPrevus(equipes, q.joueurs ?? DUEL_JOUEURS_DEFAUT) * (((q.faceMin ?? DUEL_DUREE_MIN) + (q.faceMax ?? DUEL_DUREE_MAX)) / 2 + D.apresDuel);
+  // Environ 50 s par bombe (mèche, passes, explosion, scores).
+  if (q.kind === "patate") return D.bombe * bombesDe(q);
   if (q.kind === "express") return q.duration + D.apresExpress;
   return q.duration + (q.audioId ? D.apresTitre : D.apresQuestion);
 }

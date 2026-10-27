@@ -67,6 +67,7 @@
     <section id="screen-play" class="screen">
       <div class="team-banner"><span class="dot"></span><span class="team-label"></span></div>
       <div id="play-intro" class="intro-jeu" hidden><span class="intro-jeu-label">Prochain jeu</span><span id="play-intro-title" class="intro-jeu-titre"></span></div>
+      <h2 id="duel-titre" class="duel-titre" hidden></h2>
       <button id="buzz" class="buzz">BUZZ</button>
       <p id="play-status" class="hint">Regardez la TV !</p>
     </section>
@@ -195,6 +196,7 @@
           <button id="c-add" class="btn secondary rescue-open" aria-label="Ajouter un jeu" hidden>＋ Jeu</button>
           <button id="c-replay" class="btn secondary rescue-open" hidden>🔁 Rejouer</button>
           <button id="c-points" class="btn secondary rescue-open">± Points</button>
+          <button id="c-equipe" class="btn secondary rescue-open">＋ Ajouter une équipe</button>
           <button id="c-rescue" class="btn secondary rescue-open" hidden>⏭ Changer de jeu</button>
           <button id="c-box" class="btn secondary rescue-open">📺 Changer de box</button>
         </div>
@@ -215,6 +217,7 @@
         <button id="mime-go" class="btn main">Top départ !</button>
         <button id="mime-found" class="mime-found">TROUVÉ !<small>+1 mime</small></button>
         <div id="mime-row" class="mime-row">
+          <button id="mime-skip" class="btn secondary" hidden>⏭ Passer</button>
           <button id="mime-pass" class="btn secondary">Image suivante</button>
           <button id="mime-minus" class="btn secondary">−1</button>
         </div>
@@ -226,8 +229,26 @@
 
       <section id="statues" class="flou" hidden aria-label="Statues musicales">
         <p id="statues-info" class="mime-info"></p>
+        <!-- Pendant une chanson (cedric, 26/10) : un énorme bouton STATUE ! / On danse !, puis « Choisir le gagnant ». -->
+        <button id="statues-bascule" class="statues-bascule" type="button" hidden></button>
+        <button id="statues-choisir" class="btn statues-choisir" type="button" hidden>🏆 Choisir le gagnant</button>
         <div id="statues-teams" class="statues-teams"></div>
+        <!-- « Valider » est le gros bouton du bas : toujours sous le doigt, même avec 8 équipes. -->
+        <button id="statues-retour" class="btn secondary statues-retour" type="button" hidden>← Retour à la chanson</button>
+        <button id="statues-suivante" class="btn statues-suivante" type="button" hidden>▶ Chanson suivante</button>
         <p id="statues-points" class="hint"></p>
+      </section>
+      <!-- Le Duel des robots (cedric, 27/10) : deux équipes face à face, la première qui buzze après le PAN gagne. -->
+      <section id="duel" class="flou" hidden aria-label="Le Duel des robots">
+        <p id="duel-info" class="mime-info"></p>
+        <div id="duel-face" class="duel-face"></div>
+        <p id="duel-resultat" class="duel-resultat" hidden></p>
+        <div id="duel-choix" class="statues-teams" hidden></div>
+        <button id="duel-stop" class="btn secondary" type="button" hidden>✋ Arrêter le face-à-face</button>
+        <button id="duel-autres" class="btn secondary" type="button" hidden>🎯 Choisir 2 équipes</button>
+        <button id="duel-retour" class="btn secondary statues-retour" type="button" hidden>← Retour</button>
+        <button id="duel-fin" class="btn secondary" type="button" hidden>⏭ Jeu suivant</button>
+        <p id="duel-points" class="hint"></p>
       </section>
       <!-- Les coffres mystères : la régie suit les coffres ; elle ne voit ni ne choisit leur contenu (tiré à l'ouverture). -->
       <section id="coffres" class="flou" hidden aria-label="Les Coffres mystères">
@@ -240,6 +261,8 @@
         <p id="patate-info" class="mime-info"></p>
         <button id="patate-random" class="btn secondary flou-ko">🎲 Envoyer la bombe au hasard</button>
         <p class="hint">Seulement si la tablette de l'équipe qui tient la bombe ne répond plus.</p>
+        <!-- « 🏁 Dernière bombe » pendant une bombe, « ⏭ Jeu suivant » entre deux bombes (cedric, 26/10). -->
+        <button id="patate-stop" class="btn secondary" type="button" hidden></button>
       </section>
       <section id="gonfleur" class="flou" hidden aria-label="Le Gonfleur fou">
         <p id="gonfleur-info" class="mime-info"></p>
@@ -353,15 +376,15 @@
          l'animatrice ; la tablette le scanne, touche son équipe, et l'animatrice la lui confie. -->
     <section id="tablette" class="lib" hidden aria-label="Reconnecter une tablette">
       <header class="lib-top">
-        <b>Reconnecter une tablette</b>
+        <b id="tablette-titre">Reconnecter une tablette</b>
         <button id="tablette-close" class="btn secondary">Fermer</button>
       </header>
       <div class="lib-body">
         <div id="tablette-qr" class="tablette-qr" role="img" aria-label="QR code pour reprendre une équipe"></div>
-        <p class="tablette-consigne">Scannez ce QR code avec la tablette, puis touchez le nom de l'équipe. Elle garde son nom, sa couleur et ses points.</p>
+        <p id="tablette-consigne" class="tablette-consigne">Scannez ce QR code avec la tablette, puis touchez le nom de l'équipe. Elle garde son nom, sa couleur et ses points.</p>
         <p id="tablette-attente" class="hint">En attente de la tablette…</p>
         <div id="tablette-demandes" class="tablette-demandes"></div>
-        <p class="hint">Tablette bloquée ? Fermez complètement son navigateur et rouvrez-le : elle revient seule dans son équipe.</p>
+        <p id="tablette-bloquee" class="hint">Tablette bloquée ? Fermez complètement son navigateur et rouvrez-le : elle revient seule dans son équipe.</p>
       </div>
     </section>
     <!-- « 📺 Changer de box » (cedric, 21/10) : la box de la fête est en panne ; la fête continue sur une box de secours,

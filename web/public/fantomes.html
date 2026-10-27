@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="dark">
+  <title>🧪 Équipes fantômes (test)</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #14101f; color: #f2eefb; font: 16px/1.4 system-ui, sans-serif; }
+    .bandeau { background: repeating-linear-gradient(45deg, #ffb000 0 18px, #1b1035 18px 36px); padding: 6px; }
+    .bandeau div { background: #ffb000; color: #1b1035; font-weight: 800; text-align: center; padding: 8px; font-size: 18px; }
+    main { max-width: 760px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 24px; margin: 8px 0; }
+    .aide { color: #b9b0cc; margin: 0 0 16px; }
+    form { display: grid; gap: 12px; background: #221a35; padding: 16px; border-radius: 12px; }
+    label { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    input[type=text], input[type=password], select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid #554a70; background: #14101f; color: inherit; }
+    #code { text-transform: uppercase; letter-spacing: 3px; width: 8em; font-weight: 700; }
+    .boutons { display: flex; gap: 10px; flex-wrap: wrap; }
+    button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 0; background: #3a2f55; color: inherit; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: default; }
+    #lancer { background: #12c957; color: #10261a; font-weight: 800; padding: 12px 20px; }
+    #arreter { background: #e63946; font-weight: 700; padding: 12px 20px; }
+    #alerte { background: #e63946; padding: 10px; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    td { padding: 8px 6px; border-bottom: 1px solid #2f2645; }
+    .pastille { display: inline-block; width: 18px; height: 18px; border-radius: 50%; vertical-align: middle; }
+    #journal { list-style: none; padding: 0; margin: 0; font-size: 14px; color: #c9c0dc; max-height: 40vh; overflow: auto; }
+    #journal li { padding: 2px 0; }
+  </style>
+</head>
+<body>
+  <div class="bandeau"><div>🧪 OUTIL DE TEST · ÉQUIPES FANTÔMES · jamais pendant une vraie fête</div></div>
+  <main>
+    <h1>Équipes fantômes</h1>
+    <p class="aide">Des tablettes simulées par cet ordinateur entrent dans la partie et jouent toutes seules : elles répondent (souvent faux), buzzent, se passent la bombe, gonflent leur ballon, ouvrent les coffres et dessinent au Pictionary. La TV et le téléphone les voient comme de vraies équipes.</p>
+    <form onsubmit="return false">
+      <label>Code de la partie <input id="code" type="text" maxlength="8" autocomplete="off" placeholder="ABCDE"> <small>(menu Retour de la TV, en haut)</small></label>
+      <label>Nombre de fantômes
+        <select id="nombre">
+          <option value="1">1</option><option value="2">2</option><option value="3" selected>3 (4 équipes avec ta tablette)</option>
+          <option value="4">4 (5 équipes avec ta tablette)</option><option value="5">5</option><option value="6">6</option><option value="7">7 (8 équipes)</option>
+        </select>
+      </label>
+      <label><input id="auto" type="checkbox"> Les faire entrer tout seuls (sinon Sarah les accepte sur son téléphone)</label>
+      <label id="mdp-ligne" hidden>Mot de passe régie <input id="mdp" type="password" autocomplete="off"></label>
+      <label>Vitesse
+        <select id="vitesse"><option value="lente">Lente</option><option value="normale" selected>Normale</option><option value="rapide">Rapide</option></select>
+      </label>
+      <label><input id="buzz" type="checkbox" checked> Les fantômes buzzent aux jeux de buzzer</label>
+      <div class="boutons">
+        <button id="lancer" type="button">▶ Lancer les fantômes</button>
+        <button id="arreter" type="button" disabled>■ Arrêter les fantômes</button>
+      </div>
+      <div id="alerte" hidden></div>
+    </form>
+    <table><tbody id="fantomes"></tbody></table>
+    <h2>Ce qu'ils font</h2>
+    <ul id="journal"></ul>
+  </main>
+  <script type="module" src="fantomes.js"></script>
+</body>
+</html>

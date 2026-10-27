@@ -65,7 +65,7 @@ fun PortesScreen(state: UiState.Playing, actions: TvActions) {
             when (state.phase) {
                 Phase.QUESTION -> NextButton("Fermer les choix", actions.next, key = "portes-choix")
                 Phase.CLOSED -> NextButton("Aux portes !", actions.next, key = "portes-fermees")
-                else -> NextButton(if (p.allOpen) "Classement final" else "Ouvrir la porte suivante", actions.next, key = "porte-${p.opened}")
+                else -> NextButton(if (p.allOpen) versClassement(state, "Classement final") else "Ouvrir la porte suivante", actions.next, key = "porte-${p.opened}")
             }
         }
     }

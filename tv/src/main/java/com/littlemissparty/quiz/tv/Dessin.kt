@@ -23,6 +23,22 @@ data class Dessin(val cle: String? = null, val traits: List<Trait> = emptyList()
 
     companion object {
         const val MAX_TRAITS = 4_000
+        private const val CHIFFRES_CLE = "-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz"
+
+        /**
+         * Heure d'envoi d'un paquet, lue dans sa clé : les 8 premiers caractères d'une clé de push Firebase sont l'heure
+         * du serveur (estimée par la tablette) en millisecondes. Null si la clé n'en est pas une.
+         */
+        fun heureDeCle(cle: String?): Long? {
+            if (cle == null || cle.length < 8) return null
+            var t = 0L
+            for (c in cle.substring(0, 8)) {
+                val v = CHIFFRES_CLE.indexOf(c)
+                if (v < 0) return null
+                t = t * 64 + v
+            }
+            return t
+        }
         private val POINT = Regex("^(\\d{1,4}),(\\d{1,4})$")
         private val COULEUR = Regex("^#([0-9A-Fa-f]{6})$")
 

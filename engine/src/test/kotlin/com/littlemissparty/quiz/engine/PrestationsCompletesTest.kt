@@ -19,7 +19,8 @@ import kotlin.test.assertTrue
  *   même partie : c'est ce que fait la box au redémarrage ;
  * - le secours de la régie peut aller à chaque jeu de la prestation (jeu suivant, autre jeu, jeu rejoué), avec
  *   des points cohérents, même en pause ou après la fin ;
- * - le bouton « Suivant » de la régie (après « Reprendre » en pause) mène toujours jusqu'aux résultats.
+ * - le bouton « Suivant » de la régie (après « Reprendre » en pause ; « Personne » pendant une chanson des statues)
+ *   mène toujours jusqu'aux résultats.
  * Aucune étape ne peut donc laisser la partie bloquée.
  *
  * Le blind test (kind « blind ») n'est pas couvert ici : il est en cours de réécriture.
@@ -238,8 +239,11 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
             }
             // Blind test : « Suivant » lance ou arrête la musique ; l'animatrice juge, puis révèle sans points.
             val blindEnCours = copie.question?.isBlind == true && copie.state.phase == Phase.QUESTION
+            // Statues : pendant une chanson, l'animatrice désigne « Personne », puis « Jeu suivant » depuis le récap.
+            val chansonEnCours = copie.state.phase == Phase.QUESTION && copie.state.statues?.let { it.result == null } == true
             val c = when {
                 copie.state.intro -> Command.Next("n$appuis", copie.state.lastSeq)
+                chansonEnCours -> Command.StatuesWin("s$appuis", copie.state.lastSeq, emptyList())
                 blindEnCours && copie.state.buzz?.team != null -> Command.Judge("j$appuis", copie.state.lastSeq, false)
                 blindEnCours -> Command.BlindReveal("v$appuis", copie.state.lastSeq)
                 else -> Command.Next("n$appuis", copie.state.lastSeq)
@@ -302,7 +306,9 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
     fun pass() = ok { i, s -> Command.MimePass(i, s) }
     fun mimeStop() = ok { i, s -> Command.MimeStop(i, s) }
     fun judge(good: Boolean) = ok { i, s -> Command.Judge(i, s, good) }
-    fun statuesWin(team: String) = ok { i, s -> Command.StatuesWin(i, s, team) }
+    fun statuesWin(vararg teams: String) = ok { i, s -> Command.StatuesWin(i, s, teams.toList()) }
+    fun statuesStop() = ok { i, s -> Command.StatuesStop(i, s) }
+    fun statuesPlay() = ok { i, s -> Command.StatuesPlay(i, s) }
     fun blindPlay() = ok { i, s -> Command.BlindPlay(i, s) }
 
     // ---------- Pupitres (soumis aux règles Firebase) ----------
@@ -427,10 +433,13 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
                 buzz(BLEU)
                 judge(true)
             }
+            // Statues : une seule chanson ; Sarah fait une statue, relance la musique, puis désigne Vert.
             q.isStatues -> {
+                assertNull(game.deadline(), "statues : pas de chrono")
                 etape("question ouverte")
-                timeUp()
-                etape("fermée")
+                statuesStop()
+                etape("statue")
+                statuesPlay()
                 statuesWin(VERT)
             }
             q.isNumber -> {
@@ -455,7 +464,8 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
                 next()
             }
         }
-        if (!q.isMime) assertEquals(Phase.REVEAL, state.phase, "${q.id} révélée")
+        if (q.isStatues) assertNotNull(state.statues?.result, "${q.id} : gagnantes de la chanson désignées")
+        else if (!q.isMime) assertEquals(Phase.REVEAL, state.phase, "${q.id} révélée")
         assertEquals(plus(avant, gainAttendu(q)), scores(), "points de ${q.id}")
     }
 
@@ -463,8 +473,20 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
     fun termine() {
         val q = game.question!!
         val avant = scores()
+        val dernier = game.isLastQuestion
         when {
             q.isMime -> next()
+            // Statues : du récap de la chanson, « Jeu suivant » (ou les résultats finaux), sans classement.
+            q.isStatues -> {
+                etape("récap")
+                next()
+            }
+            // Toute dernière affirmation : la box attend l'animatrice, qui lance les résultats finaux.
+            q.isExpress && dernier -> {
+                etape("révélation")
+                assertNull(game.expressDelayMs(), "pas d'étape automatique après la dernière affirmation")
+                next()
+            }
             q.isExpress -> {
                 etape("révélation")
                 expressAuto()
@@ -474,7 +496,8 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
                 next()
             }
         }
-        if (state.phase != Phase.QUESTION) assertEquals(Phase.SCORES, state.phase)
+        // Après le tout dernier jeu, plus de classement : les résultats finaux (cedric, 27/10).
+        if (state.phase != Phase.QUESTION) assertEquals(if (dernier) Phase.ENDED else Phase.SCORES, state.phase)
         assertNull(state.mime, "manche de mimes terminée")
         assertEquals(avant, scores(), "le classement ne change aucun score")
     }
@@ -519,7 +542,8 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
         val intro = q.double && !q.isBlind && !q.isBuzz && game.doubleRunStart(index) == index
         assertEquals(if (intro) now + MULTIPLIER_INTRO_MS else null, game.multiplierIntroUntil(), "annonce × N avant ${q.id}")
         val depart = game.multiplierIntroUntil() ?: now
-        if (q.isMime || q.isBlind) assertNull(game.deadline()) else assertEquals(depart + q.durationMs, game.deadline(), "chrono de ${q.id}")
+        assertEquals(if (q.isStatues) StatuesRound(since = now) else null, state.statues, "statues de ${q.id} : première chanson à 0:00")
+        if (q.isMime || q.isBlind || q.isStatues) assertNull(game.deadline()) else assertEquals(depart + q.durationMs, game.deadline(), "chrono de ${q.id}")
         if (intro) {
             assertFalse(tryAnswer(teams.first(), 0), "pas de réponse pendant l'annonce")
             attend(depart - now)
@@ -554,6 +578,10 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
             joue()
             termine()
             if (state.phase == Phase.SCORES && state.index == manche.last) return
+            // Dernier jeu de la prestation : les résultats finaux, sans classement (cedric, 27/10).
+            if (state.phase == Phase.ENDED) return
+            // Statues : le récap mène droit au jeu suivant.
+            if (state.index !in manche) return
             if (state.phase == Phase.SCORES) next()
             assertTrue(state.index in manche)
         }
@@ -562,6 +590,7 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
     /** Pause générale à l'étape actuelle : tout est figé, rien n'avance, puis la reprise retrouve tout. */
     fun pauseVerifiee(ou: String) {
         val avant = state
+        val pauseAt = now
         val reste = game.remainingMs(now)
         val minuterie = game.deadline()?.let { Minuterie(it) }
         val auto = game.expressDelayMs()?.let { EtapeExpress(state.lastSeq, it) }
@@ -573,7 +602,7 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
         val bloquees = listOf<(String, Int) -> Command>(
             { i, s -> Command.Next(i, s) }, { i, s -> Command.Close(i, s) }, { i, s -> Command.MimeStart(i, s, VERT) },
             { i, s -> Command.MimeFound(i, s) }, { i, s -> Command.MimePass(i, s) }, { i, s -> Command.MimeStop(i, s) },
-            { i, s -> Command.Judge(i, s, true) }, { i, s -> Command.StatuesWin(i, s, VERT) },
+            { i, s -> Command.Judge(i, s, true) }, { i, s -> Command.StatuesWin(i, s, listOf(VERT)) },
         )
         bloquees.forEach { make ->
             val r = send(make("p${++ids}", state.lastSeq))
@@ -588,7 +617,10 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
         assertEquals(reste, game.remainingMs(now), "$ou : chrono figé")
         resume()
         assertFalse(state.paused)
-        assertEquals(avant.copy(segments = state.segments, lastSeq = state.lastSeq, resumeAt = state.resumeAt), state, "$ou : la reprise retrouve tout")
+        assertEquals(avant.copy(segments = state.segments, lastSeq = state.lastSeq, resumeAt = state.resumeAt, statues = state.statues), state, "$ou : la reprise retrouve tout")
+        // Statues : la chanson reprend là où elle était, à la fin du décompte (et une statue reste une statue).
+        assertEquals(avant.statues?.positionMs(pauseAt), state.statues?.positionMs(state.resumeAt!!), "$ou : chanson reprise où elle était")
+        assertEquals(avant.statues?.dancing, state.statues?.dancing)
         attend(RESUME_COUNTDOWN_MS)
         assertEquals(reste, game.remainingMs(now), "$ou : le chrono repart après le décompte, là où il s'était arrêté")
         game.deadline()?.let { assertEquals(now + reste, it) }
@@ -653,12 +685,12 @@ class PrestationsCompletesTest {
         assertEquals(scores(220, 270, 50), b.scores())
         b.next(); b.next()
 
-        // Statues musicales : chrono jusqu'au bout, puis Vert désignée gagnante.
+        // Statues musicales : la musique joue sans chrono, puis Vert désignée gagnante ; le récap mène au jeu suivant.
         b.verifieOuverture(4)
-        b.timeUp()
+        b.attend(90_000)
         b.statuesWin(VERT)
         assertEquals(scores(370, 420, 350), b.scores())
-        b.next(); b.next()
+        b.next()
 
         // Super Finale : question doublée, puis Vrai ou Faux express doublé qui s'enchaîne seul.
         b.verifieOuverture(5)
@@ -671,8 +703,8 @@ class PrestationsCompletesTest {
         b.timeUp()
         b.expressAuto()
         assertEquals(Phase.REVEAL, b.state.phase)
-        b.expressAuto()
-        assertEquals(Phase.SCORES, b.state.phase, "dernière affirmation : classement")
+        // Dernière affirmation de la prestation : la box attend l'animatrice, puis les résultats finaux, sans classement.
+        assertNull(b.game.expressDelayMs(), "dernière affirmation : pas d'étape automatique")
         b.next()
         assertEquals(Phase.ENDED, b.state.phase)
         assertEquals(scores(470, 420, 590), b.scores())
@@ -773,7 +805,7 @@ class PrestationsCompletesTest {
         b.joueJusquAuBout()
         assertEquals(scores(rose = 550, bleu = 900, vert = 1000), b.scores(), "les pauses ne changent aucun point")
         assertTrue(
-            vues.containsAll(listOf("mime tour de mimes", "mime entre deux tours", "flou buzz en attente", "disparu mémorisation", "express fermée", "statues fermée", "classic classement")),
+            vues.containsAll(listOf("mime tour de mimes", "mime entre deux tours", "flou buzz en attente", "disparu mémorisation", "express fermée", "statues statue", "statues récap", "classic classement")),
             "étapes vues : $vues",
         )
     }
@@ -830,7 +862,9 @@ class PrestationsCompletesTest {
             assertEquals(avant, b.scores())
             b.joueManche()
             assertEquals(apres, b.scores(), "${saut.qid} rejoué en entier : mêmes points, jamais deux fois")
-            b.next()
+            // Après le dernier jeu, la partie est déjà aux résultats finaux (plus de classement avant) ; après les
+            // statues, le récap a déjà ouvert le jeu suivant.
+            if (b.state.phase == Phase.SCORES) b.next()
         }
         assertEquals(scores(rose = 550, bleu = 900, vert = 1000), b.scores())
     }
@@ -892,7 +926,7 @@ class PrestationsCompletesTest {
         listOf(
             Command.Next("a", perime), Command.Close("b", perime), Command.End("c", perime), Command.MimeStart("d", perime, ROSE),
             Command.MimeFound("e", perime), Command.MimePass("f", perime), Command.MimeStop("g", perime),
-            Command.Goto("h", perime, 6, "m1"), Command.Judge("i", perime, true), Command.StatuesWin("j", perime, VERT),
+            Command.Goto("h", perime, 6, "m1"), Command.Judge("i", perime, true), Command.StatuesWin("j", perime, listOf(VERT)),
         ).forEach { assertEquals(CommandStatus.STALE, b.send(it).status, "$it en retard : rien ne bouge") }
         assertEquals(avant, b.log.size)
         assertEquals("c1", b.state.qid)
@@ -998,13 +1032,12 @@ class PrestationsCompletesTest {
         assertEquals(Phase.SCORES, b.state.phase)
         b.next()
 
-        // Statues : la gagnante désignée avant la fin du chrono ; la minuterie ne referme rien.
-        val musique = b.minuterie()
+        // Statues : pas de chrono, rien ne se referme seul ; la gagnante désignée, le récap mène au jeu suivant.
+        assertNull(b.game.deadline())
         b.attend(60_000)
         b.statuesWin(VERT)
-        assertNull(musique.fire())
         assertEquals(scores(250, 200, 420), b.scores())
-        b.next(); b.next()
+        b.next()
 
         // Qui a disparu ? : la pause arrive juste avant l'ouverture du buzzer, qui attend la reprise.
         b.attend(14_900)

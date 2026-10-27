@@ -72,7 +72,7 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
     val player = (preparation as? Preparation.Faite)?.lecteur ?: return
     DisposableEffect(player) {
         val volume = boosterExtrait(player)
-        onDispose { runCatching { volume?.release() }; runCatching { player.stop() }; runCatching { player.release() } }
+        onDispose { runCatching { volume?.release() }; com.littlemissparty.quiz.tv.habillage.Liberation.lecteur(player, stop = true) }
     }
     val revealed = state.phase == Phase.REVEAL
     // Blind test : la révélation fait réentendre l'extrait quelques secondes, ou s'arrête si l'animatrice raccourcit.
@@ -119,10 +119,7 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
 }
 
 /** Arrête et rend un lecteur de chanson ; sans effet s'il l'est déjà. */
-internal fun rendreLecteur(l: MediaPlayer) {
-    runCatching { l.stop() }
-    runCatching { l.release() }
-}
+internal fun rendreLecteur(l: MediaPlayer) = com.littlemissparty.quiz.tv.habillage.Liberation.lecteur(l, stop = true)
 
 /** Extrait toujours absent de la box ce temps après l'ouverture de sa question : signalé dans les rapports. */
 private const val ABSENT_APRES_MS = 8_000L
@@ -208,7 +205,7 @@ fun RefrainEnBoucle(cle: String, path: String, dureeMs: Long? = null) {
         onDispose {
             lecteurs.forEach { PositionRefrain.lacher(it) }
             volumes.forEach { runCatching { it?.release() } }
-            lecteurs.forEach { runCatching { it.stop() }; runCatching { it.release() } }
+            lecteurs.forEach { com.littlemissparty.quiz.tv.habillage.Liberation.lecteur(it, stop = true) }
         }
     }
     LaunchedEffect(lecteurs) {

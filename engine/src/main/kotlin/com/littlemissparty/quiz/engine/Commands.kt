@@ -27,6 +27,8 @@ sealed interface Command {
     data class MimeStart(override val id: String, override val expectSeq: Int, val team: String) : Command
     data class MimeFound(override val id: String, override val expectSeq: Int) : Command
     data class MimePass(override val id: String, override val expectSeq: Int) : Command
+    /** « ⏭ Passer » : le mimeur abandonne son image, les joueurs tournent. */
+    data class MimeSkip(override val id: String, override val expectSeq: Int) : Command
     data class MimeFix(override val id: String, override val expectSeq: Int, val team: String, val delta: Int) : Command
     data class MimeStop(override val id: String, override val expectSeq: Int) : Command
 
@@ -40,8 +42,32 @@ sealed interface Command {
     /** « Ça va exploser ! » : secours, la bombe part au hasard chez une équipe permise (tablette en panne). */
     data class PotatoRandom(override val id: String, override val expectSeq: Int) : Command
 
-    /** Statues musicales : l'équipe gagnante désignée par l'animatrice. */
-    data class StatuesWin(override val id: String, override val expectSeq: Int, val team: String) : Command
+    /** « Ça va exploser ! » : « 🏁 Dernière bombe » (bombe en cours) ou « ⏭ Jeu suivant » (entre deux bombes). */
+    data class PotatoStop(override val id: String, override val expectSeq: Int) : Command
+
+    /** Statues musicales : les gagnantes de la chanson en cours ([teams] vide : « Personne »). */
+    data class StatuesWin(override val id: String, override val expectSeq: Int, val teams: List<String>) : Command
+
+    /** Statues musicales : « ✋ STATUE ! », la musique se coupe net. */
+    data class StatuesStop(override val id: String, override val expectSeq: Int) : Command
+
+    /** Statues musicales : « 💃 On danse ! », la musique reprend. */
+    data class StatuesPlay(override val id: String, override val expectSeq: Int) : Command
+
+    /** Statues musicales : « ▶ Chanson suivante », après les gagnantes de la chanson. */
+    data class StatuesSong(override val id: String, override val expectSeq: Int) : Command
+
+    /**
+     * Duel des robots : « 🤠 Lancer le duel » prêt ; avec [teams] (2 équipes), un duel à la volée entre elles, lancé
+     * aussitôt (à la place du duel prêt, ou après un duel jugé).
+     */
+    data class DuelStart(override val id: String, override val expectSeq: Int, val teams: List<String>? = null) : Command
+
+    /** Duel des robots : « ▶ Duel suivant », la box prépare le duel suivant de la ronde. */
+    data class DuelNext(override val id: String, override val expectSeq: Int) : Command
+
+    /** Duel des robots : « ✋ Arrêter le duel », le face-à-face s'arrête sans points. */
+    data class DuelStop(override val id: String, override val expectSeq: Int) : Command
 
     /** Blind test : lancer ou relancer la musique du morceau. */
     data class BlindPlay(override val id: String, override val expectSeq: Int) : Command
@@ -88,6 +114,7 @@ sealed interface Command {
                 "mime_start" -> MimeStart(id, seq, m["team"] as String)
                 "mime_found" -> MimeFound(id, seq)
                 "mime_pass" -> MimePass(id, seq)
+                "mime_skip" -> MimeSkip(id, seq)
                 "mime_fix" -> MimeFix(id, seq, m["team"] as String, (m["delta"] as Number).toInt())
                 "mime_stop" -> MimeStop(id, seq)
                 "picto_show" -> PictoShow(id, seq, m["team"] as String)
@@ -96,7 +123,15 @@ sealed interface Command {
                 "buzz_ko" -> Judge(id, seq, false)
                 // Blind test : bon titre et bon artiste.
                 "buzz_bonus" -> Judge(id, seq, true, bonus = true)
-                "statues_win" -> StatuesWin(id, seq, m["team"] as String)
+                // « Personne » arrive en { personne: true } (Firebase efface une liste vide) ; régie d'avant le 27/10 : `team`.
+                "statues_win" -> StatuesWin(
+                    id, seq,
+                    if (m["personne"] == true) emptyList()
+                    else (m["teams"] as? List<*>)?.map { it as String } ?: listOf(m["team"] as String),
+                )
+                "statues_stop" -> StatuesStop(id, seq)
+                "statues_play" -> StatuesPlay(id, seq)
+                "statues_song" -> StatuesSong(id, seq)
                 "blind_play" -> BlindPlay(id, seq)
                 "blind_unblock" -> BlindUnblock(id, seq)
                 "blind_reveal" -> BlindReveal(id, seq)
@@ -106,6 +141,10 @@ sealed interface Command {
                 "factor" -> Factor(id, seq, (m["factor"] as Number).toInt())
                 "chest_random" -> ChestRandom(id, seq)
                 "potato_random" -> PotatoRandom(id, seq)
+                "potato_stop" -> PotatoStop(id, seq)
+                "duel_start" -> DuelStart(id, seq, (m["teams"] as? List<*>)?.map { it as String })
+                "duel_next" -> DuelNext(id, seq)
+                "duel_stop" -> DuelStop(id, seq)
                 "portes_set" -> PortesSet(id, seq, m["qid"] as String, (m["door"] as Number).toInt(), (m["value"] as Number).toInt())
                 else -> null
             }
@@ -136,13 +175,16 @@ fun Game.execute(
     teams: Set<String>,
     answers: Map<String, Answer> = emptyMap(),
     pumps: Map<String, Pump> = emptyMap(),
+    random: kotlin.random.Random = kotlin.random.Random.Default,
 ): CommandResult {
     // Un double appui sur « Trouvé » ne compte qu'un mime : chaque appui vise la carte que la régie affichait.
     val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End || cmd is Command.MimeStart ||
-        cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeStop || cmd is Command.Goto ||
+        cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeSkip || cmd is Command.MimeStop || cmd is Command.Goto ||
         cmd is Command.Judge || cmd is Command.StatuesWin || cmd is Command.BlindPlay || cmd is Command.BlindUnblock ||
         cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut ||
-        cmd is Command.PictoShow || cmd is Command.PictoDraw || cmd is Command.ChestRandom || cmd is Command.PotatoRandom
+        cmd is Command.PictoShow || cmd is Command.PictoDraw || cmd is Command.ChestRandom || cmd is Command.PotatoRandom ||
+        cmd is Command.PotatoStop || cmd is Command.StatuesStop || cmd is Command.StatuesPlay || cmd is Command.StatuesSong ||
+        cmd is Command.DuelStart || cmd is Command.DuelNext || cmd is Command.DuelStop
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
     // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
@@ -176,13 +218,17 @@ fun Game.execute(
         is Command.MimeStart -> if (cmd.team !in teams) return refused("unknown_team") else mimeStart(cmd.team, now)
         is Command.MimeFound -> mimeFound(now)
         is Command.MimePass -> mimePass(now)
+        is Command.MimeSkip -> mimeSkip(now)
         is Command.MimeFix -> if (cmd.team !in teams) return refused("unknown_team") else mimeFix(cmd.team, cmd.delta, now)
         is Command.MimeStop -> mimeStop(now)
         is Command.PictoShow -> if (cmd.team !in teams) return refused("unknown_team") else pictoShow(cmd.team, now)
         is Command.PictoDraw -> pictoDraw(now)
         // Un double appui ne juge qu'une fois : il visait l'équipe que la régie affichait.
         is Command.Judge -> judgeBuzz(cmd.ok, now, cmd.bonus)
-        is Command.StatuesWin -> if (cmd.team !in teams) return refused("unknown_team") else statuesWin(cmd.team, teams - cmd.team, now)
+        is Command.StatuesWin -> if (!teams.containsAll(cmd.teams)) return refused("unknown_team") else statuesSongWin(cmd.teams.distinct(), teams - cmd.teams.toSet(), now)
+        is Command.StatuesStop -> statuesStop(now)
+        is Command.StatuesPlay -> statuesPlay(now)
+        is Command.StatuesSong -> statuesNextSong(now)
         is Command.BlindPlay -> blindPlay(now, unblock = allTried)
         is Command.BlindUnblock -> blindUnblock(now)
         is Command.BlindReveal -> blindReveal(now)
@@ -190,6 +236,16 @@ fun Game.execute(
         is Command.BlindCut -> blindCut(now)
         is Command.ChestRandom -> openRandomChest(now)
         is Command.PotatoRandom -> passPotatoRandom(now)
+        is Command.PotatoStop -> stopPotato(now)
+        // Duel à la volée : prêt entre les 2 équipes choisies, puis lancé ; si le lancement échoue, rien ne reste.
+        is Command.DuelStart -> when {
+            cmd.teams == null -> startDuel(now, random)
+            cmd.teams.size != 2 || cmd.teams.distinct().size != 2 -> return refused("bad_teams")
+            !teams.containsAll(cmd.teams) -> return refused("unknown_team")
+            else -> readyDuel(teams, now, cmd.teams, random)?.let { startDuel(now, random) }
+        }
+        is Command.DuelNext -> if (state.duel?.result == null) null else readyDuel(teams, now, random = random)
+        is Command.DuelStop -> stopDuel(now)
         is Command.PortesSet -> if (question?.id != cmd.qid) return refused("stale_program") else setDoor(cmd.door, cmd.value, now)
         is Command.Factor -> if (cmd.factor !in FACTORS) return refused("bad_factor") else chooseFactor(cmd.factor, now)
         // Le programme a changé depuis l'affichage de la régie : rien n'est fait.

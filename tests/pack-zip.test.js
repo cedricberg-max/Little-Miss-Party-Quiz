@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { faireZip } from "./zip-outil.js";
 import { lireZip, lireZipEtSesZip, cheminSur, estFichierSysteme } from "../web/public/zip.js";
-import { analyserPack, IMAGE_MANQUANTE, MAX_PHOTOS_SERIE, lirePersonnages, chercheurImages, alerteImage, FORMATS_IMAGES, estImage } from "../web/public/pack-zip.js";
+import { analyserPack, IMAGE_MANQUANTE, MAX_PHOTOS_SERIE, lirePersonnages, chercheurImages, alerteImage, FORMATS_IMAGES, estImage, garderLesQuestionsIllustrees } from "../web/public/pack-zip.js";
 import { FAMILLES, NIVEAUX, lireFamille, lireNiveau, niveauDesAges, niveauDuQuiz, familleDuQuiz, parFamille } from "../web/public/rangement.js";
 
 const texte = async (f) => new TextDecoder().decode(await f.lire());
@@ -136,6 +136,26 @@ describe("analyse d'un pack", () => {
     const sans = analyserPack([fichier("p.json", JSON.stringify(illustre))]);
     assert.equal(sans.packs[0].epreuve, "illustre");
     assert.equal(sans.packs[0].manquantes.length, 3);
+  });
+
+  test("Quiz illustré (cedric, 26/10 : Marvel rangé sans une image) : une question sans aucune de ses photos n'est pas importée, dit en rouge ; ses alertes suivent", () => {
+    const IMG = (c) => c.repeat(16);
+    const q = (text, images, extra = {}) => ({ text, choices: ["A", "B", "C", "D"], correct: 0, imageFiles: ["a.jpg", "b.jpg", "c.jpg", "d.jpg"], choiceImages: images, ...extra });
+    const p = { epreuve: "illustre", ignorees: [], aCorriger: [{ q: 2, messages: ["x"] }], horsFormat: [{ id: IMG("a"), q: 2, case: 0, message: "trop petite" }],
+      manquantes: [{ q: 0, case: 0, fichier: "a.jpg" }, { q: 0, case: 1, fichier: "b.jpg" }, { q: 2, case: 3, fichier: "d.jpg" }],
+      questions: [q("Qui est l'archer ?", [null, null, null, null]), { text: "Combien ?", kind: "number", correct: 3 }, q("Qui vole ?", [IMG("a"), IMG("b"), IMG("c"), null])] };
+    garderLesQuestionsIllustrees(p);
+    assert.deepEqual(p.questions.map((x) => x.text), ["Combien ?", "Qui vole ?"], "le Juste Chiffre reste ; une photo manquante sur quatre : simple alerte");
+    assert.deepEqual(p.ignorees, ["Question 1 : aucune de ses images n'est dans le ZIP (a.jpg, b.jpg, c.jpg, d.jpg). Elle n'est pas importée : au Quiz illustré, chaque réponse a sa photo."]);
+    assert.deepEqual(p.manquantes, [{ q: 1, case: 3, fichier: "d.jpg" }]);
+    assert.deepEqual([p.aCorriger[0].q, p.horsFormat[0].q], [1, 1]);
+    // Tout le pack sans images : vide, il ne sera pas importé ; un autre jeu n'est pas touché.
+    const marvel = { epreuve: "illustre", ignorees: [], aCorriger: [], manquantes: [], questions: [q("Thor ?", []), q("Hulk ?", undefined, { imageFiles: undefined })] };
+    garderLesQuestionsIllustrees(marvel);
+    assert.equal(marvel.questions.length, 0);
+    assert.match(marvel.ignorees[1], /^Question 2 : aucune réponse n'a d'image\./);
+    const quiz = { epreuve: "quiz", ignorees: [], questions: [{ text: "Q ?", choices: ["A", "B"], correct: 0 }] };
+    assert.equal(garderLesQuestionsIllustrees(quiz).questions.length, 1);
   });
 
   test("pack sans images : Vrai ou Faux express reconnu, aucune alerte d'image", () => {

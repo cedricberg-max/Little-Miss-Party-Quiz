@@ -10,6 +10,7 @@ import { watchVersion, showUpdateBanner } from "./version.js";
 import { setAwake, isAwake, onAwakeChange } from "./awake.js";
 import { envoyeurDessin } from "./picto.js";
 import { creerArdoise, choisirMot } from "./ardoise.js";
+import { mesurerHorloge, garder } from "./horloge.js";
 import { animationSpectateurs } from "./spectateurs.js";
 import { choisirPorte, ecranPorteOuverte } from "./portes.js";
 import { ecranCoffres, REVELATION_MS } from "./coffres.js";
@@ -66,7 +67,7 @@ const takeover = params.get("reprise") === "1";
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
 // Design de la TV (menu Retour) : son QR code ajoute &look=gs ou &look=classique. Un lien sans ce réglage (QR de
 // reconnexion de la régie téléphone, écran d'accueil du téléphone) garde le dernier design vu sur cet appareil.
-const lookGs = (() => {
+let lookGs = (() => {
   try {
     if (params.has("look")) localStorage.setItem("lmp-look", params.get("look") === "gs" ? "gs" : "classique");
     return localStorage.getItem("lmp-look") === "gs";
@@ -74,11 +75,36 @@ const lookGs = (() => {
     return params.get("look") === "gs";
   }
 })();
-if (lookGs) {
-  document.body.classList.add("look-gs");
-  for (const logo of document.querySelectorAll(".logo:not(.small)")) {
-    logo.innerHTML = '<span class="gs-the">THE</span><span class="gs-titre">GAME SHOW</span><span class="gs-by">by Little Miss Party</span>';
+const LOGO_CLASSIQUE = new Map([...document.querySelectorAll(".logo:not(.small)")].map((l) => [l, l.innerHTML]));
+function appliquerLook() {
+  document.body.classList.toggle("look-gs", lookGs);
+  for (const [logo, classique] of LOGO_CLASSIQUE) {
+    logo.innerHTML = lookGs ? '<span class="gs-the">THE</span><span class="gs-titre">GAME SHOW</span><span class="gs-by">by Little Miss Party</span>' : classique;
   }
+}
+appliquerLook();
+
+/**
+ * Le design suit celui de la TV de la partie (games/<code>/public/look), pas seulement le QR : un téléphone rouvert sur
+ * un vieil onglet, sans « &look= », gardait l'ancien design (téléphone de Sacha, cedric 26/10). Écouteur à part, jamais
+ * débranché par stopListening().
+ */
+function suivreLook() {
+  onValue(ref(db, `games/${code}/public/look`), (s) => {
+    const v = s.val();
+    if (v !== "gs" && v !== "classique") return;
+    try { localStorage.setItem("lmp-look", v); } catch { /* stockage refusé : le design suit quand même */ }
+    if ((v === "gs") === lookGs) return;
+    lookGs = v === "gs";
+    appliquerLook();
+    // Les mots de Daft Punk du buzz : chargés dès que la partie passe en Game Show.
+    if (lookGs && teamId) {
+      try {
+        audio ??= new (window.AudioContext || window.webkitAudioContext)();
+        chargerMotsEquipes();
+      } catch { /* pas de son sur ce navigateur : le jeu continue */ }
+    }
+  });
 }
 
 let db, uid, gameRef;
@@ -280,6 +306,7 @@ async function start() {
     const host = await get(ref(db, `games/${code}/hostUid`));
     gameExists = host.exists();
     if (!host.exists()) return fail(`La partie ${code} n'existe pas ou est terminée.`);
+    suivreLook();
     // Téléphone de l'animatrice déjà relié : retour direct à la régie (rechargement, écran verrouillé).
     if (await hasAccess({ db, uid }, code)) return enterRegie();
     const teams = (await get(ref(db, `games/${code}/teams`))).val() ?? {};
@@ -532,6 +559,12 @@ function render() {
   if (st.kind !== "coffres" || !["question", "closed", "reveal", "scores"].includes(st.phase)) stopCoffres();
   if (st.kind !== "gonfleur" || st.phase !== "question") stopGonfleur();
   if (st.kind !== "patate" || st.phase !== "question") stopPatate();
+  // Duel des robots : l'habillage du gros bouton (néon western) seulement pendant un duel de l'équipe.
+  if (st.kind !== "duel" || st.phase !== "question") {
+    delete document.body.dataset.duel;
+    $("duel-titre").hidden = true;
+    if ($("buzz").textContent !== "BUZZ") $("buzz").textContent = "BUZZ";
+  }
   $("play-intro").hidden = true;
   $("play-status").classList.remove("fete");
   switch (st.phase) {
@@ -540,6 +573,7 @@ function render() {
       if (st.kind === "coffres") return renderCoffres(st);
       if (st.kind === "gonfleur") return renderGonfleur(st);
       if (st.kind === "patate") return renderPatate(st);
+      if (st.kind === "duel") return renderDuel(st);
       return st.mime ? (st.kind === "pictionary" ? renderPicto(st) : renderMime(st)) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
     case "scores":
@@ -755,16 +789,133 @@ async function buzzFlou(st) {
   }
 }
 
-/** Statues musicales : rien à toucher, tout le monde danse devant la TV et se fige quand la musique s'arrête. */
+/**
+ * Statues musicales (cedric, 27/10) : rien à toucher, tout le monde danse devant la TV. La tablette suit la chanson :
+ * DANSEZ ! ou STATUE !, « Regardez la TV ! » pendant l'annonce des gagnantes, puis les points de la chanson.
+ */
+let statuesHandle = null;
 function renderStatues(st) {
   clearInterval(timerHandle);
+  clearTimeout(statuesHandle);
   show("play");
   const buzz = $("buzz");
   buzz.disabled = true;
   buzz.hidden = true;
-  $("play-status").textContent = st.phase === "closed"
-    ? "Fin de la musique ! L'animatrice désigne l'équipe gagnante."
-    : "Statues musicales ! Posez la tablette et dansez tant que la musique joue. Quand elle s'arrête : STATUE !";
+  const s = st.statues ?? {};
+  const r = s.result;
+  const status = $("play-status");
+  if (r) {
+    const reste = r.at + (s.annonceMs ?? 8000) - (Date.now() + serverOffset);
+    if (reste > 0) {
+      status.textContent = "Et l'équipe gagnante est… Regardez la TV !";
+      statuesHandle = setTimeout(() => { if (game.state === st) renderStatues(st); }, Math.min(reste + 50, 10_000));
+      return;
+    }
+    const gain = r.gains?.[teamId] ?? 0;
+    const gagnantes = Array.isArray(r.winners) ? r.winners : [];
+    status.textContent = gagnantes.includes(teamId) ? `Les meilleures statues ! +${gain} points`
+      : gain ? `Bien dansé ! +${gain} points`
+      : gagnantes.length ? "Bien dansé ! À la prochaine chanson." : "Personne cette fois ! On se rattrape à la prochaine chanson.";
+    return;
+  }
+  status.textContent = s.ended ? "Fin de la chanson ! Plus personne ne bouge…"
+    : s.dancing === false ? "STATUE ! Plus personne ne bouge…"
+    : "DANSEZ ! Posez la tablette et bougez tant que la musique joue.";
+}
+
+/**
+ * 🤠 Le Duel des robots (cedric, 27/10) : les 2 équipes du duel ont le gros bouton (ou leur buzzer USB), les autres
+ * regardent la TV. Rien ne dit quand tombe le PAN : la tablette envoie l'heure de l'appui, la box juge (trop tôt, plus
+ * rapide). Un seul buzz par face-à-face.
+ */
+let duelEnvoye = null;
+// Horloge fine du duel ({ rtt, offset } : heure du serveur = performance.now() + offset), mesurée pendant que les
+// joueurs se placent ; et l'instant du dernier appui (touche du buzzer USB ou doigt posé), pris par le système.
+let horlogeDuel = null;
+let horlogeMesuree = null;
+let dernierAppui = null;
+function mesurerPourLeDuel(cle) {
+  if (horlogeMesuree === cle) return;
+  horlogeMesuree = cle;
+  const chemin = ref(db, `games/${code}/horloge/${teamId}`);
+  mesurerHorloge(() => set(chemin, { at: serverTimestamp() }), async () => (await get(chemin)).val()?.at)
+    .then((m) => { horlogeDuel = garder(horlogeDuel, m); });
+}
+/** Heure du serveur à l'instant [p] (performance.now()) : horloge fine si mesurée, sinon celle de Firebase. */
+const heureServeur = (p) => Math.round(horlogeDuel ? p + horlogeDuel.offset : performance.timeOrigin + p + serverOffset);
+const nomEquipe = (uid) => game.teams[uid]?.name ?? "Une équipe";
+function renderDuel(st) {
+  clearInterval(timerHandle);
+  show("play");
+  const buzz = $("buzz");
+  const d = st.duel ?? {};
+  const equipes = Array.isArray(d.teams) ? d.teams : [];
+  const place = equipes.indexOf(teamId);
+  const moi = place >= 0;
+  const status = $("play-status");
+  const face = d.step === "standoff" && !st.paused;
+  buzz.hidden = !moi || d.step === "none";
+  buzz.disabled = !moi || !face || !d.key || duelEnvoye === d.key;
+  buzz.classList.toggle("winner", d.step === "result" && d.result?.winner === teamId);
+  document.body.dataset.duel = moi ? d.step ?? "" : "";
+  // Pendant que les joueurs se placent : l'horloge de la tablette est calée sur celle du serveur.
+  if (moi && d.step === "ready") mesurerPourLeDuel(`${st.qid}-${d.n}`);
+  const contre = equipes.length === 2 ? `${nomEquipe(equipes[0])} contre ${nomEquipe(equipes[1])}` : "";
+  if (!d.step || d.step === "none") status.textContent = "Le Duel des robots : il faut au moins 2 équipes. Regardez la TV !";
+  else if (d.step === "ready") status.textContent = moi
+    ? `Duel n° ${d.n} : à toi, joueur n° ${d.players?.[place] ?? 1} ! Viens te placer, la main sur le buzzer…`
+    : `Duel n° ${d.n} : ${contre}. Regardez la TV !`;
+  else if (d.step === "standoff") status.textContent = !moi ? `${contre} : silence, ça va tirer…`
+    : duelEnvoye === d.key ? "Buzz envoyé ! Regardez la TV…" : "Attends le PAN ! Pas avant… Buzze dès qu'il apparaît !";
+  else {
+    const r = d.result ?? {};
+    const secondes = typeof r.ms === "number" ? ` en ${(r.ms / 1000).toFixed(2).replace(".", ",")} s` : "";
+    status.textContent = !r.winner ? "Personne n'a tiré !"
+      : r.winner === teamId ? `BRAVO ! Le plus rapide${secondes} ! +${r.points ?? 100} points`
+      : r.early === teamId ? "OUPS, trop tôt ! Il fallait attendre le PAN…"
+      : moi ? "Trop lent… La prochaine fois !"
+      : r.early ? `${nomEquipe(r.early)} a buzzé trop tôt… ${nomEquipe(r.winner)} gagne le duel !`
+      : `${nomEquipe(r.winner)} remporte le duel !`;
+  }
+  // Les mots du duel en lettre western néon (planche validée par cedric, 27/10) : le titre au-dessus du gros bouton,
+  // et « PAN ! », « BRAVO » ou « OUPS » sur le bouton (espaces insécables déjà posées : le texte n'est réécrit
+  // que s'il change).
+  const res = d.result ?? {};
+  const resultat = d.step === "result";
+  const [titre, couleur] = !d.step || d.step === "none" ? ["", null]
+    : !moi ? (resultat && res.winner ? [`${nomEquipe(res.winner)} gagne\u00a0!`, game.teams[res.winner]?.color] : ["Duel en cours", "#ff7a1a"])
+    : !resultat ? ["Main sur le buzzer\u00a0!", null]
+    : res.winner === teamId ? ["Le plus rapide\u00a0!", null]
+    : res.early === teamId ? ["Trop tôt\u00a0!", "#ff2030"]
+    : !res.winner ? ["Personne n'a tiré\u00a0!", "#00f0ff"]
+    : ["Trop lent…", "#ff7a1a"];
+  const h = $("duel-titre");
+  h.hidden = !titre;
+  if (h.textContent !== titre) h.textContent = titre;
+  h.style.setProperty("--n", couleur ?? "var(--team)");
+  // Deux petites étoiles de shérif autour des grands moments (dessinées par le style, pas dans le texte).
+  h.classList.toggle("etoiles", ["Duel en cours", "Le plus rapide\u00a0!", "Trop tôt\u00a0!"].includes(titre));
+  const mot = resultat && res.winner === teamId ? "BRAVO" : resultat && res.early === teamId ? "OUPS" : "PAN\u00a0!";
+  if (buzz.textContent !== mot) buzz.textContent = mot;
+  buzz.classList.toggle("oups", resultat && res.early === teamId);
+}
+
+async function buzzDuel(st, t) {
+  const d = st.duel ?? {};
+  if (!d.key || d.step !== "standoff" || !d.teams?.includes(teamId) || duelEnvoye === d.key) return;
+  duelEnvoye = d.key;
+  const buzz = $("buzz");
+  buzz.disabled = true;
+  sonBuzz(() => beep(880, 160));
+  navigator.vibrate?.(120);
+  $("play-status").textContent = "Buzz envoyé ! Regardez la TV…";
+  // Pour les rapports de la box : aller-retour et décalage de l'horloge fine (ms), s'ils sont mesurés.
+  const mesure = horlogeDuel ? { r: Math.round(horlogeDuel.rtt), o: Math.round(horlogeDuel.offset - performance.timeOrigin) } : {};
+  try {
+    await set(ref(db, `games/${code}/duel/${d.key}/${teamId}`), { t, at: serverTimestamp(), ...mesure });
+  } catch {
+    // Face-à-face arrêté ou déjà jugé : l'écran suit l'état de la TV.
+  }
 }
 
 /** Mimes : rien à toucher sur le pupitre, tout se passe devant la TV ; il dit seulement qui joue. */
@@ -791,8 +942,7 @@ function renderMimeResult(st) {
   $("r-icon").className = `result-icon ${n ? "ok" : "ko"}`;
   $("r-title").textContent = n ? `Bravo ! ${n} ${what}${n > 1 ? "s" : ""} trouvé${n > 1 ? "s" : ""}` : `Pas de ${what} trouvé cette fois !`;
   $("r-detail").textContent = n ? `+${n * (st.mime?.points ?? 50)} points` : "";
-  const { mine, rank } = rankOf(st.scores);
-  $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+  $("r-total").textContent = totalEtPlace(st);
 }
 
 // ---------- Pictionary ----------
@@ -997,6 +1147,16 @@ function runTimer(st, el = $("q-timer")) {
   timerHandle = setInterval(tick, 200);
 }
 
+/**
+ * « 250 points · 2e place » sous un résultat. Au dernier jeu de la fête, rien du classement : il se découvre sur la TV,
+ * jauges au bout et gagnant annoncé (cedric, 26/10).
+ */
+function totalEtPlace(st) {
+  if (Number.isInteger(st.index) && Number.isInteger(st.total) && st.index >= st.total - 1) return "Le classement, c'est sur la télé !";
+  const { mine, rank } = rankOf(st.scores);
+  return `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+}
+
 function rankOf(scores) {
   const mine = scores?.[teamId] ?? 0;
   const others = Object.keys(game.teams).filter((t) => (scores?.[t] ?? 0) > mine).length;
@@ -1015,7 +1175,7 @@ function renderResult(st) {
   if (st.kind === "portes") return renderPortesResult(st, award);
   showPortesReveal(null);
   if (st.kind === "patate") {
-    // La dernière bombe : chez qui elle a explosé, ce qu'elle a coûté ou rapporté ; puis le total des trois bombes.
+    // La dernière bombe : chez qui elle a explosé, ce qu'elle a coûté ou rapporté ; puis le total de toutes les bombes.
     const booms = liste(st.potato?.booms);
     const derniere = booms[booms.length - 1];
     const boom = derniere?.holder ?? Object.keys(st.awards ?? {}).find((t) => st.awards[t] && !st.awards[t].correct);
@@ -1032,8 +1192,7 @@ function renderResult(st) {
       plusieurs ? `Sur les ${booms.length} bombes : ${pts < 0 ? "−" : "+"}${Math.abs(pts)} points.` : "",
     ].filter(Boolean).join(" ");
     $("r-image").hidden = true;
-    const { mine, rank } = rankOf(st.scores);
-    $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+    $("r-total").textContent = totalEtPlace(st);
     return;
   }
   if (st.kind === "gonfleur") {
@@ -1044,8 +1203,7 @@ function renderResult(st) {
       : award?.points ? `Bien gonflé ! +${award.points} points` : "Bien gonflé !";
     $("r-detail").textContent = !ok && winner ? `Le ballon des ${game.teams[winner]?.name ?? "autres"} a gagné.` : "";
     $("r-image").hidden = true;
-    const { mine, rank } = rankOf(st.scores);
-    $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+    $("r-total").textContent = totalEtPlace(st);
     return;
   }
   if (st.kind === "statues") {
@@ -1069,8 +1227,7 @@ function renderResult(st) {
   $("r-detail").textContent = (ok && award.bonus > 0 ? `dont ${award.bonus} de ${bonusLabel}. ` : "") + (correct ? `${said} : ${correct}${st.artist ? ` (${st.artist})` : ""}` : "");
   $("r-image").textContent = st.image ?? "";
   $("r-image").hidden = !st.image;
-  const { mine, rank } = rankOf(st.scores);
-  $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+  $("r-total").textContent = totalEtPlace(st);
 }
 
 /** Équipe de cet appareil, pour les écrans des Portes mystères. */
@@ -1147,8 +1304,7 @@ function renderPortesResult(st, award) {
     $("r-detail").textContent = `Votre score ne descend jamais sous 0 : ${award.points < 0 ? "−" : "+"}${Math.abs(award.points)} points pour vous.`;
   }
   if (all) {
-    const { mine, rank } = rankOf(st.scores);
-    $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+    $("r-total").textContent = totalEtPlace(st);
   } else $("r-total").textContent = "Classement à la fin des portes !";
 }
 
@@ -1207,7 +1363,7 @@ function renderCoffres(st) {
   const gains = c.gains ?? {};
   const bilan = fini ? Object.keys(gains).map((id) => ({ ...equipe(id), gain: gains[id] ?? 0, moi: id === teamId })).sort((a, b) => b.gain - a.gain) : null;
   let total = "";
-  if (fini) { const { mine, rank } = rankOf(st.scores); total = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`; }
+  if (fini) total = totalEtPlace(st);
   coffres.ctl.maj({
     pret, cle: c.key ?? null, count: c.count ?? 0, ouverts, joue, aMoi, peutOuvrir, envoye: coffres.envoi,
     titre, texte, danger: c.danger === true, bilan, total,
@@ -1338,7 +1494,7 @@ function renderPatate(st) {
   if (patate.cle !== (p.key ?? null)) { patate.cle = p.key ?? null; patate.envoye = null; patate.message = null; }
   const nom = (id) => game.teams[id]?.name ?? "une équipe";
   const now = Date.now() + serverOffset;
-  // Trois bombes par partie : la dernière explosion se montre le temps que la TV la joue (et tant que la suivante n'est
+  // Plusieurs bombes par partie (3 d'office, réglé dans la Régie PC) : la dernière explosion se montre le temps que la TV la joue (et tant que la suivante n'est
   // pas allumée), puis la bombe suivante s'annonce avant de partir.
   const booms = liste(p.booms);
   const boom = booms[booms.length - 1];
@@ -1346,7 +1502,8 @@ function renderPatate(st) {
   const boum = p.lit === true && boom != null && (p.exploded === true || now < finBoum);
   const compteur = p.lit === true && (p.bombs ?? 1) > 1 ? `Bombe ${p.bomb ?? 1} sur ${p.bombs}` : "";
   const aMoi = p.lit === true && !boum && p.holder === teamId && !st.paused && !counting(st);
-  // Mèche qui colle : 2 secondes après la réception (et après le décompte d'une reprise).
+  // Renvoi permis dès la réception (cedric, 27/10) ; seul le décompte d'une reprise le retient (readyAt = réception,
+  // ou 2 s plus tard sur une box d'avant le 27/10).
   const depuis = p.since ?? 0;
   const pret = Math.max(p.readyAt ?? 0, st.resumeAt ?? 0);
   const colle = pret <= now ? 1 : Math.max(0, Math.min(1, (now - depuis) / Math.max(1, pret - depuis)));
@@ -1355,8 +1512,8 @@ function renderPatate(st) {
   else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
   else if (boum) {
     const chezMoi = boom.holder === teamId;
-    // Gardée plus de 3 secondes : elle a explosé avant la fin de la mèche.
-    titre = chezMoi ? (boom.held === true ? "💥 BOUM ! Gardée plus de 3 secondes" : "💥 BOUM ! La bombe a explosé chez vous")
+    // Gardée plus de 2 secondes : elle a explosé avant la fin de la mèche.
+    titre = chezMoi ? (boom.held === true ? "💥 BOUM ! Gardée plus de 2 secondes" : "💥 BOUM ! La bombe a explosé chez vous")
       : boom.held === true ? `💥 BOUM ! L'équipe ${nom(boom.holder)} l'a gardée trop longtemps` : `💥 BOUM chez l'équipe ${nom(boom.holder)} !`;
     texte = chezMoi ? ((boom.lost ?? 0) > 0 ? `−${boom.lost} points.` : "Vous n'aviez aucun point à perdre.") : `+${boom.gain ?? 0} points pour vous !`;
     if ((p.bomb ?? 1) < (p.bombs ?? 1) || p.exploded !== true) texte += " Attention, une autre bombe arrive…";
@@ -1369,8 +1526,8 @@ function renderPatate(st) {
     texte = patate.envoye ? `Envoyée à l'équipe ${nom(patate.envoye)} !` : colle < 1 ? "La mèche colle…" : "Vite, envoyez-la à une autre équipe !";
   } else { titre = `La bombe est chez l'équipe ${nom(p.holder)} !`; texte = (p.hit ?? []).includes(teamId) ? "Attention, elle peut revenir chez vous !" : "Préparez-vous, elle peut arriver chez vous !"; }
   if (patate.message) texte = patate.message;
-  // Anti-triche (cedric, 21/10) : 3 secondes pour l'envoyer une fois la mèche décollée, sinon elle explose chez nous.
-  const decompte = aMoi && colle >= 1 && !patate.envoye && p.holdUntil != null ? Math.min(3, Math.max(1, Math.ceil((p.holdUntil - now) / 1000))) : null;
+  // Anti-triche (cedric, 21/10 et 27/10) : 2 secondes pour l'envoyer, sinon elle explose chez nous.
+  const decompte = aMoi && colle >= 1 && !patate.envoye && p.holdUntil != null ? Math.min(2, Math.max(1, Math.ceil((p.holdUntil - now) / 1000))) : null;
   const equipes = (p.teams ?? []).filter((id) => id !== teamId && game.teams[id]).map((id) => ({
     id, nom: game.teams[id].name, couleur: game.teams[id].color,
     permise: (p.targets ?? []).includes(id), envoyeur: id === p.from, neuve: !(p.hit ?? []).includes(id),
@@ -1406,7 +1563,7 @@ async function envoyerPatate(to) {
   try {
     await set(ref(db, `games/${code}/potatoPass/${key}`), { to, at: serverTimestamp() });
   } catch {
-    // Refusé (pause, mèche qui colle encore, réseau) : on peut renvoyer.
+    // Refusé (pause, décompte de reprise, réseau) : on peut renvoyer.
     if (patate && game.state?.potato?.key === key) {
       patate.envoye = null;
       patate.message = "La bombe n'est pas partie : touchez encore une équipe.";
@@ -1415,9 +1572,27 @@ async function envoyerPatate(to) {
   }
 }
 
+/**
+ * Fin de la fête : la place et les points n'arrivent sur la tablette qu'une fois le gagnant annoncé à la TV (jauges au
+ * bout, solo de Digital Love en Game Show ; impact en Classique), pas avant (cedric, 26/10). D'ici là : du suspense.
+ */
+const ANNONCE_GAGNANT_MS = { gs: 15_444, classique: 7_000 };
+const MARGE_ANNONCE_MS = 1_500;
+let finHandle = null;
 function renderEnded(st) {
   clearInterval(timerHandle);
+  clearTimeout(finHandle);
   show("ended");
+  const annonce = (st.endedAt ?? 0) + (lookGs ? ANNONCE_GAGNANT_MS.gs : ANNONCE_GAGNANT_MS.classique) + MARGE_ANNONCE_MS;
+  const reste = annonce - (Date.now() + serverOffset);
+  const attente = st.endedAt != null && reste > 0;
+  $("screen-ended").classList.toggle("suspense", attente);
+  if (attente) {
+    $("e-rank").textContent = "Le grand gagnant est…";
+    $("e-total").textContent = "Regardez la télé !";
+    finHandle = setTimeout(() => { if (game.state === st) renderEnded(st); }, reste + 50);
+    return;
+  }
   const { mine, rank } = rankOf(st.scores);
   $("e-rank").textContent = rank === 1 ? "Vous avez gagné !" : `${rank}e place`;
   $("e-total").textContent = `${mine} points`;
@@ -1462,8 +1637,14 @@ function sonBuzz(sinon) {
 }
 
 $("buzz").onclick = async () => {
+  // Duel des robots : l'heure de l'appui (heure du serveur) : celle où la touche ou le doigt est descendu, pas celle du
+  // clic (doigt relevé), prise avant tout le reste.
+  const p = dernierAppui != null && performance.now() - dernierAppui < 1_000 ? dernierAppui : performance.now();
+  dernierAppui = null;
+  const appui = heureServeur(p);
   const buzz = $("buzz");
   if (buzz.disabled) return;
+  if (game?.state?.kind === "duel" && game.state.phase === "question") return buzzDuel(game.state, appui);
   if (BUZZ_KINDS.includes(game?.state?.kind) && game.state.phase === "question") return buzzFlou(game.state);
   sonBuzz(funSound);
   navigator.vibrate?.(60);
@@ -1490,14 +1671,23 @@ document.addEventListener("keydown", (e) => {
   // (une réponse, une équipe à qui passer la patate…), ni deux fois si on le garde enfoncé.
   e.preventDefault();
   if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur();
-  if (!e.repeat && buzzAffiche()) $("buzz").click();
+  if (!e.repeat && buzzAffiche()) {
+    dernierAppui = e.timeStamp || performance.now();
+    $("buzz").click();
+  }
 });
 // Espace appuie sur un bouton au relâché : même garde.
 document.addEventListener("keyup", (e) => { if (e.key === " " && !enFrappe(e) && !document.body.classList.contains("regie-mode")) e.preventDefault(); });
 // Buzzer réglé en usine comme un clic de souris : un clic n'importe où sur l'écran du BUZZ compte (sur le BUZZ lui-même,
 // c'est déjà un clic normal). Les doigts sur l'écran ne sont pas concernés.
 document.addEventListener("pointerdown", (e) => {
-  if (e.pointerType !== "mouse" || !buzzAffiche() || (e.target instanceof Element && e.target.closest("#buzz"))) return;
+  // Duel des robots : le doigt posé sur le BUZZ compte tout de suite (pas au doigt relevé).
+  if (e.target instanceof Element && e.target.closest("#buzz") && buzzAffiche()) {
+    dernierAppui = e.timeStamp || performance.now();
+    if (game?.state?.kind === "duel" && !$("buzz").disabled) $("buzz").click();
+    return;
+  }
+  if (e.pointerType !== "mouse" || !buzzAffiche()) return;
   e.preventDefault();
   $("buzz").click();
 }, true);

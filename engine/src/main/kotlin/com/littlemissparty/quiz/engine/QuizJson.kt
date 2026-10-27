@@ -7,7 +7,7 @@ import org.json.JSONObject
  * Lecture d'un quiz au format JSON :
  * `{"id", "title", "questions": [{"id", "text", "choices": [...], "correct", "duration", "kind", "double", "round"}]}`,
  * plus `"cards": [{"word", "image"}]` pour une manche de mimes ou de Pictionary (`"kind": "mime"` ou
- * `"pictionary"`, sans propositions ; `"points"` : valeur d'un dessin trouvé),
+ * `"pictionary"`, sans propositions ; `"points"` : valeur d'un dessin trouvé ; `"couleur"` : équipe seule d'une manche de mimes),
  * l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo), des réponses en images
  * (`"choiceImages"`, une photo par proposition), les valeurs des Portes mystères (`"doors"`), et pour la
  * musique `"audioId"` (extrait), `"artist"`, `"refrainId"` et `"lyrics"` (blind test et quiz musical).
@@ -17,11 +17,30 @@ object QuizJson {
     /** Identifiant d'une photo d'illustration : empreinte de son contenu, 16 caractères hexadécimaux. */
     val IMAGE_ID = Regex("[0-9a-f]{16}")
 
+    /** Couleur d'équipe d'une manche de mimes (« #F5D000 »). */
+    private val COULEUR = Regex("#[0-9A-F]{6}")
+
     /** Longueur maximale du nom d'artiste (blind test). */
     const val MAX_ARTIST = 80
 
     /** Statues musicales : au plus autant de chansons dans une manche. */
     const val MAX_STATUES_SONGS = 20
+    const val MAX_SONG_TITLE = 120
+
+    /** Statues musicales : identifiant d'une chanson de la bibliothèque (clé de library/songs et library/entieres). */
+    val SONG_ID = Regex("[-\\w]{1,40}")
+
+    /**
+     * Statues musicales : les chansons { songId, audioId, title } ; une chanson sans chanson entière ni extrait lisible
+     * est sautée, un titre trop long coupé.
+     */
+    private fun chansonsStatues(a: JSONArray?): List<ChansonStatues> = (0 until (a?.length() ?: 0)).mapNotNull { i ->
+        val o = a!!.optJSONObject(i) ?: return@mapNotNull null
+        val songId = o.optString("songId").takeIf { it.matches(SONG_ID) }
+        val audioId = o.optString("audioId").takeIf { it.matches(IMAGE_ID) }
+        if (songId == null && audioId == null) null
+        else ChansonStatues(songId, audioId, o.optString("title").trim().take(MAX_SONG_TITLE).ifEmpty { null })
+    }.distinctBy { it.songId ?: it.audioId }.take(MAX_STATUES_SONGS)
 
     fun parse(json: String): Quiz = parse(JSONObject(json))
 
@@ -73,8 +92,8 @@ object QuizJson {
             id = q.optString("id", "q${i + 1}"),
             text = q.getString("text"),
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
-            correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.PORTES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE) q.optInt("correct", -1) else q.getInt("correct"),
-            durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else if (kind == QuestionKind.GONFLEUR) 45 else 20),
+            correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.PORTES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE || kind == QuestionKind.DUEL) q.optInt("correct", -1) else q.getInt("correct"),
+            durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else if (kind == QuestionKind.GONFLEUR) 45 else if (kind == QuestionKind.STATUES) 90 else 20),
             kind = kind,
             double = q.optBoolean("double", false),
             roundTitle = q.optString("round").ifBlank { null },
@@ -95,9 +114,18 @@ object QuizJson {
             lyrics = q.optString("lyrics").takeIf { it.isNotBlank() && it.length <= MAX_PAROLES && chanson && q.optString("refrainId").matches(IMAGE_ID) },
             audioIds = q.optJSONArray("audioIds")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
                 .filter { it.matches(IMAGE_ID) && kind == QuestionKind.STATUES }.distinct().take(MAX_STATUES_SONGS),
+            songs = if (kind != QuestionKind.STATUES) emptyList() else chansonsStatues(q.optJSONArray("songs")),
             points = q.optInt("points", 0).takeIf { it > 0 && (kind == QuestionKind.BLIND || kind == QuestionKind.PICTIONARY) }?.coerceAtMost(MAX_TRACK_POINTS),
             // 0 : tout l'extrait à la révélation (le temps de chanter le refrain).
             revealSec = q.optInt("reveal", BLIND_REVEAL_SEC).let { if (it == 0) 0 else it.coerceIn(3, 60) },
+            // Nombre de bombes hors limites : ramené dans les limites, jamais une partie refusée pour ça.
+            bombs = q.optInt("bombs", POTATO_BOMBS).coerceIn(1, POTATO_BOMBS_MAX),
+            couleur = q.optString("couleur").uppercase().takeIf { kind == QuestionKind.MIME && COULEUR.matches(it) },
+            // Duel des robots : réglages hors limites ramenés dans les limites, jamais une partie refusée pour ça.
+            joueurs = q.optInt("joueurs", DUEL_JOUEURS).coerceIn(1, DUEL_JOUEURS_MAX),
+            faceMin = q.optInt("faceMin", DUEL_FACE_DEFAUT_MIN).coerceIn(DUEL_FACE_MIN_SEC, DUEL_FACE_MAX_SEC),
+            faceMax = q.optInt("faceMax", DUEL_FACE_DEFAUT_MAX).coerceIn(q.optInt("faceMin", DUEL_FACE_DEFAUT_MIN).coerceIn(DUEL_FACE_MIN_SEC, DUEL_FACE_MAX_SEC), DUEL_FACE_MAX_SEC),
+            longs = q.optBoolean("longs", true),
         )
     }
 }

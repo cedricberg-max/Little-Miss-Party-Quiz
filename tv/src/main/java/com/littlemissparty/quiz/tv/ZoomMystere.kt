@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.Look
 import kotlinx.coroutines.delay
 import kotlin.math.sqrt
 
@@ -95,7 +96,8 @@ fun ZoomPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
         } else {
             Text("?", color = Palette.Gold, fontSize = 140.sp, fontWeight = FontWeight.Black)
         }
-        if (!revealed) {
+        // Game Show : le titre est déjà dans l'enseigne, plus de pastille en double (cedric, planche du 27/10).
+        if (!revealed && !Look.gs) {
             Text(
                 "ZOOM MYSTÈRE",
                 color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,

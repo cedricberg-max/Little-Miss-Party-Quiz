@@ -319,7 +319,7 @@ describe("tableau de bord des prestations", () => {
     }
     // La TV les tire au hasard : prête quand même, avec l'alerte.
     for (const [round, texte] of [[{ type: "pictionary" }, "Pictionary : aucun mot choisi pour l'instant, la TV les tirera au hasard."],
-      [{ type: "disparu", count: 3 }, "Qui a disparu ? : aucune grille choisie pour l'instant, la TV en tirera 3 au hasard."],
+      [{ type: "disparu", count: 3 }, "Qui a disparu ? : aucun tour choisi pour l'instant, la TV en tirera 3 au hasard."],
       [{ type: "chante" }, "Chante le mot ! : aucun mot choisi pour l'instant, la TV en tirera 6 au hasard."],
       [{ type: "quisuis" }, "Qui suis-je ? : aucun personnage choisi pour l'instant, la TV en tirera 5 au hasard."]]) {
       assert.deepEqual(avec(round), { level: "prete", todo: [], alertes: [texte] }, round.type);
@@ -420,9 +420,9 @@ describe("programme modifié pendant la partie", () => {
 
 describe("prestation de test (cedric, 24/10)", async () => {
   const S = await import("../web/public/show.js");
-  test("les 16 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
-    assert.equal(JEUX_DU_TEST.length, 16);
-    assert.equal(new Set(JEUX_DU_TEST).size, 16);
+  test("les 17 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
+    assert.equal(JEUX_DU_TEST.length, 17);
+    assert.equal(new Set(JEUX_DU_TEST).size, 17);
     assert.deepEqual([...JEUX_DU_TEST].sort(), Object.keys(S.ROUND_TYPES).filter((k) => !["finale", "portes"].includes(k)).sort());
     assert.equal(JEUX_DU_TEST.at(-1), "coffres");
   });
@@ -613,16 +613,39 @@ describe("Qui a disparu ?", () => {
     for (const q of qs) {
       assert.equal(q.kind, "disparu");
       assert.equal(q.round, "Qui a disparu ?");
-      assert.equal(q.cards.length, 7, "7 objets chez les Moyens");
+      assert.equal(q.cards.length, 6, "6 cartes chez les Moyens (cedric, 27/10 : un nombre pair)");
       assert.equal(q.correct, 0);
       assert.equal(q.cards.filter((c) => c.word === q.choices[0]).length, 1, "l'objet disparu est dans la grille");
       assert.equal(q.image, q.cards.find((c) => c.word === q.choices[0]).image);
-      assert.equal(q.duration, 14 + 3 + 25, "mémorisation (2 s par objet), tour de magie, recherche");
+      assert.equal(q.duration, 12 + 3 + 25, "mémorisation (2 s par objet), tour de magie, recherche");
       assert.ok(q.cards.every((c) => c.image && c.word));
     }
     const petits = buildSnapshot("x", { childName: "Tom", age: 6, rounds: [{ type: "disparu", count: 2 }] }, {}).snapshot.quiz.questions;
-    assert.deepEqual(petits.map((q) => [q.cards.length, q.duration]), [[5, 38], [5, 38]], "5 objets et 10 s pour mémoriser chez les Petits");
+    assert.deepEqual(petits.map((q) => [q.cards.length, q.duration]), [[4, 38], [4, 38]], "4 cartes et 10 s pour mémoriser chez les Petits");
     assert.equal(roundFilled({ type: "disparu" }), true);
+  });
+});
+
+describe("Qui a disparu ? (cedric, 27/10) : cartes par tour et difficulté selon l'âge", () => {
+  test("4, 6 ou 8 cartes ; les familles du niveau de l'âge d'abord : simples aux petits, qui se ressemblent aux grands", async () => {
+    const { DISPARU_CARTES, famillesPourLAge, niveauDeFamille } = await import("../web/public/show.js");
+    assert.deepEqual(DISPARU_CARTES, [4, 6, 8]);
+    assert.deepEqual(["PETITS", "MOYENS", "GRANDS", "ADULTES", "NEUTRE"].map((p) => disparuObjects({}, p)), [4, 6, 8, 8, 6]);
+    const familles = DISPARU_THEMES;
+    const niveau = (t) => niveauDeFamille(t);
+    assert.equal(niveau(familles.find((t) => t.theme === "Fruits")), 1);
+    assert.equal(niveau(familles.find((t) => t.theme === "Les émotions")), 3);
+    assert.equal(niveau({ theme: "Photos · Animaux", objects: [{ word: "Chat", banque: "chat" }] }), 1, "les photos libres : simples");
+    const n1 = familles.filter((t) => niveau(t) === 1).length;
+    const n3 = familles.filter((t) => niveau(t) === 3).length;
+    for (let essai = 0; essai < 5; essai++) {
+      const petits = famillesPourLAge(familles, "PETITS").map(niveau);
+      assert.ok(petits.slice(0, n1).every((x) => x === 1) && petits.at(-1) === 3, "les petits : niveau 1, le 3 en dernier");
+      const grands = famillesPourLAge(familles, "GRANDS").map(niveau);
+      assert.ok(grands.slice(0, familles.length - n1).every((x) => x >= 2) && grands.slice(-n1).every((x) => x === 1), "les grands : 3 et 2 d'abord");
+      assert.equal(famillesPourLAge(familles, "NEUTRE").length, familles.length);
+    }
+    assert.ok(n3 >= 4);
   });
 });
 
@@ -803,6 +826,11 @@ describe("statues musicales", () => {
     const { snapshot } = buildSnapshot("s", { childName: "Léa", age: 7, rounds: [round] }, {}, {}, Math.random, {}, {}, {}, songs);
     assert.deepEqual(snapshot.quiz.questions[0].audioIds, [hex("c"), hex("b")]);
     assert.deepEqual(soundIds(snapshot.quiz.questions), [hex("c"), hex("b")]);
+    // Statues du 27/10 : chaque chanson jouée entière (copiée dans la partie par la régie), son extrait en secours.
+    assert.deepEqual(snapshot.quiz.questions[0].songs, [
+      { songId: "c", audioId: hex("c"), title: "Sous l'océan" },
+      { songId: "a", audioId: hex("b"), title: "Libérée" },
+    ]);
     // Plus aucune chanson jouable : les extraits cochés avant, sinon la musique de la fête.
     const playlists = { p: { title: "P", tracks: [{ title: "F", audioId: hex("f") }] } };
     assert.deepEqual(sonsDesStatues({ ...round, chansons: ["r"] }, playlists, songs), [hex("f")]);
@@ -810,7 +838,7 @@ describe("statues musicales", () => {
     // Enregistrées : vos chansons, à la place des extraits cochés avant.
     assert.deepEqual(M.cleanRound(round, playlists), { type: "statues", duration: 60, chansons: ["c", "a", "r", "zz"] });
     assert.deepEqual(M.cleanRound({ type: "statues", duration: 60, songs: [hex("f")] }, playlists), { type: "statues", duration: 60, songs: [hex("f")] });
-    assert.equal(M.mancheSummary({ type: "statues", duration: 60, chansons: ["a", "c"] }, {}), "60 s · 2 chansons");
+    assert.equal(M.mancheSummary({ type: "statues", duration: 60, chansons: ["a", "c"] }, {}), "2 chansons");
   });
 });
 
@@ -850,6 +878,53 @@ describe("Ça va exploser !", () => {
     const p = snapshot.quiz.questions.at(-1);
     assert.deepEqual([p.kind, p.text, p.round, p.correct, p.choices], ["patate", "Ça va exploser !", "Ça va exploser !", -1, []]);
     assert.equal(roundFilled({ type: "patate" }), true);
+    assert.equal(p.bombs, undefined, "sans réglage : les 3 bombes de la TV");
+  });
+  test("le nombre de bombes (cedric, 26/10, test Mi Box) : de 1 à 6, 3 d'office, passé à la TV ; la durée estimée et la règle suivent", async () => {
+    const { cleanRound } = await import("../web/public/manches.js");
+    const { regleDePatate, PATATE_RULE, bombesDe } = await import("../web/public/show.js");
+    const bombe = (round) => buildSnapshot("s", { childName: "Léa", age: 9, rounds: [round] }).snapshot.quiz.questions[0];
+    assert.equal(bombe({ type: "patate", bombs: 5 }).bombs, 5);
+    assert.equal(bombe({ type: "patate", bombs: 9 }).bombs, 6, "ramené dans ses limites");
+    assert.equal(bombe({ type: "patate", bombs: 0 }).bombs, 1);
+    assert.deepEqual([bombesDe({}), bombesDe({ bombs: 2.5 })], [3, 3]);
+    // Environ 50 s par bombe.
+    const sec = (round) => estimateMinutes({ quiz: { questions: [bombe(round)] } });
+    assert.deepEqual([sec({ type: "patate", bombs: 1 }), sec({ type: "patate" }), sec({ type: "patate", bombs: 6 })], [1, 3, 5]);
+    assert.equal(DUREE_ESTIMEE.bombe, 50);
+    // Gardé dans la manche enregistrée, dans ses limites.
+    assert.deepEqual(cleanRound({ type: "patate", bombs: 4 }), { type: "patate", bombs: 4 });
+    assert.deepEqual(cleanRound({ type: "patate", bombs: 12 }), { type: "patate", bombs: 6 });
+    assert.deepEqual(cleanRound({ type: "patate", bombs: "4" }), { type: "patate" });
+    // La règle dit le vrai nombre.
+    assert.match(PATATE_RULE, /Trois bombes par partie$/);
+    assert.match(regleDePatate(1), /Une bombe par partie$/);
+    assert.match(regleDePatate(6), /Six bombes par partie$/);
+  });
+  test("🤠 Le Duel des robots (cedric, 27/10) : joueurs par équipe, face-à-face min / max, longs duels ; passé à la TV ; la durée estimée suit", async () => {
+    const { cleanRound, mancheSummary } = await import("../web/public/manches.js");
+    const { reglagesDuel, duelsPrevus, ROUND_TYPES } = await import("../web/public/show.js");
+    assert.equal(ROUND_TYPES.duel, "Le Duel des robots");
+    assert.equal(roundFilled({ type: "duel" }), true, "rien à préparer");
+    // D'office : environ 4 joueurs, 20 à 40 s, de temps en temps un long duel.
+    assert.deepEqual(reglagesDuel({}), { joueurs: 4, dureeMin: 20, dureeMax: 40, longs: true });
+    assert.deepEqual(reglagesDuel({ joueurs: 13, dureeMin: 50, dureeMax: 30, longs: false }), { joueurs: 4, dureeMin: 30, dureeMax: 50, longs: false }, "dans ses limites, min ≤ max");
+    assert.deepEqual(cleanRound({ type: "duel", joueurs: 6, dureeMin: 15, dureeMax: 60, duels: 3 }), { type: "duel", joueurs: 6, dureeMin: 15, dureeMax: 60, longs: true });
+    assert.equal(mancheSummary({ type: "duel" }, {}), "environ 4 joueurs par équipe · face-à-face de 20 à 40 s, parfois jusqu'à 60 s");
+    assert.equal(mancheSummary({ type: "duel", joueurs: 1, dureeMax: 60 }, {}), "environ 1 joueur par équipe · face-à-face de 20 à 60 s");
+    // Sur la TV (contrat du 27/10) : un seul élément, la box enchaîne les duels.
+    const { snapshot, problems } = buildSnapshot("s", { childName: "Léa", age: 9, teams: 3, rounds: [{ type: "duel", joueurs: 5, dureeMin: 30, dureeMax: 50, longs: false }] });
+    assert.deepEqual(problems, []);
+    const [d] = snapshot.quiz.questions;
+    assert.deepEqual([d.kind, d.text, d.round, d.joueurs, d.faceMin, d.faceMax, d.longs], ["duel", "Le Duel des robots", "Le Duel des robots", 5, 30, 50, false]);
+    const { alerteEquipes } = await import("../web/public/show.js");
+    assert.match(alerteEquipes({ type: "duel" }, 1), /Duel des robots » se joue à 2 équipes au moins/);
+    assert.equal(alerteEquipes({ type: "duel" }, 2), null);
+    // Assez de duels pour que chaque joueur passe : arrondi supérieur de équipes × joueurs / 2 ; puis la durée estimée.
+    assert.deepEqual([duelsPrevus(4, 4), duelsPrevus(3, 5), duelsPrevus(2, 1)], [8, 8, 1]);
+    assert.equal(DUREE_ESTIMEE.apresDuel, 20);
+    // 3 équipes × 5 joueurs : 8 duels × (40 s + 20 s) = 8 min.
+    assert.equal(estimateMinutes(snapshot, 3), 8);
   });
 });
 
@@ -1099,10 +1174,10 @@ describe("Régie PC : contenus intégrés réglés, nombre de questions, notes",
     const grids = snapshot.quiz.questions.filter((q) => q.kind === "disparu");
     assert.equal(grids.length, 8);
     assert.ok(grids.slice(0, 4).every((q) => q.cards.length === 11), "11 objets demandés sur la première manche");
-    assert.ok(grids.slice(4).every((q) => q.cards.length === 5), "la seconde suit l'âge (6-8 ans : 5)");
+    assert.ok(grids.slice(4).every((q) => q.cards.length === 4), "la seconde suit l'âge (6-8 ans : 4)");
     const family = (q) => DISPARU_THEMES.find((t) => q.cards.every((c) => t.objects.some((o) => o.word === c.word))).theme;
     assert.equal(new Set(grids.map(family)).size, 8, "8 familles différentes sur les deux manches");
-    assert.equal(disparuObjects({ objects: 40 }, "MOYENS"), 7);
+    assert.equal(disparuObjects({ objects: 40 }, "MOYENS"), 6);
   });
 
   test("Pictionary : mots rangés en séries, la manche garde seulement les séries choisies", () => {
@@ -2242,7 +2317,9 @@ describe("photos à soi sur les cartes de mimes et les objets de Qui a disparu ?
     assert.deepEqual(famille.objects, objets);
     assert.equal(S.disparuGroup(famille), "Mes photos");
     assert.equal(S.disparuGroup(DISPARU_THEMES[0]), "Émojis");
-    assert.equal(S.contentExtras("disparu", { extra: [{ theme: "Trop peu", objects: objets.slice(0, 4) }] }).length, 0);
+    // 4 au moins (cedric, 27/10 : un tour de 4 cartes).
+    assert.equal(S.contentExtras("disparu", { extra: [{ theme: "Juste assez", objects: objets.slice(0, 4) }] }).length, 1);
+    assert.equal(S.contentExtras("disparu", { extra: [{ theme: "Trop peu", objects: objets.slice(0, 3) }] }).length, 0);
     // Tirage en photos : une famille de photos à soi passe avec les familles tout en photos.
     // (famille d'émojis inventée : la banque de photos grandit, une vraie famille peut devenir tout en photos)
     const emojis = { theme: "Formes", objects: ["Zigzag", "Spirale", "Losange", "Pentagone", "Hexagone"].map((word) => ({ word, image: "🔷" })) };
@@ -2542,7 +2619,7 @@ describe("nettoyage des copies des fêtes terminées (Régie PC, cedric, 21/10)"
     const fin = classer({ phase: "ended", endedAt: MAINTENANT - 25 * H, createdAt: MAINTENANT - 28 * H });
     assert.equal(fin.decision, "nettoyer");
     assert.equal(fin.raison, "Terminée depuis plus de 24 h");
-    assert.deepEqual(fin.effacer, { sounds: [S1], images: [I1], choiceImages: [C1] });
+    assert.deepEqual(fin.effacer, { sounds: [S1], images: [I1], choiceImages: [C1], songs: [] });
     assert.equal(classer({ phase: "ended", createdAt: MAINTENANT - 49 * H }).raison, "Terminée sans heure de fin, créée il y a plus de 48 h");
     // Gardées, avec la raison en clair ; une fête terminée dit quand elle deviendra bonne à nettoyer.
     const recente = classer({ phase: "ended", endedAt: MAINTENANT - 23 * H, createdAt: MAINTENANT - 100 * H });
@@ -2566,7 +2643,7 @@ describe("nettoyage des copies des fêtes terminées (Régie PC, cedric, 21/10)"
   test("seulement ce qu'un prochain lancement refera : un extrait dont la chanson a quitté la bibliothèque est gardé", () => {
     const r = classer({ phase: "ended", endedAt: MAINTENANT - 30 * H, sounds: [S1, PERDU], images: [I1, BANQUE], choiceImages: [C1] });
     assert.equal(r.decision, "nettoyer");
-    assert.deepEqual(r.effacer, { sounds: [S1], images: [I1, BANQUE], choiceImages: [C1] });
+    assert.deepEqual(r.effacer, { sounds: [S1], images: [I1, BANQUE], choiceImages: [C1], songs: [] });
     assert.deepEqual(r.gardes, [PERDU]);
     assert.deepEqual(r.notes, ["1 extrait gardé : la chanson n'est plus dans la bibliothèque",
       "1 photo de la banque du site ou émoji dessiné : refaits au prochain lancement"]);
@@ -2576,6 +2653,20 @@ describe("nettoyage des copies des fêtes terminées (Régie PC, cedric, 21/10)"
     assert.deepEqual([seuls.decision, seuls.raison, seuls.gardes.length], ["garder", "2 extraits gardés : la chanson n'est plus dans la bibliothèque", 2]);
     // Un code que le journal refuserait : gardée.
     assert.equal(classer({ code: "A.B", phase: "ended", endedAt: MAINTENANT - 30 * H }).raison, "Code de partie inattendu : gardée par prudence");
+  });
+
+  test("les chansons entières des statues (régie téléphone, 27/10) partent aussi ; gardées si la chanson a quitté la bibliothèque", () => {
+    const avecChansons = { ...bibliotheque, songs: new Set(["-NxChanson1", "s2"]) };
+    const r = N.classerPartie({ code: "FETE1", sounds: [], images: [], choiceImages: [], songs: ["-NxChanson1", "s2", "partie", "a/b"], phase: "ended", endedAt: MAINTENANT - 30 * H },
+      { maintenant: MAINTENANT, bibliotheque: avecChansons });
+    assert.equal(r.decision, "nettoyer");
+    assert.deepEqual(r.effacer.songs, ["-NxChanson1", "s2"]);
+    assert.deepEqual(r.gardes, ["partie", "a/b"]);
+    assert.equal(r.mo, 2 * N.MO_MOYEN.songs);
+    assert.deepEqual(N.effacements("FETE1", r.effacer), { "games/FETE1/songs/-NxChanson1": null, "games/FETE1/songs/s2": null });
+    // Une partie qui n'a que des chansons entières, encore en cours : gardée (et comptée dans le bilan).
+    const enCours = N.classerPartie({ code: "FETE2", songs: ["s2"], phase: "question" }, { maintenant: MAINTENANT, bibliotheque: avecChansons });
+    assert.deepEqual([enCours.decision, N.bilan([enCours]).copiesGardees], ["garder", { enCours: 1 }]);
   });
 
   test("bilan : parties, à nettoyer, Mo environ, gardées par raison, extraits gardés ; une seule écriture par partie", () => {
@@ -3215,12 +3306,26 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
     assert.deepEqual(qs.map((q) => q.id), ["r1m1", "r1m2", "r1m3"]);
     assert.ok(qs.every((q) => q.kind === "mime" && q.round === "Mimes" && q.duration === 45));
     assert.deepEqual(snapshot.rounds.map((r) => [r.title, r.count]), [["Mimes", 3]]);
-    // Chaque équipe ne mime que ses images ; une case retirée ne se joue pas.
-    assert.deepEqual(qs[0].cards.map((c) => c.word).sort(), ["Chat", "Vache"]);
-    assert.deepEqual(qs[1].cards.map((c) => c.word).sort(), ["Lion", "Ma tata", "Pomme"]);
+    // Chaque équipe mime d'abord ses images ; une case retirée ne se joue pas.
+    assert.deepEqual(qs[0].cards.slice(0, 2).map((c) => c.word).sort(), ["Chat", "Vache"]);
+    assert.deepEqual(qs[1].cards.slice(0, 3).map((c) => c.word).sort(), ["Lion", "Ma tata", "Pomme"]);
     assert.equal(qs[1].cards.find((c) => c.word === "Ma tata").imageId, "0123456789abcdef");
-    // Photos libres : copiées dans la partie par la régie au lancement.
-    assert.deepEqual(B.banqueRefs(qs).map((x) => x.cle).sort(), ["chat", "vache"]);
+    // Mimes en file (cedric, 26/10) : la couleur de l'équipe, puis une réserve d'images mimables si elle épuise les
+    // siennes, jamais deux fois la même dans la fête.
+    assert.deepEqual(qs.map((q) => q.couleur), show.teamColors.slice(0, 3));
+    const reserves = qs.map((q) => q.cards.filter((c) => !show.rounds[0].equipes.flat().some((x) => x?.word === c.word)));
+    assert.ok(reserves.every((r) => r.length >= 25 && r.length <= S.MIME_RESERVE), "Quelques dizaines d'images de secours par équipe");
+    assert.ok(Math.max(...reserves.map((r) => r.length)) - Math.min(...reserves.map((r) => r.length)) <= 1, "Autant pour chaque équipe");
+    // 8 équipes : la réserve se partage, toujours à parts égales et sans doublon.
+    const huit = S.reserveMimes(8, new Set(), () => 0.5);
+    assert.ok(huit.every((r) => r.length >= 15), huit.map((r) => r.length).join(","));
+    assert.equal(new Set(huit.flat().map((c) => c.word)).size, huit.flat().length);
+    const mots = qs.flatMap((q) => q.cards.map((c) => c.word.toLowerCase()));
+    assert.equal(new Set(mots).size, mots.length);
+    // Photos libres : copiées dans la partie par la régie au lancement, celles de la réserve comprises.
+    const refs = B.banqueRefs(qs).map((x) => x.cle);
+    assert.ok(refs.includes("chat") && refs.includes("vache"));
+    assert.ok(refs.length > 2, "La réserve vient de la banque de photos libres");
     // La régie copie aussi ses images à elle.
     assert.ok(S.choiceImageIds(qs).includes("0123456789abcdef"));
   });

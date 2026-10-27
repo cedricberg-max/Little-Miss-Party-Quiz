@@ -56,9 +56,9 @@ enum class QuestionKind(val code: String) {
     BLIND("blind"),
 
     /**
-     * Statues musicales : la musique joue sur la TV et s'arrête par moments ([Question.statueAt]) ; tout le
-     * monde danse, et se fige à l'arrêt. À la fin, l'animatrice désigne l'équipe gagnante (la dernière à ne
-     * pas avoir bougé). Pas de propositions ni de pupitre à toucher.
+     * Statues musicales (cedric, 27/10) : une chanson par tour, jouée entière sur la TV ; Sarah la coupe quand elle
+     * veut (STATUE !), tout le monde se fige, puis elle désigne les équipes gagnantes de la chanson (voir [StatuesRound]).
+     * Pas de propositions ni de pupitre à toucher.
      */
     STATUES("statues"),
 
@@ -105,7 +105,13 @@ enum class QuestionKind(val code: String) {
      * « Ça va exploser ! » : une bombe passe d'équipe en équipe depuis les tablettes ; sa mèche, tirée au sort, est
      * cachée. L'équipe qui la tient à l'explosion perd des points, les autres en gagnent. Rien à préparer.
      */
-    PATATE("patate");
+    PATATE("patate"),
+
+    /**
+     * 🤠 Le Duel des robots : deux équipes face à face, un joueur de chaque côté ; la première qui buzze après le PAN de
+     * la TV gagne, celle qui buzze avant perd (voir [DuelRound]). Rien à préparer que les joueurs et la durée.
+     */
+    DUEL("duel");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -151,6 +157,11 @@ data class Question(
      */
     val audioIds: List<String> = emptyList(),
     /**
+     * Statues musicales (depuis le 27/10) : les chansons, chacune un tour, jouées entières ([ChansonStatues.songId])
+     * ou, à défaut, par leur extrait. Vide : les extraits de [audioIds] (programmes d'avant).
+     */
+    val songs: List<ChansonStatues> = emptyList(),
+    /**
      * Blind test : extrait du refrain (environ 90 s), joué plus fort et en boucle à la révélation, jusqu'au
      * « Titre suivant » de l'animatrice (« on chante tous ensemble »). Absent : l'extrait du morceau est rejoué.
      */
@@ -164,6 +175,20 @@ data class Question(
     val points: Int? = null,
     /** Blind test : durée de la séquence de révélation (extrait rejoué, pochette, titre, points), en secondes. */
     val revealSec: Int = BLIND_REVEAL_SEC,
+    /** « Ça va exploser ! » : nombre de bombes de la partie, réglé dans la Régie PC (1 à [POTATO_BOMBS_MAX]). */
+    val bombs: Int = POTATO_BOMBS,
+    /**
+     * Mimes en file (cedric, 23/10 puis 26/10) : couleur (« #F5D000 ») de la seule équipe qui joue cette manche, préparée
+     * pour elle dans la Régie PC. Null : manche jouée tour à tour par toutes les équipes.
+     */
+    val couleur: String? = null,
+    /** Le Duel des robots : nombre approximatif de joueurs par équipe (tout le monde joue), réglé dans la Régie PC. */
+    val joueurs: Int = DUEL_JOUEURS,
+    /** Le Duel des robots : durée du face-à-face avant le PAN, tirée entre ces bornes (secondes). */
+    val faceMin: Int = DUEL_FACE_DEFAUT_MIN,
+    val faceMax: Int = DUEL_FACE_DEFAUT_MAX,
+    /** Le Duel des robots : de temps en temps un long duel, jusqu'à 60 s. */
+    val longs: Boolean = true,
 ) {
     /** Paroles du refrain, phrase par phrase et mot par mot (vide : pas de paroles). */
     val paroles: List<LigneParole> by lazy { lireParoles(lyrics) }
@@ -175,7 +200,8 @@ data class Question(
             // Pour les mimes et le Pictionary, la durée est celle du tour de chaque équipe.
             require(cards.size in 1..MAX_MIME_CARDS) { "Mimes $id : il faut 1 à $MAX_MIME_CARDS cartes" }
             require(cards.none { it.word.isBlank() }) { "Mimes $id : carte sans mot" }
-            require(durationSec in 15..180) { "Mimes $id : tour entre 15 et 180 s" }
+            // Mimes : durée du tour réglée à la seconde près dans la Régie PC (cedric, 26/10), jusqu'à 5 minutes.
+            require(durationSec in 15..MAX_MIME_TURN_SEC) { "Mimes $id : tour entre 15 et $MAX_MIME_TURN_SEC s" }
             require(points == null || points in 1..MAX_TRACK_POINTS) { "Pictionary $id : valeur entre 1 et $MAX_TRACK_POINTS points" }
         } else if (kind == QuestionKind.CHANTE || kind == QuestionKind.QUISUIS || kind == QuestionKind.BLIND) {
             // Réponse orale jugée par l'animatrice : une seule réponse attendue, pas de propositions à l'écran.
@@ -203,6 +229,10 @@ data class Question(
             require(choices.isEmpty()) { "Coffres mystères $id : pas de propositions" }
         } else if (kind == QuestionKind.PATATE) {
             require(choices.isEmpty()) { "Ça va exploser $id : pas de propositions" }
+        } else if (kind == QuestionKind.DUEL) {
+            require(choices.isEmpty()) { "Duel des robots $id : pas de propositions" }
+            require(joueurs in 1..DUEL_JOUEURS_MAX) { "Duel des robots $id : 1 à $DUEL_JOUEURS_MAX joueurs par équipe" }
+            require(faceMin in DUEL_FACE_MIN_SEC..faceMax && faceMax <= DUEL_FACE_MAX_SEC) { "Duel des robots $id : face-à-face entre $DUEL_FACE_MIN_SEC et $DUEL_FACE_MAX_SEC s" }
         } else if (kind == QuestionKind.GONFLEUR) {
             require(choices.isEmpty()) { "Gonfleur fou $id : pas de propositions" }
             require(durationSec in 20..180) { "Gonfleur fou $id : durée entre 20 et 180 s" }
@@ -228,6 +258,7 @@ data class Question(
     val isCoffres: Boolean get() = kind == QuestionKind.COFFRES
     val isGonfleur: Boolean get() = kind == QuestionKind.GONFLEUR
     val isPatate: Boolean get() = kind == QuestionKind.PATATE
+    val isDuel: Boolean get() = kind == QuestionKind.DUEL
 
     /** Jeu joué équipe par équipe, tour après tour (mimes, Pictionary) : le chrono part au lancement de chaque tour. */
     val isTurns: Boolean get() = isMime || isPicto
@@ -256,26 +287,11 @@ data class Question(
     /** Qui a disparu ? : place de l'objet disparu dans la grille. */
     val missingIndex: Int get() = if (isDisparu) cards.indexOfFirst { it.word == choices[0] } else -1
 
-    /**
-     * Statues musicales : moments où la musique s'arrête, en millisecondes de chrono [début, fin[. Tirés au
-     * hasard mais toujours les mêmes pour une question (graine = identifiant) : la TV relancée retombe sur
-     * le même enchaînement. La musique joue toujours au début et dans les dernières secondes.
-     */
-    val statues: List<LongRange> by lazy {
-        if (!isStatues) return@lazy emptyList()
-        val rnd = kotlin.random.Random(id.hashCode())
-        val out = mutableListOf<LongRange>()
-        var t = 6_000L + rnd.nextLong(0, 4_000)
-        while (t + STATUE_MAX_MS + 4_000 < durationMs) {
-            val stop = 2_500L + rnd.nextLong(0, STATUE_MAX_MS - 2_500)
-            out += t until t + stop
-            t += stop + 4_000 + rnd.nextLong(0, 7_000)
-        }
-        out
-    }
+    /** Statues musicales : les chansons jouées, une par tour ([songs], sinon les extraits d'avant). */
+    val statuesSongs: List<ChansonStatues> get() = songs.ifEmpty { audioIds.map { ChansonStatues(null, it) } }
 
-    /** Statues musicales : la musique est-elle arrêtée (tout le monde se fige) à [elapsedMs] de chrono ? */
-    fun statueAt(elapsedMs: Long): Boolean = statues.any { elapsedMs in it }
+    /** Statues musicales : nombre de tours, un par chanson (un seul sur la musique maison de la TV). */
+    val statuesTours: Int get() = statuesSongs.size.coerceAtLeast(1)
 
     /** Blind test : points de l'équipe qui trouve ce morceau (avant le ×2 de la Super Finale). */
     val trackPoints: Int get() = points ?: Scoring.BLIND_POINTS
@@ -315,6 +331,9 @@ data class MimeCard(val word: String, val image: String? = null, val imageId: St
 
 const val MAX_MIME_CARDS = 200
 
+/** Tour de mimes (ou de Pictionary) le plus long, en secondes. */
+const val MAX_MIME_TURN_SEC = 300
+
 /** Portes mystères : nombre de portes au plus, et valeur la plus forte (bonus ou malus) derrière une porte. */
 const val MAX_DOORS = 4
 const val MAX_DOOR_POINTS = 1000
@@ -333,9 +352,6 @@ const val MAX_DISPARU = 12
 
 /** Qui a disparu ? : durée du tour de magie, objets cachés, entre la mémorisation et la recherche. */
 const val DISPARU_MAGIE_MS = 3_000L
-
-/** Statues musicales : arrêt de la musique le plus long (millisecondes). */
-const val STATUE_MAX_MS = 5_000L
 
 /** Le Juste Chiffre : nombres de -999 999 999 à 999 999 999 (ce que le pupitre laisse taper). */
 const val MAX_NUMBER = 999_999_999
