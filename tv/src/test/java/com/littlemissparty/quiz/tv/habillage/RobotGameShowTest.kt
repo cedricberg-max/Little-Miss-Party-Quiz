@@ -209,4 +209,35 @@ class RobotGameShowTest {
         assertNull(momentRobot(partie(Phase.QUESTION), 8, null))
         assertNull(momentRobot(partie(Phase.QUESTION), 0, null))
     }
+
+    /**
+     * Chaque clip est dessiné dans une boîte à son format (cedric, 27/10 au soir : main coupée au bord ; 13 clips refaits
+     * plus larges) : la largeur lue dans le fichier vaut celle que l'appli prévoit, sinon le robot serait écrasé.
+     */
+    @Test
+    fun `chaque clip du robot est dessine a son vrai format, jamais ecrase`() {
+        for (c in CATALOGUE) {
+            val (largeur, hauteur) = tailleVideo(File("src/main/res/raw/${c.fichier}.mp4"))
+            assertEquals("${c.fichier} : hauteur", 2144, hauteur)
+            assertEquals("${c.fichier} : largeur prévue ${formatClip(c.fichier) * 1060f}, fichier $largeur", largeur.toFloat(), formatClip(c.fichier) * 1060f, 1f)
+        }
+        assertEquals(0.8f, formatClip("gs_robot_salto"), 0f)
+    }
+
+    /** Largeur et hauteur de la piste vidéo d'un MP4, lues dans sa boîte « tkhd » (nombres 16.16). */
+    private fun tailleVideo(f: File): Pair<Int, Int> {
+        val o = f.readBytes()
+        fun entier(i: Int) = ((o[i].toInt() and 0xff) shl 24) or ((o[i + 1].toInt() and 0xff) shl 16) or ((o[i + 2].toInt() and 0xff) shl 8) or (o[i + 3].toInt() and 0xff)
+        var i = 0
+        while (i < o.size - 100) {
+            if (o[i] == 't'.code.toByte() && o[i + 1] == 'k'.code.toByte() && o[i + 2] == 'h'.code.toByte() && o[i + 3] == 'd'.code.toByte()) {
+                val debut = i + 4 + if (o[i + 4].toInt() == 1) 88 else 76
+                val l = entier(debut) ushr 16
+                val h = entier(debut + 4) ushr 16
+                if (l > 0 && h > 0) return l to h
+            }
+            i++
+        }
+        throw AssertionError("${f.name} : pas de piste vidéo")
+    }
 }

@@ -406,6 +406,19 @@ private fun PauseRobot(code: String) {
     key(cle) { JouerClip(clip, cle, attente) { if (tourPause.value == tour) tourPause.value = tour + 1 } }
 }
 
+/**
+ * Clips refaits plus larges (1040 × 1060 par moitié au lieu de 848) : le robot ne se coupe plus la main au bord
+ * de l'image quand il tend les bras (cedric, 27/10 au soir). Même robot, même taille, juste plus de marge.
+ */
+private val CLIPS_LARGES = setOf(
+    "gs_robot_confettis", "gs_robot_coucou", "gs_robot_danse", "gs_robot_descente", "gs_robot_dort", "gs_robot_energie",
+    "gs_robot_ola", "gs_robot_podium", "gs_robot_robotdance", "gs_robot_tete", "gs_robot_tourne", "gs_robot_traverse",
+    "gs_robot_vole",
+)
+
+/** Largeur / hauteur d'une moitié du clip (couleur au-dessus, transparence au-dessous). */
+internal fun formatClip(fichier: String): Float = if (fichier in CLIPS_LARGES) 1040f / 1060f else 0.8f
+
 @Composable
 private fun JouerClip(clip: ClipRobot, cle: String, attenteMs: Long, serre: Resserre? = null, onFini: () -> Unit) {
     // Trajet fixé à l'arrivée du clip : il ne change pas de place en cours de route.
@@ -433,17 +446,18 @@ private fun JouerClip(clip: ClipRobot, cle: String, attenteMs: Long, serre: Ress
     BoxWithConstraints(Modifier.fillMaxSize().clearAndSetSemantics {}) {
         val largeur = constraints.maxWidth.toFloat()
         val hauteur = constraints.maxHeight.toFloat()
-        // 90 % de la hauteur de l'écran, au format des clips (4:5).
+        // 90 % de la hauteur de l'écran, au format du clip (4:5, ou plus large pour les clips refaits avec de la marge).
         val h = maxHeight * 0.9f
         val hauteurPx = hauteur * 0.9f
+        val format = formatClip(clip.fichier)
         AndroidView(
             factory = { LecteurAlpha(it, resId, surDebut = { lecture = 1 }, surEchec = { lecture = -1 }) },
             onRelease = { it.liberer() },
-            modifier = Modifier.size(h * 0.8f, h).graphicsLayer {
+            modifier = Modifier.size(h * format, h).graphicsLayer {
                 val (x, bas, echelle) = trajet.a(temps.value)
                 scaleX = echelle
                 scaleY = echelle
-                translationX = x * largeur - hauteurPx * 0.4f
+                translationX = x * largeur - hauteurPx * format / 2
                 translationY = bas * hauteur - hauteurPx / 2 - hauteurPx * echelle / 2
                 alpha = if (lecture == 1) (temps.value / 150f).coerceIn(0f, 1f) else 0f
             },
