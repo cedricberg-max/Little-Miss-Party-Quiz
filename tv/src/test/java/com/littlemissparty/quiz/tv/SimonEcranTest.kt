@@ -52,7 +52,7 @@ class SimonEcranTest {
     }
 
     @Test
-    fun `apres le jugement - verification colonne par colonne, puis le bandeau ; pas lancee - prets`() {
+    fun `apres le jugement - verification colonne par colonne, puis le bandeau, pas lancee - prets`() {
         val v = SimonVerdict(3, mapOf("A" to SimonAnswer(suite.take(3), 2_000)), listOf("B"), emptyList(), 0, false, t0)
         val r = tour(3, verdict = v)
         assertEquals(VueSimon(EtapeSimon.VERIF, colonne = 0), vueSimon(r, t0, 10))
