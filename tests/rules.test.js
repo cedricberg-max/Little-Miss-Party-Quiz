@@ -1522,6 +1522,54 @@ describe("Ça va exploser !", () => {
   });
 });
 
+describe("Le Duel des robots", () => {
+  const face = (duel = {}, extra = {}) => seed({
+    kind: "duel", qid: "r9d", choices: null, deadline: null,
+    duel: { n: 1, teams: ["bleu", "rose"], players: [1, 1], step: "standoff", key: "r9d-1-100", ...duel }, ...extra,
+  });
+  const buzz = (uid, team = uid, key = "r9d-1-100", data = null) =>
+    set(ref(db(uid), `games/${CODE}/duel/${key}/${team}`), data ?? { t: Date.now(), at: serverTimestamp() });
+  const troisEquipes = () => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#7CFF3A" }));
+
+  test("chaque équipe du duel buzze une fois pendant le face-à-face, avec l'heure de son appui", async () => {
+    await face();
+    await troisEquipes();
+    await assertFails(buzz("vert"), "pas dans ce duel");
+    await assertFails(buzz("bleu", "rose"), "jamais pour une autre équipe");
+    await assertFails(buzz("bleu", "bleu", "r9d-1-99"), "ancien face-à-face");
+    await assertFails(buzz("bleu", "bleu", "r9d-1-100", { t: Date.now(), at: 5 }), "heure du serveur obligatoire");
+    await assertFails(buzz("bleu", "bleu", "r9d-1-100", { at: serverTimestamp() }), "heure de l'appui obligatoire");
+    await assertFails(buzz("bleu", "bleu", "r9d-1-100", { t: Date.now(), at: serverTimestamp(), gagne: true }));
+    await assertSucceeds(buzz("bleu"));
+    await assertFails(buzz("bleu"), "un seul buzz par face-à-face");
+    await assertSucceeds(buzz("rose"));
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/duel`), null));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/duel`), null));
+  });
+
+  test("ni avant le lancement, ni après le bilan, ni en pause, ni dans un autre jeu", async () => {
+    await face({ step: "ready" });
+    await assertFails(buzz("bleu"), "duel prêt, pas lancé");
+    await face({ step: "result" });
+    await assertFails(buzz("bleu"), "duel jugé");
+    await face({}, { paused: true });
+    await assertFails(buzz("bleu"), "pause");
+    await seed({ kind: "quiz", duel: { teams: ["bleu", "rose"], step: "standoff", key: "r9d-1-100" } });
+    await assertFails(buzz("bleu"), "pas dans ce jeu");
+  });
+
+  test("tablette remplacée : seul le nouvel appareil buzze ; la régie lance, prépare et arrête les duels", async () => {
+    await face();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/bleu/device`), "tablette2"));
+    await assertFails(buzz("bleu"));
+    await assertSucceeds(buzz("tablette2", "bleu"));
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    for (const [id, cmd] of [["d1", { type: "duel_start" }], ["d2", { type: "duel_start", teams: ["bleu", "rose"] }], ["d3", { type: "duel_next" }], ["d4", { type: "duel_stop" }]]) {
+      await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/${id}`), { ...cmd, expectSeq: 3, by: "tel", at: serverTimestamp() }), cmd.type);
+    }
+  });
+});
+
 describe("activation des box", () => {
   const admin = () => db("sarah");
   beforeEach(() => seedAdmin(env, "sarah"));

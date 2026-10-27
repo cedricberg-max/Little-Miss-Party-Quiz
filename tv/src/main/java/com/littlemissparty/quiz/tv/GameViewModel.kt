@@ -21,6 +21,7 @@ import com.littlemissparty.quiz.engine.Award
 import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.BlindTrack
 import com.littlemissparty.quiz.engine.ChestRound
+import com.littlemissparty.quiz.engine.DuelRound
 import com.littlemissparty.quiz.engine.Codec
 import com.littlemissparty.quiz.engine.Command
 import com.littlemissparty.quiz.engine.CommandResult
@@ -184,6 +185,11 @@ sealed interface UiState {
         val statues: StatuesRound? = null,
         /** Statues musicales : chansons entières déjà sur la box (chanson de la bibliothèque → fichier MP3 local). */
         val songs: Map<String, String> = emptyMap(),
+        /** Le Duel des robots : le duel prêt, en cours ou jugé (l'heure du PAN, que seule la box connaît), null hors de ce jeu. */
+        val duel: DuelRound? = null,
+        /** Le Duel des robots : duels prévus pour que tout le monde joue, et tous les joueurs sont passés. */
+        val duelTotal: Int = 0,
+        val duelTousPasses: Boolean = false,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -278,6 +284,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var chestListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var pumpListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var potatoListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var duelListener: Pair<DatabaseReference, ValueEventListener>? = null
 
     /** Gonfleur fou : dernières tapes reçues de chaque équipe, pour la course de [pumpListener]. */
     private var pumps: Map<String, Pump> = emptyMap()
@@ -839,8 +846,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Portes mystères et coffres mystères : pas de chrono, rien ne se ferme seul.
         // Entre deux tours de mimes, rien ne se ferme seul, sauf le bilan d'une couleur quand son heure est passée.
         val entreDeuxTours = g.state.mime != null && g.state.mime?.team == null && !g.mimeBilanDue(serverNow())
+        // Duel des robots : pas de chrono ; le jugement d'un face-à-face attend son heure ([schedule]).
         if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.question?.isCoffres != true &&
-            !entreDeuxTours && g.timeOver(serverNow())
+            g.question?.isDuel != true && !entreDeuxTours && g.timeOver(serverNow())
         ) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
             act { it.timeUp(serverNow()) ?: it.balloon(pumps, teams().map { t -> t.uid }, serverNow(), stop = true) }
@@ -887,6 +895,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                             st.ended -> g.statuesSongWin(emptyList(), teams().map { it.uid }, serverNow())
                             st.dancing -> g.statuesStop(serverNow())
                             else -> g.statuesPlay(serverNow())
+                        },
+                    )
+                }
+                // Duel des robots : OK lance le duel prêt ; après un duel, prépare le suivant, ou passe au jeu suivant
+                // quand tout le monde a joué (les duels à la volée se choisissent sur la régie).
+                else if (g.question?.isDuel == true) {
+                    val d = g.state.duel
+                    val ids = teams().map { it.uid }
+                    commit(
+                        when {
+                            d == null -> if (ids.size < 2) g.next(serverNow()) else null
+                            d.enCours -> null
+                            d.result == null -> g.startDuel(serverNow())
+                            g.duelTousPasses(ids) -> g.next(serverNow())
+                            else -> g.readyDuel(ids, serverNow())
                         },
                     )
                 }
@@ -1034,7 +1057,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         ref.updateChildren(
             mapOf(
                 "log/${Codec.key(event.seq)}" to clean(Codec.encode(event)),
-                "state" to clean(Codec.publicState(g, round)),
+                "state" to clean(Codec.publicState(g, round, teams().map { it.uid })),
             ) + replayed + extra
         ).addOnFailureListener { Log.e(TAG, "Écriture refusée", it) }
         refresh()
@@ -1044,7 +1067,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun publishState() {
         val g = game ?: return
         val round = (_state.value as? UiState.Playing)?.round ?: 1
-        gameRef?.child("state")?.setValue(clean(Codec.publicState(g, round)))
+        gameRef?.child("state")?.setValue(clean(Codec.publicState(g, round, teams().map { it.uid })))
     }
 
     /** Réponses retenues : celles des équipes inscrites (8 au plus), relues sur le serveur si possible. */
@@ -1178,6 +1201,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 potato = s.potato.takeIf { q?.isPatate == true && s.phase != Phase.LOBBY },
                 holdUntil = g.holdDeadline(),
                 statues = s.statues.takeIf { q?.isStatues == true && s.phase != Phase.LOBBY },
+                duel = s.duel.takeIf { q?.isDuel == true && s.phase != Phase.LOBBY },
+                duelTotal = if (q?.isDuel == true) g.duelsAPrevoir(teams().size) else 0,
+                duelTousPasses = q?.isDuel == true && g.duelTousPasses(teams().map { it.uid }),
                 openedAt = s.openedAt,
                 multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),
@@ -1210,6 +1236,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // puis écoute l'envoi de la tablette de l'équipe qui tient la bombe.
         if (g.needsPotato() && teams().size >= 2) act { it.lightPotato(teams().map { t -> t.uid }, serverNow()) }
         watchPotato(Codec.potatoKey(g)?.takeIf { !s.paused })
+        // Duel des robots : la box prépare le premier duel dès le lancement du jeu (« la ronde »), puis écoute les buzz
+        // des 2 équipes pendant chaque face-à-face.
+        if (g.needsDuel() && teams().size >= 2) act { it.readyDuel(teams().map { t -> t.uid }, serverNow()) }
+        watchDuel(Codec.duelKey(g))
         // Jeux au buzzer : la question ne se ferme plus quand toutes les équipes se sont trompées, elles rebuzzent 3 s après
         // le verdict (cedric, 25/10, règle 2) ; le chrono, ou l'animatrice, la termine.
         // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
@@ -2171,6 +2201,39 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Duel des robots : les buzz des 2 tablettes du face-à-face en cours (games/<code>/duel/<clé>/<équipe> = { t, at }) :
+     * [t] = heure de l'appui estimée par la tablette, [at] = arrivée sur le serveur. Les règles n'acceptent qu'un buzz par
+     * équipe du duel, et une clé par face-à-face : un vieux buzz ne compte jamais. La box juge (trop tôt, plus rapide).
+     */
+    private fun watchDuel(key: String?) {
+        if (key == duelListener?.first?.key) return
+        duelListener?.let { (r, l) -> r.removeEventListener(l) }
+        duelListener = null
+        val ref = gameRef?.child("duel")?.child(key ?: return) ?: return
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val buzz = snapshot.children.mapNotNull { c ->
+                    val at = c.child("at").getValue(Long::class.java) ?: return@mapNotNull null
+                    Triple(c.key ?: return@mapNotNull null, c.child("t").getValue(Long::class.java) ?: at, at)
+                }.sortedBy { it.third }
+                buzz.forEach { (team, t, at) ->
+                    Reactivite.noter("duel", serverNow() - at)
+                    act { g ->
+                        if (Codec.duelKey(g) != key || g.state.duel?.buzzes?.any { it.team == team } == true) null
+                        else g.duelBuzz(team, t, minOf(at, serverNow()))
+                    }
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Buzz du duel : ${error.message}")
+            }
+        }
+        duelListener = ref to listener
+        ref.addValueEventListener(listener)
+    }
+
+    /**
      * « Ça va exploser ! » : l'envoi de la tablette de l'équipe qui tient la bombe (games/<code>/potatoPass/<clé> =
      * { to, at }). Les règles de la base n'acceptent que l'appareil de cette équipe, dès la réception (cedric, 27/10), vers
      * une équipe permise. Une clé par réception : un envoi ne peut servir qu'une fois.
@@ -2350,6 +2413,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         watchChest(null)
         watchPumps(null)
         watchPotato(null)
+        watchDuel(null)
         watchDrawing(null)
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
@@ -2441,6 +2505,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             // Statues musicales : les chansons choisies (audioIds) jouées l'une après l'autre.
             "statuesChansons" to true,
             "disparu" to true,
+            // Le Duel des robots : buzz des tablettes dans duel/, PAN et jugement par la box, duel_start / duel_next / duel_stop.
+            "duel" to true,
             // Mauvaise prestation : une autre prestation remplace celle-ci tant qu'aucun point n'a été donné (retour au salon).
             "programReset" to true,
             "questions" to quiz.questions.map {
@@ -2458,6 +2524,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "bombs" to it.bombs.takeIf { _ -> it.isPatate },
                     // Mimes en file : la couleur de l'équipe seule de la manche, relue après un redémarrage.
                     "couleur" to it.couleur,
+                    // Le Duel des robots : joueurs par équipe et durée du face-à-face, relus après un redémarrage.
+                    "joueurs" to it.joueurs.takeIf { _ -> it.isDuel }, "faceMin" to it.faceMin.takeIf { _ -> it.isDuel },
+                    "faceMax" to it.faceMax.takeIf { _ -> it.isDuel }, "longs" to it.longs.takeIf { _ -> it.isDuel },
                 ))
             },
         )
