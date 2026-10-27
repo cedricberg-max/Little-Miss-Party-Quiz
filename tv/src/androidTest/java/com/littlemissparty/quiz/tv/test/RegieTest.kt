@@ -1248,7 +1248,7 @@ class RegieTest : TestTv() {
         assertEquals("2 équipes × 2 joueurs : 2 duels", 2L, (e.child("duel/total").value as Number).toLong())
         assertEquals(listOf(1L, 1L), e.child("duel/players").children.map { (it.value as Number).toLong() })
         ecran.voit("Les deux joueurs, la main au-dessus du buzzer !")
-        ecran.voit("Duel 1 sur 2")
+        ecran.voit(if (Look.gs) "LE DUEL DES ROBOTS · 1 / 2" else "Duel 1 sur 2")
         ecran.capture("duel-pret")
         assertEquals("pas de buzz avant le face-à-face", false, dragons.buzzerDuel(code, 0))
 
@@ -1286,6 +1286,13 @@ class RegieTest : TestTv() {
         ecran.capture("duel-gagne")
         assertEquals(true, licornes.etat(code).child("duel/allPlayed").value)
         assertEquals(2L * DUEL_POINTS, points(licornes, code, licornes.uid))
+        // Game Show : après le dernier duel, les affiches WANTED du classement (Licornes 2 duels, Dragons 0).
+        if (Look.gs) {
+            ecran.voit("Les meilleurs tireurs", 15_000)
+            ecran.voit("2 DUELS")
+            ecran.voit("0 DUEL")
+            ecran.capture("duel-wanted")
+        }
 
         // Tout le monde a joué : dernier jeu, les résultats finaux ; scores gardés.
         assertEquals("applied", regie.commande(code, "next"))

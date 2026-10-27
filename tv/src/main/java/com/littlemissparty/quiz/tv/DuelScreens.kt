@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -23,6 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.tv.habillage.AfficheWanted
+import com.littlemissparty.quiz.tv.habillage.AffichesWanted
+import com.littlemissparty.quiz.tv.habillage.Ambiance
 import com.littlemissparty.quiz.tv.habillage.BandeauDuel
 import com.littlemissparty.quiz.tv.habillage.EquipeDuel
 import com.littlemissparty.quiz.tv.habillage.EtapeDuel
@@ -40,6 +44,7 @@ import com.littlemissparty.quiz.tv.habillage.PLANS_DUEL
 import com.littlemissparty.quiz.tv.habillage.montageDuel
 import com.littlemissparty.quiz.tv.habillage.videosDuelPresentes
 import com.littlemissparty.quiz.tv.habillage.planDuelA
+import com.littlemissparty.quiz.tv.habillage.portraitDuel
 import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
 
@@ -48,6 +53,10 @@ import kotlinx.coroutines.delay
  * tire l'heure du PAN et juge les buzz. Ici : le duel prêt (les 2 équipes, le joueur appelé de chaque), le face-à-face
  * avec ses feintes, le PAN pile à son heure, puis la gagnante (ou le tir trop tôt, ou personne).
  */
+
+/** Les affiches WANTED arrivent 4,5 s après le dernier duel (bandeau et sifflement vus) ; leur musique dure 22,7 s. */
+internal const val WANTED_APRES_MS = 4_500L
+internal const val WANTED_MUSIQUE_MS = 22_700L
 
 /** Temps de réaction affiché : « 0,31 s ». */
 internal fun tempsDuel(ms: Long): String = "%d,%02d s".format(ms / 1000, (ms % 1000) / 10)
@@ -160,10 +169,40 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
             },
             resultat = resultat,
         )
+        // Tous les joueurs sont passés : après le bandeau du dernier duel, les affiches WANTED du classement du jeu
+        // (cedric, 27/10), sur la grande fin de l'air western. Un duel en plus les retire ; « Jeu suivant » passe au jeu.
+        val juge = etape == EtapeDuel.GAGNE || etape == EtapeDuel.TROP_TOT || etape == EtapeDuel.PERSONNE
+        val wanted by produceState(false, r?.at, state.duelTousPasses, juge) {
+            value = false
+            val at = r?.at ?: return@produceState
+            if (!state.duelTousPasses || !juge) return@produceState
+            val attente = at + WANTED_APRES_MS - maintenant()
+            if (attente > 0) delay(attente)
+            value = true
+        }
+        LaunchedEffect(wanted) {
+            if (!wanted || r == null || maintenant() - r.at - WANTED_APRES_MS > 2_000) return@LaunchedEffect
+            Sons.executer(listOf(Ordre.Musique(Ambiance.SILENCE), Ordre.Jouer(Son.DUEL_CLASSEMENT)))
+            delay(WANTED_MUSIQUE_MS)
+            Sons.executer(listOf(Ordre.Musique(Ambiance.DUEL_ENTRE)))
+        }
+        // Les affiches parties (duel en plus, jeu suivant) : leur musique s'arrête avec elles.
+        DisposableEffect(wanted) {
+            val affichees = wanted
+            onDispose { if (affichees) Sons.executer(listOf(Ordre.Arreter(Son.DUEL_CLASSEMENT))) }
+        }
         Box(Modifier.fillMaxSize()) {
             SceneDuel(
-                equipes = joueuses.mapIndexed { i, t -> EquipeDuel(t.name, t.color.toColor(), d?.players?.getOrNull(i) ?: 1) },
-                etape = etape, gagnante = gagnante, perdante = perdante, plan = plan, cle = cle, modifier = Modifier.fillMaxSize(), textes = textes,
+                // Sous les affiches : le film seul, sans les plaques des coins.
+                equipes = if (wanted) emptyList() else joueuses.mapIndexed { i, t -> EquipeDuel(t.name, t.color.toColor(), d?.players?.getOrNull(i) ?: 1) },
+                etape = etape, gagnante = gagnante, perdante = perdante, plan = plan, cle = cle, modifier = Modifier.fillMaxSize(),
+                textes = if (wanted) TextesDuel(textes.pastille, textes.annonce, null, null) else textes,
+            )
+            if (wanted) AffichesWanted(
+                state.ranking.map { (t, _) -> t }
+                    .sortedByDescending { state.duelGagnes[it.uid] ?: 0 }
+                    .map { t -> t.color.toColor().let { c -> AfficheWanted(t.name, c, state.duelGagnes[t.uid] ?: 0, portraitDuel(c)) } },
+                cle = "wanted-$cle",
             )
             // Sans régie, à la télécommande : OK lance le duel, puis prépare le suivant (ou passe aux scores).
             if (!state.paused && state.regies == 0) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp)) {

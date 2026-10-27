@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv.habillage
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.Image
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -23,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -32,7 +34,9 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -44,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.tv.R
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -103,8 +108,8 @@ internal fun HabillageDuelWestern(equipes: List<EquipeDuel>, etape: EtapeDuel, g
             )
         }
         textes.consigne?.let {
-            Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp).widthIn(max = if (etape == EtapeDuel.PRET) 1700.dp else 700.dp)) {
-                TexteNeon(it, GS.Orange, 46f, PoliceGsTexte, largeurMax = if (etape == EtapeDuel.PRET) 1700.dp else 700.dp, force = 0.5f, graisse = FontWeight.Bold)
+            Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp).widthIn(max = if (etape == EtapeDuel.PRET) 1700.dp else 560.dp)) {
+                TexteNeon(it, GS.Orange, 46f, PoliceGsTexte, largeurMax = if (etape == EtapeDuel.PRET) 1700.dp else 560.dp, force = 0.5f, graisse = FontWeight.Bold)
             }
         }
         textes.resultat?.let { BandeauWestern(it, cle, Modifier.align(Alignment.TopCenter).padding(start = 140.dp, end = 140.dp, top = 150.dp)) }
@@ -136,7 +141,8 @@ internal fun TexteNeon(
         while (t > tailleMin && mesure.measure(texte, style(t), maxLines = 1, softWrap = false).size.width > max) t *= 0.94f
         t
     }
-    val px = with(d) { 1.dp.toPx() } * taille / 100f
+    // Lueurs de la maquette (pensées pour un texte de 150 px), à l'échelle du texte.
+    val px = with(d) { 1.dp.toPx() } * taille / 150f
     Box(modifier, contentAlignment = Alignment.Center) {
         // Trois couches : la grande lueur, la lueur proche, le tube blanc qui brille.
         Text(texte, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip, style = style(taille).copy(color = couleur, shadow = Shadow(couleur, Offset.Zero, 56f * px * force)))
@@ -304,5 +310,129 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.lueur(couleur: Colo
             couleur.copy(alpha = 0.28f / i), topLeft = Offset(-e / 2, -e / 2), size = size.copy(width = size.width + e, height = size.height + e),
             cornerRadius = CornerRadius(rayon + e / 2), style = Stroke(e),
         )
+    }
+}
+
+/** Une affiche WANTED du classement du duel : l'équipe, sa couleur, ses duels gagnés, le portrait de son robot. */
+class AfficheWanted(val nom: String, val couleur: Color, val duels: Int, val portrait: String)
+
+/** Les portraits du robot livrés par le design, un par couleur d'équipe proposée (TEAM_COLORS, même ordre). */
+internal val PORTRAITS_DUEL = listOf(
+    "rose" to Color(0xFFFF2D95), "orange" to Color(0xFFFF6B1A), "vert" to Color(0xFF39FF14), "jaune" to Color(0xFFFFE600),
+    "bleu" to Color(0xFF2B86C5), "violet" to Color(0xFF9B5DE5), "rouge" to Color(0xFFF94144), "turquoise" to Color(0xFF2EE8E0),
+)
+
+/** Le portrait (nom de couleur) le plus proche de la couleur d'équipe [c] : une couleur choisie à la main tombe sur la plus proche. */
+internal fun portraitDuel(c: Color): String = PORTRAITS_DUEL.minBy { (_, p) ->
+    val r = c.red - p.red
+    val g = c.green - p.green
+    val b = c.blue - p.blue
+    r * r + g * g + b * b
+}.first
+
+private fun portraitRes(nom: String): Int = when (nom) {
+    "orange" -> R.drawable.gs_duel_portrait_orange
+    "vert" -> R.drawable.gs_duel_portrait_vert
+    "jaune" -> R.drawable.gs_duel_portrait_jaune
+    "bleu" -> R.drawable.gs_duel_portrait_bleu
+    "violet" -> R.drawable.gs_duel_portrait_violet
+    "rouge" -> R.drawable.gs_duel_portrait_rouge
+    "turquoise" -> R.drawable.gs_duel_portrait_turquoise
+    else -> R.drawable.gs_duel_portrait_rose
+}
+
+/**
+ * « Les meilleurs tireurs » : une affiche WANTED par équipe, déjà rangées (la première en premier), légèrement de
+ * travers comme clouées au mur ; les premières à égalité brillent en or (« ★ CHAMPIONS ★ »). Jusqu'à 4 équipes sur une
+ * rangée, au-delà sur deux rangées d'affiches plus petites.
+ */
+@Composable
+internal fun AffichesWanted(affiches: List<AfficheWanted>, cle: Any?) {
+    Box(Modifier.fillMaxSize().clearAndSetSemantics {}.background(Brush.radialGradient(listOf(Color(0x4008020E), Color(0xB308020E)))))
+    EchelleSansCoupe(SCENE_L, SCENE_H, Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(top = 80.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            TexteNeon("Les meilleurs tireurs", GS.Orange, 76f, largeurMax = 1600.dp, force = 0.6f, modifier = Modifier.apparition(0, cle))
+            val k = if (affiches.size <= 4) 1f else 0.62f
+            val meilleur = affiches.maxOfOrNull { it.duels } ?: 0
+            val rangees = if (affiches.size <= 4) listOf(affiches) else affiches.chunked((affiches.size + 1) / 2)
+            Column(
+                Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy((40 * k).dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                var rang = 0
+                rangees.forEach { rangee ->
+                    Row(horizontalArrangement = Arrangement.spacedBy((36 * k).dp)) {
+                        rangee.forEach { a ->
+                            val i = rang++
+                            Affiche(a, k, champion = meilleur > 0 && a.duels == meilleur, penche = listOf(-3f, 2f, -1f, 3f)[i % 4], modifier = Modifier.apparition(250L + 180L * i, cle))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private val Papier = Color(0xFF3A1A08)
+
+@Composable
+private fun Affiche(a: AfficheWanted, k: Float, champion: Boolean, penche: Float, modifier: Modifier) {
+    val forme = RoundedCornerShape((10 * k).dp)
+    Box(
+        modifier
+            .graphicsLayer { rotationZ = penche }
+            .drawBehind {
+                if (champion) lueur(Color(0xFFFFB020), (10 * k).dp.toPx(), 4)
+                drawRoundRect(Color(0x99000000), topLeft = Offset(0f, 20 * k * density), size = size, cornerRadius = CornerRadius(10 * k * density))
+            }
+            .border(((if (champion) 10 else 5) * k).dp, if (champion) Color(0xFFFFD34A) else Color(0xFF1A0A20), forme)
+            .background(Brush.linearGradient(listOf(Color(0xFFF8E2B0), Color(0xFFE9C27A), Color(0xFFD6A35A))), forme)
+            .padding(horizontal = (22 * k).dp, vertical = (26 * k).dp)
+            .widthIn(min = (316 * k).dp, max = (316 * k).dp)
+            .height((508 * k).dp),
+    ) {
+        // Le clou.
+        Box(Modifier.align(Alignment.TopCenter).padding(top = 0.dp).graphicsLayer { translationY = -16 * k * density }.background(Color(0xFF555555), RoundedCornerShape(50)).padding((8 * k).dp))
+        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("WANTED", maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsWestern, fontSize = (72 * k).sp, lineHeight = 1.em, color = Papier))
+            Text(
+                if (champion) "★ CHAMPIONS ★" else "RECHERCHÉS", maxLines = 1, softWrap = false, modifier = Modifier.padding(top = (6 * k).dp, bottom = (14 * k).dp),
+                style = TextStyle(fontFamily = PoliceGsWestern, fontSize = (24 * k).sp, letterSpacing = 0.1.em, color = Papier),
+            )
+            Box(
+                Modifier.fillMaxWidth().padding(horizontal = (10 * k).dp).height((200 * k).dp)
+                    .clip(RoundedCornerShape((6 * k).dp)).background(Color(0xFF1A0A24))
+                    .border((4 * k).dp, Papier, RoundedCornerShape((6 * k).dp)),
+            ) {
+                Image(painterResource(portraitRes(a.portrait)), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            }
+            Box(Modifier.padding(top = (14 * k).dp)) {
+                val nom = a.nom.ifBlank { "Équipe" }
+                NomAffiche(nom, a.couleur, k)
+            }
+            Text(
+                "${a.duels} DUEL" + if (a.duels > 1) "S" else "", maxLines = 1, softWrap = false, modifier = Modifier.padding(top = (6 * k).dp),
+                style = TextStyle(fontFamily = PoliceGsTitre, fontSize = (40 * k).sp, color = Papier),
+            )
+        }
+    }
+}
+
+/** Le nom de l'équipe sur l'affiche : à sa couleur, cerclé de brun pour se lire sur le papier, sur une ligne. */
+@Composable
+private fun NomAffiche(nom: String, couleur: Color, k: Float) {
+    val mesure = rememberTextMeasurer()
+    val d = LocalDensity.current
+    fun style(t: Float) = TextStyle(fontFamily = PoliceGsWestern, fontSize = t.sp, lineHeight = 1.1.em, textAlign = TextAlign.Center)
+    val taille = remember(nom, k, d.density) {
+        val max = with(d) { (272 * k).dp.toPx() }
+        var t = 46f * k
+        while (t > 14f && mesure.measure(nom, style(t), maxLines = 1, softWrap = false).size.width > max) t *= 0.92f
+        t
+    }
+    Box(contentAlignment = Alignment.Center) {
+        Text(nom, maxLines = 1, softWrap = false, style = style(taille).copy(color = Papier, drawStyle = Stroke(width = taille * 0.16f * d.density, join = androidx.compose.ui.graphics.StrokeJoin.Round)))
+        Text(nom, maxLines = 1, softWrap = false, style = style(taille).copy(color = couleur))
     }
 }

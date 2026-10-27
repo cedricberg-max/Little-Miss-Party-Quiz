@@ -138,6 +138,17 @@ fun prochainePaire(
     return null
 }
 
+/**
+ * Duel des robots : duels gagnés par chaque équipe dans le jeu en cours, pour les affiches WANTED de la fin (choisies
+ * par cedric le 27/10), d'après ses points du jeu : chaque duel gagné rapporte les mêmes points.
+ */
+fun Game.duelsGagnes(): Map<String, Int> {
+    val q = question?.takeIf { it.isDuel } ?: return emptyMap()
+    val parDuel = DUEL_POINTS * factorOf(state.index)
+    if (parDuel <= 0) return emptyMap()
+    return state.awards[q.id].orEmpty().mapValues { (_, a) -> (a.points + parDuel / 2) / parDuel }.filterValues { it > 0 }
+}
+
 /** Joueur appelé dans une équipe qui a déjà joué [joues] duels, sur [joueurs] joueurs (n° à partir de 1). */
 fun joueurAppele(joues: Int, joueurs: Int): Int = joues % joueurs.coerceAtLeast(1) + 1
 

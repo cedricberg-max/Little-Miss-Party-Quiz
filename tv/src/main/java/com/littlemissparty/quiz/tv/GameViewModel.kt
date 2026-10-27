@@ -45,6 +45,7 @@ import com.littlemissparty.quiz.engine.STATUES_ANNONCE_MS
 import com.littlemissparty.quiz.engine.StatuesRound
 import com.littlemissparty.quiz.engine.execute
 import com.littlemissparty.quiz.engine.programProblem
+import com.littlemissparty.quiz.engine.duelsGagnes
 import com.littlemissparty.quiz.engine.gameGains
 import com.littlemissparty.quiz.engine.gameStep
 import com.littlemissparty.quiz.engine.nextGameTitle
@@ -190,6 +191,8 @@ sealed interface UiState {
         /** Le Duel des robots : duels prévus pour que tout le monde joue, et tous les joueurs sont passés. */
         val duelTotal: Int = 0,
         val duelTousPasses: Boolean = false,
+        /** Le Duel des robots : duels gagnés par chaque équipe dans ce jeu (affiches WANTED de la fin). */
+        val duelGagnes: Map<String, Int> = emptyMap(),
         /** Le Duel des robots : décalage fin de l'horloge de la box avec le serveur (meilleure de 5 mesures), ou null. */
         val duelOffset: Long? = null,
     ) : UiState {
@@ -1278,6 +1281,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 duel = s.duel.takeIf { q?.isDuel == true && s.phase != Phase.LOBBY },
                 duelTotal = if (q?.isDuel == true) g.duelsAPrevoir(teams().size) else 0,
                 duelTousPasses = q?.isDuel == true && g.duelTousPasses(teams().map { it.uid }),
+                duelGagnes = if (q?.isDuel == true) g.duelsGagnes() else emptyMap(),
                 openedAt = s.openedAt,
                 multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),

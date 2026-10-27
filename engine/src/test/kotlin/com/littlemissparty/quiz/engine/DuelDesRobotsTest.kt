@@ -122,6 +122,34 @@ class DuelDesRobotsTest {
     }
 
     @Test
+    fun `duels gagnes par equipe pour les affiches WANTED de la fin`() {
+        val g = pret()
+        assertEquals(emptyMap(), g.duelsGagnes())
+        val (a, b) = g.state.duel!!.teams
+        var pan = g.lance(t0)
+        g.duelBuzz(a, pan - 1_000, pan - 900)
+        assertEquals(mapOf(b to 1), g.duelsGagnes(), "trop tôt : le duel compte pour l'autre équipe")
+        assertNotNull(g.readyDuel(equipes, pan + 5_000, random = Random(2)))
+        val (c, d) = g.state.duel!!.teams
+        pan = g.lance(pan + 6_000)
+        g.duelBuzz(c, pan + 200, pan + 250)
+        g.duelBuzz(d, pan + 300, pan + 350)
+        g.timeUp(pan + 200 + DUEL_LATENCE_MAX_MS)
+        assertEquals(c, g.state.duel!!.result?.winner)
+        assertEquals(mutableMapOf(b to 1).apply { merge(c, 1, Int::plus) }, g.duelsGagnes())
+        assertEquals(g.duelsGagnes(), relu(g).duelsGagnes())
+        // Jeu suivant : plus d'affiches.
+        val h = pret(questions = listOf(duel, quiz))
+        val (e, _) = h.state.duel!!.teams
+        val pan3 = h.lance(t0)
+        h.duelBuzz(e, pan3 + 100, pan3 + 150)
+        h.timeUp(pan3 + 100 + DUEL_LATENCE_MAX_MS)
+        assertEquals(mapOf(e to 1), h.duelsGagnes())
+        assertEquals(CommandStatus.APPLIED, h.run("next", pan3 + 5_000).status)
+        assertEquals(emptyMap(), h.duelsGagnes())
+    }
+
+    @Test
     fun `l'heure annoncee par la tablette est ramenee dans la fenetre permise`() {
         val g = pret()
         val (a, b) = g.state.duel!!.teams

@@ -772,6 +772,8 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     DUEL_TROP_TOT("lmp_wrong_off", gs = "gs_duel_troptot"),
     /** Game Show seulement : le début de l'air western à la présentation du duel (2,9 s), avant sa boucle. */
     DUEL_INTRO("gs_duel_intro_debut", true),
+    /** Game Show seulement : la grande fin de l'air western sous les affiches WANTED du classement du duel (22,7 s). */
+    DUEL_CLASSEMENT("gs_duel_classement", true),
     TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
     PATATE_PASSE("lmp_patate_passe"),
     /** Musique de « Ça va exploser ! » (extrait choisi par cedric) : sa fin tombe sur l'explosion, voir [MusiquePatate]. */

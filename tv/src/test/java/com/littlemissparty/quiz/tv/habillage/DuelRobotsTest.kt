@@ -80,4 +80,20 @@ class DuelRobotsTest {
         assertEquals("1,05 s", tempsDuel(1_050))
         assertEquals("0,00 s", tempsDuel(0))
     }
+
+    @Test
+    fun `affiches WANTED, le portrait du robot a la couleur de l'equipe`() {
+        val palette = com.littlemissparty.quiz.tv.TEAM_COLORS.map { it.removePrefix("#").toLong(16).toInt() or 0xFF000000.toInt() }
+        assertEquals(
+            listOf("rose", "orange", "vert", "jaune", "bleu", "violet", "rouge", "turquoise"),
+            palette.map { portraitDuel(androidx.compose.ui.graphics.Color(it)) },
+        )
+        // Une couleur choisie à la main tombe sur le portrait le plus proche.
+        assertEquals("rose", portraitDuel(androidx.compose.ui.graphics.Color(0xFFFF3CAC)))
+        assertEquals("rouge", portraitDuel(androidx.compose.ui.graphics.Color(0xFFE00000)))
+        // Chaque portrait livré par le design est dans l'appli.
+        PORTRAITS_DUEL.forEach { (nom, _) ->
+            assertTrue("portrait $nom", java.io.File("src/main/res/drawable-nodpi/gs_duel_portrait_$nom.webp").isFile)
+        }
+    }
 }
