@@ -326,7 +326,8 @@ export const CONTENT_GAMES = {
           word: o.word.trim().slice(0, 40), ...(emoji(o) ? { image: o.image.trim().slice(0, 16) } : {}), ...(photo(o) ? { imageId: o.imageId } : {}),
           ...(libre(o) ? { banque: o.banque } : {}),
         })).slice(0, 12);
-      if (typeof x?.theme !== "string" || !x.theme.trim() || objects.length < 5) return null;
+      // 4 au moins : un tour de 4 cartes (cedric, 27/10).
+      if (typeof x?.theme !== "string" || !x.theme.trim() || objects.length < 4) return null;
       return { theme: x.theme.trim().slice(0, 60), objects };
     },
   },
@@ -385,13 +386,41 @@ export const isPhotoTheme = (t) => (t?.objects ?? []).some((o) => o?.banque);
 /** Catégorie d'une famille de Qui a disparu ? dans les listes : photos de la banque, photos à soi, ou émojis. */
 export const disparuGroup = (t) => (isPhotoTheme(t) ? "Photos de la banque" : (t?.objects ?? []).some((o) => o?.imageId) ? "Mes photos" : "Émojis");
 
-/** Qui a disparu ? : objets par grille selon l'âge, et temps de recherche après la mémorisation. */
-const DISPARU_OBJECTS = { PETITS: 5, MOYENS: 7, GRANDS: 9, ADULTES: 9 };
+/**
+ * Qui a disparu ? : cartes par tour (cedric, 27/10 : un nombre pair, sur deux rangées égales de la TV), d'office selon
+ * l'âge ; et temps de recherche après la mémorisation.
+ */
+export const DISPARU_CARTES = [4, 6, 8];
+const DISPARU_OBJECTS = { PETITS: 4, MOYENS: 6, GRANDS: 8, ADULTES: 8 };
 const DISPARU_SEARCH_SEC = 25;
 
-/** Objets par grille d'une manche Qui a disparu ? : le réglage de la manche (4 à 12), sinon celui de l'âge. */
+/** Cartes par tour d'une manche Qui a disparu ? : le réglage de la manche (4 à 12 avant le 27/10), sinon celui de l'âge. */
 export const disparuObjects = (round, profile) =>
-  Number.isInteger(round?.objects) && round.objects >= 4 && round.objects <= 12 ? round.objects : DISPARU_OBJECTS[profile] ?? 7;
+  Number.isInteger(round?.objects) && round.objects >= 4 && round.objects <= 12 ? round.objects : DISPARU_OBJECTS[profile] ?? 6;
+
+/**
+ * Difficulté d'une famille de Qui a disparu ? (cedric, 27/10 : « plus simple pour les tout-petits ») : 1, des objets
+ * de tous les jours bien différents (et les photos libres) ; 2, la moyenne ; 3, des objets qui se ressemblent.
+ */
+const NIVEAU_DES_FAMILLES = {
+  1: ["Fruits", "Animaux de la ferme", "Animaux sauvages", "Transports", "La fête", "À table", "La mer", "Jeux et jouets", "Le goûter", "Noël", "Les vêtements"],
+  3: ["Les émotions", "Les têtes rigolotes", "Les outils", "Le jardin"],
+};
+export const niveauDeFamille = (t) => (isPhotoTheme(t) ? 1 : NIVEAU_DES_FAMILLES[1].includes(t?.theme) ? 1 : NIVEAU_DES_FAMILLES[3].includes(t?.theme) ? 3 : 2);
+/** Les niveaux de familles qui vont d'abord à un âge : les petits le 1, les moyens le 2, les grands le 3 puis le 2. */
+const NIVEAUX_DE_L_AGE = { PETITS: [1], MOYENS: [2], GRANDS: [3, 2], ADULTES: [3, 2] };
+/**
+ * Familles de Qui a disparu ? rangées pour un âge : celles de son niveau d'abord (au hasard entre elles), puis les plus
+ * proches ; Neutre : toutes au hasard.
+ */
+export function famillesPourLAge(familles, profil, random = Math.random) {
+  const voulus = NIVEAUX_DE_L_AGE[profil];
+  if (!voulus) return shuffle(familles, random);
+  const ecart = (t) => Math.min(...voulus.map((n) => Math.abs(n - niveauDeFamille(t))));
+  const groupes = new Map();
+  for (const t of familles) groupes.set(ecart(t), [...(groupes.get(ecart(t)) ?? []), t]);
+  return [...groupes.keys()].sort((a, b) => a - b).flatMap((k) => shuffle(groupes.get(k), random));
+}
 
 /**
  * Une grille de Qui a disparu ? : [n] objets de la famille et celui qui disparaîtra. La durée suit le
@@ -492,7 +521,7 @@ export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || 
 const RIEN_DE_CHOISI = {
   quiz: "aucune question choisie", illustre: "aucune question choisie", express: "aucune affirmation choisie",
   zoom: "aucune photo choisie", flou: "aucune photo choisie", blind: "aucune chanson choisie", musical: "aucune chanson choisie",
-  mimes: "aucune image tirée", chante: "aucun mot choisi", quisuis: "aucun personnage choisi", disparu: "aucune grille choisie",
+  mimes: "aucune image tirée", chante: "aucun mot choisi", quisuis: "aucun personnage choisi", disparu: "aucun tour choisi",
   pictionary: "aucun mot choisi",
 };
 
