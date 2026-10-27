@@ -104,12 +104,7 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
             )
             Spacer(Modifier.height(10.dp))
         }
-        // Colonnes choisies pour remplir les lignes ; une dernière ligne incomplète est centrée, jamais un trou d'un côté.
-        val colonnes = when (q.cards.size) {
-            in 1..4 -> 2
-            in 5..6, 9 -> 3
-            else -> 4
-        }
+        val colonnes = colonnesDisparu(q.cards.size)
         Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             q.cards.indices.chunked(colonnes).forEach { ligne ->
                 Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -266,3 +261,12 @@ private fun DrawScope.rayures() {
     }
 }
 
+/**
+ * Colonnes des objets : 4, 6 ou 8 objets (Régie PC, cedric 27/10) font 2 rangées égales (2+2, 3+3, 4+4) ; sinon les
+ * lignes sont remplies et une dernière ligne incomplète est centrée, jamais un trou d'un côté.
+ */
+internal fun colonnesDisparu(n: Int): Int = when (n) {
+    in 1..4 -> 2
+    in 5..6, 9 -> 3
+    else -> 4
+}
