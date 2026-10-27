@@ -655,6 +655,7 @@
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && !data.exists() && newData.exists()",
           ".validate": "newData.child('at').val() === now && newData.child('code').isString() && newData.child('code').val().matches(/^[A-Za-z0-9]{1,12}$/) && newData.child('sounds').isNumber() && newData.child('sounds').val() >= 0 && newData.child('sounds').val() <= 10000 && newData.child('images').isNumber() && newData.child('images').val() >= 0 && newData.child('images').val() <= 10000 && newData.child('choiceImages').isNumber() && newData.child('choiceImages').val() >= 0 && newData.child('choiceImages').val() <= 10000 && newData.child('mo').isNumber() && newData.child('mo').val() >= 0 && newData.child('mo').val() <= 100000",
           "gardes": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000" },
+          "songs": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000" },
           "$other": { ".validate": "$other === 'at' || $other === 'code' || $other === 'sounds' || $other === 'images' || $other === 'choiceImages' || $other === 'mo'" }
         }
       },

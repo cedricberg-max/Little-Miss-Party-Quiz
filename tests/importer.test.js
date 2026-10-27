@@ -2594,7 +2594,7 @@ describe("nettoyage des copies des fêtes terminées (Régie PC, cedric, 21/10)"
     const fin = classer({ phase: "ended", endedAt: MAINTENANT - 25 * H, createdAt: MAINTENANT - 28 * H });
     assert.equal(fin.decision, "nettoyer");
     assert.equal(fin.raison, "Terminée depuis plus de 24 h");
-    assert.deepEqual(fin.effacer, { sounds: [S1], images: [I1], choiceImages: [C1] });
+    assert.deepEqual(fin.effacer, { sounds: [S1], images: [I1], choiceImages: [C1], songs: [] });
     assert.equal(classer({ phase: "ended", createdAt: MAINTENANT - 49 * H }).raison, "Terminée sans heure de fin, créée il y a plus de 48 h");
     // Gardées, avec la raison en clair ; une fête terminée dit quand elle deviendra bonne à nettoyer.
     const recente = classer({ phase: "ended", endedAt: MAINTENANT - 23 * H, createdAt: MAINTENANT - 100 * H });
@@ -2618,7 +2618,7 @@ describe("nettoyage des copies des fêtes terminées (Régie PC, cedric, 21/10)"
   test("seulement ce qu'un prochain lancement refera : un extrait dont la chanson a quitté la bibliothèque est gardé", () => {
     const r = classer({ phase: "ended", endedAt: MAINTENANT - 30 * H, sounds: [S1, PERDU], images: [I1, BANQUE], choiceImages: [C1] });
     assert.equal(r.decision, "nettoyer");
-    assert.deepEqual(r.effacer, { sounds: [S1], images: [I1, BANQUE], choiceImages: [C1] });
+    assert.deepEqual(r.effacer, { sounds: [S1], images: [I1, BANQUE], choiceImages: [C1], songs: [] });
     assert.deepEqual(r.gardes, [PERDU]);
     assert.deepEqual(r.notes, ["1 extrait gardé : la chanson n'est plus dans la bibliothèque",
       "1 photo de la banque du site ou émoji dessiné : refaits au prochain lancement"]);
@@ -2628,6 +2628,20 @@ describe("nettoyage des copies des fêtes terminées (Régie PC, cedric, 21/10)"
     assert.deepEqual([seuls.decision, seuls.raison, seuls.gardes.length], ["garder", "2 extraits gardés : la chanson n'est plus dans la bibliothèque", 2]);
     // Un code que le journal refuserait : gardée.
     assert.equal(classer({ code: "A.B", phase: "ended", endedAt: MAINTENANT - 30 * H }).raison, "Code de partie inattendu : gardée par prudence");
+  });
+
+  test("les chansons entières des statues (régie téléphone, 27/10) partent aussi ; gardées si la chanson a quitté la bibliothèque", () => {
+    const avecChansons = { ...bibliotheque, songs: new Set(["-NxChanson1", "s2"]) };
+    const r = N.classerPartie({ code: "FETE1", sounds: [], images: [], choiceImages: [], songs: ["-NxChanson1", "s2", "partie", "a/b"], phase: "ended", endedAt: MAINTENANT - 30 * H },
+      { maintenant: MAINTENANT, bibliotheque: avecChansons });
+    assert.equal(r.decision, "nettoyer");
+    assert.deepEqual(r.effacer.songs, ["-NxChanson1", "s2"]);
+    assert.deepEqual(r.gardes, ["partie", "a/b"]);
+    assert.equal(r.mo, 2 * N.MO_MOYEN.songs);
+    assert.deepEqual(N.effacements("FETE1", r.effacer), { "games/FETE1/songs/-NxChanson1": null, "games/FETE1/songs/s2": null });
+    // Une partie qui n'a que des chansons entières, encore en cours : gardée (et comptée dans le bilan).
+    const enCours = N.classerPartie({ code: "FETE2", songs: ["s2"], phase: "question" }, { maintenant: MAINTENANT, bibliotheque: avecChansons });
+    assert.deepEqual([enCours.decision, N.bilan([enCours]).copiesGardees], ["garder", { enCours: 1 }]);
   });
 
   test("bilan : parties, à nettoyer, Mo environ, gardées par raison, extraits gardés ; une seule écriture par partie", () => {
