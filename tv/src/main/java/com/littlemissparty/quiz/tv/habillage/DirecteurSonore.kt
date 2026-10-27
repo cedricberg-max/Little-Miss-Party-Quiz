@@ -406,18 +406,21 @@ class DirecteurSonore {
         if (nouveauBuzz || repart) o += Ordre.Couper
         // Jamais moqueur : un petit « pouet » gentil quand une équipe s'est trompée (Game Show : son à lui, cedric 24/10).
         if ((nouveauBuzz || repart) && i.ratees > p.ratees) o += Ordre.Jouer(Son.RATE)
+        // Game Show : la tablette joue le mot de l'équipe dès l'appui ; la TV le joue aussitôt, avec le buzz, sans
+        // attendre (cedric, 27/10 au soir : le mot de la TV arrivait nettement après celui de la tablette).
+        val motEquipe = if (i.gameShow) 0L else Tempo.FLOU_EQUIPE
         if (nouveauBuzz && i.blind) {
             // Blind test : le disque freine, « BWAP » de cuivres, la note de l'équipe, puis un vrai silence pour la laisser
             // répondre (cedric, 24 octobre : plus de musique d'attente).
             o += Ordre.Musique(Ambiance.SILENCE)
             o += Ordre.Jouer(Son.BT_BUZZ)
-            o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
+            o += Ordre.Jouer(Son.equipe(i.buzzEquipe), motEquipe)
         } else if (nouveauBuzz) {
             // Quiz musical : le disque s'arrête net (scratch) au moment du buzz.
             if (i.musical) o += Ordre.Jouer(Son.BT_SCRATCH)
             o += Ordre.Musique(Ambiance.SILENCE)
             o += Ordre.Jouer(Son.BUZZ_GROS)
-            o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
+            o += Ordre.Jouer(Son.equipe(i.buzzEquipe), motEquipe)
             if (!i.chante) o += Ordre.Jouer(Son.SUSPENSE_REPONSE, Tempo.FLOU_SUSPENSE)
         } else if (repart) {
             // L'image (ou la chanson) reprend, avec sa musique ; Image floue : la montée dramatique repart là où le

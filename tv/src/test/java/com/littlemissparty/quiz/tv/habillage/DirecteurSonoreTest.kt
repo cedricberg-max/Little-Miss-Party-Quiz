@@ -1001,4 +1001,19 @@ class DirecteurSonoreTest {
             assertTrue("$n manquant", java.io.File("src/main/res/raw").listFiles().orEmpty().any { it.nameWithoutExtension == n })
         }
     }
+
+    @Test
+    fun `Game Show, au buzz le mot de l equipe part tout de suite comme sur la tablette, le Classique garde son petit temps`() {
+        for (gs in listOf(true, false)) {
+            for (blind in listOf(false, true)) {
+                val d = DirecteurSonore()
+                val q = Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, jeuBuzz = true,
+                    flou = !blind, blind = blind, musical = blind, gameShow = gs)
+                d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 8, equipes = 3, gameShow = gs))
+                d.observer(q)
+                val mot = d.observer(q.copy(buzzEquipe = 2)).filterIsInstance<Ordre.Jouer>().single { it.son == Son.EQUIPE_3 }
+                assertEquals("Game Show $gs, blind $blind", if (gs) 0L else Tempo.FLOU_EQUIPE, mot.dansMs)
+            }
+        }
+    }
 }
