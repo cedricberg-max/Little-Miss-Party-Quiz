@@ -92,7 +92,7 @@ object QuizJson {
             id = q.optString("id", "q${i + 1}"),
             text = q.getString("text"),
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
-            correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.PORTES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE || kind == QuestionKind.DUEL) q.optInt("correct", -1) else q.getInt("correct"),
+            correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.PORTES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE || kind == QuestionKind.DUEL || kind == QuestionKind.SIMON) q.optInt("correct", -1) else q.getInt("correct"),
             durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else if (kind == QuestionKind.GONFLEUR) 45 else if (kind == QuestionKind.STATUES) 90 else 20),
             kind = kind,
             double = q.optBoolean("double", false),
@@ -126,6 +126,9 @@ object QuizJson {
             faceMin = q.optInt("faceMin", DUEL_FACE_DEFAUT_MIN).coerceIn(DUEL_FACE_MIN_SEC, DUEL_FACE_MAX_SEC),
             faceMax = q.optInt("faceMax", DUEL_FACE_DEFAUT_MAX).coerceIn(q.optInt("faceMin", DUEL_FACE_DEFAUT_MIN).coerceIn(DUEL_FACE_MIN_SEC, DUEL_FACE_MAX_SEC), DUEL_FACE_MAX_SEC),
             longs = q.optBoolean("longs", true),
+            // Simon du Prof : réglages hors limites ramenés dans les limites.
+            simonTours = q.optInt("tours", SIMON_TOURS).coerceIn(1, SIMON_TOURS_MAX),
+            simonSec = q.optInt("reponse", SIMON_REPONSE_SEC).coerceIn(SIMON_REPONSE_MIN_SEC, SIMON_REPONSE_MAX_SEC),
         )
     }
 }
