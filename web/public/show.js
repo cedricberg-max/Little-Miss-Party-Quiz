@@ -838,22 +838,25 @@ export function mimeAges(round) {
 /** Sources du 🎲 des Mimes, choisies par Sarah (« Mes images » : exception à la règle du hasard accordée par cedric). */
 export const MIME_SOURCES = { photos: "📷 Photos libres", emojis: "😀 Émojis", miennes: "🖼️ Mes images" };
 /**
- * Images de secours d'une manche de mimes (cedric, 26/10) : [n] cartes faciles à mimer, mises après celles de Sarah.
- * D'abord des personnages et des métiers, puis des animaux et des actions, puis des sports ; en émoji, ou en photo
- * libre quand la banque a celle du mot. Jamais une image déjà dans la fête ([pris], complété au fur et à mesure).
+ * Images de secours d'une manche de mimes (cedric, 26/10) : jusqu'à [MIME_RESERVE] cartes faciles à mimer par équipe,
+ * mises après celles de Sarah. D'abord des personnages et des métiers, puis des animaux et des actions, puis des sports
+ * et des objets ; en émoji, ou en photo libre quand la banque a celle du mot. Distribuées une à une à tour de rôle,
+ * pour que chaque équipe en ait autant ; jamais une image déjà dans la fête ([pris], complété au fur et à mesure).
  */
-export const MIME_RESERVE = 12;
-export function reserveMimes(n, pris, random = Math.random) {
-  const paliers = [["Métiers", "Imaginaire"], ["Animaux", "Actions"], ["Sports"]];
-  const out = [];
+export const MIME_RESERVE = 30;
+export function reserveMimes(equipes, pris, random = Math.random) {
+  const paliers = [["Métiers", "Imaginaire"], ["Animaux", "Actions"], ["Sports", "Objets"]];
+  const out = Array.from({ length: equipes }, () => []);
+  let k = 0;
   for (const themes of paliers) {
     for (const c of shuffle(MIME_CATALOG.filter((x) => themes.includes(x.theme)), random)) {
-      if (out.length >= n) return out;
+      if (k >= equipes * MIME_RESERVE) return out;
       const carte = mimeCards([avecPhoto({ word: c.word, image: c.image })])[0];
       const cles = concepts(carte);
-      if (!carte || cles.some((k) => pris.has(k))) continue;
-      cles.forEach((k) => pris.add(k));
-      out.push(carte);
+      if (!carte || cles.some((x) => pris.has(x))) continue;
+      cles.forEach((x) => pris.add(x));
+      out[k % equipes].push(carte);
+      k += 1;
     }
   }
   return out;
@@ -1280,11 +1283,12 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // Images de secours (cedric, 26/10) : si une équipe trouve toutes les siennes avant la fin du chrono, la TV
       // continue avec des personnages, métiers, animaux et actions faciles à mimer, jamais déjà vus dans la fête.
       jouees.forEach(([, cartes]) => cartes.forEach((x) => concepts(x).forEach((k) => pris.add(k))));
+      const reserves = reserveMimes(jouees.length, pris, random);
       jouees.forEach(([c, cartes], k) => questions.push({
         // Dans l'ordre de la Régie PC (🔀 l'y mélange, cedric 24/10) : la TV montre les images dans cet ordre.
         id: `r${i + 1}m${k + 1}`, text: titreMimeEquipe(c), kind: "mime", duration, round: ROUND_TYPES.mimes,
         // Mimes en file : la couleur de l'équipe seule de la manche (la box lance son tour d'un seul geste).
-        couleur: c, cards: [...cartes, ...reserveMimes(MIME_RESERVE, pris, random)],
+        couleur: c, cards: [...cartes, ...reserves[k]],
       }));
       return;
     }
