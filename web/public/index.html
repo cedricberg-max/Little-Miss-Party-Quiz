@@ -228,7 +228,13 @@
 
       <section id="statues" class="flou" hidden aria-label="Statues musicales">
         <p id="statues-info" class="mime-info"></p>
+        <!-- Pendant une chanson (cedric, 26/10) : un énorme bouton STATUE ! / On danse !, puis « Choisir le gagnant ». -->
+        <button id="statues-bascule" class="statues-bascule" type="button" hidden></button>
+        <button id="statues-choisir" class="btn statues-choisir" type="button" hidden>🏆 Choisir le gagnant</button>
         <div id="statues-teams" class="statues-teams"></div>
+        <!-- « Valider » est le gros bouton du bas : toujours sous le doigt, même avec 8 équipes. -->
+        <button id="statues-retour" class="btn secondary statues-retour" type="button" hidden>← Retour à la chanson</button>
+        <button id="statues-suivante" class="btn statues-suivante" type="button" hidden>▶ Chanson suivante</button>
         <p id="statues-points" class="hint"></p>
       </section>
       <!-- Les coffres mystères : la régie suit les coffres ; elle ne voit ni ne choisit leur contenu (tiré à l'ouverture). -->

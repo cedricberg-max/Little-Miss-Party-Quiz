@@ -1544,6 +1544,126 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  /** Statues avec une box qui publie state.statues (cedric, 26/10) : arrêts à la main, gagnantes par chanson. */
+  async function statuesEnCours(statues, teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"]], query = `?g=${CODE}&emu=1`) {
+    box = startBox();
+    for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
+    const plan = [{ id: "s1", text: "Statues musicales", kind: "statues", round: "Statues musicales", songs: [{ songId: "danse", audioId: "0123456789abcdef", title: "Danse" }, { songId: "bouge", audioId: "fedcba9876543210", title: "Bouge" }] }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, questions: plan });
+    const etat = { song: 0, songs: 2, titles: ["Danse", "Bouge"], dancing: true, since: Date.now(), playedMs: 0, ended: false, result: null, ...statues };
+    await box.set({ ...questionState(1), qid: "s1", kind: "statues", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, statues: etat });
+    const page = await openRegie(undefined, query);
+    await pair(page);
+    await inRegie(page);
+    return { page, etat };
+  }
+  const commandes = async (type) => Object.values((await read("commands")) ?? {}).filter((c) => c.type === type);
+
+  test("statues : STATUE ! / On danse !, plusieurs gagnantes, annonce à la TV puis chanson suivante ou résultats", async () => {
+    const { page, etat } = await statuesEnCours({});
+    await page.locator("#statues-info", { hasText: "Chanson 1 sur 2 · « Danse ». 💃 Les enfants dansent." }).waitFor();
+    assert.equal(await page.locator("#statues-teams").isVisible(), false, "pas de gagnante à choisir pendant la chanson");
+    await page.locator("#statues-bascule", { hasText: "✋ STATUE !" }).click();
+    await waitFor(async () => (await commandes("statues_stop")).length === 1, "musique coupée");
+    await box.set({ statues: { ...etat, dancing: false } });
+    await page.locator("#statues-info", { hasText: "✋ Statue ! Éliminez ceux qui bougent." }).waitFor();
+    await page.locator("#statues-bascule.danse", { hasText: "💃 On danse !" }).click();
+    await waitFor(async () => (await commandes("statues_play")).length === 1, "musique relancée");
+    await box.set({ statues: { ...etat, dancing: true } });
+    await page.locator("#statues-bascule", { hasText: "✋ STATUE !" }).waitFor();
+    await page.locator("#statues-points", { hasText: "300 points pour chaque gagnante, 150 pour les autres équipes" }).waitFor();
+
+    // Écran gagnant : tuiles à cocher, plusieurs gagnantes possibles ; « Valider » attend un choix.
+    await page.click("#statues-choisir");
+    await page.locator("#statues-info", { hasText: "Qui a gagné ?" }).waitFor();
+    assert.equal(await page.locator("#statues-bascule").isVisible(), false, "une seule décision par écran");
+    // « Valider » est le gros bouton du bas ; il attend un choix.
+    await page.locator("#c-next", { hasText: "Touchez la ou les gagnantes" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    await page.locator(".statues-tuile", { hasText: "Les Roses" }).click();
+    await page.locator("#c-next", { hasText: "✓ Valider : Les Roses" }).waitFor();
+    await page.locator(".statues-tuile", { hasText: "Les Verts" }).click();
+    await page.locator('.statues-tuile[aria-pressed="true"]', { hasText: "Les Verts" }).waitFor();
+    assert.equal(await page.locator(".statues-tuile.personne").getAttribute("aria-pressed"), "false");
+    await page.locator("#c-next", { hasText: "✓ Valider : 2 gagnantes" }).click();
+    await waitFor(async () => (await commandes("statues_win")).some((c) => JSON.stringify(c.teams) === JSON.stringify(["rose", "vert"])), "gagnantes envoyées");
+
+    // La TV annonce : rien à toucher pendant le suspense, puis « ▶ Chanson suivante » et « Résultats finaux ».
+    const result = { song: 0, winners: ["rose", "vert"], gains: { rose: 300, vert: 300, bleu: 150 }, at: Date.now() };
+    await box.set({ statues: { ...etat, dancing: false, result } });
+    await page.locator("#statues-info", { hasText: "🏆 Les Roses, Les Verts gagnent la chanson. Annonce sur la TV…" }).waitFor();
+    await page.locator("#c-next", { hasText: "Annonce sur la TV…" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    assert.equal(await page.locator("#statues-suivante").isVisible(), false);
+    await page.locator("#statues-suivante", { hasText: "▶ Chanson suivante" }).waitFor({ timeout: 12000 });
+    await page.locator("#statues-info", { hasText: "Bilan des scores sur la TV." }).waitFor();
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).waitFor();
+    await page.click("#statues-suivante");
+    await waitFor(async () => (await commandes("statues_song")).length === 1, "chanson suivante demandée");
+    await box.set({ statues: { ...etat, song: 1, dancing: true, result: null } });
+    await page.locator("#statues-info", { hasText: "Chanson 2 sur 2 · « Bouge »." }).waitFor();
+    await page.locator("#c-next", { hasText: "⏭ Finir la chanson" }).waitFor();
+    // Dernière chanson jouée : plus de « Chanson suivante », seulement « Résultats finaux ».
+    await box.set({ statues: { ...etat, song: 1, dancing: false, result: { song: 1, winners: ["bleu"], gains: {}, at: Date.now() - 9000 } } });
+    await page.locator("#statues-info", { hasText: "🏆 Les Bleus gagne la chanson." }).waitFor();
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).click();
+    await waitFor(async () => (await commandes("next")).length === 1, "fin du jeu demandée");
+    assert.equal(await page.locator("#statues-suivante").isVisible(), false);
+    await page.context().close();
+  });
+
+  test("statues : chanson finie toute seule → écran gagnant direct ; « Personne » ; Chanson suivante passe par la gagnante ; pause", async () => {
+    const { page, etat } = await statuesEnCours({ ended: true, dancing: false });
+    await page.locator("#statues-info", { hasText: "La chanson est finie. Qui a gagné ?" }).waitFor();
+    assert.equal(await page.locator("#statues-retour").isVisible(), false, "pas de retour à une chanson finie");
+    await page.locator(".statues-tuile", { hasText: "Les Bleus" }).click();
+    await page.locator(".statues-tuile.personne").click();
+    assert.equal(await page.locator('.statues-tuile[aria-pressed="true"]').count(), 1, "Personne décoche les équipes");
+    await page.locator("#c-next", { hasText: "✓ Valider : personne" }).click();
+    await waitFor(async () => (await commandes("statues_win")).some((c) => c.personne === true && c.teams == null && c.team == null), "« Personne » envoyé");
+    await box.set({ statues: { ...etat, ended: true, dancing: false, result: { song: 0, winners: null, gains: {}, at: Date.now() - 9000 } } });
+    await page.locator("#statues-info", { hasText: "Personne ne gagne cette chanson." }).waitFor();
+
+    // Chanson suivante pendant une chanson : jamais sans gagnante, l'écran gagnant s'ouvre d'abord.
+    await box.set({ statues: { ...etat, song: 0, dancing: true, ended: false, result: null }, seq: 5 });
+    const avant = (await read("commands")) ?? {};
+    await page.locator("#c-next", { hasText: "⏭ Chanson suivante" }).click();
+    await page.locator("#statues-info", { hasText: "Qui a gagné ?" }).waitFor();
+    assert.deepEqual(Object.keys((await read("commands")) ?? {}), Object.keys(avant), "rien n'est envoyé à la box");
+    await page.click("#statues-retour");
+    await page.locator("#statues-bascule", { hasText: "✋ STATUE !" }).waitFor();
+
+    // Pause générale : le gros bouton attend la reprise.
+    await box.set({ paused: true, pauseReason: "regie", statues: { ...etat, dancing: false, result: null } });
+    await waitFor(async () => page.locator("#statues-bascule").isDisabled(), "bouton figé pendant la pause");
+    await page.context().close();
+  });
+
+  test("statues sur 8 équipes (régie cockpit) : noms entiers, « Valider » toujours sous le doigt", async () => {
+    const huit = ["Orange", "Vert", "Rose", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"].map((n, i) => [`e${i}`, `Les ${n}s`, TEAM_COLORS_TEST[i % TEAM_COLORS_TEST.length]]);
+    const { page } = await statuesEnCours({ ended: true, dancing: false }, huit, `?g=${CODE}&emu=1&cockpit=1`);
+    await page.locator(".statues-tuile.personne").waitFor();
+    await page.locator(".statues-tuile", { hasText: "Les Turquoises" }).click();
+    await page.locator("#c-next", { hasText: "✓ Valider : Les Turquoises" }).waitFor();
+    // Le gros bouton « Valider » reste à l'écran (barre du bas), sans faire défiler la page.
+    const vue = page.viewportSize();
+    const bas = await page.locator("#c-next").boundingBox();
+    assert.ok(bas && bas.y + bas.height <= vue.height + 1, "Valider visible sans défiler");
+    assert.equal(await page.locator(".statues-tuile").count(), 9);
+    assert.equal(await page.locator("#statues-teams.serree").count(), 1);
+    // Largeur du nom lui-même (la pastille ✓ déborde exprès du coin de la tuile cochée).
+    const deborde = await page.evaluate(() => [...document.querySelectorAll(".statues-tuile")].some((b) => {
+      const r = document.createRange();
+      r.selectNodeContents(b);
+      const t = r.getBoundingClientRect();
+      const c = b.getBoundingClientRect();
+      return t.left < c.left + 3 || t.right > c.right - 3;
+    }));
+    assert.equal(deborde, false, "aucun nom coupé");
+    await capture(page, "regie-statues-8-equipes");
+    await page.context().close();
+  });
+
   test("secours : jeu en cours et suivant, passer au suivant, recommencer un jeu après confirmation", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");
@@ -2825,6 +2945,30 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "Bilan des scores sur la TV, puis « Animaux »." }).waitFor();
     await waitFor(async () => (await read(`images/${PHOTO}`)) === PNG && (await read(`sounds/${SON}`)) === MP3, "photo et extrait recopiés dans la partie");
+    await regie.context().close();
+  });
+  test("statues : « Aller à ce jeu » recopie dans la partie les chansons entières (n en dernier) ; une chanson absente ne bloque rien", async () => {
+    box = startBox();
+    const P0 = "A".repeat(800000);
+    const P1 = "B".repeat(1200);
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "library/entieres/danse"), { n: 2, kbps: 96, length: 187, at: 1, p: { 0: P0, 1: P1 } }));
+    await set(gameRef("conducteur"), {
+      id: "p", title: "L'anniversaire de Léa", rev: "s1", mimes: true, statues: true, programReset: true,
+      questions: [
+        { id: "q1", text: "Couleur du ciel ?", choices: ["Vert", "Bleu"], correct: 1, round: "Couleurs" },
+        { id: "s1", text: "Statues musicales", kind: "statues", round: "Statues musicales", songs: [{ songId: "absente", audioId: "fedcba9876543210", title: "Pas en ligne" }, { songId: "danse", audioId: "0123456789abcdef", title: "Danse" }] },
+      ],
+    });
+    await box.set(questionState(2));
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.click("#c-rescue");
+    await regie.locator('#rescue-list [data-start="1"] button', { hasText: "Aller à ce jeu" }).click();
+    await respond(regie);
+    await waitFor(async () => (await read("songs/danse/n")) === 2, "chanson entière recopiée", 20000);
+    assert.deepEqual(await read("songs/danse"), { n: 2, kbps: 96, length: 187, p: [P0, P1] });
+    assert.equal(await read("songs/absente"), null, "chanson pas en ligne : la box jouera l'extrait");
     await regie.context().close();
   });
 });

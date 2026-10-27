@@ -302,6 +302,34 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .flou .flou-bonus { min-height: 96px; font-size: 26px; }
 .regie .statues-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .regie .statues-team { min-height: 88px; font-size: 22px; font-weight: 800; }
+/* Statues (cedric, 26/10) : un énorme bouton d'un doigt, une seule décision par écran. */
+.regie .statues-bascule {
+  width: 100%; min-height: 200px; border: 0; border-radius: 28px; background: #ff5a5f; color: #fff;
+  font: inherit; font-size: 48px; font-weight: 900; letter-spacing: 1px; box-shadow: 0 8px 0 #b3363a; touch-action: manipulation;
+}
+.regie .statues-bascule.danse { background: var(--ok); color: #1a0b2e; box-shadow: 0 8px 0 #4f9f22; }
+.regie .statues-bascule:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 4px 0 rgba(0, 0, 0, .35); }
+.regie .statues-choisir, .regie .statues-suivante { width: 100%; min-height: 72px; font-size: 22px; font-weight: 900; }
+.regie .statues-suivante { min-height: 120px; font-size: 28px; }
+.regie .statues-tuile {
+  position: relative; min-width: 0; min-height: 84px; padding: 8px 10px; border-radius: 18px; border: 4px solid transparent;
+  background: var(--team, var(--panel)); color: #1a0b2e; font: inherit; font-size: 22px; font-weight: 900;
+  overflow-wrap: break-word; touch-action: manipulation; opacity: .55;
+}
+.regie .statues-tuile.cochee { opacity: 1; border-color: #fff; box-shadow: 0 0 0 3px var(--gold); }
+.regie .statues-tuile.cochee::after {
+  content: "✓"; position: absolute; top: -8px; right: -8px; display: grid; place-items: center; width: 24px; height: 24px;
+  border-radius: 50%; background: #fff; color: #1a0b2e; font-size: 15px; font-weight: 900; box-shadow: 0 0 0 2px var(--gold);
+}
+.regie .statues-tuile.personne { grid-column: 1 / -1; min-height: 60px; background: var(--panel); color: var(--ink); font-size: 19px; }
+.regie .statues-teams.serree { gap: 8px; }
+.regie .statues-teams.serree .statues-tuile { min-height: 54px; font-size: 18px; border-radius: 14px; }
+.regie .statues-teams.serree .statues-tuile.personne { min-height: 46px; }
+.regie .statues-retour { align-self: center; min-height: 44px; font-size: 16px; }
+@media (max-height: 640px) {
+  .regie .statues-bascule { min-height: 140px; font-size: 40px; }
+  .regie .statues-tuile { min-height: 64px; font-size: 18px; }
+}
 .regie .flou .flou-bonus[hidden] { display: none; }
 .regie .verdict { display: flex; flex-direction: column; gap: 10px; }
 /* Au buzz (cedric, 24/10) : le verdict passe juste au-dessus de Pause et du bouton principal, collé en bas de l'écran.
