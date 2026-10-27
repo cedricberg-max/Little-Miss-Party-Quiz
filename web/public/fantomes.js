@@ -287,8 +287,9 @@ class Fantome {
     const cle = `patate:${p.key}`;
     actives.add(cle);
     const pret = Math.max(0, (p.readyAt ?? 0) + 200 - now, attente);
-    // Une fois sur dix, la bombe reste trop longtemps (elle explose chez le fantôme).
-    const garde = !this.minuteries.has(cle) && Math.random() < 0.1 ? 4500 : hasard(300, 2000) * reglages.vitesse;
+    // Une fois sur dix, la bombe reste trop longtemps (gardée plus de 2 s, elle explose chez le fantôme) ; sinon elle
+    // repart avant les 2 s, comme une équipe qui joue le jeu (règle du 27/10).
+    const garde = !this.minuteries.has(cle) && Math.random() < 0.1 ? 4500 : Math.min(1700, hasard(300, 1500) * reglages.vitesse);
     const cibles = liste(p.targets).filter((id) => id !== this.teamId && this.teams[id]);
     const autres = cibles.length ? cibles : liste(p.teams).filter((id) => id !== this.teamId && id !== p.from && this.teams[id]);
     if (!autres.length) return;
