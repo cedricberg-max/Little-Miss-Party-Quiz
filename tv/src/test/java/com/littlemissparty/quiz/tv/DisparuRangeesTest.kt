@@ -17,15 +17,17 @@ class DisparuRangeesTest {
     }
 
     @Test
-    fun `la tuile photo du Game Show est carree et tient dans sa case, jamais une bande etroite`() {
-        // Cases d'une grille de 4, 6 ou 8 objets, larges (test du 27/10 au soir) ou hautes.
-        for ((largeur, hauteur) in listOf(150f to 110f, 160f to 175f, 230f to 120f, 110f to 200f, 120f to 120f)) {
-            val cote = coteTuileDisparu(largeur, hauteur)
-            assertTrue("$largeur x $hauteur : la tuile a une taille", cote > 0f)
-            assertTrue("$largeur x $hauteur : tient en largeur", cote + 14f <= largeur)
-            assertTrue("$largeur x $hauteur : tient en hauteur avec le nom", cote + 11f + 28f <= hauteur)
-            assertTrue("$largeur x $hauteur : prend toute la place possible", cote + 14f == largeur || cote + 39f == hauteur)
+    fun `la photo d une carte tient en entier dans sa tuile, portrait ou paysage, jamais coupee`() {
+        // Tuiles larges et basses (test du 27/10 au soir), carrées ou hautes ; photos en portrait, carrées, en paysage.
+        for ((l, h) in listOf(133f to 32f, 150f to 60f, 100f to 100f, 80f to 140f)) {
+            for ((pl, ph) in listOf(600f to 900f, 512f to 512f, 3840f to 2160f)) {
+                val (w, z) = photoDansTuile(l, h, pl, ph)
+                assertTrue("$pl x $ph dans $l x $h : tient en largeur", w <= l + 0.01f)
+                assertTrue("$pl x $ph dans $l x $h : tient en hauteur", z <= h + 0.01f)
+                assertTrue("$pl x $ph dans $l x $h : la plus grande possible", w >= l - 0.01f || z >= h - 0.01f)
+                assertEquals("$pl x $ph : mêmes proportions, rien de coupé ni d'écrasé", pl / ph, w / z, 0.01f)
+            }
         }
-        assertEquals("case minuscule : rien de négatif", 0f, coteTuileDisparu(10f, 10f))
+        assertEquals("photo abîmée : rien", 0f to 0f, photoDansTuile(100f, 100f, 0f, 0f))
     }
 }
