@@ -190,7 +190,7 @@ class RegieTest : TestTv() {
 
         assertEquals("applied", regie.commande(code, "mime_found"))
         // Roulement (cedric, 24/10) : changement de joueur, l'image suivante attend « Image suivante » de la régie.
-        ecran.voit("Dos à l'écran !")
+        ecran.voit("Le mimeur face à l'écran !")
         ecran.neVoitPas("Lion")
         ecran.capture("mimes-changement-de-joueur")
         assertEquals("Pas d'image : un double appui ne compte pas", "refused", regie.commande(code, "mime_found"))
@@ -236,7 +236,7 @@ class RegieTest : TestTv() {
         ecran.entierementVisible("Arrêter le tour")
         ecran.capture("mimes-6-equipes-tour")
         assertEquals("applied", regie.commande(code, "mime_found"))
-        ecran.voit("Dos à l'écran !")
+        ecran.voit("Le mimeur face à l'écran !")
         ecran.entierementVisible("Image suivante")
         ecran.capture("mimes-6-equipes-changement")
     }
@@ -818,7 +818,7 @@ class RegieTest : TestTv() {
         assertEquals("refused", regie.commande(code, "next"))
         assertEquals("applied", regie.commande(code, "statues_win", mapOf("teams" to listOf(dragons.uid))))
         ecran.voit(if (Look.gs) "ET L'ÉQUIPE GAGNANTE EST…" else "Et l'équipe gagnante est…")
-        ecran.voit(if (Look.gs) "LA STATUE D'OR" else "Bravo", 6_000)
+        ecran.voit(if (Look.gs) "La statue d'or" else "Bravo", 6_000)
         ecran.voit("Dragons")
         ecran.capture("statues-musicales-gagnante")
         attendreQue("300 pour la gagnante") { points(dragons, code, dragons.uid).takeIf { it == Scoring.MINI_WIN.toLong() } }
