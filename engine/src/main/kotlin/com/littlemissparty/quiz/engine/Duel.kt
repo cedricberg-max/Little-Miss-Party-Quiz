@@ -30,14 +30,24 @@ const val DUEL_FACE_DEFAUT_MAX = 40
 /** « De temps en temps un long duel » : environ un sur quatre dure entre la durée maximale et 60 s. */
 const val DUEL_LONG_CHANCE = 0.25
 
-/** Après le premier buzz valable, la box attend encore ce temps l'appui de l'autre équipe (wifi plus lent). */
-const val DUEL_FENETRE_MS = 500L
-
 /** Personne n'a buzzé ce temps après le PAN : duel nul, sans points. */
 const val DUEL_PERSONNE_MS = 10_000L
 
-/** Heure d'appui annoncée par une tablette : au plus ce temps avant l'arrivée du buzz sur le serveur (jamais après). */
+/**
+ * Heure d'appui annoncée par une tablette : au plus ce temps avant l'arrivée du buzz sur le serveur (jamais après).
+ * Après le premier appui valable, la box attend donc ce temps un appui plus rapide de l'autre équipe, coincé dans un
+ * wifi plus lent (sauf si les deux ont déjà buzzé).
+ */
 const val DUEL_LATENCE_MAX_MS = 1_500L
+
+/** Retard d'affichage du PAN pris en compte au plus (au-delà, la TV a calé : on garde ce retard). */
+const val DUEL_AFFICHAGE_MAX_MS = 1_000L
+
+/**
+ * Avance d'affichage du PAN tolérée (horloges de la TV et du serveur à quelques dizaines de ms près) : un appui plus
+ * de ce temps avant l'heure du PAN est trop tôt sans attendre ; entre les deux, la box attend l'heure de l'image.
+ */
+const val DUEL_AVANCE_MAX_MS = 200L
 
 /** Un buzz de tablette : l'équipe, l'heure de l'appui (heure du serveur, ramenée dans la fenêtre permise) et d'arrivée. */
 data class DuelBuzz(val team: String, val t: Long, val at: Long)
@@ -51,7 +61,8 @@ data class DuelResult(val winner: String?, val loser: String?, val early: String
 /**
  * Le duel prêt ou en cours : le [n]-ième du jeu, entre les équipes [teams] (2), leurs joueurs [players] (n° à partir de
  * 1), [extra] = lancé à la volée par Sarah. [startAt] : début du face-à-face (null : duel prêt, pas encore lancé) ;
- * [panAt] : heure du PAN, secrète ; [buzzes] : les appuis reçus ; [result] : le bilan, une fois jugé.
+ * [panAt] : heure du PAN, secrète ; [shownAt] : heure où le PAN est vraiment apparu à l'écran (null tant que la TV ne
+ * l'a pas dit) ; [buzzes] : les appuis reçus ; [result] : le bilan, une fois jugé.
  * [played] : duels joués par équipe (celui-ci compris une fois jugé), [lastDuel] : numéro du dernier duel de chaque équipe.
  */
 data class DuelRound(
@@ -61,6 +72,7 @@ data class DuelRound(
     val extra: Boolean = false,
     val startAt: Long? = null,
     val panAt: Long? = null,
+    val shownAt: Long? = null,
     val buzzes: List<DuelBuzz> = emptyList(),
     val result: DuelResult? = null,
     val played: Map<String, Int> = emptyMap(),
@@ -77,20 +89,29 @@ data class DuelRound(
     }
 
     /** Le face-à-face s'arrête sans bilan (pause, « Arrêter le duel ») : la même paire reste prête. */
-    fun annule(): DuelRound = if (enCours) copy(startAt = null, panAt = null, buzzes = emptyList()) else this
+    fun annule(): DuelRound = if (enCours) copy(startAt = null, panAt = null, shownAt = null, buzzes = emptyList()) else this
+
+    /** L'instant de référence : le PAN tel qu'il est apparu à l'écran, sinon son heure prévue. */
+    val reference: Long? get() = panAt?.let { pan -> shownAt?.coerceIn(pan - DUEL_AVANCE_MAX_MS, pan + DUEL_AFFICHAGE_MAX_MS) ?: pan }
 
     /** Heure où la box doit juger le duel sans attendre d'autre buzz, ou null s'il n'y a rien à attendre. */
     val jugeAt: Long? get() {
-        val pan = panAt ?: return null
+        val pan = reference ?: return null
         if (!enCours) return null
-        val premier = buzzes.filter { it.t >= pan }.minOfOrNull { it.at }
-        return premier?.let { it + DUEL_FENETRE_MS } ?: (pan + DUEL_PERSONNE_MS)
+        val premier = buzzes.filter { it.t >= pan }.minOfOrNull { it.t }
+        return premier?.let { it + DUEL_LATENCE_MAX_MS } ?: (pan + DUEL_PERSONNE_MS)
     }
 
-    /** Le bilan à l'heure [at] d'après les buzz reçus (le plus petit temps gagne ; à égalité, le premier arrivé). */
+    /**
+     * Le bilan à l'heure [at] d'après les buzz reçus : un appui avant le PAN affiché perd (le plus tôt des deux) ;
+     * sinon le plus petit temps gagne (à égalité, le premier arrivé).
+     */
     fun bilan(at: Long, points: Int): DuelResult {
-        val pan = panAt ?: at
-        val gagnant = buzzes.filter { it.t >= pan }.minWithOrNull(compareBy<DuelBuzz>({ it.t }, { it.at }))
+        val pan = reference ?: at
+        buzzes.filter { it.t < pan }.minByOrNull { it.t }?.let { tot ->
+            return DuelResult(teams.first { it != tot.team }, tot.team, tot.team, null, points, at)
+        }
+        val gagnant = buzzes.minWithOrNull(compareBy<DuelBuzz>({ it.t }, { it.at }))
             ?: return DuelResult(null, null, null, null, 0, at)
         return DuelResult(gagnant.team, teams.first { it != gagnant.team }, null, gagnant.t - pan, points, at)
     }

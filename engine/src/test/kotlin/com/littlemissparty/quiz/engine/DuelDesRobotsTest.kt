@@ -63,15 +63,15 @@ class DuelDesRobotsTest {
     }
 
     @Test
-    fun `la premiere equipe apres le PAN gagne 100 points, apres une demi-seconde d'attente de l'autre`() {
+    fun `la premiere equipe apres le PAN gagne 100 points, apres 1,5 s d'attente d'un appui plus rapide coince dans le wifi`() {
         val g = pret()
         val (a, b) = g.state.duel!!.teams
         val pan = g.lance(t0 + 5_000)
         assertNotNull(g.duelBuzz(a, pan + 300, pan + 400))
         assertNull(g.state.duel!!.result, "on attend encore l'autre équipe")
-        assertEquals(pan + 400 + DUEL_FENETRE_MS, g.wakeAt())
+        assertEquals(pan + 300 + DUEL_LATENCE_MAX_MS, g.wakeAt())
         assertNull(g.settleDuel(pan + 600), "trop tôt pour juger")
-        assertNotNull(g.timeUp(pan + 400 + DUEL_FENETRE_MS))
+        assertNotNull(g.timeUp(pan + 300 + DUEL_LATENCE_MAX_MS))
         val r = g.state.duel!!.result!!
         assertEquals(a, r.winner)
         assertEquals(b, r.loser)
@@ -92,6 +92,7 @@ class DuelDesRobotsTest {
         val g = pret()
         val (a, b) = g.state.duel!!.teams
         val pan = g.lance(t0)
+        g.duelPanShown(pan, pan + 30)
         g.duelBuzz(a, pan + 250, pan + 300)
         g.duelBuzz(b, pan + 200, pan + 450)
         val r = g.state.duel!!.result!!
@@ -114,6 +115,7 @@ class DuelDesRobotsTest {
         val h = pret()
         val (c, d) = h.state.duel!!.teams
         val pan2 = h.lance(t0)
+        h.duelPanShown(pan2 + 20, pan2 + 30)
         h.duelBuzz(c, pan2 - 50, pan2 + 120)
         assertEquals(c, h.state.duel!!.result!!.early)
         assertEquals(d, h.state.duel!!.result!!.winner)
@@ -130,6 +132,7 @@ class DuelDesRobotsTest {
         val h = pret()
         val (c, d) = h.state.duel!!.teams
         val pan2 = h.lance(t0)
+        h.duelPanShown(pan2, pan2 + 30)
         // Une heure dans le futur : ramenée à l'heure d'arrivée.
         h.duelBuzz(c, pan2 + 60_000, pan2 + 700)
         h.duelBuzz(d, pan2 + 650, pan2 + 800)
@@ -172,6 +175,7 @@ class DuelDesRobotsTest {
             val d = g.state.duel!!
             paires += d.teams
             val pan = g.lance(t)
+            g.duelPanShown(pan, pan + 30)
             g.duelBuzz(d.teams[0], pan + 200, pan + 300)
             g.duelBuzz(d.teams[1], pan + 400, pan + 500)
             t = pan + 10_000
@@ -309,7 +313,7 @@ class DuelDesRobotsTest {
         val pan = g.lance(t0)
         val (a, _) = g.state.duel!!.teams
         g.duelBuzz(a, pan + 100, pan + 100)
-        g.timeUp(pan + 100 + DUEL_FENETRE_MS)
+        g.timeUp(pan + 100 + DUEL_LATENCE_MAX_MS)
         assertEquals(DUEL_POINTS, g.state.scores()[a])
         assertNotNull(g.goto(0, pan + 10_000))
         assertNull(g.state.duel)
@@ -347,7 +351,105 @@ class DuelDesRobotsTest {
         val (a, _) = g.state.duel!!.teams
         val pan = g.lance(t0)
         g.duelBuzz(a, pan + 100, pan + 100)
-        g.timeUp(pan + 100 + DUEL_FENETRE_MS)
+        g.timeUp(pan + 100 + DUEL_LATENCE_MAX_MS)
         assertEquals(DUEL_POINTS * 2, g.state.scores()[a])
+    }
+
+    @Test
+    fun `PAN affiche en retard, un appui avant l'image est trop tot et la reaction se mesure depuis l'image`() {
+        val g = pret()
+        val (a, b) = g.state.duel!!.teams
+        val pan = g.lance(t0)
+        // La TV a mis 120 ms à afficher le PAN ; le buzz de a (appui à +80) arrive avant qu'elle l'ait dit : on attend.
+        g.duelBuzz(a, pan + 80, pan + 90)
+        assertNull(g.state.duel!!.result, "pas jugé avant de savoir quand le PAN est apparu")
+        assertNotNull(g.duelPanShown(pan + 120, pan + 130))
+        val r = g.state.duel!!.result!!
+        assertEquals(a, r.early, "appuyé avant que le PAN soit à l'écran : trop tôt")
+        assertEquals(b, r.winner)
+        assertNull(g.duelPanShown(pan + 150, pan + 160), "une seule fois par face-à-face")
+        // Même retard, appui 200 ms après l'image : bon, et 200 ms de réaction (pas 320).
+        val h = pret()
+        val (c, _) = h.state.duel!!.teams
+        val pan2 = h.lance(t0)
+        h.duelPanShown(pan2 + 120, pan2 + 125)
+        h.duelBuzz(c, pan2 + 320, pan2 + 360)
+        h.timeUp(pan2 + 320 + DUEL_LATENCE_MAX_MS)
+        assertEquals(c, h.state.duel!!.result!!.winner)
+        assertEquals(200, h.state.duel!!.result!!.ms)
+        // Relu après un redémarrage de la box : même bilan.
+        assertEquals(h.state.duel, relu(h).state.duel)
+    }
+
+    @Test
+    fun `retard d'affichage borne a 1 s, et sans nouvelle de la TV on juge sur l'heure prevue`() {
+        val g = pret()
+        val (a, _) = g.state.duel!!.teams
+        val pan = g.lance(t0)
+        g.duelPanShown(pan + 5_000, pan + 5_000)
+        assertEquals(pan + DUEL_AFFICHAGE_MAX_MS, g.state.duel!!.reference)
+        val h = pret()
+        val (c, _) = h.state.duel!!.teams
+        val pan2 = h.lance(t0)
+        h.duelBuzz(c, pan2 + 250, pan2 + 300)
+        assertNotNull(h.timeUp(pan2 + 250 + DUEL_LATENCE_MAX_MS))
+        assertEquals(c, h.state.duel!!.result!!.winner)
+        assertEquals(250, h.state.duel!!.result!!.ms)
+        assertNull(g.state.duel!!.result)
+        assertNotNull(a)
+    }
+
+    @Test
+    fun `la plus rapide gagne quels que soient les retards du wifi`() {
+        val retards = listOf(15L, 120L, 400L, 900L, 1_400L)
+        for (lentA in retards) for (lentB in retards) for (ecart in listOf(5L, 40L, 300L)) {
+            val g = pret()
+            val (a, b) = g.state.duel!!.teams
+            val pan = g.lance(t0)
+            g.duelPanShown(pan + 60, pan + 70)
+            val appuiA = pan + 60 + 180
+            val appuiB = appuiA + ecart
+            // Les buzz arrivent dans l'ordre de leur arrivée sur le serveur, pas de leur appui.
+            listOf(Triple(a, appuiA, appuiA + lentA), Triple(b, appuiB, appuiB + lentB)).sortedBy { it.third }
+                .forEach { (team, t, at) -> g.duelBuzz(team, t, at) }
+            if (g.state.duel!!.result == null) g.timeUp(g.wakeAt()!!)
+            val r = g.state.duel!!.result!!
+            assertEquals(a, r.winner, "a appuie $ecart ms avant b, wifi $lentA / $lentB ms")
+            assertEquals(180, r.ms, "réaction mesurée à l'appui, depuis le PAN affiché")
+        }
+    }
+
+    @Test
+    fun `un appui plus rapide coince dans le wifi est attendu, jamais oublie`() {
+        val g = pret()
+        val (a, b) = g.state.duel!!.teams
+        val pan = g.lance(t0)
+        g.duelPanShown(pan, pan + 20)
+        // b appuie à +300 et arrive vite ; a a appuyé à +250 mais son buzz met 1,2 s.
+        g.duelBuzz(b, pan + 300, pan + 320)
+        assertNull(g.timeUp(pan + 320 + 500), "on attend encore : un appui plus rapide peut arriver jusqu'à 1,5 s après")
+        g.duelBuzz(a, pan + 250, pan + 1_450)
+        assertEquals(a, g.state.duel!!.result!!.winner)
+    }
+
+    @Test
+    fun `PAN affiche un peu en avance, la reference suit l'image (dans la limite toleree)`() {
+        val g = pret()
+        val (a, b) = g.state.duel!!.teams
+        val pan = g.lance(t0)
+        // Appui 100 ms avant l'heure prévue : on ne sait pas encore, on attend l'image.
+        g.duelBuzz(a, pan - 100, pan - 20)
+        assertNull(g.state.duel!!.result)
+        // L'image est partie 150 ms avant l'heure prévue : l'appui de a vient 50 ms après, il est bon.
+        g.duelPanShown(pan - 150, pan)
+        assertEquals(pan - 150, g.state.duel!!.reference)
+        g.duelBuzz(b, pan + 200, pan + 260)
+        assertEquals(a, g.state.duel!!.result!!.winner)
+        assertEquals(50, g.state.duel!!.result!!.ms)
+        // Jamais plus de 200 ms d'avance prise en compte.
+        val h = pret()
+        val pan2 = h.lance(t0)
+        h.duelPanShown(pan2 - 900, pan2)
+        assertEquals(pan2 - DUEL_AVANCE_MAX_MS, h.state.duel!!.reference)
     }
 }

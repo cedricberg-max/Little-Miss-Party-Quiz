@@ -733,16 +733,27 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 // Heure de l'appui annoncée par la tablette : jamais après l'arrivée, ni plus de 1,5 s avant.
                 val t = e.t.coerceIn(e.at - DUEL_LATENCE_MAX_MS, e.at)
                 val buzzes = d.buzzes + DuelBuzz(e.team, t, e.at)
-                val pan = d.panAt!!
                 val points = DUEL_POINTS * factorIn(s, s.index)
                 val result = when {
-                    // Trop tôt : l'autre équipe gagne aussitôt.
-                    t < pan -> d.teams.first { it != e.team }.let { DuelResult(it, e.team, e.team, null, points, e.at) }
-                    // Les deux ont buzzé après le PAN : le plus petit temps gagne, sans attendre.
-                    buzzes.size == 2 -> d.copy(buzzes = buzzes).bilan(e.at, points)
+                    // Bien avant l'heure du PAN : trop tôt, l'autre équipe gagne aussitôt.
+                    t < d.panAt!! - DUEL_AVANCE_MAX_MS -> d.teams.first { it != e.team }.let { DuelResult(it, e.team, e.team, null, points, e.at) }
+                    // Tant que la TV n'a pas dit quand le PAN est apparu, on attend pour juger (au plus [jugeAt]).
+                    d.shownAt == null -> null
+                    // Avant le PAN affiché (trop tôt), ou les deux ont buzzé : jugé sans attendre.
+                    t < d.reference!! || buzzes.size == 2 -> d.copy(buzzes = buzzes).bilan(e.at, points)
                     else -> null
                 }
                 duelJuge(s, d.copy(buzzes = buzzes), result)
+            }
+        }
+        is DuelPanShown -> {
+            val d = s.duel
+            if (!duelOuvert(s, e.qid, e.n) || d == null || !d.enCours || d.shownAt != null) null
+            else {
+                val vu = d.copy(shownAt = e.shownAt)
+                // Des buzz attendaient l'heure du PAN affiché : un appui avant lui perd ; les deux ont buzzé : jugé.
+                val result = if (vu.buzzes.any { it.t < vu.reference!! } || vu.buzzes.size == 2) vu.bilan(e.at, DUEL_POINTS * factorIn(s, s.index)) else null
+                duelJuge(s, vu, result)
             }
         }
         is DuelSettled -> {
@@ -1415,6 +1426,15 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun duelBuzz(team: String, t: Long, now: Long): GameEvent? {
         val d = state.duel ?: return null
         return state.qid?.let { emit(DuelBuzzed(nextSeq, now, it, d.n, team, t)) }
+    }
+
+    /**
+     * Duel des robots : le PAN est apparu à l'écran de la TV à [shownAt] (heure du serveur) ; une fois par face-à-face,
+     * pendant qu'il est en cours.
+     */
+    fun duelPanShown(shownAt: Long, now: Long): GameEvent? {
+        val d = state.duel?.takeIf { it.enCours && it.shownAt == null } ?: return null
+        return state.qid?.let { emit(DuelPanShown(nextSeq, now, it, d.n, shownAt)) }
     }
 
     /** Duel des robots : heure où la box juge le duel en cours sans attendre d'autre buzz, ou null. */

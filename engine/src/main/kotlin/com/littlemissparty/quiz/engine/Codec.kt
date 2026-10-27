@@ -72,6 +72,7 @@ object Codec {
             is DuelBuzzed -> mapOf("type" to "duel_buzz", "qid" to e.qid, "n" to e.n, "team" to e.team, "t" to e.t)
             is DuelSettled -> mapOf("type" to "duel_settle", "qid" to e.qid, "n" to e.n)
             is DuelStopped -> mapOf("type" to "duel_stop", "qid" to e.qid, "n" to e.n)
+            is DuelPanShown -> mapOf("type" to "duel_pan", "qid" to e.qid, "n" to e.n, "shownAt" to e.shownAt)
             is Jumped -> mapOf("type" to "goto", "index" to e.index, "qid" to e.qid, "clear" to e.clear.ifEmpty { null })
             is ProgramReset -> mapOf("type" to "reset")
         }
@@ -152,6 +153,7 @@ object Codec {
             "duel_buzz" -> DuelBuzzed(seq, at, m["qid"] as String, m.num("n").toInt(), m["team"] as String, m.num("t"))
             "duel_settle" -> DuelSettled(seq, at, m["qid"] as String, m.num("n").toInt())
             "duel_stop" -> DuelStopped(seq, at, m["qid"] as String, m.num("n").toInt())
+            "duel_pan" -> DuelPanShown(seq, at, m["qid"] as String, m.num("n").toInt(), m.num("shownAt"))
             "goto" -> Jumped(seq, at, m.num("index").toInt(), m["qid"] as String, (m["clear"] as? List<*>).orEmpty().map { it as String })
             "reset" -> ProgramReset(seq, at)
             else -> null

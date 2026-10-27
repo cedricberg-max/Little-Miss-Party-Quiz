@@ -302,6 +302,13 @@ data class DuelStarted(override val seq: Int, override val at: Long, val qid: St
 /** Le Duel des robots : la tablette de [team] a buzzé, appui à [t] (heure du serveur estimée par la tablette). */
 data class DuelBuzzed(override val seq: Int, override val at: Long, val qid: String, val n: Int, val team: String, val t: Long) : GameEvent
 
+/**
+ * Le Duel des robots : le PAN est apparu à l'écran de la TV à [shownAt] (heure du serveur, image réellement envoyée à
+ * l'écran) ; la box juge les buzz par rapport à cet instant (cedric, 27/10 : un PAN affiché en retard ne doit
+ * pénaliser personne).
+ */
+data class DuelPanShown(override val seq: Int, override val at: Long, val qid: String, val n: Int, val shownAt: Long) : GameEvent
+
 /** Le Duel des robots : plus d'appui à attendre (fenêtre après le premier buzz, ou personne 10 s après le PAN). */
 data class DuelSettled(override val seq: Int, override val at: Long, val qid: String, val n: Int) : GameEvent
 
