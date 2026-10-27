@@ -350,12 +350,30 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `mimes en file, passer fait tourner les joueurs et l'image suivante fait pop`() {
+        val d = DirecteurSonore()
+        d.observer(tour)
+        // « ⏭ Passer » (cedric, 26/10) : le son du passage, puis le souffle qui fait tourner les joueurs.
+        val passe = d.observer(tour.copy(passes = 1, onTourne = true))
+        assertEquals(listOf(Son.MIME_PASSE, Son.WHOOSH), passe.sons())
+        assertTrue("La musique du tour ne change pas", passe.filterIsInstance<Ordre.Musique>().isEmpty())
+        // Sarah montre l'image suivante : un seul petit pop.
+        val image = d.observer(tour.copy(passes = 1))
+        assertEquals(1, image.sons().size)
+        assertTrue(image.sons().single().name.startsWith("POP"))
+        // Trouvé : le son du mime trouvé et le même souffle, puis le pop de l'image suivante.
+        assertEquals(listOf(Son.MIME_TROUVE, Son.WHOOSH), d.observer(tour.copy(trouves = 1, passes = 1, onTourne = true)).sons())
+        assertTrue(d.observer(tour.copy(trouves = 1, passes = 1)).sons().single().name.startsWith("POP"))
+    }
+
+    @Test
     fun `tension des 10 dernieres secondes une seule fois, coupee par la fin du tour`() {
         val d = DirecteurSonore()
         d.observer(tour)
         val tension = d.observer(tour.copy(urgent = true))
         assertEquals(listOf(Son.MIME_TENSION), tension.sons())
-        assertEquals(Ambiance.SUSPENSE, tension.musique())
+        // La boucle des mimes, qui monte, ne s'arrête jamais pendant le tour (cedric, 26/10).
+        assertTrue(tension.filterIsInstance<Ordre.Musique>().isEmpty())
         assertTrue(d.observer(tour.copy(urgent = true)).isEmpty())
         val fin = d.observer(mimes.copy(urgent = false))
         assertEquals(Ordre.Couper, fin.first())

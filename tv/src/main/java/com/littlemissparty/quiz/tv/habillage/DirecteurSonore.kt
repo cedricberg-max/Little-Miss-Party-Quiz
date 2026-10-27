@@ -353,14 +353,19 @@ class DirecteurSonore {
             // Mimes en roulement (cedric, 24/10) : « Changement de joueur ! » arrive dans un souffle, la musique ne change pas.
             if (i.trouves > p.trouves && !i.pictionary) o += Ordre.Jouer(Son.WHOOSH, Tempo.MIME_RELAIS)
             if (i.passes > p.passes) o += Ordre.Jouer(Son.MIME_PASSE)
-            // Dix dernières secondes du tour : la musique s'efface sous la tension.
+            // Mimes en file (cedric, 26/10) : « ⏭ Passer » fait tourner les joueurs, dans le même souffle qu'un mime trouvé.
+            if (i.passes > p.passes && i.onTourne) o += Ordre.Jouer(Son.WHOOSH, Tempo.MIME_RELAIS)
+            // Sarah montre l'image suivante : petit « pop », le mimeur peut y aller.
+            if (p.onTourne && !i.onTourne && i.trouves == p.trouves && i.passes == p.passes) o += Ordre.Jouer(Son.pop(i.trouves + i.passes))
+            // Dix dernières secondes du tour : la tension monte. Mimes (cedric, 26/10) : la boucle qui monte ne s'arrête
+            // jamais pendant le tour ; Pictionary : la musique s'efface sous la tension.
             if (i.urgent && !p.urgent) {
                 o += Ordre.Jouer(Son.MIME_TENSION)
-                o += Ordre.Musique(Ambiance.SUSPENSE)
+                if (i.pictionary) o += Ordre.Musique(Ambiance.SUSPENSE)
             }
             if (p.urgent && !i.urgent) {
                 o += Ordre.Arreter(Son.MIME_TENSION)
-                o += Ordre.Musique(Ambiance.MIMES)
+                if (i.pictionary) o += Ordre.Musique(Ambiance.MIMES)
             }
         }
         return o
@@ -471,6 +476,8 @@ data class Instant(
     /** Mimes trouvés et passés pendant le tour en cours. */
     val trouves: Int = 0,
     val passes: Int = 0,
+    /** Mimes en file : les joueurs tournent, l'écran attend « Image suivante » (pas d'image montrée). */
+    val onTourne: Boolean = false,
     /** Jeu en cours (« quiz|Manche 1 », « mimes|… ») ; vide hors des questions. */
     val epreuve: String = "",
     /** Vrai ou Faux express (et la bonne réponse est « Vrai »), Zoom mystère. */

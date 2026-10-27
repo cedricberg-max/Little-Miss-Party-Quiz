@@ -100,6 +100,7 @@ class TvActions(
     val mimeStart: (String?) -> Unit = {},
     val mimeFound: () -> Unit = {},
     val mimePass: () -> Unit = {},
+    val mimeSkip: () -> Unit = {},
     val mimeStop: () -> Unit = {},
     /** Image floue à la télécommande : bonne (true) ou mauvaise réponse de l'équipe qui a buzzé. */
     val judgeBuzz: (Boolean) -> Unit = {},

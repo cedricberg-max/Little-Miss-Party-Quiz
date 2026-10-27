@@ -12,7 +12,7 @@ import { ref, get, set, update, push, onValue, serverTimestamp } from "firebase/
 import { chromium } from "playwright";
 import { loadRules, seedAdmin, allowBox, ADMIN_PASSWORD } from "./rules-loader.js";
 import { faireZip } from "./zip-outil.js";
-import { lockedUntil, isoDay, heureCourte, jourHeure } from "../web/public/show.js";
+import { lockedUntil, isoDay, heureCourte, jourHeure, MIME_RESERVE } from "../web/public/show.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
@@ -160,7 +160,7 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
       if (handled.has(id)) continue;
       handled.add(id);
       if (cmd.type === "admit" || cmd.type === "replace") { await admitDevice(id, cmd); continue; }
-      const advance = ["next", "close", "end", "pause", "resume", "mime_start", "mime_found", "mime_pass", "mime_stop", "goto", "buzz_ok", "buzz_ko", "picto_show", "picto_draw"].includes(cmd.type);
+      const advance = ["next", "close", "end", "pause", "resume", "mime_start", "mime_found", "mime_pass", "mime_skip", "mime_stop", "goto", "buzz_ok", "buzz_ko", "picto_show", "picto_draw"].includes(cmd.type);
       let status = { status: "applied" };
       if (advance && cmd.expectSeq !== state.seq) status = { status: "stale", reason: "stale" };
       else {
@@ -267,6 +267,11 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
         if (!m.team || deck.length < 2) return null;
         deck = [...deck.slice(1), deck[0]];
         return { ...st, seq, mime: { ...m, card: deck[0], passed: m.passed + 1 } };
+      case "mime_skip":
+        // Mimes en file (MimeSkipped) : l'image repart sous le paquet, sans point, et les joueurs tournent.
+        if (!m.team || m.relais) return null;
+        if (deck.length > 1) deck = [...deck.slice(1), deck[0]];
+        return { ...st, seq, mime: { ...m, card: null, relais: Date.now(), passed: m.passed + 1 } };
       case "mime_fix": {
         if ((counts[cmd.team] ?? 0) + cmd.delta < 0) return null;
         const scores = add(cmd.team, cmd.delta);
@@ -845,6 +850,64 @@ describe("régie", () => {
     // Faire rejouer Touk reste possible si Sarah la choisit exprès.
     await page.locator(".mime-team[data-team=\"touk\"]").click();
     await page.locator("#mime-go", { hasText: "Top départ ! (Touk)" }).waitFor();
+    await page.context().close();
+  });
+
+  test("mimes en file (cedric, 26/10) : le bouton principal lance l'équipe de la couleur, « ⏭ Passer » fait tourner, « 👁 Image suivante » à la main", async () => {
+    box = startBox();
+    await addTeam("jaune", "Les Soleils", "#FFE600");
+    await addTeam("vert", "Les Pousses", "#39FF14");
+    const cards = [{ word: "Pompier", image: "🧑‍🚒" }, { word: "Singe", image: "🐒" }, { word: "Pirate", image: "🏴‍☠️" }];
+    const plan = [
+      { id: "r1m1", text: "Équipe Jaune", kind: "mime", duration: 90, round: "Mimes", couleur: "#FFE600", cards },
+      { id: "r1m2", text: "Équipe Vert", kind: "mime", duration: 90, round: "Mimes", couleur: "#39FF14", cards },
+    ];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, mimesEnFile: true, questions: plan });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await box.mimes(cards);
+    await box.set({ index: 0, qid: "r1m1", text: "Équipe Jaune", total: 2 });
+    await page.locator("#mime-info", { hasText: "Tous en file : le mimeur face à l'écran, les autres dos à l'écran" }).waitFor();
+    // Bouton principal : le tour de l'équipe de la couleur part tout de suite, sans choisir d'équipe.
+    await page.click("#c-next");
+    await page.locator("#mime-now .word", { hasText: "Pompier" }).waitFor();
+    await page.locator("#mime-skip:not([hidden])").waitFor();
+    assert.equal(await page.locator("#mime-pass").isHidden(), true, "Pas d'image suivante sans faire tourner les joueurs");
+    // « ⏭ Passer » : l'écran se vide, les joueurs tournent ; « 👁 Image suivante » devient le bouton principal.
+    await page.click("#mime-skip");
+    await page.locator("#mime.relais").waitFor();
+    await page.locator("#mime-info", { hasText: "🔄 On tourne" }).waitFor();
+    assert.equal(await page.locator("#mime-now").isHidden(), true);
+    assert.equal(await page.textContent("#mime-pass"), "👁 Image suivante");
+    assert.equal(await page.locator("#mime-skip").isDisabled(), true, "Pendant que les joueurs tournent, rien à passer");
+    await capture(page, "regie-mimes-en-file-on-tourne");
+    await page.click("#mime-pass");
+    await page.locator("#mime-now .word", { hasText: "Singe" }).waitFor();
+    await page.click("#mime-found");
+    await page.locator("#mime.relais").waitFor();
+    await page.click("#mime-pass");
+    await page.locator("#mime-now .word", { hasText: "Pirate" }).waitFor();
+    const envoyees = await commands();
+    assert.deepEqual(envoyees.map((c) => c.type), ["mime_start", "mime_skip", "mime_pass", "mime_found", "mime_pass"]);
+    assert.equal(envoyees[0].team, "jaune");
+    await page.context().close();
+  });
+
+  test("mimes en file : une box d'avant le 26/10 garde le déroulé habituel (Top départ, Image suivante)", async () => {
+    box = startBox();
+    await addTeam("jaune", "Les Soleils", "#FFE600");
+    const cards = [{ word: "Pompier", image: "🧑‍🚒" }, { word: "Singe", image: "🐒" }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, questions: [{ id: "r1m1", text: "Équipe Jaune", kind: "mime", duration: 90, round: "Mimes", cards }] });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await box.mimes(cards);
+    await box.set({ index: 0, qid: "r1m1", text: "Équipe Jaune", total: 1 });
+    await page.locator("#mime-go", { hasText: "Top départ ! (Les Soleils)" }).click();
+    await page.locator("#mime-now .word", { hasText: "Pompier" }).waitFor();
+    assert.equal(await page.locator("#mime-skip").isHidden(), true);
+    assert.equal(await page.textContent("#mime-pass"), "Image suivante");
     await page.context().close();
   });
 
@@ -4958,7 +5021,14 @@ describe("bibliothèque de quiz et prestations", () => {
     // Une manche de mimes par équipe, dans l'ordre des couleurs ; chacune ses cartes, dans l'ordre de la Régie PC.
     assert.deepEqual(questions.slice(4, 8).map((q) => [q.kind, q.text]),
       [["mime", "Équipe Rose"], ["mime", "Équipe Orange"], ["mime", "Équipe Vert"], ["mime", "Équipe Jaune"]]);
-    assert.deepEqual(questions.slice(4, 8).map((q) => q.cards.map((c) => c.word)), saved[1].equipes.map((l) => l.map((c) => c.word)));
+    assert.deepEqual(questions.slice(4, 8).map((q) => q.cards.slice(0, saved[1].equipes[0].length).map((c) => c.word)), saved[1].equipes.map((l) => l.map((c) => c.word)));
+    // Mimes en file (cedric, 26/10) : chaque manche a sa couleur, et une réserve d'images mimables suit les siennes si
+    // l'équipe les épuise, jamais une image déjà dans la fête.
+    assert.deepEqual(questions.slice(4, 8).map((q) => q.couleur), ["#FF2D95", "#FF6B1A", "#39FF14", "#FFE600"]);
+    const reserves = questions.slice(4, 8).map((q, i) => q.cards.slice(saved[1].equipes[i].length).map((c) => c.word.toLowerCase()));
+    assert.ok(reserves.every((r) => r.length === MIME_RESERVE), "Une réserve pour chaque équipe");
+    const tous = [...saved[1].equipes.flat().map((c) => c.word.toLowerCase()), ...reserves.flat()];
+    assert.equal(new Set(tous).size, tous.length, "Jamais deux fois la même image");
     assert.deepEqual(questions.slice(8).map((q) => q.text), ["soleil", "maman"]);
     await regie.context().close();
   });
@@ -7604,9 +7674,10 @@ describe("bibliothèque de quiz et prestations", () => {
     // En haut : la source, les images par équipe (20 d'office), la durée du tour (2 min d'office).
     assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["mime-source", "mime-par-equipe", "mime-duree"]);
     assert.deepEqual(await ligne.locator(".mime-source option").allTextContents(), ["Images : 📷 Photos libres", "Images : 😀 Émojis", "Images : 🖼️ Mes images"]);
-    assert.deepEqual(await ligne.locator(".mime-par-equipe option").allTextContents(), [10, 15, 20, 25, 30].map((k) => `${k} images par équipe`));
+    assert.deepEqual(await ligne.locator(".mime-par-equipe option").allTextContents(), [10, 15, 20, 25, 30, 40, 50, 60].map((k) => `${k} images par équipe`));
     assert.equal(await ligne.locator(".mime-par-equipe").inputValue(), "20");
-    assert.deepEqual(await ligne.locator(".mime-duree option").allTextContents(), ["1 min", "1 min 30", "2 min", "2 min 30", "3 min"].map((d) => `Tour de ${d}`));
+    assert.deepEqual(await ligne.locator(".mime-duree option").allTextContents(), ["30 s", "45 s", "1 min", "1 min 15", "1 min 30", "1 min 45", "2 min", "2 min 15", "2 min 30", "2 min 45", "3 min", "3 min 15",
+      "3 min 30", "3 min 45", "4 min", "4 min 15", "4 min 30", "4 min 45", "5 min"].map((d) => `Tour de ${d}`), "Mimes en file (cedric, 26/10) : réglé à la seconde près, jusqu'à 5 min");
     assert.equal(await ligne.locator(".mime-duree").inputValue(), "120");
     assert.equal(await compteur.textContent(), "Aucune image pour l'instant : touchez 🎲 sur chaque équipe");
     assert.equal(await round.locator(".reprendre").count(), 0, "pas de « Reprendre une manche » pour les Mimes");
@@ -7725,7 +7796,9 @@ describe("bibliothèque de quiz et prestations", () => {
     const qs = snapshot.quiz.questions.filter((q) => q.kind === "mime");
     assert.deepEqual(qs.map((q) => q.text), ["Équipe Rose", "Équipe Orange", "Équipe Vert"]);
     assert.ok(qs.every((q) => q.round === "Mimes" && q.duration === 90));
-    assert.deepEqual(qs.map((q) => q.cards.map((c) => c.word)), listes);
+    // Ses images d'abord, puis la réserve mimable (mimes en file, cedric 26/10).
+    assert.deepEqual(qs.map((q, i) => q.cards.slice(0, listes[i].length).map((c) => c.word)), listes);
+    assert.ok(qs.every((q, i) => q.cards.length === listes[i].length + MIME_RESERVE));
     // Lancée par la régie : les photos libres des cartes sont copiées dans la partie, l'ordre ne bouge pas.
     await seedLibrary("shows/zoe", { ...zoe, date: "2099-12-02", status: "publiee" });
     box = startBox();
@@ -7736,13 +7809,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const jouees = (await read("show")).quiz.questions.filter((q) => q.kind === "mime");
-    assert.deepEqual(jouees.map((q) => q.cards.map((c) => c.word)), listes);
+    assert.deepEqual(jouees.map((q, i) => q.cards.slice(0, listes[i].length).map((c) => c.word)), listes);
     // Rangées avec les images des cartes (choiceImages), comme celles d'un paquet de mimes.
     await waitFor(async () => {
       const show = await read("show");
       const copiees = (await read("choiceImages")) ?? {};
+      // Réserve : la photo si la banque de ce test l'a, sinon son émoji (une carte sans photo n'empêche rien).
       return show.quiz.questions.filter((q) => q.kind === "mime")
-        .every((q) => q.cards.every((c) => c.banque === undefined && /^[0-9a-f]{16}$/.test(c.imageId ?? "") && copiees[c.imageId]));
+        .every((q, i) => q.cards.slice(0, listes[i].length).every((c) => c.banque === undefined && /^[0-9a-f]{16}$/.test(c.imageId ?? "") && copiees[c.imageId])
+          && q.cards.slice(listes[i].length).every((c) => c.banque === undefined && ((c.imageId && copiees[c.imageId]) || c.image)));
     }, "photos des mimes copiées dans la partie");
     await regie.context().close();
   });

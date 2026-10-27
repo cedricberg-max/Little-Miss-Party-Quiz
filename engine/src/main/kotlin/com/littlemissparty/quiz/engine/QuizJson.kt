@@ -7,7 +7,7 @@ import org.json.JSONObject
  * Lecture d'un quiz au format JSON :
  * `{"id", "title", "questions": [{"id", "text", "choices": [...], "correct", "duration", "kind", "double", "round"}]}`,
  * plus `"cards": [{"word", "image"}]` pour une manche de mimes ou de Pictionary (`"kind": "mime"` ou
- * `"pictionary"`, sans propositions ; `"points"` : valeur d'un dessin trouvé),
+ * `"pictionary"`, sans propositions ; `"points"` : valeur d'un dessin trouvé ; `"couleur"` : équipe seule d'une manche de mimes),
  * l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo), des réponses en images
  * (`"choiceImages"`, une photo par proposition), les valeurs des Portes mystères (`"doors"`), et pour la
  * musique `"audioId"` (extrait), `"artist"`, `"refrainId"` et `"lyrics"` (blind test et quiz musical).
@@ -16,6 +16,9 @@ import org.json.JSONObject
 object QuizJson {
     /** Identifiant d'une photo d'illustration : empreinte de son contenu, 16 caractères hexadécimaux. */
     val IMAGE_ID = Regex("[0-9a-f]{16}")
+
+    /** Couleur d'équipe d'une manche de mimes (« #F5D000 »). */
+    private val COULEUR = Regex("#[0-9A-F]{6}")
 
     /** Longueur maximale du nom d'artiste (blind test). */
     const val MAX_ARTIST = 80
@@ -117,6 +120,7 @@ object QuizJson {
             revealSec = q.optInt("reveal", BLIND_REVEAL_SEC).let { if (it == 0) 0 else it.coerceIn(3, 60) },
             // Nombre de bombes hors limites : ramené dans les limites, jamais une partie refusée pour ça.
             bombs = q.optInt("bombs", POTATO_BOMBS).coerceIn(1, POTATO_BOMBS_MAX),
+            couleur = q.optString("couleur").uppercase().takeIf { kind == QuestionKind.MIME && COULEUR.matches(it) },
         )
     }
 }

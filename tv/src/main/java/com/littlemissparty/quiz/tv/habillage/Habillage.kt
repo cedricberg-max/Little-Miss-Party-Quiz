@@ -175,6 +175,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         meneurAPoints = (s.ranking.firstOrNull()?.second ?: 0) > 0,
         trouves = s.mime?.takeIf { it.team != null }?.found ?: 0,
         passes = s.mime?.takeIf { it.team != null }?.passed ?: 0,
+        onTourne = s.mime?.takeIf { it.team != null }?.relais != null,
         pictionary = s.mime?.picto == true,
         pictioTrouve = (s.mime?.last?.found ?: 0) > 0,
         express = s.question?.isExpress == true,

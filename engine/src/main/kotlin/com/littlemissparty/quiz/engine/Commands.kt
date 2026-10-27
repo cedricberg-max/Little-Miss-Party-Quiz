@@ -27,6 +27,8 @@ sealed interface Command {
     data class MimeStart(override val id: String, override val expectSeq: Int, val team: String) : Command
     data class MimeFound(override val id: String, override val expectSeq: Int) : Command
     data class MimePass(override val id: String, override val expectSeq: Int) : Command
+    /** « ⏭ Passer » : le mimeur abandonne son image, les joueurs tournent. */
+    data class MimeSkip(override val id: String, override val expectSeq: Int) : Command
     data class MimeFix(override val id: String, override val expectSeq: Int, val team: String, val delta: Int) : Command
     data class MimeStop(override val id: String, override val expectSeq: Int) : Command
 
@@ -100,6 +102,7 @@ sealed interface Command {
                 "mime_start" -> MimeStart(id, seq, m["team"] as String)
                 "mime_found" -> MimeFound(id, seq)
                 "mime_pass" -> MimePass(id, seq)
+                "mime_skip" -> MimeSkip(id, seq)
                 "mime_fix" -> MimeFix(id, seq, m["team"] as String, (m["delta"] as Number).toInt())
                 "mime_stop" -> MimeStop(id, seq)
                 "picto_show" -> PictoShow(id, seq, m["team"] as String)
@@ -156,7 +159,7 @@ fun Game.execute(
 ): CommandResult {
     // Un double appui sur « Trouvé » ne compte qu'un mime : chaque appui vise la carte que la régie affichait.
     val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End || cmd is Command.MimeStart ||
-        cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeStop || cmd is Command.Goto ||
+        cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeSkip || cmd is Command.MimeStop || cmd is Command.Goto ||
         cmd is Command.Judge || cmd is Command.StatuesWin || cmd is Command.BlindPlay || cmd is Command.BlindUnblock ||
         cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut ||
         cmd is Command.PictoShow || cmd is Command.PictoDraw || cmd is Command.ChestRandom || cmd is Command.PotatoRandom ||
@@ -194,6 +197,7 @@ fun Game.execute(
         is Command.MimeStart -> if (cmd.team !in teams) return refused("unknown_team") else mimeStart(cmd.team, now)
         is Command.MimeFound -> mimeFound(now)
         is Command.MimePass -> mimePass(now)
+        is Command.MimeSkip -> mimeSkip(now)
         is Command.MimeFix -> if (cmd.team !in teams) return refused("unknown_team") else mimeFix(cmd.team, cmd.delta, now)
         is Command.MimeStop -> mimeStop(now)
         is Command.PictoShow -> if (cmd.team !in teams) return refused("unknown_team") else pictoShow(cmd.team, now)
