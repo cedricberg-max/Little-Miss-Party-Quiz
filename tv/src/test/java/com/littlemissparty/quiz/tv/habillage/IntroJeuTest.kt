@@ -46,6 +46,13 @@ class IntroJeuTest {
     }
 
     @Test
+    fun `le simon du prof a son embleme en attendant sa video`() {
+        assertEquals("simon", familleType(QuestionKind.SIMON))
+        assertNull(nomIntroJeu(familleType(QuestionKind.SIMON)))
+        assertEquals("🔴", emblemeJeu("simon").emoji)
+    }
+
+    @Test
     fun `quiz illustre reste un quiz pour l'embleme classique`() {
         // Design classique inchangé : le quiz illustré garde l'emblème du quiz.
         val illustre = emblemeJeu(familleJeu(question(images = listOf("a", null, null, null))))

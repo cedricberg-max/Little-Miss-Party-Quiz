@@ -956,6 +956,16 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `simon du prof - silence pendant une suite pour entendre les notes, musique entre deux suites`() {
+        val d = DirecteurSonore()
+        d.observer(salon)
+        val entre = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|")
+        assertEquals(Ambiance.QUESTION, d.observer(entre).musique())
+        assertEquals(Ambiance.SILENCE, d.observer(entre.copy(simonSuite = true)).musique())
+        assertEquals(Ambiance.QUESTION, d.observer(entre).musique())
+    }
+
+    @Test
     fun `duel des robots, Classique - presentation habituelle, sans l'air western`() {
         val d = DirecteurSonore()
         d.observer(salon)

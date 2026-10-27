@@ -260,6 +260,7 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
             else if (state.question?.isGonfleur == true) GonfleurScreen(state, actions)
             else if (state.question?.isPatate == true) PatateScreen(state, actions)
             else if (state.question?.isDuel == true) DuelScreen(state, actions)
+            else if (state.question?.isSimon == true) SimonScreen(state, actions)
             else if (state.portes != null) PortesScreen(state, actions)
             else if (state.mime?.picto == true) PictionaryScreen(state, actions)
             else if (state.mime != null) MimeScreen(state, actions) else QuestionScreen(state, actions)

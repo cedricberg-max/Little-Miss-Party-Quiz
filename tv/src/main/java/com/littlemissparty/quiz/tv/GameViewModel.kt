@@ -207,6 +207,9 @@ sealed interface UiState {
         /** Le Simon du Prof : temps pour répondre (réglé dans la Régie PC) et nombre de tours. */
         val simonSec: Int = 0,
         val simonTours: Int = 0,
+        /** Le Simon du Prof : joueurs par équipe (le joueur appelé tourne), et le dernier tour est gagné (« Jeu suivant »). */
+        val simonJoueurs: Int = 0,
+        val simonFini: Boolean = false,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -1322,6 +1325,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 simonSaisies = simonSaisies?.takeIf { (cle, _) -> cle == Codec.simonKey(g) }?.second.orEmpty(),
                 simonSec = q?.simonSec ?: 0,
                 simonTours = q?.simonTours ?: 0,
+                simonJoueurs = q?.joueurs ?: 0,
+                simonFini = q?.isSimon == true && g.simonFini,
                 openedAt = s.openedAt,
                 multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),

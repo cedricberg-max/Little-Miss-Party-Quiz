@@ -443,6 +443,8 @@ class DirecteurSonore {
                 "ready" -> Ambiance.DUEL_ANNONCE
                 else -> Ambiance.DUEL_ENTRE
             }
+            // Le Simon du Prof : silence pendant une suite, qu'on entende la note de chaque boule (musique à choisir, 28/10).
+            i.simonSuite && i.ecran == Ecran.QUESTION -> Ambiance.SILENCE
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             // Game Show : Qui suis-je ? est un jeu qui bouge, sur la musique des mimes (cedric, 23/10), en retrait sous les indices.
@@ -530,6 +532,8 @@ data class Instant(
      */
     val duel: Boolean = false,
     val duelEtape: String = "",
+    /** Le Simon du Prof : une suite est en cours (le robot la montre, les équipes la tapent). */
+    val simonSuite: Boolean = false,
     val flou: Boolean = false,
     val chante: Boolean = false,
     val quiSuis: Boolean = false,
