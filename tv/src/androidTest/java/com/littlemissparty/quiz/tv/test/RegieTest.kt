@@ -860,18 +860,20 @@ class RegieTest : TestTv() {
         val disparu2 = disparu + mapOf("id" to "d2", "choices" to listOf("Bateau à moteur"), "image" to "🚤", "cards" to transports)
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(disparu, disparu2) + avant))
 
+        // Game Show : les noms sont en capitales sur les cartes (carte du Pictionary, planche du 27/10).
+        val carte = { mot: String -> if (Look.gs) mot.uppercase() else mot }
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("MÉMORISEZ !")
         ecran.voit("Mémorisez bien tous les objets !")
-        ecran.voit("Téléphérique")
-        ecran.motsEntiers("Bateau à voile")
+        ecran.voit(carte("Téléphérique"))
+        ecran.motsEntiers(carte("Bateau à voile"))
         attendreQue("question ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "d1" } }
         assertEquals(false, licornes.etat(code).child("buzzOpen").value)
         assertFalse("pas de buzz pendant la mémorisation", licornes.buzzer(code))
         ecran.capture("qui-a-disparu-memoriser")
         // 4 objets : 10 s pour mémoriser, 3 s de tour de magie, puis le buzzer s'ouvre.
         ecran.voit("Buzzez dès que vous savez quel objet a disparu !", 20_000)
-        assertFalse("l'objet disparu n'est plus affiché", ecran.affiche("Téléphérique"))
+        assertFalse("l'objet disparu n'est plus affiché", ecran.affiche(carte("Téléphérique")))
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("buzzOpen").value == true } }
         ecran.capture("qui-a-disparu-chercher")
         assertTrue(licornes.buzzer(code))
@@ -881,7 +883,7 @@ class RegieTest : TestTv() {
         attendreQue("150 points") { points(licornes, code, licornes.uid).takeIf { it == Scoring.BUZZ.toLong() } }
         // La réponse en grand et dans sa case, les autres noms, la phrase dessous : tout en entier.
         ecran.motsEntiers("Téléphérique")
-        ecran.motsEntiers("Bateau à voile")
+        ecran.motsEntiers(carte("Bateau à voile"))
         ecran.motsEntiers("Bravo Licornes")
         ecran.capture("qui-a-disparu-revelation", attente = Ecran.APRES_REVELATION)
 
