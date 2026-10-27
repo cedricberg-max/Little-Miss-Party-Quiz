@@ -2,7 +2,9 @@ package com.littlemissparty.quiz.tv
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,11 +24,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -42,6 +46,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -79,8 +84,8 @@ import kotlinx.coroutines.delay
  * secrète, lance chaque suite et juge. Ici, au tableau néon : « Regardez bien… » puis les boules qui s'allument une à
  * une avec leur note ; « Attention, les chiffres débarquent ! » avant la première suite à chiffres ; « À vous de
  * jouer ! » avec ce que chaque équipe tape en direct, en « ? » à sa couleur ; la vérification colonne par colonne ;
- * puis le bandeau (éliminées, gagnante du tour, « Bah alors ?! »). Le robot prof (règle, blouse) viendra du design :
- * en attendant, le tableau prend toute la largeur. Sons provisoires (musique choisie avec cedric le 28/10).
+ * puis le bandeau (éliminées, gagnante du tour, « Bah alors ?! »). Le robot prof (blouse, grande règle) à gauche du
+ * tableau change de pose selon le moment. Sons provisoires (musique choisie avec cedric le 28/10).
  */
 
 /** Teinte de chaque boule (mêmes codes et mêmes teintes que les tablettes). */
@@ -130,6 +135,9 @@ internal fun erreurSimon(tape: List<String>, solution: List<String>): Int? = jus
 
 /** « 6,1 s ». */
 internal fun secondesSimon(ms: Long): String = "%d,%d s".format(ms / 1000, (ms % 1000) / 100)
+
+/** Largeur utile du tableau (scène de 1920 × 1080) : plus étroit quand le robot prof est à côté. */
+private val LargeurTableau = staticCompositionLocalOf { 1676f }
 
 private val OrNeon = Color(0xFFFFC94A)
 private val RoseCraie = Color(0xFFFF9AD5)
@@ -196,9 +204,11 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
             TubeSimon("SUITE N° $n", GS.Orange, Modifier.align(Alignment.TopEnd).padding(end = 72.dp, top = 34.dp))
         }
         val lignes = vue.etape in setOf(EtapeSimon.JOUE, EtapeSimon.TEMPS, EtapeSimon.VERIF)
+        // Le robot prof à gauche, le tableau à sa droite ; un tableau plus large pour les lignes des équipes.
+        val gauche = if (lignes) 470f else 620f
         Tableau(
-            Modifier.padding(start = 80.dp, end = 80.dp, top = 130.dp, bottom = if (lignes) 40.dp else 190.dp).fillMaxSize(),
-        ) {
+            Modifier.padding(start = gauche.dp, end = 40.dp, top = 130.dp, bottom = if (lignes) 40.dp else 190.dp).fillMaxSize(),
+        ) { CompositionLocalProvider(LargeurTableau provides 1920f - gauche - 40f - 84f) {
             when (vue.etape) {
                 EtapeSimon.ATTENTE -> Annonce(
                     if (state.teams.isEmpty()) "IL FAUT UNE ÉQUIPE" else "LE ROBOT PROF ARRIVE…",
@@ -219,7 +229,9 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
                 EtapeSimon.VERIF -> Verification(r!!, vue.colonne, nom, couleur)
                 EtapeSimon.BILAN -> Bilan(r!!, nom, couleur, cle)
             }
-        }
+        } }
+        // Devant le tableau : sa règle passe par-dessus le cadre, comme sur la planche.
+        RobotProf(poseSimon(vue.etape, v), if (lignes) 700f else 820f, Modifier.align(Alignment.BottomStart).offset(x = (-40).dp, y = (-30).dp))
         if (!lignes && r != null) {
             val prets = vue.etape == EtapeSimon.PRET
             Plaques(
@@ -227,7 +239,8 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
                     val dehors = uid in r.out
                     Plaque(nom(uid), couleur(uid), if (dehors) "éliminés" else if (prets) "joueur n° ${r.joueur(uid, state.simonJoueurs)}" else "encore en jeu", dehors)
                 },
-                Modifier.align(Alignment.BottomCenter).padding(start = 80.dp, end = 80.dp, bottom = 36.dp),
+                1920f - gauche - 40f,
+                Modifier.align(Alignment.BottomEnd).padding(start = gauche.dp, end = 40.dp, bottom = 36.dp),
             )
         }
     }
@@ -251,6 +264,31 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
 }
 
 private fun sonSimon(s: Son) = Sons.executer(listOf(Ordre.Jouer(s)))
+
+/** Les poses du robot prof (design du 27/10) : même cadre pour toutes, on passe de l'une à l'autre en fondu. */
+internal enum class PoseSimon(val image: Int) {
+    ATTEND(R.drawable.gs_simon_prof_attend), MONTRE(R.drawable.gs_simon_prof_montre), CHIFFRES(R.drawable.gs_simon_prof_chiffres),
+    BAH_ALORS(R.drawable.gs_simon_prof_bahalors), FELICITE(R.drawable.gs_simon_prof_felicite),
+}
+
+/** Le robot montre la suite avec sa règle, lève les bras pour les chiffres, félicite (sérieusement) la gagnante du tour. */
+internal fun poseSimon(etape: EtapeSimon, v: com.littlemissparty.quiz.engine.SimonVerdict?): PoseSimon = when (etape) {
+    EtapeSimon.CHIFFRES -> PoseSimon.CHIFFRES
+    EtapeSimon.REGARDEZ, EtapeSimon.MONTRE -> PoseSimon.MONTRE
+    EtapeSimon.BILAN -> when {
+        v?.bahAlors == true -> PoseSimon.BAH_ALORS
+        v?.winners?.isNotEmpty() == true -> PoseSimon.FELICITE
+        else -> PoseSimon.ATTEND
+    }
+    else -> PoseSimon.ATTEND
+}
+
+@Composable
+private fun RobotProf(pose: PoseSimon, hauteur: Float, modifier: Modifier) {
+    Crossfade(pose, modifier.height(hauteur.dp).width((hauteur * 954f / 1000f).dp), animationSpec = tween(250), label = "robot-prof") { p ->
+        Image(painterResource(p.image), contentDescription = null, modifier = Modifier.fillMaxSize())
+    }
+}
 
 /** Halo d'un cadre arrondi : [n] contours de plus en plus larges et pâles autour du bord. */
 private fun DrawScope.halo(couleur: Color, rayon: Float, n: Int) {
@@ -292,8 +330,9 @@ private fun Tableau(modifier: Modifier, contenu: @Composable BoxScope.() -> Unit
 /** Un grand titre néon au tableau, et une ligne d'explication dessous. */
 @Composable
 private fun BoxScope.Annonce(titre: String, texte: String?, cle: Any?) {
+    val l = LargeurTableau.current
     Column(Modifier.align(Alignment.Center).apparition(0, cle), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        TexteNeon(titre, GS.CyanClair, 120f, PoliceGsTitre, largeurMax = 1600.dp)
+        TexteNeon(titre, GS.CyanClair, 120f, PoliceGsTitre, largeurMax = (l - 40f).dp)
         texte?.let { Text(it, maxLines = 2, textAlign = TextAlign.Center, style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 48.sp, color = Creme)) }
     }
 }
@@ -301,8 +340,9 @@ private fun BoxScope.Annonce(titre: String, texte: String?, cle: Any?) {
 /** « Regardez bien… », puis les boules qui s'allument une à une (la dernière allumée cerclée de blanc). */
 @Composable
 private fun BoxScope.Montre(r: SimonRound, vue: VueSimon, cle: Any?) {
+    val l = LargeurTableau.current
     Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(top = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        TexteNeon("REGARDEZ BIEN…", Color(0xFFB8FFE0), 84f, PoliceGsTitre, largeurMax = 1400.dp, force = 0.6f)
+        TexteNeon("REGARDEZ BIEN…", Color(0xFFB8FFE0), 84f, PoliceGsTitre, largeurMax = (l - 100f).dp, force = 0.6f)
         Text(
             if (r.suite >= SIMON_CHIFFRES_DES) "Couleurs et chiffres mélangés" else "Le robot montre la suite", maxLines = 1,
             style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = 30.sp, letterSpacing = 0.08.em, color = Color(0xFF8FF6D0)),
@@ -311,7 +351,7 @@ private fun BoxScope.Montre(r: SimonRound, vue: VueSimon, cle: Any?) {
     }
     val n = r.suite
     val parLigne = if (n <= 10) n else (n + 1) / 2
-    val taille = minOf(150f, (1500f - 24f * (parLigne - 1)) / parLigne).dp
+    val taille = minOf(150f, (l - 80f - 24f * (parLigne - 1)) / parLigne).dp
     Column(Modifier.align(Alignment.Center).padding(top = 120.dp), verticalArrangement = Arrangement.spacedBy(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         (0 until n).chunked(parLigne).forEach { ligne ->
             Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -400,8 +440,8 @@ private sealed interface Case {
 /** Une ligne du tableau : l'équipe (ou « La bonne suite »), ses cases, et son état à droite. */
 private class Ligne(val nom: String, val couleur: Color, val cases: List<Case>, val etat: String, val etatCouleur: Color, val eteinte: Boolean = false, val coches: Int = 0)
 
-private val NOM_L = 290.dp
-private val ETAT_L = 280.dp
+private val NOM_L = 250.dp
+private val ETAT_L = 250.dp
 private val ESPACE = 16.dp
 
 /** Les lignes des équipes, la colonne [colonne] entourée (vérification) ; [n] cases par ligne. */
@@ -420,7 +460,7 @@ private fun BoxScope.Lignes(titre: String, sousTitre: String, lignes: List<Ligne
         val hauteurDispo = 880f - 110f - 12f - 40f
         val k = lignes.size.coerceAtLeast(1)
         val h = minOf(100f, (hauteurDispo - 10f * (k - 1)) / k)
-        val dispo = 1676f - 48f - NOM_L.value - ESPACE.value * 2 - ETAT_L.value
+        val dispo = LargeurTableau.current - 48f - NOM_L.value - ESPACE.value * 2 - ETAT_L.value
         val taille = minOf(h - 18f, 66f, dispo / (n * 1.2f - 0.2f)).coerceAtLeast(20f)
         val ecart = taille * 0.2f
         Box(Modifier.fillMaxWidth()) {
@@ -551,6 +591,7 @@ private fun BoxScope.Verification(r: SimonRound, colonne: Int, nom: (String) -> 
 private fun BoxScope.Bilan(r: SimonRound, nom: (String) -> String, couleur: (String) -> Color, cle: Any?) {
     val v = r.verdict ?: return
     val solution = r.sequence.take(v.suite)
+    val l = LargeurTableau.current
     val texte = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 50.sp, color = Creme, textAlign = TextAlign.Center)
     Column(
         Modifier.align(Alignment.Center).fillMaxWidth().apparition(0, cle),
@@ -559,8 +600,8 @@ private fun BoxScope.Bilan(r: SimonRound, nom: (String) -> String, couleur: (Str
         when {
             v.bahAlors -> {
                 Text("Toutes les équipes se sont trompées…", maxLines = 1, style = texte)
-                TexteNeon("BAH ALORS,", GS.Orange, 110f, PoliceGsTitre, largeurMax = 1600.dp)
-                TexteNeon("QU'EST-CE QUI VOUS ARRIVE ?!", GS.Orange, 96f, PoliceGsTitre, largeurMax = 1600.dp)
+                TexteNeon("BAH ALORS,", GS.Orange, 110f, PoliceGsTitre, largeurMax = (l - 40f).dp)
+                TexteNeon("QU'EST-CE QUI VOUS ARRIVE ?!", GS.Orange, 96f, PoliceGsTitre, largeurMax = (l - 40f).dp)
                 Text("On recommence la même suite.", maxLines = 1, style = texte)
             }
             v.winners.isNotEmpty() -> {
@@ -574,8 +615,8 @@ private fun BoxScope.Bilan(r: SimonRound, nom: (String) -> String, couleur: (Str
                     maxLines = 1, style = texte,
                 )
                 val c = couleur(v.winners.first())
-                TexteNeon(v.winners.joinToString(" et ") { nom(it) }.uppercase(), c, 120f, PoliceGsTitre, largeurMax = 1600.dp)
-                TexteNeon(if (v.winners.size > 1) "REMPORTENT LE TOUR" else "REMPORTE LE TOUR", c, 96f, PoliceGsTitre, largeurMax = 1600.dp)
+                TexteNeon(v.winners.joinToString(" et ") { nom(it) }.uppercase(), c, 120f, PoliceGsTitre, largeurMax = (l - 40f).dp)
+                TexteNeon(if (v.winners.size > 1) "REMPORTENT LE TOUR" else "REMPORTE LE TOUR", c, 96f, PoliceGsTitre, largeurMax = (l - 40f).dp)
                 if (v.points > 0) Text(
                     "+${v.points} POINTS", maxLines = 1,
                     modifier = Modifier.padding(top = 10.dp).drawBehind { halo(c, 50.dp.toPx(), 2) }.background(c, RoundedCornerShape(50.dp)).padding(horizontal = 40.dp, vertical = 8.dp),
@@ -587,15 +628,15 @@ private fun BoxScope.Bilan(r: SimonRound, nom: (String) -> String, couleur: (Str
                 if (v.wrong.size <= 2) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     v.wrong.forEachIndexed { i, uid ->
                         if (i > 0) Text("et", maxLines = 1, style = texte)
-                        TexteNeon(nom(uid).uppercase(), couleur(uid), 110f, PoliceGsTitre, largeurMax = if (v.wrong.size == 1) 1600.dp else 760.dp)
+                        TexteNeon(nom(uid).uppercase(), couleur(uid), 110f, PoliceGsTitre, largeurMax = if (v.wrong.size == 1) (l - 40f).dp else ((l - 120f) / 2).dp)
                     }
-                } else TexteNeon(v.wrong.joinToString(", ") { nom(it) }.uppercase(), GS.Faux, 90f, PoliceGsTitre, largeurMax = 1600.dp)
-                TexteNeon("ÉLIMINÉS DU TOUR", GS.Faux, 90f, PoliceGsTitre, largeurMax = 1600.dp)
+                } else TexteNeon(v.wrong.joinToString(", ") { nom(it) }.uppercase(), GS.Faux, 90f, PoliceGsTitre, largeurMax = (l - 40f).dp)
+                TexteNeon("ÉLIMINÉS DU TOUR", GS.Faux, 90f, PoliceGsTitre, largeurMax = (l - 40f).dp)
                 Text("Les autres équipes continuent : la prochaine suite aura un élément de plus.", maxLines = 2, style = texte.copy(fontSize = 42.sp))
             }
             else -> {
                 Text("Tout juste pour tout le monde !", maxLines = 1, style = texte)
-                TexteNeon("ON CONTINUE !", GS.Juste, 120f, PoliceGsTitre, largeurMax = 1600.dp)
+                TexteNeon("ON CONTINUE !", GS.Juste, 120f, PoliceGsTitre, largeurMax = (l - 40f).dp)
                 Text("La prochaine suite aura un élément de plus.", maxLines = 1, style = texte.copy(fontSize = 42.sp))
             }
         }
@@ -605,6 +646,7 @@ private fun BoxScope.Bilan(r: SimonRound, nom: (String) -> String, couleur: (Str
 /** « Attention ! Les chiffres débarquent ! » : les tuiles des chiffres arrivent de partout autour du titre. */
 @Composable
 private fun BoxScope.ChiffresDebarquent(cle: Any?) {
+    val k = LargeurTableau.current / 1676f
     val p = remember(cle) { Animatable(0f) }
     LaunchedEffect(cle) { p.animateTo(1f, tween(1_800, easing = FastOutSlowInEasing)) }
     // Place (au tableau, 1676 × 690), taille et inclinaison de chaque tuile.
@@ -616,9 +658,9 @@ private fun BoxScope.ChiffresDebarquent(cle: Any?) {
     tuiles.forEachIndexed { i, (chiffre, place, forme) ->
         val (taille, angle) = forme
         Box(
-            Modifier.offset(x = (place.x - taille / 2).dp, y = (place.y - taille / 2).dp).size(taille.dp).graphicsLayer {
+            Modifier.offset(x = (place.x * k - taille / 2).dp, y = (place.y - taille / 2).dp).size(taille.dp).graphicsLayer {
                 val e = ((p.value * 1.6f - i * 0.06f)).coerceIn(0f, 1f)
-                val dx = (place.x - 838f) * 1.6f
+                val dx = (place.x - 838f) * k * 1.6f
                 val dy = (place.y - 345f) * 1.6f
                 translationX = (1 - e) * dx.dp.toPx()
                 translationY = (1 - e) * dy.dp.toPx()
@@ -630,8 +672,8 @@ private fun BoxScope.ChiffresDebarquent(cle: Any?) {
     }
     Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TexteNeon("ATTENTION !", GS.Jaune, 80f, PoliceGsTitre, largeurMax = 1000.dp, modifier = Modifier.apparition(200, cle))
-        TexteNeon("LES CHIFFRES", GS.Cyan, 130f, PoliceGsTitre, largeurMax = 1300.dp, modifier = Modifier.apparition(500, cle))
-        TexteNeon("DÉBARQUENT !", GS.Cyan, 130f, PoliceGsTitre, largeurMax = 1300.dp, modifier = Modifier.apparition(800, cle))
+        TexteNeon("LES CHIFFRES", GS.Cyan, 130f, PoliceGsTitre, largeurMax = (1300f * k).dp, modifier = Modifier.apparition(500, cle))
+        TexteNeon("DÉBARQUENT !", GS.Cyan, 130f, PoliceGsTitre, largeurMax = (1300f * k).dp, modifier = Modifier.apparition(800, cle))
     }
 }
 
@@ -639,9 +681,9 @@ private fun BoxScope.ChiffresDebarquent(cle: Any?) {
 private class Plaque(val nom: String, val couleur: Color, val etat: String, val eteinte: Boolean)
 
 @Composable
-private fun Plaques(plaques: List<Plaque>, modifier: Modifier) {
+private fun Plaques(plaques: List<Plaque>, largeur: Float, modifier: Modifier) {
     if (plaques.isEmpty()) return
-    val l = minOf(300f, (1760f - 14f * (plaques.size - 1)) / plaques.size).dp
+    val l = minOf(300f, (largeur - 14f * (plaques.size - 1)) / plaques.size).dp
     val forme = RoundedCornerShape(22.dp)
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         plaques.forEach { p ->

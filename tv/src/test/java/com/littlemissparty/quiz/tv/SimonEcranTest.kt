@@ -68,6 +68,19 @@ class SimonEcranTest {
     }
 
     @Test
+    fun `le robot prof montre la suite avec sa regle, leve les bras pour les chiffres, felicite la gagnante`() {
+        fun v(winners: List<String> = emptyList(), bah: Boolean = false) = SimonVerdict(2, emptyMap(), emptyList(), winners, 0, bah, t0)
+        assertEquals(PoseSimon.MONTRE, poseSimon(EtapeSimon.MONTRE, null))
+        assertEquals(PoseSimon.CHIFFRES, poseSimon(EtapeSimon.CHIFFRES, null))
+        assertEquals(PoseSimon.ATTEND, poseSimon(EtapeSimon.JOUE, null))
+        assertEquals(PoseSimon.BAH_ALORS, poseSimon(EtapeSimon.BILAN, v(bah = true)))
+        assertEquals(PoseSimon.FELICITE, poseSimon(EtapeSimon.BILAN, v(winners = listOf("A"))))
+        // Une équipe éliminée : le prof reste sérieux, personne n'est félicité (cedric, 27/10).
+        assertEquals(PoseSimon.ATTEND, poseSimon(EtapeSimon.BILAN, v()))
+        assertEquals(PoseSimon.ATTEND, poseSimon(EtapeSimon.VERIF, v(winners = listOf("A"))))
+    }
+
+    @Test
     fun `premiere erreur - element faux ou manquant, rien si tout est juste`() {
         val bonne = suite.take(4)
         assertNull(erreurSimon(bonne, bonne))
