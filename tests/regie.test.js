@@ -7531,6 +7531,9 @@ describe("bibliothèque de quiz et prestations", () => {
     const apres = await ordre();
     assert.ok(apres.slice(3).every((c) => c.startsWith("photos · ")), apres.join());
     assert.equal(await lignes.nth(4).locator('img.grille-vignette[src^="banque/"]').count(), 6);
+    // En « mixte » : les 2 tours au hasard en images réelles ont pu prendre « photos · musique » (jamais deux fois) ;
+    // « La musique » en émojis (familles moyennes) reste libre, les petits n'ont tiré que des familles simples.
+    await images.selectOption("mixte");
     await champ.fill("guitare");
     await tours.selectOption("1");
     await round.locator(".de-unique").click();
