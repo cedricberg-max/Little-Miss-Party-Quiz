@@ -9337,7 +9337,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await quiz.locator(".jeu-replier").getAttribute("aria-expanded"), "false");
     assert.equal(await quiz.locator(".jeu-resume").textContent(), "2 questions, dont la dernière en Super Finale, plus la question des bougies");
     assert.deepEqual(await quiz.locator(".jeu-tete > button").evaluateAll((xs) => xs.map((x) => x.textContent)), ["▸", "↑", "↓", "✕"]);
-    assert.equal(await statues.locator(".jeu-resume").textContent(), "60 s · musique de la fête");
+    assert.equal(await statues.locator(".jeu-resume").textContent(), "musique de la fête");
     assert.equal(await statues.locator(".jeu-plus").count(), 0, "Replié : pas de « ＋ Manche »");
     await capture(page, "jeux-replies");
     if (process.env.CAPTURES) {
@@ -9444,7 +9444,9 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await round.locator('.reprise-item[data-reprise="lea/0"], .reprise-item[data-reprise="lea/1"]').count(), 0);
     assert.equal(await round.locator(".reprise-item", { hasText: "Super Finale" }).count(), 0);
     await lea2.click();
-    assert.equal(await page.locator("#show-rounds .round").nth(0).locator('select[aria-label="Durée"]').inputValue(), "90");
+    // Plus de durée à régler aux statues (cedric, 27/10) : chaque chanson se joue en entier.
+    await page.locator("#show-rounds .round").nth(0).locator(".statues-chansons").waitFor();
+    assert.equal(await page.locator("#show-rounds .round").nth(0).locator('select[aria-label="Durée"]').count(), 0);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
     // Elle est gardée dans la page de son jeu, rattachée à la nouvelle prestation ; l'ancienne prestation ne change pas.
