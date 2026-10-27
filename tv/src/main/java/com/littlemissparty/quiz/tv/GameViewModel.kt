@@ -22,6 +22,8 @@ import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.BlindTrack
 import com.littlemissparty.quiz.engine.ChestRound
 import com.littlemissparty.quiz.engine.DuelRound
+import com.littlemissparty.quiz.engine.SimonAnswer
+import com.littlemissparty.quiz.engine.SimonRound
 import com.littlemissparty.quiz.engine.Codec
 import com.littlemissparty.quiz.engine.Command
 import com.littlemissparty.quiz.engine.CommandResult
@@ -73,6 +75,9 @@ data class Team(val uid: String, val name: String, val color: String, val joined
 
 /** Appareil qui demande à entrer en cours de partie ; [replace] : l'équipe qu'il veut reprendre. */
 data class JoinRequestUi(val device: String, val name: String, val color: String, val replace: String?)
+
+/** Le Simon du Prof : ce qu'une équipe a tapé ([items]), validé ou non ([ok]), à l'heure du serveur [at]. */
+data class SaisieSimon(val items: List<String>, val ok: Boolean, val at: Long?)
 
 sealed interface UiState {
     data object MissingConfig : UiState
@@ -195,6 +200,13 @@ sealed interface UiState {
         val duelGagnes: Map<String, Int> = emptyMap(),
         /** Le Duel des robots : décalage fin de l'horloge de la box avec le serveur (meilleure de 5 mesures), ou null. */
         val duelOffset: Long? = null,
+        /** Le Simon du Prof : le tour et sa suite (la suite secrète, que seule la box connaît), null hors de ce jeu. */
+        val simon: SimonRound? = null,
+        /** Le Simon du Prof : ce que chaque équipe tape en direct pour la suite en cours (montré en « ? » à la TV). */
+        val simonSaisies: Map<String, SaisieSimon> = emptyMap(),
+        /** Le Simon du Prof : temps pour répondre (réglé dans la Régie PC) et nombre de tours. */
+        val simonSec: Int = 0,
+        val simonTours: Int = 0,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -290,6 +302,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var pumpListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var potatoListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var duelListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var simonListener: Pair<DatabaseReference, ValueEventListener>? = null
+
+    /** Le Simon du Prof : ce que les tablettes ont envoyé pour la suite en cours (clé de la suite, puis équipe). */
+    private var simonSaisies: Pair<String, Map<String, SaisieSimon>>? = null
 
     /**
      * Le Duel des robots (cedric, 27/10 : « le timing doit être vraiment juste ») : décalage fin de l'horloge de la box
@@ -866,7 +882,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val entreDeuxTours = g.state.mime != null && g.state.mime?.team == null && !g.mimeBilanDue(serverNow())
         // Duel des robots : pas de chrono ; le jugement d'un face-à-face attend son heure ([schedule]).
         if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.question?.isCoffres != true &&
-            g.question?.isDuel != true && !entreDeuxTours && g.timeOver(serverNow())
+            g.question?.isDuel != true && g.question?.isSimon != true && !entreDeuxTours && g.timeOver(serverNow())
         ) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
             act { it.timeUp(serverNow()) ?: it.balloon(pumps, teams().map { t -> t.uid }, serverNow(), stop = true) }
@@ -928,6 +944,19 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                             d.result == null -> g.startDuel(serverNow())
                             g.duelTousPasses(ids) -> g.next(serverNow())
                             else -> g.readyDuel(ids, serverNow())
+                        },
+                    )
+                }
+                // Simon du Prof : OK lance la suite (ou le tour suivant) ; après le dernier tour, passe au jeu suivant.
+                else if (g.question?.isSimon == true) {
+                    val r = g.state.simon
+                    val ids = teams().map { it.uid }
+                    commit(
+                        when {
+                            r == null -> if (ids.isEmpty()) g.next(serverNow()) else null
+                            r.enCours -> null
+                            g.simonFini -> g.next(serverNow())
+                            else -> g.simonGo(ids, serverNow())
                         },
                     )
                 }
@@ -1188,7 +1217,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     // Bombe gardée trop longtemps par une équipe dont la tablette vient de se couper : jamais sa faute, on
                     // attend la pause automatique (après la reprise, l'équipe a de nouveau 2 secondes) ou son retour.
                     val coupee = g.remainingMs(now) > 0 && g.state.potato?.holder?.let { it !in online } == true
-                    if (g.state.phase == Phase.QUESTION && !g.state.paused && g.timeOver(now) && !coupee) {
+                    // Simon du Prof : fin du chrono, la box juge la suite avec ce que les tablettes ont tapé.
+                    if (g.question?.isSimon == true) {
+                        val due = g.simonJugeAt()
+                        if (due != null && now >= due) {
+                            commit(g.judgeSimon(reponsesSimon(g), now))
+                            true
+                        } else g.wakeAt() != deadline
+                    } else if (g.state.phase == Phase.QUESTION && !g.state.paused && g.timeOver(now) && !coupee) {
                         // Fin de la question, ou fin du tour de mimes.
                         // Gonfleur fou : au bout du chrono de secours, le plus gros ballon gagne.
                         commit(g.timeUp(serverNow()) ?: g.balloon(pumps, teams().map { it.uid }, serverNow(), stop = true))
@@ -1282,6 +1318,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 duelTotal = if (q?.isDuel == true) g.duelsAPrevoir(teams().size) else 0,
                 duelTousPasses = q?.isDuel == true && g.duelTousPasses(teams().map { it.uid }),
                 duelGagnes = if (q?.isDuel == true) g.duelsGagnes() else emptyMap(),
+                simon = s.simon.takeIf { q?.isSimon == true && s.phase != Phase.LOBBY },
+                simonSaisies = simonSaisies?.takeIf { (cle, _) -> cle == Codec.simonKey(g) }?.second.orEmpty(),
+                simonSec = q?.simonSec ?: 0,
+                simonTours = q?.simonTours ?: 0,
                 openedAt = s.openedAt,
                 multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),
@@ -1318,6 +1358,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // des 2 équipes pendant chaque face-à-face.
         if (g.needsDuel() && teams().size >= 2) act { it.readyDuel(teams().map { t -> t.uid }, serverNow()) }
         watchDuel(Codec.duelKey(g))
+        // Simon du Prof : la box prépare le premier tour dès le lancement du jeu, puis écoute ce que tapent les tablettes
+        // pendant chaque suite.
+        if (g.needsSimon() && teams().isNotEmpty()) act { it.readySimon(teams().map { t -> t.uid }, serverNow()) }
+        watchSimon(Codec.simonKey(g))
         s.duel?.takeIf { q?.isDuel == true }?.let { d ->
             // Pendant que les joueurs se placent : l'horloge de la box est recalée finement sur celle du serveur.
             if (d.step == "ready") mesurerHorloge("${s.qid}-${d.n}")
@@ -2321,6 +2365,53 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Simon du Prof : ce que tapent les tablettes pendant la suite en cours (games/<code>/simon/<clé>/<équipe> =
+     * { items: "rouge,vert,4", ok, at }), réécrit à chaque appui jusqu'à « Valider » (ok). Les règles n'acceptent que
+     * les équipes encore en jeu, pendant le chrono, et plus rien après « Valider ». La TV le montre en direct ; quand
+     * toutes les équipes en jeu ont validé, la box juge sans attendre la fin du chrono.
+     */
+    private fun watchSimon(key: String?) {
+        if (key == simonListener?.first?.key) return
+        simonListener?.let { (r, l) -> r.removeEventListener(l) }
+        simonListener = null
+        if (key == null) simonSaisies = null
+        val ref = gameRef?.child("simon")?.child(key ?: return) ?: return
+        simonSaisies = key to emptyMap()
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val saisies = snapshot.children.mapNotNull { c ->
+                    val team = c.key ?: return@mapNotNull null
+                    val items = c.child("items").getValue(String::class.java).orEmpty().split(",").filter { it.isNotEmpty() }
+                    val at = c.child("at").getValue(Long::class.java)
+                    team to SaisieSimon(items, c.child("ok").getValue(Boolean::class.java) == true, at)
+                }.toMap()
+                simonSaisies = key to saisies
+                saisies.values.mapNotNull { it.at }.maxOrNull()?.let { Reactivite.noter("simon", serverNow() - it) }
+                act { g ->
+                    val r = g.state.simon
+                    // Toutes les équipes en jeu ont validé : la suite se juge tout de suite.
+                    if (Codec.simonKey(g) != key || r == null || !g.simonReponse(serverNow()) || !r.enJeu.all { saisies[it]?.ok == true }) null
+                    else g.judgeSimon(reponsesSimon(g), serverNow())
+                }
+                refresh()
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Réponses du Simon : ${error.message}")
+            }
+        }
+        simonListener = ref to listener
+        ref.addValueEventListener(listener)
+    }
+
+    /** Simon du Prof : les réponses de la suite en cours, temps pour valider compté depuis le début du chrono. */
+    private fun reponsesSimon(g: Game): Map<String, SimonAnswer> {
+        val depart = g.state.simon?.reponseAt ?: return emptyMap()
+        val saisies = simonSaisies?.takeIf { (cle, _) -> cle == Codec.simonKey(g) }?.second.orEmpty()
+        return saisies.mapValues { (_, v) -> SimonAnswer(v.items, if (v.ok) ((v.at ?: depart) - depart).coerceAtLeast(0) else null) }
+    }
+
+    /**
      * « Ça va exploser ! » : l'envoi de la tablette de l'équipe qui tient la bombe (games/<code>/potatoPass/<clé> =
      * { to, at }). Les règles de la base n'acceptent que l'appareil de cette équipe, dès la réception (cedric, 27/10), vers
      * une équipe permise. Une clé par réception : un envoi ne peut servir qu'une fois.
@@ -2501,6 +2592,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         watchPumps(null)
         watchPotato(null)
         watchDuel(null)
+        watchSimon(null)
         watchDrawing(null)
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
@@ -2594,6 +2686,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "disparu" to true,
             // Le Duel des robots : buzz des tablettes dans duel/, PAN et jugement par la box, duel_start / duel_next / duel_stop.
             "duel" to true,
+            // Le Simon du Prof : réponses des tablettes dans simon/, suite secrète et jugement par la box, simon_go / simon_stop.
+            "simon" to true,
             // Mauvaise prestation : une autre prestation remplace celle-ci tant qu'aucun point n'a été donné (retour au salon).
             "programReset" to true,
             "questions" to quiz.questions.map {
@@ -2612,8 +2706,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     // Mimes en file : la couleur de l'équipe seule de la manche, relue après un redémarrage.
                     "couleur" to it.couleur,
                     // Le Duel des robots : joueurs par équipe et durée du face-à-face, relus après un redémarrage.
-                    "joueurs" to it.joueurs.takeIf { _ -> it.isDuel }, "faceMin" to it.faceMin.takeIf { _ -> it.isDuel },
+                    "faceMin" to it.faceMin.takeIf { _ -> it.isDuel },
                     "faceMax" to it.faceMax.takeIf { _ -> it.isDuel }, "longs" to it.longs.takeIf { _ -> it.isDuel },
+                    // Le Simon du Prof : tours, temps pour répondre et joueurs par équipe, relus après un redémarrage.
+                    "tours" to it.simonTours.takeIf { _ -> it.isSimon }, "reponse" to it.simonSec.takeIf { _ -> it.isSimon },
+                    "joueurs" to it.joueurs.takeIf { _ -> it.isDuel || it.isSimon },
                 ))
             },
         )
