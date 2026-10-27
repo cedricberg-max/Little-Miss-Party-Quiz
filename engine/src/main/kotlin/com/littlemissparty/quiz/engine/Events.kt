@@ -283,6 +283,32 @@ data class PotatoExploded(override val seq: Int, override val at: Long, val qid:
 data class BuzzJudged(override val seq: Int, override val at: Long, val ok: Boolean, val bonus: Boolean = false) : GameEvent
 
 /**
+ * Le Duel des robots : le duel n° [n] est prêt entre [teams] (2 équipes), avec leurs joueurs [players] ; [extra] =
+ * choisi à la volée par Sarah. Un duel prêt pas encore lancé peut être remplacé (même numéro).
+ */
+data class DuelReady(
+    override val seq: Int,
+    override val at: Long,
+    val qid: String,
+    val n: Int,
+    val teams: List<String>,
+    val players: List<Int>,
+    val extra: Boolean = false,
+) : GameEvent
+
+/** Le Duel des robots : le face-à-face du duel [n] commence ; le PAN tombera à [panAt] (heure du serveur, secrète). */
+data class DuelStarted(override val seq: Int, override val at: Long, val qid: String, val n: Int, val panAt: Long) : GameEvent
+
+/** Le Duel des robots : la tablette de [team] a buzzé, appui à [t] (heure du serveur estimée par la tablette). */
+data class DuelBuzzed(override val seq: Int, override val at: Long, val qid: String, val n: Int, val team: String, val t: Long) : GameEvent
+
+/** Le Duel des robots : plus d'appui à attendre (fenêtre après le premier buzz, ou personne 10 s après le PAN). */
+data class DuelSettled(override val seq: Int, override val at: Long, val qid: String, val n: Int) : GameEvent
+
+/** Le Duel des robots : Sarah arrête le face-à-face ; la même paire reste prête, sans points. */
+data class DuelStopped(override val seq: Int, override val at: Long, val qid: String, val n: Int) : GameEvent
+
+/**
  * Saut de la régie vers la question [index] (début d'un jeu de la prestation), en avant comme en arrière.
  * Les points des questions [clear] sont retirés : un jeu rejoué ne compte jamais deux fois.
  */

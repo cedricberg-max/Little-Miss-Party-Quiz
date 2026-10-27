@@ -57,6 +57,18 @@ sealed interface Command {
     /** Statues musicales : « ▶ Chanson suivante », après les gagnantes de la chanson. */
     data class StatuesSong(override val id: String, override val expectSeq: Int) : Command
 
+    /**
+     * Duel des robots : « 🤠 Lancer le duel » prêt ; avec [teams] (2 équipes), un duel à la volée entre elles, lancé
+     * aussitôt (à la place du duel prêt, ou après un duel jugé).
+     */
+    data class DuelStart(override val id: String, override val expectSeq: Int, val teams: List<String>? = null) : Command
+
+    /** Duel des robots : « ▶ Duel suivant », la box prépare le duel suivant de la ronde. */
+    data class DuelNext(override val id: String, override val expectSeq: Int) : Command
+
+    /** Duel des robots : « ✋ Arrêter le duel », le face-à-face s'arrête sans points. */
+    data class DuelStop(override val id: String, override val expectSeq: Int) : Command
+
     /** Blind test : lancer ou relancer la musique du morceau. */
     data class BlindPlay(override val id: String, override val expectSeq: Int) : Command
 
@@ -130,6 +142,9 @@ sealed interface Command {
                 "chest_random" -> ChestRandom(id, seq)
                 "potato_random" -> PotatoRandom(id, seq)
                 "potato_stop" -> PotatoStop(id, seq)
+                "duel_start" -> DuelStart(id, seq, (m["teams"] as? List<*>)?.map { it as String })
+                "duel_next" -> DuelNext(id, seq)
+                "duel_stop" -> DuelStop(id, seq)
                 "portes_set" -> PortesSet(id, seq, m["qid"] as String, (m["door"] as Number).toInt(), (m["value"] as Number).toInt())
                 else -> null
             }
@@ -160,6 +175,7 @@ fun Game.execute(
     teams: Set<String>,
     answers: Map<String, Answer> = emptyMap(),
     pumps: Map<String, Pump> = emptyMap(),
+    random: kotlin.random.Random = kotlin.random.Random.Default,
 ): CommandResult {
     // Un double appui sur « Trouvé » ne compte qu'un mime : chaque appui vise la carte que la régie affichait.
     val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End || cmd is Command.MimeStart ||
@@ -167,7 +183,8 @@ fun Game.execute(
         cmd is Command.Judge || cmd is Command.StatuesWin || cmd is Command.BlindPlay || cmd is Command.BlindUnblock ||
         cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut ||
         cmd is Command.PictoShow || cmd is Command.PictoDraw || cmd is Command.ChestRandom || cmd is Command.PotatoRandom ||
-        cmd is Command.PotatoStop || cmd is Command.StatuesStop || cmd is Command.StatuesPlay || cmd is Command.StatuesSong
+        cmd is Command.PotatoStop || cmd is Command.StatuesStop || cmd is Command.StatuesPlay || cmd is Command.StatuesSong ||
+        cmd is Command.DuelStart || cmd is Command.DuelNext || cmd is Command.DuelStop
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
     // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
@@ -220,6 +237,15 @@ fun Game.execute(
         is Command.ChestRandom -> openRandomChest(now)
         is Command.PotatoRandom -> passPotatoRandom(now)
         is Command.PotatoStop -> stopPotato(now)
+        // Duel à la volée : prêt entre les 2 équipes choisies, puis lancé ; si le lancement échoue, rien ne reste.
+        is Command.DuelStart -> when {
+            cmd.teams == null -> startDuel(now, random)
+            cmd.teams.size != 2 || cmd.teams.distinct().size != 2 -> return refused("bad_teams")
+            !teams.containsAll(cmd.teams) -> return refused("unknown_team")
+            else -> readyDuel(teams, now, cmd.teams, random)?.let { startDuel(now, random) }
+        }
+        is Command.DuelNext -> if (state.duel?.result == null) null else readyDuel(teams, now, random = random)
+        is Command.DuelStop -> stopDuel(now)
         is Command.PortesSet -> if (question?.id != cmd.qid) return refused("stale_program") else setDoor(cmd.door, cmd.value, now)
         is Command.Factor -> if (cmd.factor !in FACTORS) return refused("bad_factor") else chooseFactor(cmd.factor, now)
         // Le programme a changé depuis l'affichage de la régie : rien n'est fait.

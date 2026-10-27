@@ -67,6 +67,11 @@ object Codec {
             is PotatoPassed -> mapOf("type" to "potato_pass", "qid" to e.qid, "from" to e.from, "to" to e.to)
             is PotatoExploded -> mapOf("type" to "potato_boom", "qid" to e.qid, "holder" to e.holder)
             is BalloonBurst -> mapOf("type" to "balloon", "qid" to e.qid, "team" to e.team, "teams" to e.teams)
+            is DuelReady -> mapOf("type" to "duel_ready", "qid" to e.qid, "n" to e.n, "teams" to e.teams, "players" to e.players, "extra" to e.extra.takeIf { it })
+            is DuelStarted -> mapOf("type" to "duel_start", "qid" to e.qid, "n" to e.n, "panAt" to e.panAt)
+            is DuelBuzzed -> mapOf("type" to "duel_buzz", "qid" to e.qid, "n" to e.n, "team" to e.team, "t" to e.t)
+            is DuelSettled -> mapOf("type" to "duel_settle", "qid" to e.qid, "n" to e.n)
+            is DuelStopped -> mapOf("type" to "duel_stop", "qid" to e.qid, "n" to e.n)
             is Jumped -> mapOf("type" to "goto", "index" to e.index, "qid" to e.qid, "clear" to e.clear.ifEmpty { null })
             is ProgramReset -> mapOf("type" to "reset")
         }
@@ -139,6 +144,14 @@ object Codec {
             )
             "statues_song" -> StatuesSongStarted(seq, at, m["qid"] as String, m.num("song").toInt())
             "buzz_judge" -> BuzzJudged(seq, at, m["ok"] == true, m["bonus"] == true)
+            "duel_ready" -> DuelReady(
+                seq, at, m["qid"] as String, m.num("n").toInt(), (m["teams"] as List<*>).map { it as String },
+                (m["players"] as List<*>).map { (it as Number).toInt() }, m["extra"] == true,
+            )
+            "duel_start" -> DuelStarted(seq, at, m["qid"] as String, m.num("n").toInt(), m.num("panAt"))
+            "duel_buzz" -> DuelBuzzed(seq, at, m["qid"] as String, m.num("n").toInt(), m["team"] as String, m.num("t"))
+            "duel_settle" -> DuelSettled(seq, at, m["qid"] as String, m.num("n").toInt())
+            "duel_stop" -> DuelStopped(seq, at, m["qid"] as String, m.num("n").toInt())
             "goto" -> Jumped(seq, at, m.num("index").toInt(), m["qid"] as String, (m["clear"] as? List<*>).orEmpty().map { it as String })
             "reset" -> ProgramReset(seq, at)
             else -> null
@@ -201,7 +214,7 @@ object Codec {
      * Ce que les pupitres ont le droit de voir. La bonne réponse n'y figure qu'après la révélation :
      * un enfant qui inspecte la page du pupitre ne peut pas la trouver avant.
      */
-    fun publicState(game: Game, buzzRound: Int = 1): Map<String, Any?> {
+    fun publicState(game: Game, buzzRound: Int = 1, teams: Collection<String> = emptyList()): Map<String, Any?> {
         val s = game.state
         val q = game.question
         val revealed = s.phase == Phase.REVEAL || s.phase == Phase.SCORES || s.phase == Phase.ENDED
@@ -251,9 +264,9 @@ object Codec {
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
                 // « Ça va exploser ! » : la mèche reste un secret, même pour les tablettes.
                 // Statues musicales (depuis le 27/10) : plus de chrono, chaque chanson dure ce qu'elle dure.
-                "durationMs" to q.durationMs.takeIf { !q.isPatate && !q.isStatues },
+                "durationMs" to q.durationMs.takeIf { !q.isPatate && !q.isStatues && !q.isDuel },
                 "deadline" to game.deadline().takeIf { !q.isPatate },
-                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && !q.isStatues && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && !q.isStatues && !q.isDuel && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
                 "correct" to if (revealed && !q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
@@ -266,6 +279,7 @@ object Codec {
             if (q.isCoffres) out["chests"] = chestState(game)
             if (q.isPatate) out["potato"] = potatoState(game)
             if (q.isStatues) out["statues"] = statuesState(game)
+            if (q.isDuel) out["duel"] = duelState(game, teams)
             if (q.isGonfleur) out["pump"] = pumpKey(game)?.let { mapOf("key" to it, "goAt" to game.pumpGoAt, "target" to PUMP_TARGET) }
             if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
@@ -278,6 +292,33 @@ object Codec {
             }
         }
         return out
+    }
+
+    /** Duel des robots : clé du buzz des tablettes pour le face-à-face en cours (`duel/<clé>/<équipe>`), ou null. */
+    fun duelKey(game: Game): String? {
+        val d = game.state.duel?.takeIf { it.enCours } ?: return null
+        if (game.question?.isDuel != true || game.state.paused) return null
+        return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${d.n}-${d.startAt}"
+    }
+
+    /**
+     * Duel des robots, pour la TV, la régie et les tablettes : le duel prêt ou en cours, son étape et son bilan. L'heure
+     * du PAN n'y est jamais (seule la box la connaît). [teams] : équipes inscrites, pour les duels prévus.
+     */
+    fun duelState(game: Game, teams: Collection<String>): Map<String, Any?> {
+        val d = game.state.duel
+        return mapOf(
+            "n" to d?.n,
+            "total" to game.duelsAPrevoir(teams.size),
+            "teams" to d?.teams,
+            "players" to d?.players,
+            "step" to (d?.step ?: "none"),
+            "extra" to d?.extra?.takeIf { it },
+            "key" to duelKey(game),
+            "result" to d?.result?.let { r -> mapOf("winner" to r.winner, "loser" to r.loser, "early" to r.early, "ms" to r.ms, "points" to r.points) },
+            "played" to d?.played?.ifEmpty { null },
+            "allPlayed" to game.duelTousPasses(teams),
+        )
     }
 
     /**

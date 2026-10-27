@@ -105,7 +105,13 @@ enum class QuestionKind(val code: String) {
      * « Ça va exploser ! » : une bombe passe d'équipe en équipe depuis les tablettes ; sa mèche, tirée au sort, est
      * cachée. L'équipe qui la tient à l'explosion perd des points, les autres en gagnent. Rien à préparer.
      */
-    PATATE("patate");
+    PATATE("patate"),
+
+    /**
+     * 🤠 Le Duel des robots : deux équipes face à face, un joueur de chaque côté ; la première qui buzze après le PAN de
+     * la TV gagne, celle qui buzze avant perd (voir [DuelRound]). Rien à préparer que les joueurs et la durée.
+     */
+    DUEL("duel");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -176,6 +182,13 @@ data class Question(
      * pour elle dans la Régie PC. Null : manche jouée tour à tour par toutes les équipes.
      */
     val couleur: String? = null,
+    /** Le Duel des robots : nombre approximatif de joueurs par équipe (tout le monde joue), réglé dans la Régie PC. */
+    val joueurs: Int = DUEL_JOUEURS,
+    /** Le Duel des robots : durée du face-à-face avant le PAN, tirée entre ces bornes (secondes). */
+    val faceMin: Int = DUEL_FACE_DEFAUT_MIN,
+    val faceMax: Int = DUEL_FACE_DEFAUT_MAX,
+    /** Le Duel des robots : de temps en temps un long duel, jusqu'à 60 s. */
+    val longs: Boolean = true,
 ) {
     /** Paroles du refrain, phrase par phrase et mot par mot (vide : pas de paroles). */
     val paroles: List<LigneParole> by lazy { lireParoles(lyrics) }
@@ -216,6 +229,10 @@ data class Question(
             require(choices.isEmpty()) { "Coffres mystères $id : pas de propositions" }
         } else if (kind == QuestionKind.PATATE) {
             require(choices.isEmpty()) { "Ça va exploser $id : pas de propositions" }
+        } else if (kind == QuestionKind.DUEL) {
+            require(choices.isEmpty()) { "Duel des robots $id : pas de propositions" }
+            require(joueurs in 1..DUEL_JOUEURS_MAX) { "Duel des robots $id : 1 à $DUEL_JOUEURS_MAX joueurs par équipe" }
+            require(faceMin in DUEL_FACE_MIN_SEC..faceMax && faceMax <= DUEL_FACE_MAX_SEC) { "Duel des robots $id : face-à-face entre $DUEL_FACE_MIN_SEC et $DUEL_FACE_MAX_SEC s" }
         } else if (kind == QuestionKind.GONFLEUR) {
             require(choices.isEmpty()) { "Gonfleur fou $id : pas de propositions" }
             require(durationSec in 20..180) { "Gonfleur fou $id : durée entre 20 et 180 s" }
@@ -241,6 +258,7 @@ data class Question(
     val isCoffres: Boolean get() = kind == QuestionKind.COFFRES
     val isGonfleur: Boolean get() = kind == QuestionKind.GONFLEUR
     val isPatate: Boolean get() = kind == QuestionKind.PATATE
+    val isDuel: Boolean get() = kind == QuestionKind.DUEL
 
     /** Jeu joué équipe par équipe, tour après tour (mimes, Pictionary) : le chrono part au lancement de chaque tour. */
     val isTurns: Boolean get() = isMime || isPicto
