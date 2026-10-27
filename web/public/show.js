@@ -41,6 +41,27 @@ export const PATATE_BOMBES = [1, 2, 3, 4, 5, 6];
 export const PATATE_BOMBES_DEFAUT = 3;
 /** Le nombre de bombes d'une manche « Ça va exploser ! », ramené dans ses limites (3 d'office). */
 export const bombesDe = (round) => (Number.isInteger(round?.bombs) ? Math.min(6, Math.max(1, round.bombs)) : PATATE_BOMBES_DEFAUT);
+/**
+ * « 🤠 Le Duel des robots » (cedric, 27/10 ; contrat : /mnt/project-files/regie-pc/duel-contrat-27-octobre.md) : des
+ * face-à-face entre joueurs d'équipes différentes. Réglages de la prestation : le nombre approximatif de joueurs par
+ * équipe (la box en tire le nombre de duels pour que tout le monde joue), la durée du face-à-face, au moins [dureeMin]
+ * et au plus [dureeMax] secondes, et [longs] : de temps en temps un long duel, jusqu'à 60 s.
+ */
+export const DUEL_JOUEURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+export const DUEL_JOUEURS_DEFAUT = 4;
+export const DUEL_DUREES = [10, 15, 20, 30, 40, 50, 60];
+export const DUEL_DUREE_MIN = 20;
+export const DUEL_DUREE_MAX = 40;
+const dansLaListe = (v, liste, defaut) => (liste.includes(v) ? v : defaut);
+/** Réglages d'une manche du Duel des robots, ramenés dans leurs limites (min ≤ max ; les longs duels d'office). */
+export function reglagesDuel(round) {
+  const joueurs = dansLaListe(round?.joueurs, DUEL_JOUEURS, DUEL_JOUEURS_DEFAUT);
+  const a = dansLaListe(round?.dureeMin, DUEL_DUREES, DUEL_DUREE_MIN);
+  const b = dansLaListe(round?.dureeMax, DUEL_DUREES, DUEL_DUREE_MAX);
+  return { joueurs, dureeMin: Math.min(a, b), dureeMax: Math.max(a, b), longs: round?.longs !== false };
+}
+/** Duels prévus : assez pour que chaque joueur passe une fois (arrondi supérieur de équipes × joueurs / 2). */
+export const duelsPrevus = (equipes, joueurs) => Math.ceil((equipes * joueurs) / 2);
 const EN_LETTRES = ["Une", "Deux", "Trois", "Quatre", "Cinq", "Six"];
 /** « Trois bombes par partie », « Une bombe par partie »… */
 export const bombesParPartie = (n = PATATE_BOMBES_DEFAUT) => `${EN_LETTRES[n - 1] ?? n} bombe${n > 1 ? "s" : ""} par partie`;
@@ -53,7 +74,7 @@ export const roundType = (type) => (type === "portes" ? "coffres" : type);
 // Super Finale : au Quiz, au Quiz illustré et au Vrai ou Faux express (cedric, 23/10 : « à l'image du quiz »).
 export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre" || type === "express";
 
-export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !" };
+export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -511,7 +532,7 @@ export const pictoRoundSeries = (round) => {
   return list.length ? list : null;
 };
 
-export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" ? true
+export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" || round.type === "duel" ? true
   : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length || mimeEquipes(round).some((l) => l.length)
   : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length || chansonsDe(round).length
   : (round.type === "zoom" || round.type === "flou") && roundPicks(round).length ? true
@@ -1226,6 +1247,7 @@ export function alerteEquipes(round, teams, { mimes = {}, contents = {}, profile
   const besoin = PAR_EQUIPE_MIN * n;
   const pour = `pour ${n} équipe${n > 1 ? "s" : ""}, il en faut au moins ${besoin} (${PAR_EQUIPE_MIN} par équipe)`;
   if (round?.type === "patate" && n < 2) return "« Ça va exploser ! » se joue à 2 équipes au moins : une seule équipe est prévue.";
+  if (round?.type === "duel" && n < 2) return "« Le Duel des robots » se joue à 2 équipes au moins : une seule équipe est prévue.";
   if (round?.type === "pictionary" && pictoEnSeries(round)) {
     // Préparé par équipe (cedric, 24/10) : chaque équipe prévue a ses mots.
     const c = Array.isArray(couleurs) && couleurs.length === n ? couleurs : TEAM_COLORS.slice(0, n);
@@ -1329,6 +1351,14 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // Un seul élément : la course de ballons, le chrono de secours en durée.
       rounds.push({ title: ROUND_TYPES.gonfleur, count: 1 });
       questions.push({ id: `r${i + 1}g`, text: ROUND_TYPES.gonfleur, kind: "gonfleur", choices: [], correct: -1, duration: GONFLEUR_SEC, double: false, round: ROUND_TYPES.gonfleur });
+      return;
+    }
+    if (round.type === "duel") {
+      // Un seul élément : la box enchaîne les duels (contrat du 27/10, section 2).
+      const d = reglagesDuel(round);
+      rounds.push({ title: ROUND_TYPES.duel, count: 1 });
+      questions.push({ id: `r${i + 1}d`, text: ROUND_TYPES.duel, kind: "duel", choices: [], correct: -1, duration: d.dureeMax, double: false, round: ROUND_TYPES.duel,
+        joueurs: d.joueurs, faceMin: d.dureeMin, faceMax: d.dureeMax, longs: d.longs });
       return;
     }
     if (round.type === "pictionary" && pictoEnSeries(round)) {
@@ -1623,6 +1653,8 @@ export const DUREE_ESTIMEE = {
   mimesParEquipe: 2, apresMime: 15,
   // Pictionary : un dessin par équipe ; statues : la durée choisie ; coffres : un tour par équipe.
   apresDessin: 30, apresStatues: 30, coffreParEquipe: 60, coffres: 60, gonfleur: 90, bombe: 50,
+  // Duel des robots : par duel, le face-à-face (entre le minimum et le maximum), puis le résultat.
+  apresDuel: 20,
   presentation: 60, accueil: 180, podium: 120, pauses: 0.1,
 };
 
@@ -1635,6 +1667,7 @@ function secondesDeJeu(q, equipes, parEquipe = 0) {
   if (q.kind === "statues") return q.duration + D.apresStatues;
   if (q.kind === "coffres" || q.kind === "portes") return equipes * D.coffreParEquipe + D.coffres;
   if (q.kind === "gonfleur") return D.gonfleur;
+  if (q.kind === "duel") return duelsPrevus(equipes, q.joueurs ?? DUEL_JOUEURS_DEFAUT) * (((q.faceMin ?? DUEL_DUREE_MIN) + (q.faceMax ?? DUEL_DUREE_MAX)) / 2 + D.apresDuel);
   // Environ 50 s par bombe (mèche, passes, explosion, scores).
   if (q.kind === "patate") return D.bombe * bombesDe(q);
   if (q.kind === "express") return q.duration + D.apresExpress;
