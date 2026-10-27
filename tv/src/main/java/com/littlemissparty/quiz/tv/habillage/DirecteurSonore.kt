@@ -721,6 +721,11 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     COFFRE_MALUS("lmp_coffre_malus", true),
     BOMBE_BOUM("lmp_bombe_boum", true),
     GONFLE_1("lmp_gonfle_1"), GONFLE_2("lmp_gonfle_2"), GONFLE_3("lmp_gonfle_3"),
+    /**
+     * Game Show seulement (cedric, 27/10, son B) : le ballon qui couine, de plus en plus aigu à mesure qu'il gonfle
+     * (un tiers chacun). Rien en Classique.
+     */
+    COUINE_1("gs_couine_1"), COUINE_2("gs_couine_2"), COUINE_3("gs_couine_3"),
     BALLON_ECLATE("lmp_ballon_eclate", true),
     TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
     PATATE_PASSE("lmp_patate_passe"),
@@ -743,7 +748,15 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
 
 sealed interface Ordre {
     /** [etireSurMs] : un son long plus court que ça est ralenti (sans changer sa hauteur) pour durer ce temps-là. */
-    data class Jouer(val son: Son, val dansMs: Long = 0, val etireSurMs: Long = 0) : Ordre
+    data class Jouer(
+        val son: Son,
+        val dansMs: Long = 0,
+        val etireSurMs: Long = 0,
+        /** Sons courts seulement : volume à gauche et à droite (stéréo par place d'équipe), et vitesse (hauteur) de 0,5 à 2. */
+        val gauche: Float = 1f,
+        val droite: Float = 1f,
+        val vitesse: Float = 1f,
+    ) : Ordre
     data class Musique(val ambiance: Ambiance, val dansMs: Long = 0, val fonduMs: Long = Tempo.FONDU_MUSIQUE) : Ordre
     /** Les boucles musicales repartent du début de leur première mesure (relais calé sur le générique). */
     data class Caler(val dansMs: Long = 0) : Ordre
