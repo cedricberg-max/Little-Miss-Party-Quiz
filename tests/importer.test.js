@@ -420,9 +420,9 @@ describe("programme modifié pendant la partie", () => {
 
 describe("prestation de test (cedric, 24/10)", async () => {
   const S = await import("../web/public/show.js");
-  test("les 16 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
-    assert.equal(JEUX_DU_TEST.length, 16);
-    assert.equal(new Set(JEUX_DU_TEST).size, 16);
+  test("les 17 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
+    assert.equal(JEUX_DU_TEST.length, 17);
+    assert.equal(new Set(JEUX_DU_TEST).size, 17);
     assert.deepEqual([...JEUX_DU_TEST].sort(), Object.keys(S.ROUND_TYPES).filter((k) => !["finale", "portes"].includes(k)).sort());
     assert.equal(JEUX_DU_TEST.at(-1), "coffres");
   });
@@ -900,6 +900,31 @@ describe("Ça va exploser !", () => {
     assert.match(PATATE_RULE, /Trois bombes par partie$/);
     assert.match(regleDePatate(1), /Une bombe par partie$/);
     assert.match(regleDePatate(6), /Six bombes par partie$/);
+  });
+  test("🤠 Le Duel des robots (cedric, 27/10) : joueurs par équipe, face-à-face min / max, longs duels ; passé à la TV ; la durée estimée suit", async () => {
+    const { cleanRound, mancheSummary } = await import("../web/public/manches.js");
+    const { reglagesDuel, duelsPrevus, ROUND_TYPES } = await import("../web/public/show.js");
+    assert.equal(ROUND_TYPES.duel, "Le Duel des robots");
+    assert.equal(roundFilled({ type: "duel" }), true, "rien à préparer");
+    // D'office : environ 4 joueurs, 20 à 40 s, de temps en temps un long duel.
+    assert.deepEqual(reglagesDuel({}), { joueurs: 4, dureeMin: 20, dureeMax: 40, longs: true });
+    assert.deepEqual(reglagesDuel({ joueurs: 13, dureeMin: 50, dureeMax: 30, longs: false }), { joueurs: 4, dureeMin: 30, dureeMax: 50, longs: false }, "dans ses limites, min ≤ max");
+    assert.deepEqual(cleanRound({ type: "duel", joueurs: 6, dureeMin: 15, dureeMax: 60, duels: 3 }), { type: "duel", joueurs: 6, dureeMin: 15, dureeMax: 60, longs: true });
+    assert.equal(mancheSummary({ type: "duel" }, {}), "environ 4 joueurs par équipe · face-à-face de 20 à 40 s, parfois jusqu'à 60 s");
+    assert.equal(mancheSummary({ type: "duel", joueurs: 1, dureeMax: 60 }, {}), "environ 1 joueur par équipe · face-à-face de 20 à 60 s");
+    // Sur la TV (contrat du 27/10) : un seul élément, la box enchaîne les duels.
+    const { snapshot, problems } = buildSnapshot("s", { childName: "Léa", age: 9, teams: 3, rounds: [{ type: "duel", joueurs: 5, dureeMin: 30, dureeMax: 50, longs: false }] });
+    assert.deepEqual(problems, []);
+    const [d] = snapshot.quiz.questions;
+    assert.deepEqual([d.kind, d.text, d.round, d.joueurs, d.faceMin, d.faceMax, d.longs], ["duel", "Le Duel des robots", "Le Duel des robots", 5, 30, 50, false]);
+    const { alerteEquipes } = await import("../web/public/show.js");
+    assert.match(alerteEquipes({ type: "duel" }, 1), /Duel des robots » se joue à 2 équipes au moins/);
+    assert.equal(alerteEquipes({ type: "duel" }, 2), null);
+    // Assez de duels pour que chaque joueur passe : arrondi supérieur de équipes × joueurs / 2 ; puis la durée estimée.
+    assert.deepEqual([duelsPrevus(4, 4), duelsPrevus(3, 5), duelsPrevus(2, 1)], [8, 8, 1]);
+    assert.equal(DUREE_ESTIMEE.apresDuel, 20);
+    // 3 équipes × 5 joueurs : 8 duels × (40 s + 20 s) = 8 min.
+    assert.equal(estimateMinutes(snapshot, 3), 8);
   });
 });
 

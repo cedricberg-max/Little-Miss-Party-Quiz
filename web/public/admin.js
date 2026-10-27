@@ -20,7 +20,7 @@ import {
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
   questionsDuQuiz, ordreAvecCasesVides, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
-  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie,
+  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie, DUEL_JOUEURS, DUEL_DUREES, reglagesDuel,
   DISPARU_CARTES, famillesPourLAge,
   pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX, leurresDeChanson, parolesDuHook,
 } from "./show.js";
@@ -3338,11 +3338,37 @@ function statuesChansons(r) {
     ids.length ? complet : null);
 }
 
+/**
+ * « 🤠 Le Duel des robots » dans une prestation (cedric, 27/10) : rien à piocher ; le nombre approximatif de joueurs par
+ * équipe (la box en tire le nombre de duels, pour que tout le monde joue), la durée du face-à-face, au moins / au plus,
+ * et « de temps en temps un long duel, jusqu'à 60 s ».
+ */
+function reglagesDuDuel(r) {
+  const d = reglagesDuel(r);
+  Object.assign(r, d);
+  const choix = (classe, label, cle, valeurs, texte) => h("select", { class: `duel-reglage ${classe}`, "aria-label": label, onchange: (e) => {
+    r[cle] = Number(e.target.value);
+    // Le minimum ne dépasse jamais le maximum : l'autre suit.
+    if (cle === "dureeMin" && r.dureeMax < r.dureeMin) r.dureeMax = r.dureeMin;
+    if (cle === "dureeMax" && r.dureeMin > r.dureeMax) r.dureeMin = r.dureeMax;
+    roundCtx.refresh();
+    noterEcran();
+  } }, ...valeurs.map((n) => h("option", { value: n, selected: d[cle] === n, text: texte(n) })));
+  return h("div", { class: "grow picto-round duel-reglages" },
+    choix("duel-joueurs", "Joueurs par équipe, environ", "joueurs", DUEL_JOUEURS, (n) => `Environ ${n} joueur${n > 1 ? "s" : ""} par équipe`),
+    choix("duel-min", "Durée du face-à-face, au moins", "dureeMin", DUEL_DUREES, (n) => `Face-à-face : au moins ${n} s`),
+    choix("duel-max", "Durée du face-à-face, au plus", "dureeMax", DUEL_DUREES, (n) => `au plus ${n} s`),
+    h("label", { class: "inline duel-longs-label", title: d.dureeMax >= 60 ? "Déjà jusqu'à 60 s" : "Environ un duel sur quatre dure alors entre le maximum et 60 s" },
+      h("input", { type: "checkbox", class: "duel-longs", checked: d.longs, disabled: d.dureeMax >= 60, onchange: (e) => { r.longs = e.target.checked; roundCtx.summary(); noterEcran(); } }),
+      " De temps en temps un long duel, jusqu'à 60 s"),
+    h("span", { class: "hint small", text: "Rien d'autre à préparer : l'appli compte assez de duels pour que chaque joueur passe une fois. Pendant la partie, Sarah peut lancer un duel de plus entre deux équipes." }));
+}
+
 /** Jeux que « ＋ Ajouter un jeu » propose, par famille, dans l'ordre des tuiles de l'Accueil. */
 const jeuxProposes = () => GAME_GROUPS.map((g) => ({ title: g.title, games: g.games.filter((x) => ROUND_TYPES[x.type]) }));
 // Le « ? » de la tuile du Quiz devient ❓ hors de sa tuile (comme l'écran d'ouverture de la TV).
 const iconeJeu = (type) => (type === "quiz" ? "❓" : GAME_GROUPS.flatMap((g) => g.games).find((x) => x.type === type)?.icon ?? "");
-const SANS_CONTENU = ["coffres", "patate", "gonfleur"];
+const SANS_CONTENU = ["coffres", "patate", "gonfleur", "duel"];
 
 /**
  * Prestation (cedric, 21/10) : on ajoute un JEU, puis ses manches. Un bloc = les manches qui se suivent du même jeu,
@@ -4810,6 +4836,8 @@ function roundFields(r) {
       h("span", { class: "hint small", text: "La TV tire chaque mèche au sort, la bombe part d'une équipe au hasard." }))
     : r.type === "gonfleur"
     ? h("span", { class: "grow hint small", text: "Rien à préparer : chaque équipe tapote sa tablette, le premier ballon qui éclate gagne." })
+    : r.type === "duel"
+    ? reglagesDuDuel(r)
     : MUSIC_GAMES[r.type]
     // Blind test, quiz musical : une playlist entière, ou des titres choisis un par un dans toutes les playlists.
     ? h("div", { class: "grow picto-round" },
@@ -4870,7 +4898,7 @@ function roundFields(r) {
         ...DISPARU_CARTES.map((n) => h("option", { value: n, selected: r.objects === n, text: `${n} cartes par tour` })))
       : null,
     // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
-    !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
+    !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "duel" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
       && !quiz
       ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Toutes les questions" }),
@@ -5029,7 +5057,7 @@ $("round-add-top").onclick = () => ouvrirChoixJeu("haut");
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
-  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate") return "";
+  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate" || r.type === "duel") return "";
   if (r.type === "mimes") return mimeEquipes(r).some((l) => l.length) ? mancheSummary(r, { mimes }) : r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
   if (roundTirees(r).length || roundSeriesQuiz(r).length) return mancheSummary(r, { quizzes });
@@ -10442,6 +10470,7 @@ const GAME_GROUPS = [
   { title: "Sans contenu", hint: "Rien à préparer.", games: [
     { type: "coffres", icon: "🗝️", rule: "Une chance de se refaire… ou de dégringoler ! Chaque équipe à son tour ouvre un coffre sur sa tablette : bonus ou malus, tirés au sort à l'ouverture (l'équipe la plus en retard commence). Après quelques tours sans danger, une bombe se cache dans un des coffres, et un coffre en or qui rapporte 500 points : l'équipe qui ouvre la bombe perd 300 points (jamais sous 0) et le jeu s'arrête sur le bilan. Le classement s'affiche après chaque coffre. Personne ne connaît le contenu des coffres, régie comprise. Idéal en dernier jeu." },
     { type: "patate", icon: "💣", rule: "La bombe peut exploser à tout moment ! Elle passe d'équipe en équipe : sur sa tablette, l'équipe qui la tient choisit à qui l'envoyer (jamais tout de suite à l'équipe qui vient de l'envoyer, sauf à 2 équipes ; on ne peut la renvoyer que 2 secondes après l'avoir reçue). La mèche, tirée au sort, reste secrète : à chaque explosion, l'équipe qui tient la bombe perd 100 points (jamais sous 0), toutes les autres en gagnent 100. Trois bombes par partie d'office, de 1 à 6 à régler dans la prestation : après chaque explosion, une nouvelle mèche s'allume." },
+    { type: "duel", icon: "🤠", rule: "Face-à-face entre un joueur de deux équipes, chacun sur sa tablette : la tension monte, les robots feintent… puis PAN ! Le premier qui tire après le PAN gagne 100 points ; celui qui tire trop tôt perd. L'appli fait passer chaque joueur une fois ; Sarah peut lancer un duel de plus depuis son téléphone." },
     { type: "gonfleur", icon: "🎈", rule: "Chaque équipe tapote sa tablette le plus vite possible pour gonfler son ballon sur la TV ; on peut se relayer. Le premier ballon qui éclate gagne 300 points, les autres équipes 150. Depuis la régie, « Arrêter la course » donne la victoire au plus gros ballon." },
   ] },
 ];
