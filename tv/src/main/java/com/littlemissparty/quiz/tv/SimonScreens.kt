@@ -497,7 +497,7 @@ private fun BoxScope.EnDirect(state: UiState.Playing, r: SimonRound, vue: VueSim
             val s = state.simonSaisies[uid]
             val tapes = s?.items?.size?.coerceAtMost(r.suite) ?: 0
             val etat = when {
-                s?.ok == true -> "✓ Validé" + (s.at?.let { " · " + secondesSimon((it - depart).coerceAtLeast(0)) } ?: "")
+                s != null && s.ok -> "✓ Validé" + (s.at?.let { " · " + secondesSimon((it - depart).coerceAtLeast(0)) } ?: "")
                 vue.etape == EtapeSimon.TEMPS -> "temps écoulé"
                 tapes > 0 -> "tape…"
                 else -> "…"
@@ -612,8 +612,7 @@ private fun BoxScope.ChiffresDebarquent(cle: Any?) {
         Triple("4", Offset(200f, 120f), 150f to -12f), Triple("1", Offset(620f, 60f), 100f to -6f), Triple("7", Offset(1080f, 90f), 130f to 10f),
         Triple("3", Offset(1500f, 170f), 110f to -14f), Triple("8", Offset(110f, 420f), 96f to -4f), Triple("2", Offset(1540f, 520f), 150f to 8f),
         Triple("9", Offset(380f, 600f), 140f to -8f), Triple("5", Offset(900f, 620f), 120f to 6f), Triple("6", Offset(1210f, 640f), 96f to -10f),
-        Triple("0", Offset(1300f, 330f), 0f to 0f),
-    ).filter { it.third.first > 0f }
+    )
     tuiles.forEachIndexed { i, (chiffre, place, forme) ->
         val (taille, angle) = forme
         Box(
