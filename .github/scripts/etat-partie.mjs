@@ -38,3 +38,10 @@ for (const [qid, rs] of Object.entries(reponses)) {
 }
 const log = Object.values((await get(`games/${code}/log`, '&orderBy="$key"&limitToLast=40')) ?? {}).sort((a, b) => a.seq - b.seq);
 for (const e of log) console.log(`journal ${iso(e.at)} ${e.type}${e.qid ? ` ${e.qid}` : ""}${e.team ? ` équipe ${ordre.indexOf(e.team) + 1}` : ""}`);
+const cmds = Object.entries((await get(`games/${code}/commands`, '&orderBy="$key"&limitToLast=60')) ?? {});
+const statuts = (await get(`games/${code}/commandStatus`)) ?? {};
+const regies = Object.keys((await get(`games/${code}/regie`, "&shallow=true")) ?? {});
+for (const [k, c] of cmds.sort((a, b) => (a[1]?.at ?? 0) - (b[1]?.at ?? 0))) {
+  const s = statuts[k];
+  console.log(`commande ${iso(c?.at)} ${c?.type} seq ${c?.expectSeq} régie ${regies.indexOf(c?.by) + 1 || "?"} → ${s?.status ?? "-"}${s?.reason ? ` (${s.reason})` : ""}`);
+}
