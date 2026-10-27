@@ -5420,16 +5420,23 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.click("#lib-close");
 
     // Les chansons de cedric sont dans la bibliothèque des sons, sans playlist (cedric, 27/10 en direct).
-    const chansons = Object.fromEntries(Array.from({ length: 13 }, (_, k) => [`s${k + 1}`, { title: `Chanson ${k + 1}`, audioId: hex(k + 1), buzz: 30, updatedAt: 1, ...(k === 12 ? { retiree: true } : {}) }]));
+    const pochette = (k) => (0x100 + k).toString(16).padStart(16, "0");
+    const chansons = Object.fromEntries(Array.from({ length: 13 }, (_, k) => [`s${k + 1}`, { title: `Chanson ${k + 1}`, audioId: hex(k + 1), imageId: pochette(k + 1), buzz: 30, updatedAt: 1, ...(k === 12 ? { retiree: true } : {}) }]));
     await seedLibrary("songs", chansons);
+    const PNG = `data:image/png;base64,${png([20, 40, 200]).toString("base64")}`;
+    await seedLibrary("images", Object.fromEntries(Array.from({ length: 13 }, (_, k) => [pochette(k + 1), PNG])));
     const conducteur = await read("conducteur");
     await set(gameRef("conducteur"), { ...conducteur, questions: [...conducteur.questions, { id: "b0", text: "Quel est ce titre ?", choices: ["Chanson 1"], correct: 0, kind: "blind", audioId: hex(1), round: "Blind test" }] });
     await regie.click("#plan-add");
     await regie.locator("#lib-list [data-game='builtin/blind']", { hasText: "10 chansons de votre bibliothèque" }).click();
     await regie.locator("#lib-meta", { hasText: "10 questions" }).waitFor();
+    // Fenêtre fermée tout de suite, pendant la copie des pochettes (test du 27/10) : l'ajout part quand même.
     await regie.click("#lib-end");
+    await regie.click("#lib-close");
     await regie.locator("#r-toast", { hasText: "est ajouté" }).waitFor();
     const blind = (await read("conducteur")).questions.filter((q) => q.kind === "blind" && q.id !== "b0");
+    assert.ok(blind.every((q) => q.imageId), "les pochettes suivent");
+    assert.equal(Object.keys((await read("images")) ?? {}).length >= 10, true, "pochettes copiées dans la partie");
     assert.equal(blind.length, 10);
     assert.equal(new Set(blind.map((q) => q.audioId)).size, 10, "10 chansons différentes");
     assert.ok(!blind.some((q) => q.audioId === hex(1)), "jamais une chanson déjà au programme");

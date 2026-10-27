@@ -3391,8 +3391,8 @@ function renderPreview() {
   const lobby = st.phase === "lobby";
   const rejeu = enRejeu();
   const after = $("lib-after");
-  after.textContent = editing ? "Envoi à la TV…" : rejeu ? "Après le jeu en cours" : lobby ? "Ajouter au début" : "Ajouter après la manche actuelle";
-  after.disabled = editing || !questions.length;
+  after.textContent = editing ? "Envoi à la TV…" : adding ? "Préparation des images…" : rejeu ? "Après le jeu en cours" : lobby ? "Ajouter au début" : "Ajouter après la manche actuelle";
+  after.disabled = editing || adding || !questions.length;
   // Rejeu : « ▶ Rejouer maintenant » en premier, « Après le jeu en cours » ensuite (rien à attendre une fois la fête finie).
   after.classList.toggle("main", !rejeu);
   after.classList.toggle("secondary", rejeu);
@@ -3400,9 +3400,9 @@ function renderPreview() {
   const now = $("lib-now");
   now.hidden = !rejeu;
   now.textContent = editing ? "Envoi à la TV…" : "▶ Rejouer maintenant";
-  now.disabled = editing || !questions.length;
+  now.disabled = editing || adding || !questions.length;
   $("lib-end").hidden = rejeu;
-  $("lib-end").disabled = editing || !questions.length;
+  $("lib-end").disabled = editing || adding || !questions.length;
 }
 
 /**
@@ -3458,22 +3458,37 @@ async function addPicked(where) {
   const rejeuEnCours = enRejeu();
   const refused = tvRefuses(picked.questions);
   if (refused) { toast(refused); return; }
+  // Le jeu choisi est gardé : fenêtre fermée pendant la copie des images, l'ajout part quand même (test du 27/10 :
+  // la copie des pochettes d'un blind test prenait du temps sans rien montrer, et l'ajout se perdait).
+  const choix = picked;
   // Photos copiées avant l'envoi : la TV les cherche dès qu'elle accepte le programme. Les extraits,
   // plus lourds, suivent ; la TV les attend.
   adding = true;
+  renderLibrary();
   let chosen;
-  try { chosen = await copyImages(picked.questions); } finally { adding = false; }
+  try {
+    chosen = await copyImages(choix.questions);
+  } catch (e) {
+    console.warn("Images non copiées", e);
+    refusAjout = "⚠ Les images du jeu n'ont pas pu être copiées (connexion ?) : rien n'a été ajouté, réessayez.";
+    toast(refusAjout);
+    return;
+  } finally {
+    adding = false;
+    renderLibrary();
+  }
   copySounds(chosen);
-  if (!picked || editing) return;
+  if (editing) { toast("Un autre changement part vers la TV : réessayez dans un instant."); return; }
+  if (picked !== choix) picked = null;
   const st = live.state ?? { phase: "lobby" };
   const current = live.plan?.questions ?? [];
-  const title = uniqueRoundTitle(current, chosen[0]?.round ?? picked.game.label);
+  const title = uniqueRoundTitle(current, chosen[0]?.round ?? choix.game.label);
   const added = chosen.map((q) => ({ ...q, round: title }));
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
   const now = where === "now";
   const program = insertGame(current, added, now ? "after" : where, index);
   const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : now || rejeuEnCours ? "après le jeu en cours" : "après la manche en cours";
-  const keep = picked.random ? liveManche(picked, title) : null;
+  const keep = choix.random ? liveManche(choix, title) : null;
   // « ▶ Rejouer maintenant » : le jeu en cours s'arrête là (ses points sont gardés) et la TV ouvre le jeu rejoué.
   const lancer = now ? async () => {
     const start = program.findIndex((q) => q.id === added[0]?.id);
