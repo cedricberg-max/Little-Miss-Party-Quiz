@@ -15,7 +15,7 @@ on:
         description: "Numéro d'un passage « Tests Android (émulateur TV) » dont afficher les captures (vide = les rapports)"
         default: ""
       audit:
-        description: "« packs » : vérifie les images de tous les packs et d'une prestation (champ « prestation ») ; « bombe » : journal de « Ça va exploser ! » de la dernière partie (ou du code donné dans « prestation »). Sans rien modifier"
+        description: "« packs » : vérifie les images de tous les packs et d'une prestation (champ « prestation ») ; « bombe » : journal de « Ça va exploser ! » de la dernière partie (ou du code donné dans « prestation ») ; « partie » : prestation chargée ou démonstration dans la dernière partie (« prestation » : un mot du titre à chercher). Sans rien modifier"
         default: ""
       prestation:
         description: "Avec audit : un mot du nom de la prestation à vérifier (ses questions à réponses en images)"
@@ -124,6 +124,22 @@ jobs:
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           npm i --no-save --silent google-auth-library@9 > /dev/null
           node .github/scripts/journal-bombe.mjs
+
+  partie:
+    if: inputs.audit == 'partie'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      MOT: ${{ inputs.prestation }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: État de la dernière partie (sans noms)
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npm i --no-save --silent google-auth-library@9 > /dev/null
+          node .github/scripts/etat-partie.mjs
 
   lire:
     if: inputs.captures == '' && inputs.audit == ''
