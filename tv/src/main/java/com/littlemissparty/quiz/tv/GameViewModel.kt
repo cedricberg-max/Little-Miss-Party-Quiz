@@ -190,6 +190,8 @@ sealed interface UiState {
         /** Le Duel des robots : duels prévus pour que tout le monde joue, et tous les joueurs sont passés. */
         val duelTotal: Int = 0,
         val duelTousPasses: Boolean = false,
+        /** Le Duel des robots : décalage fin de l'horloge de la box avec le serveur (meilleure de 5 mesures), ou null. */
+        val duelOffset: Long? = null,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -285,6 +287,19 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var pumpListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var potatoListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var duelListener: Pair<DatabaseReference, ValueEventListener>? = null
+
+    /**
+     * Le Duel des robots (cedric, 27/10 : « le timing doit être vraiment juste ») : décalage fin de l'horloge de la box
+     * avec le serveur et son aller-retour (ms), la meilleure de 5 mesures ; le duel pour lequel il a été mesuré ; les
+     * mesures des tablettes du face-à-face en cours (aller-retour, décalage) et le dernier duel rapporté.
+     */
+    private var horlogeFine: Pair<Long, Long>? = null
+    private var horlogeMesuree: String? = null
+    private val duelMesures = mutableMapOf<String, Pair<Long?, Long?>>()
+    private var duelRapporte: String? = null
+
+    /** Heure du serveur pour le Duel : l'horloge fine si elle est mesurée. */
+    private fun duelNow() = System.currentTimeMillis() + (horlogeFine?.first ?: serverOffset)
 
     /** Gonfleur fou : dernières tapes reçues de chaque équipe, pour la course de [pumpListener]. */
     private var pumps: Map<String, Pump> = emptyMap()
@@ -935,6 +950,65 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Statues musicales : la box a joué la chanson [song] jusqu'au bout ; Sarah choisit les gagnantes. */
     fun statuesSongEnded(song: Int) = act { it.statuesSongEnded(song, serverNow()) }
 
+    /**
+     * Le Duel des robots : l'image du PAN vient d'être envoyée à l'écran ; la box juge les buzz par rapport à cet
+     * instant (heure du serveur, horloge fine), pris tout de suite, avant de passer la main.
+     */
+    fun duelPanShown() {
+        val vu = duelNow()
+        act { it.duelPanShown(vu, serverNow()) }
+    }
+
+    /** Duel des robots : 5 mesures de l'écart entre l'horloge de la box et celle du serveur ; la plus courte gagne. */
+    private fun mesurerHorloge(cle: String) {
+        if (horlogeMesuree == cle) return
+        horlogeMesuree = cle
+        val ref = gameRef?.child("horloge")?.child("box") ?: return
+        viewModelScope.launch {
+            val mesures = mutableListOf<Pair<Long, Long>>()
+            repeat(5) {
+                runCatching {
+                    val p0 = System.currentTimeMillis()
+                    withTimeoutOrNull(3_000L) { ref.setValue(mapOf("at" to ServerValue.TIMESTAMP)).await() } ?: return@runCatching
+                    val p1 = System.currentTimeMillis()
+                    val serveur = withTimeoutOrNull(3_000L) { ref.child("at").get().await() }?.getValue(Long::class.java) ?: return@runCatching
+                    mesures += (serveur - (p0 + p1) / 2) to (p1 - p0)
+                }
+            }
+            val m = mesures.minByOrNull { it.second } ?: return@launch
+            val ancienne = horlogeFine
+            if (ancienne == null || m.second < ancienne.second || kotlin.math.abs(m.first - ancienne.first) > m.second / 2 + 30) horlogeFine = m
+            Log.i(TAG, "Horloge fine du duel : décalage ${m.first} ms (Firebase $serverOffset ms), aller-retour ${m.second} ms")
+            updatePlaying { it.copy(duelOffset = horlogeFine?.first) }
+        }
+    }
+
+    /**
+     * Rapport de la box après chaque duel (cedric, 27/10 : prouver que le plus rapide gagne) : retard d'affichage du
+     * PAN, pour chaque équipe (identifiant seulement) l'appui depuis le PAN affiché, l'arrivée, l'aller-retour et le
+     * décalage de son horloge ; l'horloge de la box. Jamais de nom d'équipe.
+     */
+    private fun rapportDuel(d: DuelRound) {
+        val pan = d.panAt ?: return
+        val ref = d.reference ?: pan
+        val r = d.result ?: return
+        val equipes = d.buzzes.joinToString(" ; ") { b ->
+            val (rtt, o) = duelMesures[b.team] ?: (null to null)
+            "${b.team.take(6)} appui ${b.t - ref} ms, arrivé ${b.at - ref} ms, aller-retour ${rtt ?: "?"} ms, décalage ${o ?: "?"} ms"
+        }.ifBlank { "aucun buzz" }
+        val box = horlogeFine?.let { "décalage ${it.first} ms (Firebase $serverOffset), aller-retour ${it.second} ms" } ?: "Firebase $serverOffset ms"
+        val bilan = when {
+            r.early != null -> "trop tôt ${r.early!!.take(6)}"
+            r.winner != null -> "gagnante ${r.winner!!.take(6)} en ${r.ms} ms"
+            else -> "personne"
+        }
+        Reactivite.noter("pan affiché", (d.shownAt ?: pan) - pan)
+        val db = gameRef?.database ?: return
+        runCatching {
+            CrashReporter.report(db, "duel", "duel ${d.n} : PAN affiché ${d.shownAt?.let { "${it - pan} ms" } ?: "inconnu"} après l'heure prévue ; $equipes ; box $box ; $bilan")
+        }
+    }
+
     /** Blind test à la télécommande : révéler sans gagnant, passer le morceau. */
     fun blindReveal() = act { it.blindReveal(serverNow()) }
     fun blindSkip() = act { it.blindSkip(serverNow()) }
@@ -1240,6 +1314,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // des 2 équipes pendant chaque face-à-face.
         if (g.needsDuel() && teams().size >= 2) act { it.readyDuel(teams().map { t -> t.uid }, serverNow()) }
         watchDuel(Codec.duelKey(g))
+        s.duel?.takeIf { q?.isDuel == true }?.let { d ->
+            // Pendant que les joueurs se placent : l'horloge de la box est recalée finement sur celle du serveur.
+            if (d.step == "ready") mesurerHorloge("${s.qid}-${d.n}")
+            d.result?.let { r -> "${s.qid}-${d.n}-${r.at}".takeIf { it != duelRapporte }?.let { duelRapporte = it; rapportDuel(d) } }
+        }
         // Jeux au buzzer : la question ne se ferme plus quand toutes les équipes se sont trompées, elles rebuzzent 3 s après
         // le verdict (cedric, 25/10, règle 2) ; le chrono, ou l'animatrice, la termine.
         // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
@@ -2209,6 +2288,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (key == duelListener?.first?.key) return
         duelListener?.let { (r, l) -> r.removeEventListener(l) }
         duelListener = null
+        duelMesures.clear()
         val ref = gameRef?.child("duel")?.child(key ?: return) ?: return
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
@@ -2216,6 +2296,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     val at = c.child("at").getValue(Long::class.java) ?: return@mapNotNull null
                     Triple(c.key ?: return@mapNotNull null, c.child("t").getValue(Long::class.java) ?: at, at)
                 }.sortedBy { it.third }
+                snapshot.children.forEach { c ->
+                    c.key?.let { duelMesures[it] = c.child("r").getValue(Long::class.java) to c.child("o").getValue(Long::class.java) }
+                }
                 buzz.forEach { (team, t, at) ->
                     Reactivite.noter("duel", serverNow() - at)
                     act { g ->

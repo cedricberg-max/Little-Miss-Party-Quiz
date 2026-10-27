@@ -7,6 +7,8 @@ import android.util.Log
 import android.view.Surface
 import android.view.TextureView
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -63,28 +65,30 @@ internal data class PlanDuel(val debutMs: Long, val nom: String, val feinte: Boo
 
 internal val PLANS_DUEL = listOf("large", "contre", "plongee", "bottes", "traverse", "horizon", "yeux", "yeuxA", "main")
 internal val FEINTES_DUEL = listOf("face", "dos", "cote")
-internal const val FEINTE_DUEL_MS = 2_500L
+internal const val FEINTE_DUEL_MS = 3_000L
 
 /**
  * Le montage d'un face-à-face de [dureeMs] (du début au PAN), tiré avec [graine] (le même à chaque recomposition et
  * après un redémarrage de l'écran) : un plan toutes les 3 à 4 s, jamais le même deux fois de suite ; une feinte
- * toutes les 8 à 12 s, jamais deux de suite, jamais en premier plan.
+ * toutes les 8 à 12 s, jamais deux de suite, jamais en premier plan. [plans] et [feintes] : ceux qu'on peut montrer
+ * (les vidéos présentes dans l'appli).
  */
-internal fun montageDuel(dureeMs: Long, graine: Int): List<PlanDuel> {
+internal fun montageDuel(dureeMs: Long, graine: Int, plans: List<String> = PLANS_DUEL, feintes: List<String> = FEINTES_DUEL): List<PlanDuel> {
     val r = Random(graine)
-    val plans = mutableListOf<PlanDuel>()
+    val montage = mutableListOf<PlanDuel>()
     var t = 0L
     var prochaineFeinte = r.nextLong(8_000, 12_001)
     var dernier: String? = null
     while (t < dureeMs) {
-        val feinte = plans.isNotEmpty() && t >= prochaineFeinte && !plans.last().feinte
-        val nom = if (feinte) "feinte_" + FEINTES_DUEL.random(r) else "plan_" + PLANS_DUEL.filter { "plan_$it" != dernier }.random(r)
-        plans += PlanDuel(t, nom, feinte, r.nextInt(2))
+        val feinte = montage.isNotEmpty() && t >= prochaineFeinte && !montage.last().feinte && feintes.isNotEmpty()
+        val choix = plans.ifEmpty { PLANS_DUEL }
+        val nom = if (feinte) "feinte_" + feintes.random(r) else "plan_" + choix.filter { "plan_$it" != dernier }.ifEmpty { choix }.random(r)
+        montage += PlanDuel(t, nom, feinte, r.nextInt(2))
         dernier = nom
         if (feinte) prochaineFeinte = t + r.nextLong(8_000, 12_001)
         t += if (feinte) FEINTE_DUEL_MS else r.nextLong(3_000, 4_001)
     }
-    return plans
+    return montage
 }
 
 /** Le plan à l'écran [ecouleMs] après le début du face-à-face. */
@@ -128,6 +132,7 @@ fun SceneDuel(
     Box(modifier) {
         if (!image) DecorWestern(Modifier.fillMaxSize())
         if (Look.gs) VideoDuel(video, surImage = { image = it }, modifier = Modifier.fillMaxSize())
+        BandesNoires(etape == EtapeDuel.FACE, Modifier.fillMaxSize())
         EchelleSansCoupe(LARGEUR, HAUTEUR, Modifier.fillMaxSize()) {
             if (equipes.size == 2) {
                 equipes.forEachIndexed { i, e ->
@@ -155,6 +160,28 @@ fun SceneDuel(
 private fun titre(taille: androidx.compose.ui.unit.TextUnit) = TextStyle(
     brush = Brush.verticalGradient(OR), fontFamily = PoliceGsTitre, fontSize = taille, shadow = Shadow(Color(0xFFFF6B1A), Offset.Zero, 40f),
 )
+
+/**
+ * Les bandes noires du cinéma (14 % de la hauteur chacune, cedric 27/10) : elles glissent une fois au début du
+ * face-à-face (0,6 s, douces), restent pendant les plans et les feintes, et repartent au PAN (0,3 s).
+ */
+@Composable
+private fun BandesNoires(face: Boolean, modifier: Modifier) {
+    val v by animateFloatAsState(if (face) 1f else 0f, if (face) tween(600, easing = FastOutSlowInEasing) else tween(300), label = "bandes")
+    if (v <= 0f) return
+    Canvas(modifier.clearAndSetSemantics {}) {
+        val h = size.height * 0.14f * v
+        drawRect(Color.Black, size = size.copy(height = h))
+        drawRect(Color.Black, topLeft = Offset(0f, size.height - h), size = size.copy(height = h))
+    }
+}
+
+/** Les vidéos du duel présentes dans l'appli, parmi [noms] (fichiers gs_duel_<[prefixe]><nom>). */
+@Composable
+internal fun videosDuelPresentes(noms: List<String>, prefixe: String): List<String> {
+    val context = LocalContext.current
+    return remember(noms, prefixe) { noms.filter { context.resources.getIdentifier("gs_duel_$prefixe$it", "raw", context.packageName) != 0 } }
+}
 
 /** Le gros « PAN ! » : il claque à l'heure du PAN, avec un éclair blanc. */
 @Composable
@@ -236,7 +263,9 @@ private fun VideoDuel(nomEtBoucle: Pair<String, Boolean>?, surImage: (Boolean) -
         nomEtBoucle?.let { context.resources.getIdentifier("gs_duel_${it.first}", "raw", context.packageName) } ?: 0
     }
     // Aucune vidéo du duel dans l'appli (pas encore livrées) : rien du tout, le plateau garde son fond.
-    val livre = remember { context.resources.getIdentifier("gs_duel_annonce", "raw", context.packageName) != 0 }
+    val livre = remember {
+        (PLANS_DUEL.map { "plan_$it" } + "annonce" + "pan").any { context.resources.getIdentifier("gs_duel_$it", "raw", context.packageName) != 0 }
+    }
     if (!livre) return
     DisposableEffect(Unit) {
         Habillage.videoDuel.value = true

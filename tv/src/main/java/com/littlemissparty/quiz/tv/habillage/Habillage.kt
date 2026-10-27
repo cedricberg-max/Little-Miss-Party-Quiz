@@ -202,7 +202,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         statuesGagnantes = s.statues?.result?.winners?.isNotEmpty() == true,
         patate = s.question?.isPatate == true,
         duel = s.question?.isDuel == true,
-        duelPret = s.question?.isDuel == true && s.duel?.step == "ready",
+        duelEtape = if (s.question?.isDuel == true) s.duel?.step.orEmpty() else "",
         disparu = if (s.question?.isDisparu == true) disparu else 0,
         // Blind test : présentation du 1er morceau, chanson qui joue, points doublés, révélation raccourcie, bilan.
         blind = blind != null,

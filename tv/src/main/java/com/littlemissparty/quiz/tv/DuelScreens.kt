@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -32,7 +33,10 @@ import com.littlemissparty.quiz.tv.habillage.Ordre
 import com.littlemissparty.quiz.tv.habillage.SceneDuel
 import com.littlemissparty.quiz.tv.habillage.Son
 import com.littlemissparty.quiz.tv.habillage.Sons
+import com.littlemissparty.quiz.tv.habillage.FEINTES_DUEL
+import com.littlemissparty.quiz.tv.habillage.PLANS_DUEL
 import com.littlemissparty.quiz.tv.habillage.montageDuel
+import com.littlemissparty.quiz.tv.habillage.videosDuelPresentes
 import com.littlemissparty.quiz.tv.habillage.planDuelA
 import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
@@ -66,25 +70,30 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
     val joueuses = d?.teams.orEmpty().mapNotNull { uid -> state.teams.find { it.uid == uid } }
     val startAt = d?.startAt
     val panAt = d?.panAt
+    // Horloge fine de la box (meilleure de 5 mesures) dès qu'elle est mesurée, sinon celle de Firebase.
+    val decalage = state.duelOffset ?: state.serverOffset
     // Le PAN claque à son heure exacte (heure du serveur), pas au prochain rafraîchissement.
-    val pan by produceState(false, startAt, panAt, state.serverOffset) {
+    val pan by produceState(false, startAt, panAt, decalage) {
         value = false
         if (startAt == null || panAt == null) return@produceState
-        val attente = panAt - (System.currentTimeMillis() + state.serverOffset)
+        val attente = panAt - (System.currentTimeMillis() + decalage)
         if (attente > 0) delay(attente)
         value = true
     }
-    val ecoule by produceState(0L, startAt, state.serverOffset) {
+    val ecoule by produceState(0L, startAt, decalage) {
         value = 0L
         if (startAt == null) return@produceState
         while (true) {
-            value = System.currentTimeMillis() + state.serverOffset - startAt
+            value = System.currentTimeMillis() + decalage - startAt
             delay(100)
         }
     }
     val etape = etapeDuel(d, joueuses.size, pan)
-    val montage = remember(startAt, panAt) {
-        if (startAt == null || panAt == null) emptyList() else montageDuel(panAt - startAt, (startAt xor panAt).toInt())
+    // Game Show : seulement les plans et les feintes dont la vidéo est dans l'appli (livrées au fil de l'eau).
+    val plans = if (Look.gs) videosDuelPresentes(PLANS_DUEL, "plan_") else PLANS_DUEL
+    val feintes = if (Look.gs) videosDuelPresentes(FEINTES_DUEL, "feinte_") else FEINTES_DUEL
+    val montage = remember(startAt, panAt, plans, feintes) {
+        if (startAt == null || panAt == null) emptyList() else montageDuel(panAt - startAt, (startAt xor panAt).toInt(), plans, feintes)
     }
     val plan = if (etape == EtapeDuel.FACE) planDuelA(montage, ecoule) else null
     val r = d?.result
@@ -96,19 +105,33 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
 
     // Les sons du duel : le face-à-face commence, chaque feinte, le PAN, le résultat. Jamais rejoués après coup
     // (écran recomposé, box redémarrée) : seulement s'ils tombent maintenant.
-    val maintenant = { System.currentTimeMillis() + state.serverOffset }
+    val maintenant = { System.currentTimeMillis() + decalage }
+    // L'instant où le PAN est vraiment à l'écran : cet effet part avec l'image où le PAN est dessiné ; l'image suivante
+    // commence quand elle est affichée. La box juge les buzz par rapport à cet instant (cedric, 27/10).
+    LaunchedEffect(pan, startAt) {
+        if (!pan || panAt == null || d?.shownAt != null || d?.result != null || maintenant() - panAt > 1_500) return@LaunchedEffect
+        withFrameNanos { }
+        actions.duelPanShown()
+    }
     LaunchedEffect(startAt) { if (startAt != null && r == null && maintenant() - startAt < 1_500) jouer(Son.DUEL_FACE) }
     LaunchedEffect(plan) { if (plan?.feinte == true && startAt != null && maintenant() - startAt - plan.debutMs < 800) jouer(Son.DUEL_FEINTE) }
-    LaunchedEffect(etape == EtapeDuel.PAN) { if (etape == EtapeDuel.PAN && panAt != null && maintenant() - panAt < 800) jouer(Son.DUEL_PAN) }
+    // Au PAN : la musique du face-à-face coupée net, le coup de feu seul.
+    LaunchedEffect(etape == EtapeDuel.PAN) {
+        if (etape != EtapeDuel.PAN || panAt == null) return@LaunchedEffect
+        Sons.executer(listOf(Ordre.Arreter(Son.DUEL_FACE)))
+        if (maintenant() - panAt < 800) jouer(Son.DUEL_PAN)
+    }
+    // Duel arrêté, trop tôt ou jugé : la musique du face-à-face s'arrête aussi.
+    LaunchedEffect(etape) { if (etape != EtapeDuel.FACE && etape != EtapeDuel.PAN) Sons.executer(listOf(Ordre.Arreter(Son.DUEL_FACE))) }
     LaunchedEffect(r?.at) {
         if (r == null || maintenant() - r.at > 2_000) return@LaunchedEffect
-        jouer(
-            when {
-                r.early != null -> Son.DUEL_TROP_TOT
-                r.winner != null -> Son.DUEL_VICTOIRE
-                else -> Son.RATE
-            },
-        )
+        when {
+            // Le trombone, puis le sifflement de la gagnante.
+            r.early != null -> Sons.executer(listOf(Ordre.Jouer(Son.DUEL_TROP_TOT), Ordre.Jouer(Son.DUEL_VICTOIRE, dansMs = 3_400)))
+            r.winner != null -> jouer(Son.DUEL_VICTOIRE)
+            // Personne : pas de son, la boucle western revient doucement.
+            else -> {}
+        }
     }
 
     Box(Modifier.fillMaxSize()) {

@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
                     chestRandom = viewModel::chestRandom,
                     potatoRandom = viewModel::potatoRandom,
                     statuesSongEnded = viewModel::statuesSongEnded,
+                    duelPanShown = viewModel::duelPanShown,
                     givePoints = viewModel::givePoints,
                     requestAgain = viewModel::requestAgain,
                     viderCache = viewModel::viderCacheMedias,

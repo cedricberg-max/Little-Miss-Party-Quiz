@@ -425,7 +425,11 @@ class DirecteurSonore {
             i.patate && i.ecran != Ecran.REVELATION -> Ambiance.SILENCE
             // Le Duel des robots : un air de suspense pendant que les joueurs s'approchent, puis le silence du
             // face-à-face, rompu seulement par les feintes et le PAN (DuelScreens).
-            i.duel -> if (i.duelPret) Ambiance.SUSPENSE else Ambiance.SILENCE
+            i.duel -> when (i.duelEtape) {
+                "standoff" -> Ambiance.SILENCE
+                "ready" -> Ambiance.DUEL_ANNONCE
+                else -> Ambiance.DUEL_ENTRE
+            }
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             // Game Show : Qui suis-je ? est un jeu qui bouge, sur la musique des mimes (cedric, 23/10), en retrait sous les indices.
@@ -507,9 +511,12 @@ data class Instant(
     val statuesGagnantes: Boolean = false,
     /** « Ça va exploser ! » : le jeu a sa propre musique, calée sur la mèche ; ni boucle, ni bips, ni tension. */
     val patate: Boolean = false,
-    /** Le Duel des robots ; [duelPret] : un duel est prêt, pas encore lancé (sinon face-à-face ou bilan, en silence). */
+    /**
+     * Le Duel des robots ; [duelEtape] : « ready » (les joueurs se placent), « standoff » (face-à-face, sa musique est
+     * jouée par l'écran du duel et coupée net au PAN), « result », ou vide.
+     */
     val duel: Boolean = false,
-    val duelPret: Boolean = false,
+    val duelEtape: String = "",
     val flou: Boolean = false,
     val chante: Boolean = false,
     val quiSuis: Boolean = false,
@@ -576,6 +583,8 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
      * longueur ; la vidéo du robot qui dort tourne seule, à côté).
      */
     ACCUEIL(null, "gs_accueil"),
+    /** Game Show : la boucle western du Duel des robots (36 temps, 21,24 s, sans blanc), sous l'annonce et entre deux duels. */
+    DUEL(null, "gs_duel_intro_boucle"),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -601,6 +610,10 @@ enum class Ambiance(
     /** Plan de volumes du 25 octobre : la musique des questions remonte, le creux du suspense n'est plus que de 4 dB. */
     QUESTION(legere = 0.7f),
     SUSPENSE(legere = 0.45f),
+    /** Duel des robots : un duel est prêt, les joueurs se placent ; Game Show : la boucle western à −4 dB. */
+    DUEL_ANNONCE(legere = 0.45f, gameShow = mapOf(Lit.DUEL to 0.63f)),
+    /** Duel des robots : entre deux duels, sous le résultat ; Game Show : la boucle western à −10 dB. */
+    DUEL_ENTRE(legere = 0.3f, gameShow = mapOf(Lit.DUEL to 0.32f)),
     /**
      * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
      * trop éteint (cedric, 24/10).
@@ -737,7 +750,7 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
      * Le Duel des robots (cedric, 27/10) : le face-à-face commence, une feinte, le PAN, la victoire, un tir trop tôt.
      * Design classique : des sons de l'appli ; Game Show : ceux du western néon quand ils sont livrés.
      */
-    DUEL_FACE("lmp_drumroll_2b", gs = "gs_duel_face"),
+    DUEL_FACE("lmp_drumroll_2b", true, gs = "gs_duel_face"),
     DUEL_FEINTE("lmp_whoosh", gs = "gs_duel_feinte"),
     DUEL_PAN("lmp_impact", gs = "gs_duel_pan"),
     DUEL_VICTOIRE("lmp_crown_hit", gs = "gs_duel_victoire"),

@@ -36,6 +36,15 @@ class DuelRobotsTest {
     }
 
     @Test
+    fun `montage avec seulement les videos livrees`() {
+        val m = montageDuel(40_000, 3, plans = listOf("large", "contre"), feintes = listOf("dos"))
+        assertTrue(m.filter { !it.feinte }.all { it.nom in setOf("plan_large", "plan_contre") })
+        assertTrue(m.filter { it.feinte }.all { it.nom == "feinte_dos" })
+        assertTrue("une seule vidéo de plan : elle se répète", montageDuel(20_000, 3, plans = listOf("large"), feintes = emptyList()).all { it.nom == "plan_large" })
+        assertTrue("aucune feinte livrée : pas de feinte", montageDuel(40_000, 3, plans = listOf("large", "contre"), feintes = emptyList()).none { it.feinte })
+    }
+
+    @Test
     fun `le meme duel donne toujours le meme montage`() {
         assertEquals(montageDuel(31_000, 42), montageDuel(31_000, 42))
         assertEquals("plan_large", planDuelA(listOf(PlanDuel(0, "plan_large"), PlanDuel(3_500, "plan_yeux")), 3_499)?.nom)

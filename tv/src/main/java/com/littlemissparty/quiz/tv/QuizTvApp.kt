@@ -115,6 +115,8 @@ class TvActions(
     val potatoRandom: () -> Unit = {},
     /** Statues musicales : la box a joué la chanson (son numéro) jusqu'au bout. */
     val statuesSongEnded: (Int) -> Unit = {},
+    /** Le Duel des robots : l'image du PAN vient d'être envoyée à l'écran. */
+    val duelPanShown: () -> Unit = {},
     /** « Donner des points » (menu Retour) : équipes choisies, montant (fête sans Internet). */
     val givePoints: (List<String>, Int) -> Unit = { _, _ -> },
     /** « Vider le cache des médias » (menu Retour), une fois confirmé. */
