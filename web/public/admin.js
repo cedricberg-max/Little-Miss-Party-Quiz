@@ -6266,8 +6266,8 @@ async function lirePartie(code) {
  * Ne touche à rien. [progres](faites, total) pour l'écran.
  */
 async function controlerParties(progres = () => {}) {
-  const [codes, sons, images, maintenant] = await Promise.all([clesDe("games"), clesDe("library/sounds"), clesDe("library/images"), heureServeur()]);
-  const bibliotheque = { sounds: new Set(sons), images: new Set(images) };
+  const [codes, sons, images, chansons, maintenant] = await Promise.all([clesDe("games"), clesDe("library/sounds"), clesDe("library/images"), clesDe("library/songs"), heureServeur()]);
+  const bibliotheque = { sounds: new Set(sons), images: new Set(images), songs: new Set(chansons) };
   let faites = 0;
   progres(0, codes.length);
   return parPaquets(codes, PARTIES_EN_MEME_TEMPS, async (code) => {
@@ -6306,7 +6306,7 @@ function afficherBilan(parties) {
       cellule("Code", h("b", { text: r.code })),
       cellule("Prestation", [r.title, r.childName].filter((x) => typeof x === "string" && x).join(" · ") || "—"),
       cellule("État", etatPartie(r)),
-      cellule("Copies", `${nCopies(r.copies.sounds.length, "son", "sons")} · ${nCopies(images, "image", "images")}`),
+      cellule("Copies", `${nCopies(r.copies.sounds.length, "son", "sons")} · ${nCopies(images, "image", "images")}${r.copies.songs.length ? ` · ${nCopies(r.copies.songs.length, "chanson entière", "chansons entières")}` : ""}`),
       cellule("≈ Mo", texteMo(moDe(r.copies))),
       cellule("Décision",
         h("b", { class: "decision", text: r.decision === "nettoyer" ? "À nettoyer" : "Gardée" }),
@@ -6388,6 +6388,8 @@ async function nettoyerPartie(r) {
     [`maintenance/nettoyages/${cle}`]: {
       at: serverTimestamp(), code: r.code, mo: arrondi(r.mo),
       sounds: r.effacer.sounds.length, images: r.effacer.images.length, choiceImages: r.effacer.choiceImages.length,
+      // Seulement s'il y en a : le journal d'avant la régie téléphone des statues refuserait ce compteur.
+      ...(r.effacer.songs.length ? { songs: r.effacer.songs.length } : {}),
       ...(r.gardes.length ? { gardes: r.gardes.length } : {}),
     },
   });
@@ -6482,7 +6484,7 @@ async function afficherJournal() {
       h("ul", { class: "nettoyage-passages" }, ...(passages.length ? passages.map(lignePassage) : [h("li", { text: "Aucun passage pour l'instant." })])),
       nettoyages.length ? h("h3", { text: "Dernières parties nettoyées" }) : null,
       nettoyages.length ? h("ul", { class: "nettoyage-faits" }, ...nettoyages.map((n) => h("li", { "data-code": n.code, text:
-        `${dateHeure(n.at)} · ${n.code} : ${nCopies(n.sounds, "son", "sons")}, ${nCopies(n.images + n.choiceImages, "image", "images")} effacés · environ ${texteMo(n.mo)}${n.gardes ? ` · ${nCopies(n.gardes, "extrait gardé", "extraits gardés")} (chanson plus dans la bibliothèque)` : ""}` }))) : null);
+        `${dateHeure(n.at)} · ${n.code} : ${nCopies(n.sounds, "son", "sons")}, ${nCopies(n.images + n.choiceImages, "image", "images")}${n.songs ? `, ${nCopies(n.songs, "chanson entière", "chansons entières")}` : ""} effacés · environ ${texteMo(n.mo)}${n.gardes ? ` · ${nCopies(n.gardes, "extrait gardé", "extraits gardés")} (chanson plus dans la bibliothèque)` : ""}` }))) : null);
     box.hidden = false;
   } catch (err) {
     console.warn("Journal du nettoyage illisible :", err);

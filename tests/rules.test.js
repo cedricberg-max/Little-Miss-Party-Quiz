@@ -1859,6 +1859,14 @@ describe("nettoyage des copies des fêtes terminées (Régie PC, cedric, 21/10)"
     }
   });
 
+  test("journal du nettoyage : le compteur des chansons entières des statues (facultatif, un nombre)", async () => {
+    const note = (cle, extra) => set(ref(db("sarah"), `maintenance/nettoyages/${cle}`), { at: serverTimestamp(), code: "FETE1", sounds: 0, images: 0, choiceImages: 0, mo: 6.8, ...extra });
+    await assertSucceeds(note("s1", { songs: 2 }));
+    await assertSucceeds(note("s2", {}));
+    await assertFails(note("s3", { songs: -1 }));
+    await assertFails(note("s4", { songs: "2" }));
+  });
+
   test("jamais avant : fin il y a 23 h, partie au salon, en question ou en pause même ancienne, sans heure de fin créée il y a 47 h, sans date", async () => {
     const vieux = Date.now() - 30 * 24 * H;
     await fete("RECEN", { endedAt: Date.now() - 23 * H, createdAt: vieux });
