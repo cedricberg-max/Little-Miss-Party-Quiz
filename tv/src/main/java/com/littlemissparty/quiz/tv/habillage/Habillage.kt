@@ -18,6 +18,7 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.QuestionKind
 import com.littlemissparty.quiz.tv.UiState
+import com.littlemissparty.quiz.tv.annonceStatues
 import com.littlemissparty.quiz.tv.etapeDisparu
 import kotlinx.coroutines.delay
 
@@ -103,10 +104,12 @@ fun HabillageTv(state: UiState) {
     val decompte = secondesRestantes(state as? UiState.Playing)
     val indices = indicesQuiSuis(state as? UiState.Playing)
     val statue = statueFigee(state as? UiState.Playing)
+    // Statues : annonce des gagnantes (1 roulement de tambour, 2 gagnantes, 3 récap), 0 hors annonce.
+    val annonce = (state as? UiState.Playing)?.let { s -> annonceStatues(s.statues?.result?.at?.takeIf { s.question?.isStatues == true }, s.serverOffset) } ?: 0
     // Qui a disparu ? : l'étape affichée par le plateau (mémoriser, tour de magie, chercher, réponse), de 1 à 4.
     val disparu = (state as? UiState.Playing)?.let { s -> s.question?.takeIf { it.isDisparu }?.let { etapeDisparu(it, s).ordinal + 1 } } ?: 0
     val lancement = Habillage.introLancement.value || (state as? UiState.Playing)?.let(Habillage::lancementEnVue) == true
-    val instant = remember(state, urgent, indices, statue, disparu, decompte, lancement) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte, presentation = (state as? UiState.Playing)?.intro == true, lancement = lancement) }
+    val instant = remember(state, urgent, indices, statue, disparu, decompte, lancement, annonce) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte, presentation = (state as? UiState.Playing)?.intro == true, lancement = lancement, annonceStatues = annonce) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
     // Mesure de la fluidité : l'écran en cours, pour savoir où la box accroche (rapports de la box).
     SideEffect { com.littlemissparty.quiz.tv.Fluidite.ecran = etiquetteFluidite(state) }
@@ -140,7 +143,7 @@ internal fun lancementEnVue(gameShow: Boolean, phase: Phase, presentation: Boole
  * Sarah le lance) ; musique douce, ni jingle de question ni bulles. [lancement] : la grande intro du Game Show passe
  * par-dessus, avec sa propre musique.
  */
-internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0, decompte: Int = 0, presentation: Boolean = false, lancement: Boolean = false): Instant {
+internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0, decompte: Int = 0, presentation: Boolean = false, lancement: Boolean = false, annonceStatues: Int = 0): Instant {
     val s = state as? UiState.Playing ?: return Instant(Ecran.HORS_PARTIE)
     val blind = s.blind?.takeIf { s.question?.isBlind == true }
     val ecran = when (s.phase) {
@@ -192,6 +195,8 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         // Blind test, quiz musical (extrait bien reçu), statues : la TV joue déjà une musique, l'habillage se tait.
         musical = s.question?.let { q -> q.isStatues || (q.isBlind && s.blind != null) || q.audioId?.let { s.sounds[it] } != null } == true,
         statue = statue && s.question?.isStatues == true,
+        statuesAnnonce = if (s.question?.isStatues == true) annonceStatues else 0,
+        statuesGagnantes = s.statues?.result?.winners?.isNotEmpty() == true,
         patate = s.question?.isPatate == true,
         disparu = if (s.question?.isDisparu == true) disparu else 0,
         // Blind test : présentation du 1er morceau, chanson qui joue, points doublés, révélation raccourcie, bilan.
@@ -254,28 +259,16 @@ private fun indicesQuiSuis(s: UiState.Playing?): Int {
 }
 
 /**
- * Statues musicales : vrai pendant une statue (musique coupée), calculé comme le plateau. Chrono arrêté (pause) :
- * la valeur reste, pour ne pas sonner « on repart » quand l'animatrice met en pause.
+ * Statues musicales : vrai pendant une statue (Sarah a coupé la musique, ou la chanson est finie), faux quand on danse
+ * et pendant l'annonce des gagnantes. En pause, la valeur reste, pour ne pas sonner « on repart » quand l'animatrice
+ * met en pause.
  */
 @Composable
 private fun statueFigee(s: UiState.Playing?): Boolean {
     var figee by remember { mutableStateOf(false) }
-    val q = s?.question?.takeIf { it.isStatues }
-    val deadline = if (s != null && q != null && s.phase == Phase.QUESTION && !s.paused) s.deadline else null
-    val depart = s?.resumeAt ?: 0L
-    val decalage = s?.serverOffset ?: 0L
-    LaunchedEffect(q?.id, deadline, depart, s?.phase) {
-        if (q == null || s?.phase != Phase.QUESTION) figee = false
-        if (q == null || deadline == null) return@LaunchedEffect
-        while (true) {
-            val maintenant = System.currentTimeMillis() + decalage
-            val reste = (deadline - maxOf(maintenant, depart)).coerceAtLeast(0)
-            // Pendant le décompte 3, 2, 1 d'une reprise, rien ne bouge.
-            if (maintenant >= depart) figee = reste > 0 && q.statueAt(q.durationMs - reste)
-            if (reste == 0L) break
-            delay(100)
-        }
-    }
+    val st = s?.statues?.takeIf { s.phase == Phase.QUESTION && s.question?.isStatues == true }
+    if (st == null) figee = false
+    else if (s?.paused != true) figee = !st.dancing && st.result == null
     return figee
 }
 

@@ -781,16 +781,38 @@ async function buzzFlou(st) {
   }
 }
 
-/** Statues musicales : rien à toucher, tout le monde danse devant la TV et se fige quand la musique s'arrête. */
+/**
+ * Statues musicales (cedric, 27/10) : rien à toucher, tout le monde danse devant la TV. La tablette suit la chanson :
+ * DANSEZ ! ou STATUE !, « Regardez la TV ! » pendant l'annonce des gagnantes, puis les points de la chanson.
+ */
+let statuesHandle = null;
 function renderStatues(st) {
   clearInterval(timerHandle);
+  clearTimeout(statuesHandle);
   show("play");
   const buzz = $("buzz");
   buzz.disabled = true;
   buzz.hidden = true;
-  $("play-status").textContent = st.phase === "closed"
-    ? "Fin de la musique ! L'animatrice désigne l'équipe gagnante."
-    : "Statues musicales ! Posez la tablette et dansez tant que la musique joue. Quand elle s'arrête : STATUE !";
+  const s = st.statues ?? {};
+  const r = s.result;
+  const status = $("play-status");
+  if (r) {
+    const reste = r.at + (s.annonceMs ?? 8000) - (Date.now() + serverOffset);
+    if (reste > 0) {
+      status.textContent = "Et l'équipe gagnante est… Regardez la TV !";
+      statuesHandle = setTimeout(() => { if (game.state === st) renderStatues(st); }, Math.min(reste + 50, 10_000));
+      return;
+    }
+    const gain = r.gains?.[teamId] ?? 0;
+    const gagnantes = Array.isArray(r.winners) ? r.winners : [];
+    status.textContent = gagnantes.includes(teamId) ? `Les meilleures statues ! +${gain} points`
+      : gain ? `Bien dansé ! +${gain} points`
+      : gagnantes.length ? "Bien dansé ! À la prochaine chanson." : "Personne cette fois ! On se rattrape à la prochaine chanson.";
+    return;
+  }
+  status.textContent = s.ended ? "Fin de la chanson ! Plus personne ne bouge…"
+    : s.dancing === false ? "STATUE ! Plus personne ne bouge…"
+    : "DANSEZ ! Posez la tablette et bougez tant que la musique joue.";
 }
 
 /** Mimes : rien à toucher sur le pupitre, tout se passe devant la TV ; il dit seulement qui joue. */

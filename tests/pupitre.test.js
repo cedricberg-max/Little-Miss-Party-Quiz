@@ -594,6 +594,27 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("Statues musicales (cedric, 27/10) : DANSEZ !, STATUE !, « Regardez la TV ! » pendant l'annonce, puis les points de la chanson", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const uid = Object.keys(await read("teams"))[0];
+    const statues = (s) => question({ qid: "s1", kind: "statues", choices: null, text: "Statues musicales", statues: { songs: 3, annonceMs: 8000, song: 0, dancing: true, playedMs: 0, ended: false, ...s } });
+    await hostState(statues({ since: Date.now() }));
+    await page.locator("#play-status", { hasText: "DANSEZ !" }).waitFor();
+    assert.equal(await page.locator("#buzz").isVisible(), false, "rien à toucher");
+    await hostState(statues({ dancing: false, playedMs: 12000 }));
+    await page.locator("#play-status", { hasText: "STATUE !" }).waitFor();
+    await hostState(statues({ dancing: false, ended: true }));
+    await page.locator("#play-status", { hasText: "Fin de la chanson !" }).waitFor();
+    // Gagnantes désignées : la TV fait le suspense (la tablette ne dit rien), puis la tablette montre ses points.
+    await hostState(statues({ dancing: false, result: { song: 0, winners: [uid], gains: { [uid]: 300 }, at: Date.now() - 6500 } }));
+    await page.locator("#play-status", { hasText: "Regardez la TV" }).waitFor();
+    await page.locator("#play-status", { hasText: "Les meilleures statues ! +300 points" }).waitFor({ timeout: 5000 });
+    await hostState(statues({ song: 1, dancing: false, result: { song: 1, gains: {}, at: Date.now() - 9000 } }));
+    await page.locator("#play-status", { hasText: "Personne cette fois" }).waitFor();
+    await page.context().close();
+  });
+
   test("blind test : après une erreur, l'équipe attend 3 s après la reprise de la musique puis peut rebuzzer", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

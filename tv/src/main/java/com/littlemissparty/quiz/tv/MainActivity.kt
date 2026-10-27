@@ -85,6 +85,7 @@ class MainActivity : ComponentActivity() {
                     blindSkip = viewModel::blindSkip,
                     chestRandom = viewModel::chestRandom,
                     potatoRandom = viewModel::potatoRandom,
+                    statuesSongEnded = viewModel::statuesSongEnded,
                     givePoints = viewModel::givePoints,
                     requestAgain = viewModel::requestAgain,
                     viderCache = viewModel::viderCacheMedias,

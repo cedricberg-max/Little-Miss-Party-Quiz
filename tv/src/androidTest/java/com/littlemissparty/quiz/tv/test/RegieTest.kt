@@ -785,7 +785,7 @@ class RegieTest : TestTv() {
     }
 
     @Test
-    fun statuesMusicalesLaMusiqueSArretePuisLaRegieDesigneLaGagnante() {
+    fun statuesMusicalesSarahCoupeLaMusiquePuisDesigneLesGagnantesDeChaqueChanson() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
         val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
@@ -793,23 +793,48 @@ class RegieTest : TestTv() {
         assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
         @Suppress("UNCHECKED_CAST")
         val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
-        val statues = mapOf("id" to "s1", "text" to "Statues musicales", "duration" to 60, "kind" to "statues", "double" to false, "round" to "Statues musicales")
+        // Deux chansons pas encore copiées sur la box : la musique maison les remplace, la partie n'attend jamais.
+        val chansons = listOf(mapOf("songId" to "chanson-1", "title" to "Get Lucky"), mapOf("songId" to "chanson-2", "title" to "One More Time"))
+        val statues = mapOf(
+            "id" to "s1", "text" to "Statues musicales", "duration" to 60, "kind" to "statues", "double" to false, "round" to "Statues musicales",
+            "songs" to chansons,
+        )
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(statues) + avant))
 
         assertEquals("applied", regie.commande(code, "next"))
         // Game Show : le nom du jeu est dans le bandeau du haut de l'écran.
         ecran.voit(if (Look.gs) "Statues musicales" else "STATUES MUSICALES")
         ecran.voit("DANSEZ !")
-        // Premier arrêt de la musique entre 6 et 10 s.
-        ecran.voit("STATUE !", 20_000)
+        ecran.voit("Chanson 1 / 2")
+        // Plus d'arrêt automatique : c'est Sarah qui coupe la musique, et la relance.
+        ecran.neVoitPas("STATUE !", 3_000)
+        assertEquals("applied", regie.commande(code, "statues_stop"))
+        ecran.voit("STATUE !")
         // « STATUE ! » claque en 0,2 s puis se fend et givre : capturé une fois posé.
         ecran.capture("statues-musicales-statue", attente = 900)
-        ecran.voit("DANSEZ !", 15_000)
-        assertEquals("applied", regie.commande(code, "statues_win", mapOf("team" to dragons.uid)))
-        ecran.voit("Bravo Dragons !")
+        assertEquals("applied", regie.commande(code, "statues_play"))
+        ecran.voit("DANSEZ !")
+        // Pendant la chanson, « Jeu suivant » attend les gagnantes.
+        assertEquals("refused", regie.commande(code, "next"))
+        assertEquals("applied", regie.commande(code, "statues_win", mapOf("teams" to listOf(dragons.uid))))
+        ecran.voit(if (Look.gs) "ET L'ÉQUIPE GAGNANTE EST…" else "Et l'équipe gagnante est…")
+        ecran.voit(if (Look.gs) "LA STATUE D'OR" else "Bravo", 6_000)
+        ecran.voit("Dragons")
+        ecran.capture("statues-musicales-gagnante")
         attendreQue("300 pour la gagnante") { points(dragons, code, dragons.uid).takeIf { it == Scoring.MINI_WIN.toLong() } }
         assertEquals(Scoring.MINI_PLAYED.toLong(), points(licornes, code, licornes.uid))
-        ecran.capture("statues-musicales-gagnante")
+        // Le récap des points de la chanson, puis la chanson suivante.
+        ecran.voit(if (Look.gs) "CHANSON 1 / 2" else "Chanson 1 / 2", 8_000)
+        ecran.voit("+300")
+        ecran.capture("statues-musicales-recap")
+        assertEquals("applied", regie.commande(code, "statues_song"))
+        ecran.voit("DANSEZ !")
+        ecran.voit("Chanson 2 / 2")
+        // « Personne » : aucun point pour personne.
+        assertEquals("applied", regie.commande(code, "statues_win", mapOf("personne" to true)))
+        ecran.voit(if (Look.gs) "PERSONNE CETTE FOIS !" else "Personne cette fois !", 8_000)
+        assertEquals(Scoring.MINI_WIN.toLong(), points(dragons, code, dragons.uid))
+        assertEquals("refused", regie.commande(code, "statues_song"), "plus de chanson")
     }
 
     @Test

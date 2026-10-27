@@ -344,7 +344,10 @@ class DirecteurSonore {
             }
             // Statues musicales : « gel ! » quand la musique s'arrête, petit élan quand elle repart.
             if (i.statue && !p.statue) o += Ordre.Jouer(Son.STATUE_GEL)
-            if (!i.statue && p.statue) o += Ordre.Jouer(Son.STATUE_REPART)
+            if (!i.statue && p.statue && i.statuesAnnonce == 0) o += Ordre.Jouer(Son.STATUE_REPART)
+            // « Et l'équipe gagnante est… » : roulement de tambour, puis la fanfare pour les gagnantes.
+            if (i.statuesAnnonce == 1 && p.statuesAnnonce == 0) o += Ordre.Jouer(Son.ROULEMENT_LONG)
+            if (i.statuesAnnonce == 2 && p.statuesAnnonce == 1 && i.statuesGagnantes) o += Ordre.Jouer(Son.FANFARE)
         }
         // Blind test : Sarah raccourcit la révélation, la fanfare s'arrête.
         if (i.ecran == Ecran.REVELATION && i.blind && i.blindCoupe && !p.blindCoupe) o += Ordre.Couper
@@ -495,6 +498,10 @@ data class Instant(
     val musical: Boolean = false,
     /** Statues musicales : la musique du jeu est arrêtée, tout le monde se fige. */
     val statue: Boolean = false,
+    /** Statues musicales : annonce des gagnantes d'une chanson (1 roulement de tambour, 2 gagnantes, 3 récap), 0 sinon. */
+    val statuesAnnonce: Int = 0,
+    /** Statues musicales : la chanson a des gagnantes (sinon « Personne »). */
+    val statuesGagnantes: Boolean = false,
     /** « Ça va exploser ! » : le jeu a sa propre musique, calée sur la mèche ; ni boucle, ni bips, ni tension. */
     val patate: Boolean = false,
     val flou: Boolean = false,

@@ -753,6 +753,22 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `statues musicales, roulement de tambour puis fanfare pour les gagnantes, rien pour Personne, pas d'elan a l'annonce`() {
+        val d = DirecteurSonore()
+        val statue = Instant(Ecran.QUESTION, partie = "ABCD", index = 15, equipes = 2, propositions = 0, musical = true, statue = true)
+        d.observer(statue)
+        val suspense = statue.copy(statue = false, statuesAnnonce = 1, statuesGagnantes = true)
+        assertEquals(listOf(Son.ROULEMENT_LONG), d.observer(suspense).sons())
+        assertEquals(listOf(Son.FANFARE), d.observer(suspense.copy(statuesAnnonce = 2)).sons())
+        assertTrue(d.observer(suspense.copy(statuesAnnonce = 3)).sons().isEmpty())
+        // Chanson suivante, puis « Personne » : le roulement, et pas de fanfare.
+        d.observer(statue.copy(statue = false, index = 15))
+        val personne = statue.copy(statue = false, statuesAnnonce = 1)
+        assertEquals(listOf(Son.ROULEMENT_LONG), d.observer(personne).sons())
+        assertTrue(d.observer(personne.copy(statuesAnnonce = 2)).sons().isEmpty())
+    }
+
+    @Test
     fun `ca va exploser, sa propre musique, ni boucle, ni bips, ni tension par-dessus`() {
         val d = DirecteurSonore()
         val bombe = Instant(Ecran.QUESTION, partie = "ABCD", index = 20, equipes = 4, propositions = 0, patate = true)

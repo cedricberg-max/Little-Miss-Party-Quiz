@@ -116,7 +116,11 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 Spacer(Modifier.width(20.dp))
                 Spacer(Modifier.weight(1f))
                 when (state.phase) {
-                    Phase.QUESTION -> Countdown(state)
+                    // Statues : pas de chrono, la chanson en cours (« Chanson 2 / 5 »).
+                    Phase.QUESTION -> if (!q.isStatues) Countdown(state)
+                    else if (q.statuesTours > 1 && state.statues != null) {
+                        Text("Chanson ${state.statues.song + 1} / ${q.statuesTours}", color = Palette.Gold, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                    }
                     Phase.CLOSED -> Text(
                         if (state.answered.size >= state.teams.size && state.teams.isNotEmpty()) "Toutes les équipes ont répondu !" else "Temps écoulé !",
                         color = Palette.Gold, fontSize = 26.sp, fontWeight = FontWeight.Black,
@@ -174,7 +178,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         Spacer(Modifier.width(20.dp))
                     }
                     // Le blind test occupe déjà toute la largeur.
-                    if (q.isStatues) StatuesBoard(q, state, Modifier.weight(1f).fillMaxHeight())
+                    if (q.isStatues) StatuesBoard(q, state, actions, Modifier.weight(1f).fillMaxHeight())
                     else if (q.isBlind) {}
                     else if (q.isBuzz) FlouPanel(q, state, Modifier.weight(1f).fillMaxHeight())
                     else if (q.isNumber) NumberBoard(state, revealed, Modifier.weight(1f).fillMaxHeight())
@@ -194,10 +198,13 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             // De 1 à 8 équipes : les pastilles passent au-dessus des boutons quand elles ne tiennent plus à côté.
             val gagnants = state.teams.filter { (state.awards[it.uid]?.points ?: 0) > 0 }
             val pastillesBasses = Look.gs && state.teams.size > 4
+            // Statues : récap d'une chanson, les pastilles montrent les points qu'elle a donnés.
+            val recapStatues = q.isStatues && etapeStatues(state) == EtapeStatues.RECAP
+            val gainsStatues = state.statues?.result?.gains.orEmpty()
             // Statues : pendant la danse et jusqu'au choix de l'animatrice, les pastilles ne disent rien (personne ne répond
             // au pupitre) ; seuls les boutons restent, et « DANSEZ ! » garde sa place même à 8 équipes (banc du 20 octobre).
             BandeauEquipes(
-                nombre = if (q.isStatues && !revealed) 0 else state.teams.size,
+                nombre = if (q.isStatues && !revealed && !recapStatues) 0 else state.teams.size,
                 modifier = Modifier.fillMaxWidth(),
                 // Game Show, 5 équipes et plus : pastilles basses sur deux rangs à côté des boutons.
                 largeurConfort = if (pastillesBasses) 130.dp else 150.dp,
@@ -209,7 +216,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     team = team,
                     online = team.uid in state.online,
                     answered = team.uid in state.answered,
-                    points = if (revealed) state.awards[team.uid]?.points ?: 0 else null,
+                    points = if (revealed) state.awards[team.uid]?.points ?: 0 else if (recapStatues) gainsStatues[team.uid] ?: 0 else null,
                     choice = if (revealed) state.awards[team.uid]?.choice else null,
                     isNumber = q.isNumber,
                     express = q.isExpress,
@@ -281,6 +288,17 @@ private fun BoutonsQuestion(state: UiState.Playing, q: Question, actions: TvActi
                 }
                 NextButton(if (state.blind.played) "Relancer la musique" else "Lancer le morceau", actions.next, key = state.blind.played)
             }
+        } else if (q.isStatues) {
+            // Statues à la télécommande : OK coupe ou relance la musique ; les gagnantes se choisissent sur la régie.
+            val st = state.statues
+            val r = st?.result
+            val annonce = annonceStatues(r?.at, state.serverOffset)
+            if (st == null) Unit
+            else if (r != null) {
+                if (annonce >= 3) NextButton(if (st.song + 1 < q.statuesTours) "Chanson suivante" else versClassement(state, "Jeu suivant"), actions.next, key = r.at)
+            } else if (st.ended) {
+                if (state.regies == 0) NextButton("Aucun gagnant", actions.next, key = "fin")
+            } else NextButton(if (st.dancing) "Statue !" else "On danse !", actions.next, key = st.dancing)
         } else NextButton(if (q.isBlind) "Arrêter la musique" else "Arrêter le chrono", actions.next, key = state.phase)
         Phase.CLOSED -> NextButton("Révéler la réponse", actions.next, key = state.phase)
         // Vrai ou Faux express : la TV enchaîne seule ; le bouton ne fait qu'aller plus vite.

@@ -113,6 +113,8 @@ class TvActions(
     val chestRandom: () -> Unit = {},
     /** « Ça va exploser ! » à la télécommande : la bombe part au hasard (tablette en panne). */
     val potatoRandom: () -> Unit = {},
+    /** Statues musicales : la box a joué la chanson (son numéro) jusqu'au bout. */
+    val statuesSongEnded: (Int) -> Unit = {},
     /** « Donner des points » (menu Retour) : équipes choisies, montant (fête sans Internet). */
     val givePoints: (List<String>, Int) -> Unit = { _, _ -> },
     /** « Vider le cache des médias » (menu Retour), une fois confirmé. */

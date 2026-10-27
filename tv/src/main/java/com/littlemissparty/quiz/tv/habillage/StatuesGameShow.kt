@@ -230,14 +230,14 @@ private fun StatueGlace(modifier: Modifier) {
     }
 }
 
-/** S3 : fin de la musique, Sarah choisit sur la régie : « QUI A GAGNÉ ? », compte 3, 2, 1 dans un anneau, puis « ? » qui bat. */
+/** S3 : Sarah a choisi : « ET L'ÉQUIPE GAGNANTE EST… », roulement de tambour, compte 3, 2, 1 dans un anneau, puis « ? » qui bat. */
 @Composable
 private fun QuiAGagne(modifier: Modifier) {
     val ms = horloge(Unit)
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            "QUI A GAGNÉ ?", maxLines = 1, softWrap = false, modifier = Modifier.apparition(0, "qui"),
-            style = TextStyle(brush = Brush.verticalGradient(OR), fontFamily = PoliceGsTitre, fontSize = 110.sp, shadow = Shadow(Color(0xFFFFB000), Offset.Zero, 40f)),
+            "ET L'ÉQUIPE GAGNANTE EST…", maxLines = 1, softWrap = false, modifier = Modifier.apparition(0, "qui"),
+            style = TextStyle(brush = Brush.verticalGradient(OR), fontFamily = PoliceGsTitre, fontSize = 72.sp, shadow = Shadow(Color(0xFFFFB000), Offset.Zero, 40f)),
         )
         Spacer(Modifier.height(18.dp))
         Box(Modifier.size(230.dp), contentAlignment = Alignment.Center) {

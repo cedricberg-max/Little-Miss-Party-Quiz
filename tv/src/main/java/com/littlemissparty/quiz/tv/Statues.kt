@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -168,7 +167,7 @@ private fun MusiqueStatues(q: Question, state: UiState.Playing, finie: (Int) -> 
                 if (!maison) {
                     val cible = st.positionMs(System.currentTimeMillis() + offset)
                     // Chanson déjà finie (box redémarrée après sa fin) : Sarah choisit les gagnantes.
-                    if (player.duration in 1..cible) return@runCatching surFin()
+                    if (player.duration.toLong() in 1..cible) return@runCatching surFin()
                     if (kotlin.math.abs(player.currentPosition - cible) > RECALAGE_MS) player.seekTo(cible.toInt())
                 }
                 val depart = player.currentPosition
@@ -276,10 +275,7 @@ private fun RecapStatues(state: UiState.Playing, f: Float) {
                 colonne.forEachIndexed { i, team ->
                     val gain = r.gains[team.uid] ?: 0
                     androidx.compose.foundation.layout.Row(Modifier.apparition(80L * i, team.uid), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            team.name, color = team.color.toColor(), fontSize = taille.sp, fontWeight = FontWeight.Black, maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 320.dp * f),
-                        )
+                        Text(team.name, color = team.color.toColor(), fontSize = taille.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false)
                         Spacer(Modifier.width(14.dp * f))
                         Text(if (gain > 0) "+$gain" else "0", color = if (gain > 0) Palette.Gold else Palette.Ink, fontSize = taille.sp, fontWeight = FontWeight.Black, maxLines = 1)
                         Spacer(Modifier.width(10.dp * f))

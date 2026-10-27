@@ -56,9 +56,9 @@ enum class QuestionKind(val code: String) {
     BLIND("blind"),
 
     /**
-     * Statues musicales : la musique joue sur la TV et s'arrête par moments ([Question.statueAt]) ; tout le
-     * monde danse, et se fige à l'arrêt. À la fin, l'animatrice désigne l'équipe gagnante (la dernière à ne
-     * pas avoir bougé). Pas de propositions ni de pupitre à toucher.
+     * Statues musicales (cedric, 27/10) : une chanson par tour, jouée entière sur la TV ; Sarah la coupe quand elle
+     * veut (STATUE !), tout le monde se fige, puis elle désigne les équipes gagnantes de la chanson (voir [StatuesRound]).
+     * Pas de propositions ni de pupitre à toucher.
      */
     STATUES("statues"),
 
@@ -269,27 +269,6 @@ data class Question(
     /** Qui a disparu ? : place de l'objet disparu dans la grille. */
     val missingIndex: Int get() = if (isDisparu) cards.indexOfFirst { it.word == choices[0] } else -1
 
-    /**
-     * Statues musicales : moments où la musique s'arrête, en millisecondes de chrono [début, fin[. Tirés au
-     * hasard mais toujours les mêmes pour une question (graine = identifiant) : la TV relancée retombe sur
-     * le même enchaînement. La musique joue toujours au début et dans les dernières secondes.
-     */
-    val statues: List<LongRange> by lazy {
-        if (!isStatues) return@lazy emptyList()
-        val rnd = kotlin.random.Random(id.hashCode())
-        val out = mutableListOf<LongRange>()
-        var t = 6_000L + rnd.nextLong(0, 4_000)
-        while (t + STATUE_MAX_MS + 4_000 < durationMs) {
-            val stop = 2_500L + rnd.nextLong(0, STATUE_MAX_MS - 2_500)
-            out += t until t + stop
-            t += stop + 4_000 + rnd.nextLong(0, 7_000)
-        }
-        out
-    }
-
-    /** Statues musicales : la musique est-elle arrêtée (tout le monde se fige) à [elapsedMs] de chrono ? */
-    fun statueAt(elapsedMs: Long): Boolean = statues.any { elapsedMs in it }
-
     /** Statues musicales : les chansons jouées, une par tour ([songs], sinon les extraits d'avant). */
     val statuesSongs: List<ChansonStatues> get() = songs.ifEmpty { audioIds.map { ChansonStatues(null, it) } }
 
@@ -355,9 +334,6 @@ const val MAX_DISPARU = 12
 
 /** Qui a disparu ? : durée du tour de magie, objets cachés, entre la mémorisation et la recherche. */
 const val DISPARU_MAGIE_MS = 3_000L
-
-/** Statues musicales : arrêt de la musique le plus long (millisecondes). */
-const val STATUE_MAX_MS = 5_000L
 
 /** Le Juste Chiffre : nombres de -999 999 999 à 999 999 999 (ce que le pupitre laisse taper). */
 const val MAX_NUMBER = 999_999_999

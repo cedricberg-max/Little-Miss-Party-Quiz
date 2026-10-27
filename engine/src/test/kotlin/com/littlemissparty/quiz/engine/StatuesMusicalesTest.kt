@@ -11,19 +11,6 @@ class StatuesMusicalesTest {
     private val statues = Question("s1", "Statues musicales", emptyList(), -1, durationSec = 90, kind = QuestionKind.STATUES, roundTitle = "Statues musicales")
     private val t0 = 1_000_000L
 
-    @Test
-    fun `les arrêts sont toujours les mêmes, assez nombreux, jamais au début ni à la fin`() {
-        val again = statues.copy()
-        assertEquals(statues.statues, again.statues)
-        assertTrue(statues.statues.size >= 4, "plusieurs statues en 90 s : ${statues.statues}")
-        assertFalse(statues.statueAt(0))
-        assertFalse(statues.statueAt(5_000))
-        assertFalse(statues.statueAt(89_000))
-        assertTrue(statues.statues.all { it.last - it.first + 1 in 2_500L..STATUE_MAX_MS })
-        assertTrue(statues.statueAt(statues.statues[0].first))
-        assertTrue(statues.statues.zipWithNext().all { (a, b) -> b.first - a.last >= 4_000 }, "on danse au moins 4 s entre deux statues")
-    }
-
     private val chansons = listOf(ChansonStatues("c1", "a1", "Get Lucky"), ChansonStatues("c2", "a2", "One More Time"), ChansonStatues("c3", "a3"))
     private val jeu = statues.copy(songs = chansons)
     private val quiz = Question("q1", "Capitale ?", listOf("Paris", "Rome"), 0, durationSec = 20, roundTitle = "Quiz")
