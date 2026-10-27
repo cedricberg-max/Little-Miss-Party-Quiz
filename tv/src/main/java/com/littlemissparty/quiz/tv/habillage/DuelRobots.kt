@@ -63,7 +63,7 @@ enum class EtapeDuel { ATTENTE, PRET, FACE, PAN, GAGNE, TROP_TOT, PERSONNE }
  */
 internal data class PlanDuel(val debutMs: Long, val nom: String, val feinte: Boolean = false, val cote: Int = 0)
 
-internal val PLANS_DUEL = listOf("large", "contre", "plongee", "bottes", "traverse", "horizon", "yeux", "yeuxA", "main")
+internal val PLANS_DUEL = listOf("large", "contre", "plongee", "bottes", "traverse", "horizon", "yeux", "yeux2", "main")
 internal val FEINTES_DUEL = listOf("face", "dos", "cote")
 internal const val FEINTE_DUEL_MS = 3_000L
 

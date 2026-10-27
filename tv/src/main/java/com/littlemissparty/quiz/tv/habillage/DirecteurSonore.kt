@@ -118,7 +118,14 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.WHOOSH)
                 o += Ordre.Musique(Ambiance.SALON)
             }
-            Ecran.PRESENTATION -> if (nouvelleEpreuve) {
+            // Game Show, Duel des robots : le début de l'air western une fois, puis sa boucle repart de sa première
+            // mesure juste derrière, sans blanc (sous la vidéo d'intro du duel).
+            Ecran.PRESENTATION -> if (i.duel && i.gameShow) {
+                o += Ordre.Jouer(Son.DUEL_INTRO)
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Musique(Ambiance.DUEL_PRESENTATION, Tempo.DUEL_INTRO_BOUCLE, Tempo.FONDU_RELAIS)
+                o += Ordre.Caler(Tempo.DUEL_INTRO_BOUCLE)
+            } else if (nouvelleEpreuve) {
                 // Présentation d'un jeu : le jingle du rideau, puis une musique douce sous la voix de Sarah.
                 o += Ordre.Jouer(Son.TRANSITION)
                 o += Ordre.Musique(Ambiance.SILENCE)
@@ -415,6 +422,7 @@ class DirecteurSonore {
     private fun ambiance(i: Instant) = when (i.ecran) {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
+        Ecran.PRESENTATION -> if (i.duel) Ambiance.DUEL_PRESENTATION else Ambiance.PRESENTATION
         Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
             i.express -> Ambiance.EXPRESS
             // Extrait musical : rien ne doit couvrir la chanson.
@@ -610,6 +618,8 @@ enum class Ambiance(
     /** Plan de volumes du 25 octobre : la musique des questions remonte, le creux du suspense n'est plus que de 4 dB. */
     QUESTION(legere = 0.7f),
     SUSPENSE(legere = 0.45f),
+    /** Présentation du Duel des robots ; Game Show : la boucle western à plein volume (Classique : comme les autres). */
+    DUEL_PRESENTATION(complete = 0.5f, gameShow = mapOf(Lit.DUEL to 1f)),
     /** Duel des robots : un duel est prêt, les joueurs se placent ; Game Show : la boucle western à −4 dB. */
     DUEL_ANNONCE(legere = 0.45f, gameShow = mapOf(Lit.DUEL to 0.63f)),
     /** Duel des robots : entre deux duels, sous le résultat ; Game Show : la boucle western à −10 dB. */
@@ -755,6 +765,8 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     DUEL_PAN("lmp_impact", gs = "gs_duel_coup"),
     DUEL_VICTOIRE("lmp_crown_hit", gs = "gs_duel_victoire"),
     DUEL_TROP_TOT("lmp_wrong_off", gs = "gs_duel_troptot"),
+    /** Game Show seulement : le début de l'air western à la présentation du duel (2,9 s), avant sa boucle. */
+    DUEL_INTRO("gs_duel_intro_debut", true),
     TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
     PATATE_PASSE("lmp_patate_passe"),
     /** Musique de « Ça va exploser ! » (extrait choisi par cedric) : sa fin tombe sur l'explosion, voir [MusiquePatate]. */
@@ -763,6 +775,12 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     /** Game Show : un mot robot de Harder Better Faster Stronger par équipe, 8 en tout ; le Classique reprend ses 4 notes. */
     EQUIPE_5("lmp_team_sting_1", gs = "gs_team_sting_5"), EQUIPE_6("lmp_team_sting_2", gs = "gs_team_sting_6"),
     EQUIPE_7("lmp_team_sting_3", gs = "gs_team_sting_7"), EQUIPE_8("lmp_team_sting_4", gs = "gs_team_sting_8");
+
+    /**
+     * Fichier d'un son long : en Game Show, le sien propre ([gs]) s'il en a un. Avant, un son long lisait toujours la
+     * version gs_ de son fichier classique : le face-à-face du duel jouait un roulement au lieu de sa musique.
+     */
+    fun fichierLong(gameShow: Boolean): String = if (gameShow) gs ?: fichier else fichier
 
     companion object {
         private val pops = listOf(POP_1, POP_2, POP_3, POP_4)
@@ -814,6 +832,8 @@ object Tempo {
     /** Temps fort qui suit la dernière note du générique (16 temps) : la musique du salon prend le relais. */
     const val GENERIQUE_RELAIS = 8_000L
     const val FONDU_RELAIS = 120L
+    /** Duel des robots : la boucle western prend le relais à la fin de son début (gs_duel_intro_debut, 2,95 s). */
+    const val DUEL_INTRO_BOUCLE = 2_946L
     /** Après deux mesures au niveau du générique, la musique du salon redescend doucement à son volume de fond. */
     const val GENERIQUE_FIN = 12_000L
     const val FONDU_DESCENTE = 3_000L

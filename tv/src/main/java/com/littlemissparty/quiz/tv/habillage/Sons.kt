@@ -242,7 +242,7 @@ object Sons {
         if (!Look.gs && s.fichier.startsWith("gs_")) return@essayer
         // Le générique part dès l'ouverture : seul prêt d'avance. Les autres se préparent quand ils jouent.
         val pret = s == Son.GENERIQUE
-        val principal = lecteur(app, s.fichier, boucle = false, pret = pret) ?: return@essayer
+        val principal = lecteur(app, s.fichierLong(Look.gs), boucle = false, pret = pret) ?: return@essayer
         longs[s] = principal
         if (!Look.gs) return@essayer
         val gs = s.fichier.replaceFirst("lmp_", "gs_")

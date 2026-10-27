@@ -928,4 +928,45 @@ class DirecteurSonoreTest {
         assertEquals(Ambiance.PRESENTATION, rideau.musique())
         assertTrue(Son.MANCHE in d.observer(suivant.copy(ecran = Ecran.QUESTION)).sons())
     }
+
+    @Test
+    fun `duel des robots, Game Show - le debut de l'air western a la presentation puis sa boucle, silence au face-a-face`() {
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true))
+        val presentation = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "duel|", gameShow = true, duel = true)
+        val o = d.observer(presentation)
+        assertEquals(listOf(Son.DUEL_INTRO), o.sons())
+        // La boucle prend le relais pile à la fin du début, repartie de sa première mesure.
+        val relais = o.filterIsInstance<Ordre.Musique>().last()
+        assertEquals(Ambiance.DUEL_PRESENTATION, relais.ambiance)
+        assertEquals(Tempo.DUEL_INTRO_BOUCLE, relais.dansMs)
+        assertTrue(Ordre.Caler(Tempo.DUEL_INTRO_BOUCLE) in o)
+        assertEquals(1f, Ambiance.DUEL_PRESENTATION.volume(Lit.DUEL, gs = true))
+        assertTrue(d.observer(presentation).isEmpty())
+        val pret = presentation.copy(ecran = Ecran.QUESTION, duelEtape = "ready")
+        assertEquals(Ambiance.DUEL_ANNONCE, d.observer(pret).musique())
+        assertEquals(Ambiance.SILENCE, d.observer(pret.copy(duelEtape = "standoff")).musique())
+        assertEquals(Ambiance.DUEL_ENTRE, d.observer(pret.copy(duelEtape = "result")).musique())
+    }
+
+    @Test
+    fun `duel des robots, Classique - presentation habituelle, sans l'air western`() {
+        val d = DirecteurSonore()
+        d.observer(salon)
+        val o = d.observer(Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "duel|", duel = true))
+        assertFalse(Son.DUEL_INTRO in o.sons())
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET), Ambiance.DUEL_PRESENTATION.volume(Lit.COMPLET))
+        assertEquals(0f, Ambiance.DUEL_PRESENTATION.volume(Lit.DUEL))
+    }
+
+    @Test
+    fun `un son long du Game Show lit son propre fichier`() {
+        assertEquals("gs_duel_face", Son.DUEL_FACE.fichierLong(gameShow = true))
+        assertEquals("lmp_drumroll_2b", Son.DUEL_FACE.fichierLong(gameShow = false))
+        assertEquals("lmp_generique", Son.GENERIQUE.fichierLong(gameShow = true))
+        // Chaque son long propre au Game Show existe bien dans l'appli.
+        Son.entries.filter { it.long }.map { it.fichierLong(true) }.filter { it.startsWith("gs_") }.forEach { n ->
+            assertTrue("$n manquant", java.io.File("src/main/res/raw").listFiles().orEmpty().any { it.nameWithoutExtension == n })
+        }
+    }
 }
