@@ -302,7 +302,7 @@ private fun RelaisFace(color: Color, cle: Any?, modifier: Modifier) {
 @Composable
 private fun MimeCardFace(card: MimeCard, color: Color, octets: ByteArray?, modifier: Modifier) {
     // « 📷 Photos » : la photo du mot à la place de l'émoji (qui revient si la photo n'est pas arrivée).
-    val photo = photoCarte(octets, 320)
+    val photo = photoCarte(octets, 480)
     Column(
         modifier
             .width(500.dp)
@@ -313,9 +313,12 @@ private fun MimeCardFace(card: MimeCard, color: Color, octets: ByteArray?, modif
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (photo != null) {
+            // La photo entière, plus grande, à ses proportions : rien de coupé (cedric, 27/10 au soir : le flamant
+            // rose avait la tête coupée par le cadrage au milieu).
+            val (l, h) = photoDansTuile(320f, 220f, photo.width.toFloat(), photo.height.toFloat())
             Image(
-                photo, contentDescription = null, contentScale = ContentScale.Crop,
-                modifier = Modifier.padding(top = 4.dp, bottom = 6.dp).size(width = 200.dp, height = 140.dp)
+                photo, contentDescription = null, contentScale = ContentScale.FillBounds,
+                modifier = Modifier.padding(top = 4.dp, bottom = 6.dp).size(width = l.dp, height = h.dp)
                     .clip(RoundedCornerShape(20.dp)).border(2.dp, Neon.Blanc.copy(alpha = 0.7f), RoundedCornerShape(20.dp)),
             )
         } else {

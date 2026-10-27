@@ -139,7 +139,7 @@ fun PictionaryScreen(state: UiState.Playing, actions: TvActions) {
                             couleur = lastTeam.color.toColor(),
                             traits = traits,
                             points = if (last.found > 0) last.found * m.points else null,
-                            image = photo?.let { p -> @Composable { Image(p, contentDescription = card.word, contentScale = ContentScale.Crop, modifier = Modifier.size(150.dp).clip(RoundedCornerShape(24.dp))) } }
+                            image = photo?.let { p -> @Composable { Image(p, contentDescription = card.word, contentScale = ContentScale.Crop, alignment = CadrageHaut, modifier = Modifier.size(150.dp).clip(RoundedCornerShape(24.dp))) } }
                                 ?: emoji?.let { e -> @Composable { Text(e, fontSize = 110.sp, lineHeight = 116.sp) } },
                         )
                     }

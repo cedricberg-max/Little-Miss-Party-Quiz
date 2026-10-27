@@ -496,6 +496,7 @@ private fun CarteImage(
     @Composable
     fun Image() = androidx.compose.foundation.Image(
         image, contentDescription = if (nom) "Réponse $lettre en image : $text" else "Réponse $lettre en image", contentScale = ContentScale.Crop,
+        alignment = CadrageHaut,
         modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(percent = 18)).background(Color.White),
     )
     @Composable

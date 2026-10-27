@@ -31,6 +31,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -155,7 +156,7 @@ private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, 
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = if (enOr) Modifier.apparition(0, "retour") else Modifier) {
                     if (photo != null) {
                         Image(
-                            photo, contentDescription = null, contentScale = ContentScale.Crop,
+                            photo, contentDescription = null, contentScale = ContentScale.Crop, alignment = CadrageHaut,
                             modifier = Modifier.size(cote).clip(RoundedCornerShape(12.dp)).border(2.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
                         )
                         Spacer(Modifier.height(4.dp))
@@ -173,6 +174,13 @@ private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, 
         }
     }
 }
+
+/**
+ * Cadrage des photos coupées pour remplir leur case (Mimes, Quiz illustré, Pictionary…) : vers le haut de l'image,
+ * jamais au milieu, pour garder la tête et le visage d'un personnage (cedric, 27/10 au soir : le flamant des Mimes
+ * avait la tête coupée).
+ */
+internal val CadrageHaut = BiasAlignment(0f, -0.6f)
 
 /**
  * Photo d'une carte (Qui a disparu ?, Mimes) décodée une fois, réduite pour sa case : [cible] pixels de côté au

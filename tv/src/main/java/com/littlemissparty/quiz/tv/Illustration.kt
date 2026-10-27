@@ -63,7 +63,7 @@ fun Illustration(q: Question, state: UiState.Playing, modifier: Modifier = Modif
         contentAlignment = Alignment.Center,
     ) {
         if (photo != null) {
-            Image(photo, contentDescription = "Illustration de la réponse", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Image(photo, contentDescription = "Illustration de la réponse", contentScale = ContentScale.Crop, alignment = CadrageHaut, modifier = Modifier.fillMaxSize())
         } else {
             Text(q.emoji!!, style = TextStyle(fontSize = 140.sp, lineHeight = 160.sp), maxLines = 1, softWrap = false)
         }
