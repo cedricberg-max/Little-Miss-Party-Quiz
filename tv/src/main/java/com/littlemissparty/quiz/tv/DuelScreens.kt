@@ -196,7 +196,8 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
                 // Sous les affiches : le film seul, sans les plaques des coins.
                 equipes = if (wanted) emptyList() else joueuses.mapIndexed { i, t -> EquipeDuel(t.name, t.color.toColor(), d?.players?.getOrNull(i) ?: 1) },
                 etape = etape, gagnante = gagnante, perdante = perdante, plan = plan, cle = cle, modifier = Modifier.fillMaxSize(),
-                textes = if (wanted) TextesDuel(textes.pastille, textes.annonce, null, null) else textes,
+                // Sans la pastille : le titre « Les meilleurs tireurs » passerait dessus.
+                textes = if (wanted) TextesDuel("", textes.annonce, null, null) else textes,
             )
             if (wanted) AffichesWanted(
                 state.ranking.map { (t, _) -> t }

@@ -95,7 +95,7 @@ internal fun HabillageDuelWestern(equipes: List<EquipeDuel>, etape: EtapeDuel, g
     )
     if (etape == EtapeDuel.PAN) VoilePan()
     EchelleSansCoupe(SCENE_L, SCENE_H, Modifier.fillMaxSize()) {
-        Pastille(textes.pastille, Modifier.align(Alignment.TopStart).padding(start = 72.dp, top = 64.dp))
+        if (textes.pastille.isNotBlank()) Pastille(textes.pastille, Modifier.align(Alignment.TopStart).padding(start = 72.dp, top = 64.dp))
         when (etape) {
             EtapeDuel.PRET -> if (equipes.size == 2) Annonce(equipes, textes.annonce, cle)
             EtapeDuel.PAN -> PanWestern(cle)
@@ -112,7 +112,7 @@ internal fun HabillageDuelWestern(equipes: List<EquipeDuel>, etape: EtapeDuel, g
                 TexteNeon(it, GS.Orange, 46f, PoliceGsTexte, largeurMax = if (etape == EtapeDuel.PRET) 1700.dp else 560.dp, force = 0.5f, graisse = FontWeight.Bold)
             }
         }
-        textes.resultat?.let { BandeauWestern(it, cle, Modifier.align(Alignment.TopCenter).padding(start = 140.dp, end = 140.dp, top = 150.dp)) }
+        textes.resultat?.let { BandeauWestern(it, cle, Modifier.align(Alignment.TopCenter).padding(start = 140.dp, end = 140.dp, top = 172.dp)) }
     }
 }
 
@@ -395,10 +395,14 @@ private fun Affiche(a: AfficheWanted, k: Float, champion: Boolean, penche: Float
         // Le clou.
         Box(Modifier.align(Alignment.TopCenter).padding(top = 0.dp).graphicsLayer { translationY = -16 * k * density }.background(Color(0xFF555555), RoundedCornerShape(50)).padding((8 * k).dp))
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("WANTED", maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsWestern, fontSize = (72 * k).sp, lineHeight = 1.em, color = Papier))
+            // Le mot entier sur la largeur de l'affiche (« WANTEI » coupé sur l'émulateur, 27/10).
+            fun titre(t: Float) = TextStyle(fontFamily = PoliceGsWestern, fontSize = t.sp, lineHeight = 1.em, color = Papier)
+            Text("WANTED", maxLines = 1, softWrap = false, style = titre(tailleSurUneLigne("WANTED", ::titre, 72f * k, (290 * k).dp)))
+            val sous = if (champion) "★ CHAMPIONS ★" else "RECHERCHÉS"
+            fun sousTitre(t: Float) = TextStyle(fontFamily = PoliceGsWestern, fontSize = t.sp, letterSpacing = 0.1.em, color = Papier)
             Text(
-                if (champion) "★ CHAMPIONS ★" else "RECHERCHÉS", maxLines = 1, softWrap = false, modifier = Modifier.padding(top = (6 * k).dp, bottom = (14 * k).dp),
-                style = TextStyle(fontFamily = PoliceGsWestern, fontSize = (24 * k).sp, letterSpacing = 0.1.em, color = Papier),
+                sous, maxLines = 1, softWrap = false, modifier = Modifier.padding(top = (6 * k).dp, bottom = (14 * k).dp),
+                style = sousTitre(tailleSurUneLigne(sous, ::sousTitre, 24f * k, (290 * k).dp)),
             )
             Box(
                 Modifier.fillMaxWidth().padding(horizontal = (10 * k).dp).height((200 * k).dp)
@@ -416,6 +420,19 @@ private fun Affiche(a: AfficheWanted, k: Float, champion: Boolean, penche: Float
                 style = TextStyle(fontFamily = PoliceGsTitre, fontSize = (40 * k).sp, color = Papier),
             )
         }
+    }
+}
+
+/** La plus grande taille (en sp, à partir de [depart]) qui tient le texte sur une ligne dans [largeur]. */
+@Composable
+private fun tailleSurUneLigne(texte: String, style: (Float) -> TextStyle, depart: Float, largeur: Dp): Float {
+    val mesure = rememberTextMeasurer()
+    val d = LocalDensity.current
+    return remember(texte, depart, largeur, d.density, d.fontScale) {
+        val max = with(d) { largeur.toPx() }
+        var t = depart
+        while (t > 12f && mesure.measure(texte, style(t), maxLines = 1, softWrap = false).size.width > max) t *= 0.94f
+        t
     }
 }
 

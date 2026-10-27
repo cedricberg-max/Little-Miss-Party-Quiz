@@ -242,6 +242,8 @@ class Ecran(private val nomTest: () -> String) {
             n.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(mises)
             mises.firstOrNull()?.let { l ->
                 val s = l.layoutInput.text.text
+                // Un texte sur une ligne plus large que sa place est rogné au bord (« WANTEI », 27/10).
+                if (l.didOverflowWidth) defauts += "rogné au bord : « $s »"
                 for (i in 0 until l.lineCount) {
                     if (l.isLineEllipsized(i)) defauts += "« … » ligne ${i + 1} de « $s »"
                     val fin = l.getLineEnd(i, visibleEnd = true)

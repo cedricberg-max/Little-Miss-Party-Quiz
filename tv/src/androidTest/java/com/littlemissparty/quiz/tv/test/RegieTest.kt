@@ -1291,6 +1291,9 @@ class RegieTest : TestTv() {
             ecran.voit("Les meilleurs tireurs", 15_000)
             ecran.voit("2 DUELS")
             ecran.voit("0 DUEL")
+            // Le mot WANTED entier sur chaque affiche, et plus de pastille sous le titre.
+            ecran.motsEntiers("WANTED")
+            ecran.neVoitPas("LE DUEL DES ROBOTS ·")
             ecran.capture("duel-wanted")
         }
 
