@@ -25,14 +25,15 @@ sources = []
 def note(**k):
     sources.append(k); json.dump(sources, open(f"{OUT}/sources.json", "w"), ensure_ascii=False, indent=1)
 os.makedirs(OUT, exist_ok=True)
+open(f"{OUT}/LISEZMOI.txt", "w").write("Sons libres pour l'outro, voir sources.json\n")
 
 for pack in KENNEY:
     page = f"https://kenney.nl/assets/{pack}"
     try:
         html = get(page).decode("utf-8", "replace")
-        m = re.search(r'href="([^"]+\.zip)"', html)
+        m = re.search(r'["\']([^"\'\s]+\.zip[^"\'\s]*)["\']', html)
         if not m:
-            print("pas de zip", pack, flush=True); continue
+            print("pas de zip", pack, len(html), [h[:120] for h in re.findall(r'href="([^"]*download[^"]*)"', html, re.I)][:5], flush=True); continue
         z = zipfile.ZipFile(io.BytesIO(get(urllib.parse.urljoin(page, m.group(1)), 120)))
         n = 0
         for nom in z.namelist():
@@ -52,15 +53,18 @@ for theme, requetes in THEMES.items():
         if time.time() > FIN:
             break
         p = {"action": "query", "format": "json", "generator": "search", "gsrnamespace": 6, "gsrlimit": 12,
-             "gsrsearch": f"{q} filemime:audio/ogg|audio/x-wav|audio/wav|audio/mpeg|audio/flac",
+             "gsrsearch": f"{q} filetype:audio",
              "prop": "imageinfo", "iiprop": "url|size|extmetadata|mime"}
         try:
             pages = json.loads(get(API + urllib.parse.urlencode(p))).get("query", {}).get("pages", {})
+            print("commons", q, len(pages), "résultats", flush=True)
         except Exception as e:
             print("ERREUR commons", q, e, flush=True); continue
         for pg in pages.values():
             ii = (pg.get("imageinfo") or [{}])[0]; md = ii.get("extmetadata", {})
             lic = md.get("LicenseShortName", {}).get("value", "")
+            if not LIBRE.search(lic):
+                print("   licence refusée", lic, flush=True)
             if not LIBRE.search(lic) or ii.get("size", 0) > 25_000_000 or not ii.get("url"):
                 continue
             nom = re.sub(r"[^A-Za-z0-9._-]+", "_", pg["title"].split(":", 1)[1])[:80]
