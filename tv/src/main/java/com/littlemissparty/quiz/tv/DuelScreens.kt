@@ -126,8 +126,8 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
     LaunchedEffect(r?.at) {
         if (r == null || maintenant() - r.at > 2_000) return@LaunchedEffect
         when {
-            // Le trombone, puis le sifflement de la gagnante.
-            r.early != null -> Sons.executer(listOf(Ordre.Jouer(Son.DUEL_TROP_TOT), Ordre.Jouer(Son.DUEL_VICTOIRE, dansMs = 3_400)))
+            // Le trombone, puis le sifflement de la gagnante à −3 dB.
+            r.early != null -> Sons.executer(listOf(Ordre.Jouer(Son.DUEL_TROP_TOT), Ordre.Jouer(Son.DUEL_VICTOIRE, dansMs = 3_400, gauche = 0.71f, droite = 0.71f)))
             r.winner != null -> jouer(Son.DUEL_VICTOIRE)
             // Personne : pas de son, la boucle western revient doucement.
             else -> {}
