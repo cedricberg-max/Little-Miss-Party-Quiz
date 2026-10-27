@@ -7567,15 +7567,17 @@ describe("bibliothèque de quiz et prestations", () => {
     // ✕ : sa place reste, avec un petit 🎲 et son champ (en « Émojis » : une famille d'émojis).
     await images.selectOption("emojis");
     const melange = await ordre();
-    await lignes.nth(2).locator(".tirage-retirer").click();
+    // Le 3e tour, ou le 4e si le 🔀 y a mis celui de vos images (vérifié plus bas, il doit rester).
+    const x = melange[2] === "vos images 1" ? 3 : 2;
+    await lignes.nth(x).locator(".tirage-retirer").click();
     const vide = complet.locator(".quiz-case-vide");
     await vide.waitFor();
-    assert.equal(await complet.locator(".quiz-complet-liste > li").nth(2).getAttribute("class"), await vide.getAttribute("class"), "à la même place");
+    assert.equal(await complet.locator(".quiz-complet-liste > li").nth(x).getAttribute("class"), await vide.getAttribute("class"), "à la même place");
     await vide.locator(".quiz-case-de").click();
     await vide.waitFor({ state: "detached" });
-    const neuf = (await ordre())[2];
-    assert.ok(!melange.includes(neuf) && !neuf.startsWith("photos · ") && neuf !== melange[2], neuf);
-    assert.equal(await lignes.nth(2).locator(".grille-vignette").count(), 6);
+    const neuf = (await ordre())[x];
+    assert.ok(!melange.includes(neuf) && !neuf.startsWith("photos · ") && neuf !== melange[x], neuf);
+    assert.equal(await lignes.nth(x).locator(".grille-vignette").count(), 6);
     const joues = await ordre();
     await capture(page, "qui-a-disparu");
 
