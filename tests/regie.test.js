@@ -5405,6 +5405,38 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("à la volée : « Blind test : vos chansons au hasard » sans playlist, jamais une chanson déjà au programme ni retirée", async () => {
+    const hex = (k) => k.toString(16).padStart(16, "0");
+    // Sans aucune chanson dans la bibliothèque : pas de blind test au hasard proposé.
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='builtin/patate']").waitFor();
+    assert.equal(await regie.locator("#lib-list [data-game='builtin/blind']").count(), 0);
+    await regie.click("#lib-close");
+
+    // Les chansons de cedric sont dans la bibliothèque des sons, sans playlist (cedric, 27/10 en direct).
+    const chansons = Object.fromEntries(Array.from({ length: 13 }, (_, k) => [`s${k + 1}`, { title: `Chanson ${k + 1}`, audioId: hex(k + 1), buzz: 30, updatedAt: 1, ...(k === 12 ? { retiree: true } : {}) }]));
+    await seedLibrary("songs", chansons);
+    const conducteur = await read("conducteur");
+    await set(gameRef("conducteur"), { ...conducteur, questions: [...conducteur.questions, { id: "b0", text: "Quel est ce titre ?", choices: ["Chanson 1"], correct: 0, kind: "blind", audioId: hex(1), round: "Blind test" }] });
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='builtin/blind']", { hasText: "10 chansons de votre bibliothèque" }).click();
+    await regie.locator("#lib-meta", { hasText: "10 questions" }).waitFor();
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "est ajouté" }).waitFor();
+    const blind = (await read("conducteur")).questions.filter((q) => q.kind === "blind" && q.id !== "b0");
+    assert.equal(blind.length, 10);
+    assert.equal(new Set(blind.map((q) => q.audioId)).size, 10, "10 chansons différentes");
+    assert.ok(!blind.some((q) => q.audioId === hex(1)), "jamais une chanson déjà au programme");
+    assert.ok(!blind.some((q) => q.audioId === hex(13)), "jamais une chanson retirée");
+    await regie.context().close();
+  });
+
   test("à la volée : un blind test complété titre par titre avec la recherche, une chanson choisie pour ouvrir les Statues", async () => {
     const hex = (k) => k.toString(16).padStart(16, "0");
     const titres = ["Libérée, délivrée", "Hakuna Matata", "Thriller", "Billie Jean", "Toxic", "Africa", "Imagine", "Yesterday", "Respect", "Hello", "Dancing Queen", "Wannabe", "Fame", "Beat It"];

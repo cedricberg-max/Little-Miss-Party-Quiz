@@ -10,7 +10,7 @@ import {
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, roundTirees, roundSeriesQuiz, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
   isArchived, isPhotoTheme, disparuGroup, statuesChoices, quizQuestions, jeuDeLaManche, quizKind,
-  launchStates, launchLabel, jourHeure, isoDay, couleurMimeEquipe,
+  launchStates, launchLabel, jourHeure, isoDay, couleurMimeEquipe, chansonJouable,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
@@ -2633,8 +2633,10 @@ function openRejouer() {
   picked = null;
   libRejouer = true;
   $("lib").hidden = false;
-  if (!library || library.denied || library.error) fetchLibrary();
-  else renderLibrary();
+  // Toujours relue (cedric, 27/10 en direct) : un jeu préparé dans la Régie PC pendant la fête apparaît aussitôt ;
+  // la liste déjà lue reste affichée le temps de la relire.
+  if (!library?.games) library = null;
+  fetchLibrary();
 }
 
 /** Liste « Rejouer un jeu » : un bouton par jeu déjà lancé. */
@@ -2748,8 +2750,10 @@ const sourceEnSeries = (round) => ({
 
 /** Quiz de la bibliothèque et manches des prestations déjà préparées, lus sans rien modifier. */
 async function fetchLibrary() {
-  library = { loading: true };
-  renderLibrary();
+  if (!library?.games) {
+    library = { loading: true };
+    renderLibrary();
+  }
   try {
     const [s, q, m, p, c, sm, so] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents", "manches", "songs"].map((k) => get(ref(db, `library/${k}`))));
     const quizzes = q.val() ?? {};
@@ -2809,6 +2813,9 @@ async function fetchLibrary() {
       { key: "builtin/coffres", label: ROUND_TYPES.coffres, source: { type: "coffres" } },
       { key: "builtin/gonfleur", label: ROUND_TYPES.gonfleur, source: { type: "gonfleur" } },
       { key: "builtin/patate", label: ROUND_TYPES.patate, source: { type: "patate" } },
+      // Blind test au hasard (cedric, 27/10, en pleine fête) : sans rien préparer, des chansons de la bibliothèque des
+      // sons tirées à l'ajout, jamais une chanson déjà au programme de la fête.
+      ...(Object.values(songs).some(chansonJouable) ? [{ key: "builtin/blind", label: "Blind test : vos chansons au hasard", hasardBlind: true, source: { type: "blind", chansons: [] } }] : []),
     ];
     // Prestations épinglées (modèles) : chacun de leurs jeux, dans leur ordre, proposé en premier.
     const pinned = Object.entries(s.val() ?? {})
@@ -2849,7 +2856,8 @@ async function fetchLibrary() {
     library = { quizzes, mimes, playlists, contents, songs, games, rounds, decks, quizGames, builtins, music, pinned, saved, drawn };
   } catch (e) {
     console.error(e);
-    library = { denied: /permission/i.test(String(e?.message ?? e)) };
+    // Relecture ratée (réseau) : la liste déjà lue reste.
+    if (!library?.games) library = { denied: /permission/i.test(String(e?.message ?? e)) };
   }
   renderLibrary();
 }
@@ -2858,8 +2866,10 @@ function openLibrary() {
   picked = null;
   libRejouer = false;
   $("lib").hidden = false;
-  if (!library || library.denied || library.error) fetchLibrary();
-  else renderLibrary();
+  // Toujours relue (cedric, 27/10 en direct) : un jeu préparé dans la Régie PC pendant la fête apparaît aussitôt ;
+  // la liste déjà lue reste affichée le temps de la relire.
+  if (!library?.games) library = null;
+  fetchLibrary();
 }
 
 function closeLibrary() {
@@ -2910,6 +2920,13 @@ function renderLibrary() {
       meta.textContent = `Mimes · ${count} carte${count > 1 ? "s" : ""} · tour de ${deck?.duration ?? 60} s`;
       b.append(title, meta);
       b.disabled = !count;
+      b.onclick = () => pick(game);
+      box.appendChild(b);
+      return;
+    }
+    if (game.hasardBlind) {
+      meta.textContent = `${BLIND_HASARD} chansons de votre bibliothèque, tirées au hasard · jamais une chanson déjà jouée · ${MUSIC_GAMES.blind.rule}`;
+      b.append(title, meta);
       b.onclick = () => pick(game);
       box.appendChild(b);
       return;
@@ -3004,6 +3021,7 @@ async function pick(game) {
     profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
   } catch { profile = null; }
   picked = { game, source: { ...game.source } };
+  if (game.hasardBlind) picked.source.chansons = tirerChansons();
   searchText = "";
   if (game.random) picked.random = randomSettings(game.source.type, { count: game.source.count, base: game.base });
   drawPicked();
@@ -3018,6 +3036,20 @@ function randomSettings(type, { count = null, base = null } = {}) {
 
 /** Équipes de la partie (pour les cartes de mimes par équipe), null tant qu'il n'y en a aucune. */
 const teamsNow = () => Object.keys(live.teams ?? {}).length || null;
+
+/** Blind test au hasard : combien de chansons, tirées dans la bibliothèque des sons. */
+const BLIND_HASARD = 10;
+
+/** Chansons du « Blind test au hasard » : jouables, jamais une déjà au programme de la fête (même extrait), mélangées. */
+function tirerChansons(n = BLIND_HASARD) {
+  const deja = new Set((live.plan?.questions ?? []).flatMap((q) => [q?.audioId, q?.refrainId]).filter(Boolean));
+  const ids = Object.entries(library?.songs ?? {}).filter(([, x]) => chansonJouable(x) && !deja.has(x.audioId)).map(([id]) => id);
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  return ids.slice(0, n);
+}
 
 /** Ce qui est déjà au programme de la fête (joué ou prévu) : jamais tiré une deuxième fois. */
 const alreadyPlayed = () => playedKeys(live.plan?.questions ?? [], library?.contents);
