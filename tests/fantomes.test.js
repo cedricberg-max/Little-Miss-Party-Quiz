@@ -85,6 +85,13 @@ async function ouvrirFantomes(nombre, auto = null) {
   if (auto) {
     await page.check("#auto");
     await page.fill("#mdp", auto);
+    // Le petit œil montre le mot de passe tapé, puis le masque à nouveau.
+    const oeil = page.locator(".oeil-champ:has(#mdp) .oeil-bouton");
+    assert.equal(await oeil.getAttribute("aria-label"), "Afficher le mot de passe");
+    await oeil.click();
+    assert.equal(await page.getAttribute("#mdp", "type"), "text");
+    await oeil.click();
+    assert.equal(await page.getAttribute("#mdp", "type"), "password");
   }
   await page.click("#lancer");
   return page;

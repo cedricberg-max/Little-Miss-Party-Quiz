@@ -12,6 +12,7 @@ import { plafond, ENVOI_MS } from "./gonfleur.js";
 import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import { numeroTablette, MAX_TEAMS } from "./theme.js";
+import { afficherMotsDePasse } from "./oeil.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -526,6 +527,8 @@ $("arreter").onclick = arreterTout;
 $("vitesse").onchange = () => { reglages.vitesse = VITESSES[$("vitesse").value] ?? 1; };
 $("buzz").onchange = () => { reglages.buzz = $("buzz").checked; fantomes.forEach((f) => f.reagir()); };
 $("auto").onchange = () => { $("mdp-ligne").hidden = !$("auto").checked; };
+// Petit œil sur le mot de passe régie, comme dans la Régie PC : voir ce qu'on tape (cedric, 27/10).
+afficherMotsDePasse();
 if (params.get("g")) $("code").value = params.get("g").toUpperCase();
 // Pour les tests automatiques : les fantômes de la page.
 window.fantomes = () => fantomes;
