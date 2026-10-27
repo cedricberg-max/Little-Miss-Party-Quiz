@@ -558,6 +558,8 @@ function render() {
   if (st.kind !== "coffres" || !["question", "closed", "reveal", "scores"].includes(st.phase)) stopCoffres();
   if (st.kind !== "gonfleur" || st.phase !== "question") stopGonfleur();
   if (st.kind !== "patate" || st.phase !== "question") stopPatate();
+  // Duel des robots : l'habillage du gros bouton (néon western) seulement pendant un duel de l'équipe.
+  if (st.kind !== "duel" || st.phase !== "question") delete document.body.dataset.duel;
   $("play-intro").hidden = true;
   $("play-status").classList.remove("fete");
   switch (st.phase) {
@@ -566,6 +568,7 @@ function render() {
       if (st.kind === "coffres") return renderCoffres(st);
       if (st.kind === "gonfleur") return renderGonfleur(st);
       if (st.kind === "patate") return renderPatate(st);
+      if (st.kind === "duel") return renderDuel(st);
       return st.mime ? (st.kind === "pictionary" ? renderPicto(st) : renderMime(st)) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
     case "scores":
@@ -813,6 +816,62 @@ function renderStatues(st) {
   status.textContent = s.ended ? "Fin de la chanson ! Plus personne ne bouge…"
     : s.dancing === false ? "STATUE ! Plus personne ne bouge…"
     : "DANSEZ ! Posez la tablette et bougez tant que la musique joue.";
+}
+
+/**
+ * 🤠 Le Duel des robots (cedric, 27/10) : les 2 équipes du duel ont le gros bouton (ou leur buzzer USB), les autres
+ * regardent la TV. Rien ne dit quand tombe le PAN : la tablette envoie l'heure de l'appui, la box juge (trop tôt, plus
+ * rapide). Un seul buzz par face-à-face.
+ */
+let duelEnvoye = null;
+const nomEquipe = (uid) => game.teams[uid]?.name ?? "Une équipe";
+function renderDuel(st) {
+  clearInterval(timerHandle);
+  show("play");
+  const buzz = $("buzz");
+  const d = st.duel ?? {};
+  const equipes = Array.isArray(d.teams) ? d.teams : [];
+  const place = equipes.indexOf(teamId);
+  const moi = place >= 0;
+  const status = $("play-status");
+  const face = d.step === "standoff" && !st.paused;
+  buzz.hidden = !moi || d.step === "none";
+  buzz.disabled = !moi || !face || !d.key || duelEnvoye === d.key;
+  buzz.classList.toggle("winner", d.step === "result" && d.result?.winner === teamId);
+  document.body.dataset.duel = moi ? d.step ?? "" : "";
+  const contre = equipes.length === 2 ? `${nomEquipe(equipes[0])} contre ${nomEquipe(equipes[1])}` : "";
+  if (!d.step || d.step === "none") status.textContent = "Le Duel des robots : il faut au moins 2 équipes. Regardez la TV !";
+  else if (d.step === "ready") status.textContent = moi
+    ? `Duel n° ${d.n} : à toi, joueur n° ${d.players?.[place] ?? 1} ! Viens te placer, la main sur le buzzer…`
+    : `Duel n° ${d.n} : ${contre}. Regardez la TV !`;
+  else if (d.step === "standoff") status.textContent = !moi ? `${contre} : silence, ça va tirer…`
+    : duelEnvoye === d.key ? "Buzz envoyé ! Regardez la TV…" : "Attends le PAN ! Pas avant… Buzze dès qu'il apparaît !";
+  else {
+    const r = d.result ?? {};
+    const secondes = typeof r.ms === "number" ? ` en ${(r.ms / 1000).toFixed(2).replace(".", ",")} s` : "";
+    status.textContent = !r.winner ? "Personne n'a tiré !"
+      : r.winner === teamId ? `BRAVO ! Le plus rapide${secondes} ! +${r.points ?? 100} points`
+      : r.early === teamId ? "OUPS, trop tôt ! Il fallait attendre le PAN…"
+      : moi ? "Trop lent… La prochaine fois !"
+      : r.early ? `${nomEquipe(r.early)} a buzzé trop tôt… ${nomEquipe(r.winner)} gagne le duel !`
+      : `${nomEquipe(r.winner)} remporte le duel !`;
+  }
+}
+
+async function buzzDuel(st, t) {
+  const d = st.duel ?? {};
+  if (!d.key || d.step !== "standoff" || !d.teams?.includes(teamId) || duelEnvoye === d.key) return;
+  duelEnvoye = d.key;
+  const buzz = $("buzz");
+  buzz.disabled = true;
+  sonBuzz(() => beep(880, 160));
+  navigator.vibrate?.(120);
+  $("play-status").textContent = "Buzz envoyé ! Regardez la TV…";
+  try {
+    await set(ref(db, `games/${code}/duel/${d.key}/${teamId}`), { t, at: serverTimestamp() });
+  } catch {
+    // Face-à-face arrêté ou déjà jugé : l'écran suit l'état de la TV.
+  }
 }
 
 /** Mimes : rien à toucher sur le pupitre, tout se passe devant la TV ; il dit seulement qui joue. */
@@ -1534,8 +1593,11 @@ function sonBuzz(sinon) {
 }
 
 $("buzz").onclick = async () => {
+  // Duel des robots : l'heure de l'appui (heure du serveur), prise avant tout le reste.
+  const appui = Date.now() + serverOffset;
   const buzz = $("buzz");
   if (buzz.disabled) return;
+  if (game?.state?.kind === "duel" && game.state.phase === "question") return buzzDuel(game.state, appui);
   if (BUZZ_KINDS.includes(game?.state?.kind) && game.state.phase === "question") return buzzFlou(game.state);
   sonBuzz(funSound);
   navigator.vibrate?.(60);

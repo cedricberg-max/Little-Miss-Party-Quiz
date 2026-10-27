@@ -615,6 +615,54 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("Le Duel des robots (cedric, 27/10) : seules les 2 équipes du duel buzzent, une fois, avec l'heure de l'appui ; bravo, trop tôt, trop lent", async () => {
+    const roses = await openPupitre();
+    await joinTeam(roses, "Les Roses");
+    const bleus = await openPupitre();
+    await joinTeam(bleus, "Les Bleus");
+    const verts = await openPupitre();
+    await joinTeam(verts, "Les Verts");
+    const teams = await read("teams");
+    const id = (name) => Object.keys(teams).find((t) => teams[t].name === name);
+    const [r, b] = [id("Les Roses"), id("Les Bleus")];
+    const duel = (d) => question({ qid: "d1", kind: "duel", text: "Le Duel des robots", choices: null, deadline: null, durationMs: null,
+      duel: { n: 3, total: 6, teams: [r, b], players: [2, 1], step: "ready", key: null, ...d } });
+    await hostState(duel({}));
+    await roses.locator("#play-status", { hasText: "Duel n° 3 : à toi, joueur n° 2 !" }).waitFor();
+    await bleus.locator("#play-status", { hasText: "à toi, joueur n° 1 !" }).waitFor();
+    await verts.locator("#play-status", { hasText: "Duel n° 3 : Les Roses contre Les Bleus. Regardez la TV !" }).waitFor();
+    assert.equal(await verts.locator("#buzz").isVisible(), false, "les autres équipes regardent");
+    assert.equal(await roses.locator("#buzz").isDisabled(), true, "pas avant le lancement du duel");
+    // Face-à-face : rien ne dit quand tombe le PAN ; un appui envoie l'heure de l'appui (heure du serveur).
+    await hostState(duel({ step: "standoff", key: "d1-3-100" }));
+    await roses.locator("#play-status", { hasText: "Attends le PAN !" }).waitFor();
+    await verts.locator("#play-status", { hasText: "silence, ça va tirer" }).waitFor();
+    const avant = Date.now();
+    await roses.click("#buzz");
+    await waitFor(async () => typeof (await read(`duel/d1-3-100/${r}`))?.t === "number", "buzz des Roses enregistré");
+    const envoi = await read(`duel/d1-3-100/${r}`);
+    assert.ok(Math.abs(envoi.t - avant) < 5_000, "heure de l'appui proche de maintenant");
+    assert.equal(typeof envoi.at, "number");
+    await roses.locator("#play-status", { hasText: "Buzz envoyé !" }).waitFor();
+    assert.equal(await roses.locator("#buzz").isDisabled(), true, "un seul buzz par face-à-face");
+    // Gros buzzer USB des Bleus : une touche.
+    await bleus.keyboard.press("Enter");
+    await waitFor(async () => typeof (await read(`duel/d1-3-100/${b}`))?.t === "number", "buzz des Bleus au buzzer USB");
+    await hostState(duel({ step: "result", result: { winner: r, loser: b, early: null, ms: 312, points: 100 } }));
+    await roses.locator("#play-status", { hasText: "BRAVO ! Le plus rapide en 0,31 s ! +100 points" }).waitFor();
+    await bleus.locator("#play-status", { hasText: "Trop lent" }).waitFor();
+    await verts.locator("#play-status", { hasText: "Les Roses remporte le duel !" }).waitFor();
+    await hostState(duel({ step: "result", result: { winner: r, loser: b, early: b, ms: null, points: 100 } }));
+    await bleus.locator("#play-status", { hasText: "OUPS, trop tôt !" }).waitFor();
+    await verts.locator("#play-status", { hasText: "Les Bleus a buzzé trop tôt… Les Roses gagne le duel !" }).waitFor();
+    await hostState(duel({ step: "result", result: { winner: null, loser: null, early: null, ms: null, points: 0 } }));
+    await roses.locator("#play-status", { hasText: "Personne n'a tiré !" }).waitFor();
+    // Nouveau face-à-face : nouvelle clé, on peut rebuzzer.
+    await hostState(duel({ step: "standoff", key: "d1-4-200", n: 4 }));
+    await waitFor(async () => !(await roses.locator("#buzz").isDisabled()), "bouton de nouveau actif");
+    for (const p of [roses, bleus, verts]) await p.context().close();
+  });
+
   test("blind test : après une erreur, l'équipe attend 3 s après la reprise de la musique puis peut rebuzzer", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

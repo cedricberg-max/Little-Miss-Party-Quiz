@@ -1365,6 +1365,19 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         ...(Number.isInteger(round.bombs) ? { bombs: bombesDe(round) } : {}) });
       return;
     }
+    if (round.type === "duel") {
+      // Un seul élément : la box prépare les duels (« la ronde ») pour que tous les joueurs passent, et tire l'heure de
+      // chaque PAN entre les durées réglées (de temps en temps un long duel, jusqu'à 60 s).
+      const titre = ROUND_TYPES.duel ?? "Le Duel des robots";
+      const entier = (v, min, max, defaut) => (Number.isInteger(v) ? Math.min(max, Math.max(min, v)) : defaut);
+      const faceMin = entier(round.dureeMin, 10, 60, 20);
+      rounds.push({ title: titre, count: 1 });
+      questions.push({
+        id: `r${i + 1}d`, text: titre, kind: "duel", choices: [], correct: -1, double: false, round: titre,
+        joueurs: entier(round.joueurs, 1, 12, 4), faceMin, faceMax: entier(round.dureeMax, faceMin, 60, Math.max(faceMin, 40)), longs: round.longs !== false,
+      });
+      return;
+    }
     if (round.type === "gonfleur") {
       // Un seul élément : la course de ballons, le chrono de secours en durée.
       rounds.push({ title: ROUND_TYPES.gonfleur, count: 1 });
