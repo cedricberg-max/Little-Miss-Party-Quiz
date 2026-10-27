@@ -349,6 +349,11 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.MAGIE_POUF)
                 o += Ordre.Musique(ambiance(i))
             }
+            // Duel des robots : chaque étape a sa musique (boucle western à l'annonce, rien au face-à-face, plus bas
+            // entre deux duels) ; au face-à-face, elle se tait net : sa propre musique part avec l'écran du duel.
+            if (i.duel && i.duelEtape != p.duelEtape) {
+                o += Ordre.Musique(ambiance(i), fonduMs = if (i.duelEtape == "standoff") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
+            }
             // Statues musicales : « gel ! » quand la musique s'arrête, petit élan quand elle repart.
             if (i.statue && !p.statue) o += Ordre.Jouer(Son.STATUE_GEL)
             if (!i.statue && p.statue && i.statuesAnnonce == 0) o += Ordre.Jouer(Son.STATUE_REPART)

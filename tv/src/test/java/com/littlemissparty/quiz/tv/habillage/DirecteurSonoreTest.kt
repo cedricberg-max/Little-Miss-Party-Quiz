@@ -945,8 +945,14 @@ class DirecteurSonoreTest {
         assertTrue(d.observer(presentation).isEmpty())
         val pret = presentation.copy(ecran = Ecran.QUESTION, duelEtape = "ready")
         assertEquals(Ambiance.DUEL_ANNONCE, d.observer(pret).musique())
-        assertEquals(Ambiance.SILENCE, d.observer(pret.copy(duelEtape = "standoff")).musique())
+        // Le face-à-face : la boucle se tait net (avant, elle restait sous la musique du face-à-face).
+        val face = d.observer(pret.copy(duelEtape = "standoff")).filterIsInstance<Ordre.Musique>().single()
+        assertEquals(Ambiance.SILENCE, face.ambiance)
+        assertEquals(Tempo.FONDU_RELAIS, face.fonduMs)
         assertEquals(Ambiance.DUEL_ENTRE, d.observer(pret.copy(duelEtape = "result")).musique())
+        // Duel suivant : la boucle revient pour l'annonce ; rien ne se rejoue tant que l'étape ne change pas.
+        assertEquals(Ambiance.DUEL_ANNONCE, d.observer(pret).musique())
+        assertTrue(d.observer(pret).isEmpty())
     }
 
     @Test
