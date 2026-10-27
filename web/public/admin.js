@@ -3164,12 +3164,16 @@ function statuesChansons(r) {
     ...STATUES_NOMBRES.map((k) => h("option", { value: k, selected: k === n, text: `${k} chansons au hasard` })));
   const de = h("button", {
     type: "button", class: "btn tirage-de statues-de", text: "🎲", "aria-label": "Tirer les chansons au hasard",
-    title: "Tirer les chansons au hasard dans la bibliothèque des sons (elles remplacent la liste)",
+    title: "Tirer des chansons au hasard dans la bibliothèque des sons (elles s'ajoutent à la fin de la liste)",
+    // Chaque 🎲 ajoute ses chansons à la suite (cedric, 27/10), jamais une déjà dans la liste.
     onclick: () => {
       r.nbChansons = Number(nombre.value);
-      const tirees = piocherChansons(r, r.nbChansons, new Set());
-      if (!tirees.length) return annonce("Aucune chanson dans la bibliothèque des sons : ajoutez-en d'abord (Bibliothèque › Sons).");
-      ranger(tirees);
+      const place = MAX_STATUES_SONGS - ids.length;
+      if (place <= 0) return annonce(`Déjà ${MAX_STATUES_SONGS} chansons : c'est le maximum aux statues.`);
+      const tirees = piocherChansons(r, Math.min(r.nbChansons, place), new Set(ids));
+      if (!tirees.length) return annonce(Object.keys(songs ?? {}).length ? "Toutes les chansons de la bibliothèque des sons sont déjà dans la liste." : "Aucune chanson dans la bibliothèque des sons : ajoutez-en d'abord (Bibliothèque › Sons).");
+      if (tirees.length < r.nbChansons) annonce(`Seulement ${pluriel(tirees.length, "chanson")} de plus : les voici.`);
+      ranger([...ids, ...tirees]);
     },
   });
   const choisir = h("button", {
