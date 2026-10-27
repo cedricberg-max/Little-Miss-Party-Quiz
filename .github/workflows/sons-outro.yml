@@ -14,11 +14,11 @@ permissions:
 jobs:
   sons:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: Télécharger les sons
-        run: python3 scripts/sons-outro.py "$RUNNER_TEMP/sons"
+        run: python3 -u scripts/sons-outro.py "$RUNNER_TEMP/sons"
       - name: Déposer sur la branche sons-outro-candidats
         run: |
           cd "$RUNNER_TEMP/sons"
