@@ -54,3 +54,20 @@ ordre.forEach((id, i) => console.log(`Score équipe ${i + 1} : ${scores[id] ?? "
 for (const [qid, rs] of Object.entries(reponses)) {
   console.log(`Choix ${qid} (bonne ${bonnes[qid] ?? "?"}) : ${Object.keys(rs ?? {}).map((id) => `équipe ${ordre.indexOf(id) + 1} → ${rs[id]?.choice}`).join(", ")}`);
 }
+// Programme modifié en direct depuis la régie : dernière réponse de la box, révision en vigueur, et la suite des jeux
+// (genre et nombre de questions, sans titre ni contenu).
+const statutShow = (await get(`games/${code}/showStatus`)) ?? {};
+const show = (await get(`games/${code}/show`, "&shallow=true")) ?? {};
+const baseShow = await get(`games/${code}/show/base`);
+const idShow = await get(`games/${code}/show/id`);
+const atShow = await get(`games/${code}/show/at`);
+console.log(`Dernier programme envoyé : id ${idShow ?? "?"}, base ${baseShow ?? "aucune"}, envoyé ${iso(atShow)} ; réponse de la box : ${statutShow.status ?? "-"}${statutShow.reason ? ` (${statutShow.reason})` : ""} pour ${statutShow.id === idShow ? "cet envoi" : `l'envoi ${statutShow.id ?? "?"}`} à ${iso(statutShow.at)} ; révision du conducteur ${c.rev ?? "?"}`);
+const progr = Object.values(c.questions ?? {}).filter(Boolean);
+const jeux = [];
+progr.forEach((q, i) => {
+  const d = jeux[jeux.length - 1];
+  if (d && d.round === (q.round ?? q.roundTitle ?? null)) d.n++;
+  else jeux.push({ debut: i, round: q.round ?? q.roundTitle ?? null, kind: q.kind ?? "classic", n: 1 });
+});
+console.log(`Programme : ${jeux.map((j, k) => `${k + 1}. ${j.kind} ×${j.n} (dès ${j.debut})${st.index >= j.debut && st.index < j.debut + j.n ? " ← en cours" : ""}`).join(" · ")}`);
+void show;
