@@ -11096,6 +11096,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await seedLibrary("songs", SONGS);
     for (const id of [hex("a", 1), hex("b", 1), hex("a", 2), hex("b", 2), hex("a", 3)]) await seedLibrary(`sounds/${id}`, "data:audio/mpeg;base64,SUQz");
     await seedLibrary("playlists/disney", { title: "Dessins animés", duration: 25, updatedAt: 1, tracks: ["s1", "s3"].map((k) => ({ title: SONGS[k].title, audioId: SONGS[k].audioId, songId: k, duration: 25 })) });
+    await seedLibrary("shows/nina", { childName: "Nina", age: 8, date: "2026-05-10", status: "archivee", updatedAt: 1,
+      rounds: [{ type: "quiz", quizId: "animaux" }, { type: "statues", duration: 90, chansons: ["s3", "s1", "perdue"] }] });
 
     await page.click("#nav button[data-screen=home]");
     await page.click("#home-new");
@@ -11125,6 +11127,12 @@ describe("bibliothèque de quiz et prestations", () => {
     // Glissée à la souris (cedric, 26/10) : la première posée sous la dernière.
     await glisser(round.locator('.statues-chanson[data-chanson="s1"]'), round.locator('.statues-chanson[data-chanson="s3"]'), true);
     await waitFor(async () => (await ids()).join() === "s2,s3,s1", "glissée en bas");
+    await round.locator('.statues-chanson[data-chanson="s1"] .tirage-retirer').click();
+    await waitFor(async () => (await ids()).join() === "s2,s3", "retirée");
+    // 📚 Un ancien anniversaire (cedric, 27/10) : ses chansons à la fin, sans celles déjà là ni celles supprimées depuis.
+    await round.locator(".statues-rappel-cherche").fill("nina");
+    await round.locator('.statues-rappel-item[data-show="nina"]', { hasText: "2 chansons" }).click();
+    await waitFor(async () => (await ids()).join() === "s2,s3,s1", "rappelée à la fin");
     await round.locator('.statues-chanson[data-chanson="s1"] .tirage-retirer').click();
     await waitFor(async () => (await ids()).join() === "s2,s3", "retirée");
     await capture(page, "statues-vos-chansons");
