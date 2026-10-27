@@ -292,7 +292,9 @@ describe("pupitre", () => {
     await waitFor(async () => (await page.locator(".choice.with-photo img.photo:not([hidden])").count()) === 3, "3 photos affichées");
     assert.equal(await page.locator(".choice").nth(1).locator("img").count(), 0, "Baleine reste en texte");
     await page.locator(".choice").nth(1).locator(".text", { hasText: "Baleine" }).waitFor();
-    await page.locator(".choice").nth(2).locator(".text", { hasText: "Chien" }).waitFor();
+    // Une réponse en photo ne dit pas son nom : seule l'image permet de reconnaître la réponse (test du 27/10).
+    assert.equal(await page.locator(".choice").nth(2).locator(".text").isVisible(), false, "« Chien » n'est pas écrit sous sa photo");
+    assert.equal(await page.locator(".choice").nth(2).locator(".letter").isVisible(), true, "la lettre C reste");
     await page.locator(".choice").nth(2).click();
     await waitFor(async () => (await read(`answers/q1/${uid}`))?.choice === 2, "réponse C enregistrée");
     await page.locator("#q-status", { hasText: "Réponse C envoyée" }).waitFor();

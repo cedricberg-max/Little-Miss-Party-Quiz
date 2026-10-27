@@ -676,7 +676,8 @@ function showChoicePhoto(button, id, text) {
   img.hidden = true;
   button.prepend(img);
   button.classList.add("with-photo");
-  const set_ = (data) => { if (typeof data === "string" && data.startsWith("data:image/")) { img.src = data; img.hidden = false; } };
+  // Photo lue : elle seule dit la réponse, le nom disparaît (test du 27/10 : « Super Sonic » écrit sous l'image).
+  const set_ = (data) => { if (typeof data === "string" && data.startsWith("data:image/")) { img.src = data; img.hidden = false; button.classList.add("photo-seule"); } };
   if (choicePhotos.has(id)) return set_(choicePhotos.get(id));
   get(ref(db, `games/${code}/choiceImages/${id}`)).then((snap) => {
     if (typeof snap.val() === "string") choicePhotos.set(id, snap.val());

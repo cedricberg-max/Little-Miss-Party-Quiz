@@ -524,9 +524,12 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("question en images ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "i1" && it.child("phase").value == "question" } }
         // Les deux photos s'affichent en grand ; la réponse sans photo reste en texte.
-        ecran.voit("Réponse A en image : Lion")
-        ecran.voit("Réponse B en image : Chat")
+        ecran.voit("Réponse A en image")
+        ecran.voit("Réponse B en image")
         ecran.voit("Vache")
+        // Seule l'image dit la réponse : ni « Lion » ni « Chat » écrits avant la révélation (test du 27/10, « Super Sonic »).
+        ecran.neVoitPas("Lion", 2_000)
+        ecran.neVoitPas("Chat", 2_000)
         assertEquals(lion, licornes.etat(code).child("choiceImages/0").value)
         ecran.capture("reponses-en-images")
         assertTrue(licornes.repondre(code, "i1", 1))
@@ -534,6 +537,7 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("points du QCM pour la bonne image") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } }
         ecran.capture("reponses-en-images-revelation", attente = Ecran.APRES_REVELATION)
+        ecran.voit("Réponse B en image : Chat")
         // Question suivante en texte : rien ne bloque, le score est gardé.
         val gagne = points(licornes, code, licornes.uid)
         attendreQue("question en texte ouverte", 30_000) {

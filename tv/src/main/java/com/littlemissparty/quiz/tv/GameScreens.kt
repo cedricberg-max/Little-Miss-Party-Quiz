@@ -438,7 +438,9 @@ private fun ChoiceCard(
         .border(if (juste) 5.dp else 3.dp, if (juste) Color.White else if (eteinte) Neon.Faux else color, forme)
         .reflet(juste)
     if (image != null) {
-        CarteImage(i, text, tous, image, juste, eteinte, color, imageDessus, cadre)
+        // Quiz illustré : seule l'image dit la réponse ; le nom n'apparaît qu'à la révélation (test du 27/10 : « Super
+        // Sonic » écrit sous l'image donnait la réponse).
+        CarteImage(i, text, tous, image, juste, eteinte, color, imageDessus, cadre, nom = correct != null)
         return
     }
     if (Look.gs) return ChoiceCardGs(i, text, correct, modifier, express, compacte)
@@ -480,12 +482,15 @@ private fun ChoiceCard(
 
 /** Carte d'une réponse en image : l'image en grand (recadrée comme dans la Régie PC), la lettre et le mot dessous ou à côté. */
 @Composable
-private fun CarteImage(i: Int, text: String, tous: List<String>, image: ImageBitmap, juste: Boolean, eteinte: Boolean, color: Color, dessus: Boolean, modifier: Modifier) {
+private fun CarteImage(
+    i: Int, text: String, tous: List<String>, image: ImageBitmap, juste: Boolean, eteinte: Boolean, color: Color, dessus: Boolean, modifier: Modifier,
+    nom: Boolean = true,
+) {
     val lettre = Palette.ChoiceLetters[i]
     val encre = if (juste) Neon.JusteTexte else Palette.Ink
     @Composable
     fun Image() = androidx.compose.foundation.Image(
-        image, contentDescription = "Réponse $lettre en image : $text", contentScale = ContentScale.Crop,
+        image, contentDescription = if (nom) "Réponse $lettre en image : $text" else "Réponse $lettre en image", contentScale = ContentScale.Crop,
         modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(percent = 18)).background(Color.White),
     )
     @Composable
@@ -509,8 +514,7 @@ private fun CarteImage(i: Int, text: String, tous: List<String>, image: ImageBit
                 // Lettre, mot et verdict sur la ligne sous l'image : rien ne se pose sur l'image.
                 Row(Modifier.height(34.dp), verticalAlignment = Alignment.CenterVertically) {
                     Pastille(30.dp)
-                    Spacer(Modifier.width(8.dp))
-                    MotQuiTient(text, tous, encre, 26.sp, Modifier.weight(1f, fill = false))
+                    if (nom) { Spacer(Modifier.width(8.dp)); MotQuiTient(text, tous, encre, 26.sp, Modifier.weight(1f, fill = false)) }
                     if (juste || eteinte) { Spacer(Modifier.width(8.dp)); Verdict(30.dp) }
                 }
             }
@@ -528,7 +532,7 @@ private fun CarteImage(i: Int, text: String, tous: List<String>, image: ImageBit
                         if (juste || eteinte) { Spacer(Modifier.width(8.dp)); Verdict(28.dp) }
                     }
                     Spacer(Modifier.height(2.dp))
-                    MotQuiTient(text, tous, encre, 26.sp, Modifier.fillMaxWidth())
+                    if (nom) MotQuiTient(text, tous, encre, 26.sp, Modifier.fillMaxWidth())
                 }
             }
             }
