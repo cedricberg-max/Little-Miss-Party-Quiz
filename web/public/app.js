@@ -1355,7 +1355,7 @@ function renderCoffres(st) {
   else if (aMoi) {
     titre = `À vous, ${joue.nom} !`;
     texte = coffres.envoi != null ? `Coffre ${coffres.envoi + 1} choisi : regardez la TV !`
-      : attente > 0 ? "Préparez-vous, la TV termine…" : "Choisissez un coffre, puis ouvrez-le !";
+      : attente > 0 ? "Préparez-vous, la TV termine…" : "Touchez un coffre pour l'ouvrir !";
   } else if (joue) { titre = `Au tour de l'équipe ${joue.nom}`; texte = "Quel coffre va-t-elle choisir ? Regardez bien !"; }
   else { titre = "Les Coffres mystères"; texte = "Regardez la TV !"; }
   if (pret && !fini && !suspense && !st.paused) {
@@ -1389,10 +1389,10 @@ async function chooseChest(i) {
   try {
     await set(ref(db, `games/${code}/chestChoice/${key}`), { i, at: serverTimestamp() });
   } catch {
-    // Refusé (connexion, pause, animation pas finie) : on peut choisir et ouvrir de nouveau.
+    // Refusé (connexion, pause, animation pas finie) : on peut toucher un coffre de nouveau.
     if (coffres && game.state?.chests?.key === key) {
       coffres.envoi = null;
-      coffres.message = "Le coffre ne s'est pas ouvert : touchez encore « Ouvrir » dans un instant.";
+      coffres.message = "Le coffre ne s'est pas ouvert : touchez-le de nouveau dans un instant.";
     }
     render();
   }

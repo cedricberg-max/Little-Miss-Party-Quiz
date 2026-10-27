@@ -353,14 +353,17 @@ describe("pupitre", () => {
     await bleus.locator("#coffres-host .bc-titre", { hasText: "Au tour de l'équipe Les Roses" }).waitFor();
     await bleus.locator(".bc-texte", { hasText: "Encore 6 coffres sans danger" }).waitFor();
     assert.equal(await roses.locator(".bc-case").count(), 10);
-    assert.equal(await bleus.locator(".bc-ouvrir").isVisible(), false, "seule l'équipe qui joue ouvre");
-    assert.equal(await bleus.locator(".bc-case:not([disabled])").count(), 0);
-    // Les Roses choisissent le coffre 3, puis l'ouvrent.
-    assert.equal(await roses.locator(".bc-ouvrir").isDisabled(), true, "d'abord choisir un coffre");
-    await roses.locator(".bc-case").nth(2).click();
-    await roses.locator(".bc-ouvrir", { hasText: "Ouvrir le coffre 3 !" }).click();
+    assert.equal(await bleus.locator(".bc-case:not([disabled])").count(), 0, "seule l'équipe qui joue ouvre");
+    // Plus de bouton « Ouvrir » (cedric, 27/10 au soir) : toucher le coffre 3 l'ouvre tout de suite.
+    assert.equal(await roses.locator(".bc-ouvrir").count(), 0);
+    await roses.locator(".bc-texte", { hasText: "Touchez un coffre pour l'ouvrir !" }).waitFor();
+    // Double toucher (deux coffres très vite) : un seul coffre part, le premier.
+    await roses.evaluate(() => { const c = document.querySelectorAll(".bc-case"); c[2].click(); c[4].click(); });
     await waitFor(async () => (await read("chestChoice/bc-1-0"))?.i === 2, "coffre 3 envoyé à la box");
     await roses.locator(".bc-texte", { hasText: "Coffre 3 choisi : regardez la TV !" }).waitFor();
+    assert.equal(await roses.locator(".bc-case:not([disabled])").count(), 0, "plus rien à toucher une fois le coffre envoyé");
+    await new Promise((res) => setTimeout(res, 500));
+    assert.equal((await read("chestChoice/bc-1-0"))?.i, 2, "le deuxième toucher n'a rien changé");
     // La box l'ouvre : +150 pour les Roses, montré sur la tablette seulement quand la TV l'a montré.
     const at = Date.now();
     const ouvert = { team: r, chest: 2, delta: 150, bomb: false, at };
@@ -373,11 +376,10 @@ describe("pupitre", () => {
     // Au tour des Bleus : le bouton attend la fin de l'animation sur la TV.
     await bleus.locator(".bc-titre", { hasText: "À vous, Les Bleus !" }).waitFor();
     await roses.locator(".bc-texte", { hasText: "la bombe peut être dans n'importe quel coffre… et le coffre en or (+500) aussi !" }).waitFor();
-    await bleus.locator(".bc-case").nth(5).click();
+    if (Date.now() < at + 3500) assert.equal(await bleus.locator(".bc-case").nth(5).isDisabled(), true, "pas avant la fin de l'animation");
+    await waitFor(() => bleus.locator(".bc-case").nth(5).isEnabled(), "coffres prêts après l'animation", 8000);
     assert.equal(await bleus.locator(".bc-case").nth(2).isDisabled(), true, "un coffre ouvert ne se rouvre pas");
-    if (Date.now() < at + 3500) assert.equal(await bleus.locator(".bc-ouvrir").isDisabled(), true, "pas avant la fin de l'animation");
-    await waitFor(() => bleus.locator(".bc-ouvrir").isEnabled(), "bouton prêt après l'animation", 8000);
-    await bleus.locator(".bc-ouvrir").click();
+    await bleus.locator(".bc-case").nth(5).click();
     await waitFor(async () => (await read("chestChoice/bc-1-1"))?.i === 5, "coffre 6 envoyé à la box");
     // Le coffre 6 était le coffre en or : +500 pour les Bleus, une pastille dorée sur toutes les tablettes.
     const or = { team: b, chest: 5, delta: 500, bomb: false, gold: true, at: Date.now() - 3000 };
