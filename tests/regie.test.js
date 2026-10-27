@@ -11089,13 +11089,15 @@ describe("bibliothèque de quiz et prestations", () => {
     // de la bibliothèque des sons, au 🎲, d'une playlist ou cochées ; la TV joue leur refrain, l'une après l'autre.
     const hex = (c, k) => `${c}${k}`.padEnd(16, c);
     const SONGS = {
-      s1: { title: "Libérée, délivrée", artist: "La Reine des neiges", audioId: hex("a", 1), refrainId: hex("b", 1), start: 0, refrain: 60, buzz: 25, updatedAt: 1 },
-      s2: { title: "Hakuna Matata", artist: "Le Roi lion", audioId: hex("a", 2), refrainId: hex("b", 2), start: 0, refrain: 50, buzz: 25, updatedAt: 1 },
+      s1: { title: "Libérée, délivrée", artist: "La Reine des neiges", audioId: hex("a", 1), refrainId: hex("b", 1), start: 0, refrain: 60, length: 222, buzz: 25, updatedAt: 1 },
+      s2: { title: "Hakuna Matata", artist: "Le Roi lion", audioId: hex("a", 2), refrainId: hex("b", 2), start: 0, refrain: 50, length: 187, buzz: 25, updatedAt: 1 },
       s3: { title: "Sous l'océan", artist: "La Petite Sirène", audioId: hex("a", 3), start: 0, buzz: 25, updatedAt: 1 },
     };
     await seedLibrary("songs", SONGS);
     for (const id of [hex("a", 1), hex("b", 1), hex("a", 2), hex("b", 2), hex("a", 3)]) await seedLibrary(`sounds/${id}`, "data:audio/mpeg;base64,SUQz");
     await seedLibrary("playlists/disney", { title: "Dessins animés", duration: 25, updatedAt: 1, tracks: ["s1", "s3"].map((k) => ({ title: SONGS[k].title, audioId: SONGS[k].audioId, songId: k, duration: 25 })) });
+    // Chansons entières en ligne : s1 et s2 ; pas s3 (rangée avant le 21/10).
+    for (const k of ["s1", "s2"]) await seedLibrary(`entieres/${k}`, { n: 1, kbps: 96, p: { 0: wav(440, 1).toString("base64") } });
     await seedLibrary("shows/nina", { childName: "Nina", age: 8, date: "2026-05-10", status: "archivee", updatedAt: 1,
       rounds: [{ type: "quiz", quizId: "animaux" }, { type: "statues", duration: 90, chansons: ["s3", "s1", "perdue"] }] });
 
@@ -11111,9 +11113,20 @@ describe("bibliothèque de quiz et prestations", () => {
     // 🎶 Une playlist : ses chansons, dans son ordre.
     await round.locator(".statues-playlist-cherche").fill("dessins");
     await round.locator('.statues-playlist-item[data-playlist="disney"]').click();
-    await resume.filter({ hasText: "2 chansons, jouées l'une après l'autre : la TV joue leur refrain." }).waitFor();
+    await resume.filter({ hasText: "2 chansons, jouées en entier l'une après l'autre." }).waitFor();
     assert.deepEqual(await ids(), ["s1", "s3"]);
-    assert.deepEqual(await round.locator(".statues-son").allTextContents(), ["♪ Refrain", "♪ Début"], "sans refrain réglé : l'extrait du début");
+    // Chaque chanson en entier (cedric, 27/10) : sa durée et 🎧 ; ☁ sur celle qui n'est pas entière en ligne.
+    assert.equal(await round.locator(".statues-son").count(), 0, "plus de « ♪ Refrain / Début »");
+    assert.equal(await round.locator('.statues-chanson[data-chanson="s1"] .statues-duree').textContent(), "3:42");
+    assert.equal(await round.locator('.statues-chanson[data-chanson="s3"] .statues-duree').count(), 0, "durée inconnue : rien");
+    await round.locator('.statues-chanson[data-chanson="s3"] .statues-nuage').waitFor();
+    assert.equal(await round.locator('.statues-chanson[data-chanson="s1"] .statues-nuage').count(), 0);
+    await round.locator('.statues-chanson[data-chanson="s3"] .statues-ecouter').click();
+    await page.locator("#annonce", { hasText: "La chanson entière de « Sous l'océan » n'est pas encore en ligne" }).waitFor();
+    await round.locator('.statues-chanson[data-chanson="s1"] .statues-ecouter').click();
+    await round.locator('.statues-chanson[data-chanson="s1"] .statues-ecouter.en-lecture').waitFor();
+    await round.locator('.statues-chanson[data-chanson="s1"] .statues-ecouter').click();
+    await waitFor(async () => !(await round.locator(".statues-ecouter.en-lecture").count()), "écoute arrêtée");
     // 🎵 Cochées dans la bibliothèque : une de plus, à la fin.
     await round.locator(".statues-choisir").click();
     const choix = page.locator(".choix-sons");
