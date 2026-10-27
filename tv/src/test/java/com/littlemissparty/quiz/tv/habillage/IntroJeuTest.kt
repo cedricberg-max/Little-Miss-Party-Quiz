@@ -23,7 +23,7 @@ class IntroJeuTest {
             QuestionKind.ZOOM to "zoom", QuestionKind.FLOU to "floue", QuestionKind.CHANTE to "chante",
             QuestionKind.QUISUIS to "quisuisje", QuestionKind.DISPARU to "disparu", QuestionKind.STATUES to "statues",
             QuestionKind.COFFRES to "coffres", QuestionKind.GONFLEUR to "gonfleur", QuestionKind.PATATE to "patate",
-            QuestionKind.DUEL to "duel",
+            QuestionKind.DUEL to "duel", QuestionKind.SIMON to "simon",
         )
         for ((kind, nom) in attendu) assertEquals("$kind", nom, nomIntroJeu(familleType(kind)))
         assertEquals("illustre", nomIntroJeu(familleJeu(question(images = listOf("a", "b", null, "d")))))
@@ -46,9 +46,7 @@ class IntroJeuTest {
     }
 
     @Test
-    fun `le simon du prof a son embleme en attendant sa video`() {
-        assertEquals("simon", familleType(QuestionKind.SIMON))
-        assertNull(nomIntroJeu(familleType(QuestionKind.SIMON)))
+    fun `le simon du prof a son embleme`() {
         assertEquals("🔴", emblemeJeu("simon").emoji)
     }
 
