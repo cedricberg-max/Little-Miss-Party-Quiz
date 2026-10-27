@@ -489,9 +489,11 @@ class RegieTest : TestTv() {
         attendreQue("photo gardée sur la box") { java.io.File(Boite.contexte.filesDir, "photos/$photo").takeIf { it.isFile && it.length() > 0 } }
 
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("ZOOM MYSTÈRE")
+        // Game Show : le titre est dans l'enseigne, plus de pastille « ZOOM MYSTÈRE » en double (cedric, planche du 27/10).
+        if (!Look.gs) ecran.voit("ZOOM MYSTÈRE")
         attendreQue("photo mystère ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "z1" && it.child("phase").value == "question" } }
-        ecran.capture("zoom-mystere-question")
+        if (Look.gs) ecran.neVoitPas("ZOOM MYSTÈRE", 2_000)
+        ecran.capture("zoom-mystere-question", attente = if (Look.gs) 1_500 else 0)
         assertTrue(licornes.repondre(code, "z1", 1))
         ecran.voit("Toutes les équipes ont répondu")
         assertEquals("applied", regie.commande(code, "next"))
@@ -559,7 +561,7 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(flou) + avant))
 
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("IMAGE FLOUE")
+        if (!Look.gs) ecran.voit("IMAGE FLOUE") // Game Show : le titre est dans l'enseigne (planche du 27/10)
         ecran.voit("Buzzez dès que vous reconnaissez l'image !")
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "f1" && it.child("buzzOpen").value == true } }
         assertTrue(licornes.buzzer(code))
@@ -614,7 +616,7 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         assertEquals("applied", regie.commande(code, "next"))
 
-        ecran.voit("QUI SUIS-JE ?")
+        if (!Look.gs) ecran.voit("QUI SUIS-JE ?") // Game Show : le titre est dans l'enseigne (planche du 27/10)
         ecran.voit("J'ai une crinière")
         assertFalse("le deuxième indice attend son tour", ecran.affiche("Je rugis très fort"))
         ecran.voit("Je rugis très fort", 20_000)
