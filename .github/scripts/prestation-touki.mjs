@@ -42,12 +42,24 @@ const tours = familles.filter((f) => !vusThemes.has(f.theme.toLowerCase()) && vu
 // Qui suis-je ? : les personnages des packs (avec leur image), choisis un par un.
 const qui = activeItems("quisuis", contents?.quisuis).filter((x) => x?.serie && x?.imageId).slice(0, 10);
 
+// Chaque jeu pioche à tour de rôle une question au hasard dans chacun de ses packs : le plus de packs possible, sous
+// un titre de jeu normal (pas la liste de tous les packs).
+const melange = (l) => l.map((x) => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
+const versSerie = (q) => (q.kind === "number" ? { text: q.text, nombre: true, correct: q.correct }
+  : { text: q.text, choices: q.choices, correct: q.correct, ...(q.imageId ? { imageId: q.imageId } : {}), ...(q.choiceImages ? { choiceImages: q.choiceImages } : {}) });
+const pioche = (liste, f, n) => {
+  const tas = melange(liste).map(([, q]) => melange(f(q)));
+  const out = [];
+  for (let k = 0; out.length < n && tas.some((t) => t.length); k = (k + 1) % tas.length) if (tas[k].length) out.push(versSerie(tas[k].pop()));
+  return out;
+};
+const serie = (type, liste, f, n) => liste.length && { type, seriesQuiz: [{ id: "de", origine: "de", questions: pioche(liste, f, n) }] };
 const rounds = [
-  quiz.length && { type: "quiz", quizIds: ids(quiz), count: 15 },
-  illustres.length && { type: "illustre", quizIds: ids(illustres), count: 15 },
-  photos.length && { type: "zoom", quizIds: ids(photos.slice(0, moitie)), count: 8 },
-  photos.length > 1 && { type: "flou", quizIds: ids(photos.slice(moitie)), count: 8 },
-  vraiFaux.length && { type: "express", quizIds: ids(vraiFaux), count: 10 },
+  serie("quiz", quiz, playable, 20),
+  serie("illustre", illustres, playable, 20),
+  serie("zoom", photos.slice(0, moitie), zoomQuestions, 10),
+  photos.length > 1 && serie("flou", photos.slice(moitie), zoomQuestions, 10),
+  serie("express", vraiFaux, expressQuestions, 12),
   qui.length && { type: "quisuis", picks: qui.map((x) => CONTENT_GAMES.quisuis.key(x)) },
   tours.length && { type: "disparu", objects: 6, seriesMots: [{ id: "de", origine: "de", mots: tours }] },
   { type: "duel" },
