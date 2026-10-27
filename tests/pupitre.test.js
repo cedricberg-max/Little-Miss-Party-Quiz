@@ -633,6 +633,10 @@ describe("pupitre", () => {
     await verts.locator("#play-status", { hasText: "Duel n° 3 : Les Roses contre Les Bleus. Regardez la TV !" }).waitFor();
     assert.equal(await verts.locator("#buzz").isVisible(), false, "les autres équipes regardent");
     assert.equal(await roses.locator("#buzz").isDisabled(), true, "pas avant le lancement du duel");
+    // Les mots en lettre western néon (planche validée) : titre au-dessus du gros bouton « PAN ! ».
+    await roses.locator("#duel-titre", { hasText: "Main sur le buzzer !" }).waitFor();
+    assert.equal(await roses.locator("#buzz").textContent(), "PAN\u00a0!");
+    await verts.locator("#duel-titre", { hasText: "Duel en cours" }).waitFor();
     // Pendant que les joueurs se placent, chaque tablette du duel cale son horloge sur celle du serveur.
     await waitFor(async () => typeof (await read(`horloge/${r}`))?.at === "number", "horloge des Roses mesurée");
     await waitFor(async () => typeof (await read(`horloge/${b}`))?.at === "number", "horloge des Bleus mesurée");
@@ -659,15 +663,25 @@ describe("pupitre", () => {
     await hostState(duel({ step: "result", result: { winner: r, loser: b, early: null, ms: 312, points: 100 } }));
     await roses.locator("#play-status", { hasText: "BRAVO ! Le plus rapide en 0,31 s ! +100 points" }).waitFor();
     await bleus.locator("#play-status", { hasText: "Trop lent" }).waitFor();
+    await roses.locator("#duel-titre", { hasText: "Le plus rapide !" }).waitFor();
+    assert.equal(await roses.locator("#buzz").textContent(), "BRAVO");
+    await bleus.locator("#duel-titre", { hasText: "Trop lent" }).waitFor();
     await verts.locator("#play-status", { hasText: "Les Roses remporte le duel !" }).waitFor();
     await hostState(duel({ step: "result", result: { winner: r, loser: b, early: b, ms: null, points: 100 } }));
     await bleus.locator("#play-status", { hasText: "OUPS, trop tôt !" }).waitFor();
+    await bleus.locator("#duel-titre", { hasText: "Trop tôt !" }).waitFor();
+    assert.equal(await bleus.locator("#buzz").textContent(), "OUPS");
     await verts.locator("#play-status", { hasText: "Les Bleus a buzzé trop tôt… Les Roses gagne le duel !" }).waitFor();
     await hostState(duel({ step: "result", result: { winner: null, loser: null, early: null, ms: null, points: 0 } }));
     await roses.locator("#play-status", { hasText: "Personne n'a tiré !" }).waitFor();
     // Nouveau face-à-face : nouvelle clé, on peut rebuzzer.
     await hostState(duel({ step: "standoff", key: "d1-4-200", n: 4 }));
     await waitFor(async () => !(await roses.locator("#buzz").isDisabled()), "bouton de nouveau actif");
+    assert.equal(await roses.locator("#buzz").textContent(), "PAN\u00a0!");
+    // Jeu suivant (image floue) : le bouton redevient « BUZZ », plus de titre western.
+    await hostState(question({ qid: "f1", kind: "flou", choices: null, text: "Qu'est-ce qui se cache sous le flou ?", round: "f1-1000-1", buzzOpen: true }));
+    await waitFor(async () => (await roses.locator("#buzz").textContent()) === "BUZZ", "bouton « BUZZ » de retour");
+    assert.equal(await roses.locator("#duel-titre").isVisible(), false);
     for (const p of [roses, bleus, verts]) await p.context().close();
   });
 

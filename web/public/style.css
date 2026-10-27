@@ -235,6 +235,10 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
   #screen-play > .team-banner { grid-column: 1; grid-row: 2; }
   #screen-play > #play-status { grid-column: 1; grid-row: 3; max-width: 22em; }
   #screen-play > #buzz { grid-column: 2; grid-row: 1 / -1; }
+  /* Duel des robots : le titre western entre l'équipe et la consigne. */
+  #screen-play.active:has(> #duel-titre:not([hidden])) { grid-template-rows: 1fr auto auto auto 1fr; }
+  #screen-play > #duel-titre { grid-column: 1; grid-row: 3; }
+  #screen-play:has(> #duel-titre:not([hidden])) > #play-status { grid-row: 4; }
   /* Sans buzzer (présentation d'un jeu, attente) : une simple colonne centrée. */
   #screen-play.active:has(> #buzz[hidden]) { display: flex; }
   .buzz { width: min(46vw, 74vh); height: min(46vw, 74vh); }

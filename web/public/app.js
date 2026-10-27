@@ -560,7 +560,11 @@ function render() {
   if (st.kind !== "gonfleur" || st.phase !== "question") stopGonfleur();
   if (st.kind !== "patate" || st.phase !== "question") stopPatate();
   // Duel des robots : l'habillage du gros bouton (néon western) seulement pendant un duel de l'équipe.
-  if (st.kind !== "duel" || st.phase !== "question") delete document.body.dataset.duel;
+  if (st.kind !== "duel" || st.phase !== "question") {
+    delete document.body.dataset.duel;
+    $("duel-titre").hidden = true;
+    if ($("buzz").textContent !== "BUZZ") $("buzz").textContent = "BUZZ";
+  }
   $("play-intro").hidden = true;
   $("play-status").classList.remove("fete");
   switch (st.phase) {
@@ -873,6 +877,27 @@ function renderDuel(st) {
       : r.early ? `${nomEquipe(r.early)} a buzzé trop tôt… ${nomEquipe(r.winner)} gagne le duel !`
       : `${nomEquipe(r.winner)} remporte le duel !`;
   }
+  // Les mots du duel en lettre western néon (planche validée par cedric, 27/10) : le titre au-dessus du gros bouton,
+  // et « PAN ! », « BRAVO » ou « OUPS » sur le bouton (espaces insécables déjà posées : le texte n'est réécrit
+  // que s'il change).
+  const res = d.result ?? {};
+  const resultat = d.step === "result";
+  const [titre, couleur] = !d.step || d.step === "none" ? ["", null]
+    : !moi ? (resultat && res.winner ? [`${nomEquipe(res.winner)} gagne\u00a0!`, game.teams[res.winner]?.color] : ["Duel en cours", "#ff7a1a"])
+    : !resultat ? ["Main sur le buzzer\u00a0!", null]
+    : res.winner === teamId ? ["Le plus rapide\u00a0!", null]
+    : res.early === teamId ? ["Trop tôt\u00a0!", "#ff2030"]
+    : !res.winner ? ["Personne n'a tiré\u00a0!", "#00f0ff"]
+    : ["Trop lent…", "#ff7a1a"];
+  const h = $("duel-titre");
+  h.hidden = !titre;
+  if (h.textContent !== titre) h.textContent = titre;
+  h.style.setProperty("--n", couleur ?? "var(--team)");
+  // Deux petites étoiles de shérif autour des grands moments (dessinées par le style, pas dans le texte).
+  h.classList.toggle("etoiles", ["Duel en cours", "Le plus rapide\u00a0!", "Trop tôt\u00a0!"].includes(titre));
+  const mot = resultat && res.winner === teamId ? "BRAVO" : resultat && res.early === teamId ? "OUPS" : "PAN\u00a0!";
+  if (buzz.textContent !== mot) buzz.textContent = mot;
+  buzz.classList.toggle("oups", resultat && res.early === teamId);
 }
 
 async function buzzDuel(st, t) {

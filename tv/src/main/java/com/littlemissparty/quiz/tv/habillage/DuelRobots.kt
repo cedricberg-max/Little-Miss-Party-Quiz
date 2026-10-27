@@ -126,6 +126,7 @@ internal fun SceneDuel(
     plan: PlanDuel?,
     cle: Any?,
     modifier: Modifier = Modifier,
+    textes: TextesDuel? = null,
 ) {
     val video = if (Look.gs) videoDuel(etape, plan, if (etape == EtapeDuel.TROP_TOT) perdante else gagnante) else null
     var image by remember { mutableStateOf(false) }
@@ -133,7 +134,9 @@ internal fun SceneDuel(
         if (!image) DecorWestern(Modifier.fillMaxSize())
         if (Look.gs) VideoDuel(video, surImage = { image = it }, modifier = Modifier.fillMaxSize())
         BandesNoires(etape == EtapeDuel.FACE, Modifier.fillMaxSize())
-        EchelleSansCoupe(LARGEUR, HAUTEUR, Modifier.fillMaxSize()) {
+        // Game Show : le film en plein écran et les textes de la maquette validée (pastille, annonce, PAN néon western).
+        if (Look.gs && textes != null) HabillageDuelWestern(equipes, etape, gagnante, textes, cle)
+        else EchelleSansCoupe(LARGEUR, HAUTEUR, Modifier.fillMaxSize()) {
             if (equipes.size == 2) {
                 equipes.forEachIndexed { i, e ->
                     Column(

@@ -30,7 +30,9 @@ import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.Ordre
+import com.littlemissparty.quiz.tv.habillage.ResultatDuel
 import com.littlemissparty.quiz.tv.habillage.SceneDuel
+import com.littlemissparty.quiz.tv.habillage.TextesDuel
 import com.littlemissparty.quiz.tv.habillage.Son
 import com.littlemissparty.quiz.tv.habillage.Sons
 import com.littlemissparty.quiz.tv.habillage.FEINTES_DUEL
@@ -132,6 +134,49 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
             // Personne : pas de son, la boucle western revient doucement.
             else -> {}
         }
+    }
+
+    // Game Show : le film du western en plein écran, les textes de la maquette validée par cedric (27/10) dessus.
+    if (Look.gs && etape != EtapeDuel.ATTENTE) {
+        val couleurDe = { uid: String? -> joueuses.find { it.uid == uid }?.color?.toColor() ?: GS.Cyan }
+        val points = r?.points?.takeIf { it > 0 }?.let { "+$it points" }
+        val resultat = when (etape) {
+            EtapeDuel.GAGNE -> ResultatDuel(
+                listOfNotNull("Le plus rapide !", r?.ms?.let { "en ${tempsDuel(it)}" }).joinToString(" "), null,
+                "${nom(r?.winner)} remporte le duel !", couleurDe(r?.winner), points,
+            )
+            EtapeDuel.TROP_TOT -> ResultatDuel("${nom(r?.early)} a buzzé trop tôt…", couleurDe(r?.early), "${nom(r?.winner)} gagne le duel !", couleurDe(r?.winner), points)
+            EtapeDuel.PERSONNE -> ResultatDuel("Pas de points pour ce duel", null, "Personne n'a tiré !", GS.Cyan, null)
+            else -> null
+        }
+        val enPlus = d != null && (d.extra || d.n > state.duelTotal)
+        val textes = TextesDuel(
+            pastille = "🤠 LE DUEL DES ROBOTS · " + if (enPlus) "EN PLUS" else "${d?.n} / ${state.duelTotal}",
+            annonce = if (enPlus) "DUEL EN PLUS" else "DUEL N° ${d?.n}",
+            consigne = when (etape) {
+                EtapeDuel.PRET -> "Les deux joueurs, la main au-dessus du buzzer !"
+                EtapeDuel.FACE -> "Pas avant le PAN !"
+                else -> null
+            },
+            resultat = resultat,
+        )
+        Box(Modifier.fillMaxSize()) {
+            SceneDuel(
+                equipes = joueuses.mapIndexed { i, t -> EquipeDuel(t.name, t.color.toColor(), d?.players?.getOrNull(i) ?: 1) },
+                etape = etape, gagnante = gagnante, perdante = perdante, plan = plan, cle = cle, modifier = Modifier.fillMaxSize(), textes = textes,
+            )
+            // Sans régie, à la télécommande : OK lance le duel, puis prépare le suivant (ou passe aux scores).
+            if (!state.paused && state.regies == 0) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp)) {
+                when (etape) {
+                    EtapeDuel.PRET -> NextButton("🤠 Lancer le duel", actions.next, key = "duel-pret-$cle")
+                    EtapeDuel.GAGNE, EtapeDuel.TROP_TOT, EtapeDuel.PERSONNE ->
+                        if (state.duelTousPasses) NextButton(versClassement(state, "Voir les scores"), actions.next, key = "duel-fin-$cle")
+                        else NextButton("Duel suivant", actions.next, key = "duel-suivant-$cle")
+                    else -> {}
+                }
+            }
+        }
+        return
     }
 
     Box(Modifier.fillMaxSize()) {
