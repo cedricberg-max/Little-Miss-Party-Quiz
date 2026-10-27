@@ -3203,6 +3203,30 @@ function statuesChansons(r) {
       ranger([...ids, ...neuves]);
     },
   });
+  // « 📚 Rappeler la liste d'un ancien anniversaire » (cedric, 27/10) : les chansons des statues d'une prestation
+  // archivée, ajoutées à la fin (sans celles déjà dans la liste ; les chansons supprimées depuis restent dehors).
+  const anciens = prestationsRecentes().filter(([, s]) => etatPrestation(s) === "archivee").map(([sid, s]) => {
+    const liste = [...new Set((s.rounds ?? []).flatMap((x) => chansonsStatues(x)))].filter((k) => chansonJouable(songs[k]));
+    const date = s.date ? new Date(`${s.date}T12:00:00`) : null;
+    return {
+      id: sid, ids: liste,
+      titre: `${showTitle(s)}${date ? ` (${date.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })})` : ""}`,
+      details: [date ? date.toLocaleDateString("fr-FR") : "", s.age != null && s.age !== "" ? `${s.age} ans` : "", pluriel(liste.length, "chanson")].filter(Boolean).join(" · "),
+      noms: [showTitle(s), s.childName],
+      autres: [...datesCherchables(s.date), s.age != null && s.age !== "" ? `${s.age} ans` : "", s.notes, s.themes, ...liste.flatMap((k) => [songs[k]?.title, songs[k]?.artist])],
+    };
+  }).filter((x) => x.ids.length);
+  const rappel = ligneAjoutQuiz({
+    classe: "quiz-rappel statues-rappel", titre: "📚 Rappeler la liste d'un ancien anniversaire", label: "Chercher une prestation archivée",
+    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: "Aucun ancien anniversaire avec des statues",
+    aucun: "Aucune prestation archivée ne correspond.", items: anciens, attr: (x) => ({ "data-show": x.id }),
+    choisir: (x) => {
+      const neuves = x.ids.filter((id) => !ids.includes(id));
+      if (!neuves.length) return annonce(`Les chansons de « ${x.titre} » sont déjà toutes dans les statues.`);
+      if (ids.length + neuves.length > MAX_STATUES_SONGS) annonce(`${MAX_STATUES_SONGS} chansons au plus aux statues : les dernières ne sont pas ajoutées.`, true);
+      ranger([...ids, ...neuves]);
+    },
+  });
   const ligne = (id, i) => {
     const song = songs[id];
     const enlever = h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: "Retirer cette chanson des statues", "aria-label": `Retirer « ${song?.title?.trim() ?? "cette chanson"} »`, onclick: () => ranger(ids.filter((x) => x !== id)) });
@@ -3237,6 +3261,7 @@ function statuesChansons(r) {
     : "Aucune chanson : la musique de la fête.";
   return h("div", { class: "statues-chansons" },
     h("div", { class: "tirage-ligne" }, nombre, de, choisir),
+    rappel,
     ajoutPlaylist,
     h("p", { class: "hint small statues-resume", text: resume }),
     ids.length ? liste : null);
