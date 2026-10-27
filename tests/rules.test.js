@@ -558,11 +558,12 @@ describe("régie", () => {
     await assertSucceeds(command(REGIE, { type: "statues_win", team: "rose" }));
     await assertFails(command("rose", { type: "statues_win", team: "rose" }));
     // Statues du 27/10 : plusieurs gagnantes, ou « Personne » (une liste vide ne s'écrit pas dans Firebase).
-    await assertSucceeds(command(REGIE, { type: "statues_win", teams: ["rose", "bleu"] }));
-    await assertSucceeds(command(REGIE, { type: "statues_win", personne: true }));
-    await assertFails(command(REGIE, { type: "statues_win", personne: false }));
-    await assertFails(command(REGIE, { type: "statues_win", teams: ["x".repeat(129)] }));
-    await assertFails(command(REGIE, { type: "statues_win", teams: { a: "rose" } }));
+    const gagnantes = (id, body) => set(ref(db(REGIE), `games/${CODE}/commands/${id}`), { type: "statues_win", expectSeq: 3, by: REGIE, at: serverTimestamp(), ...body });
+    await assertSucceeds(gagnantes("w1", { teams: ["rose", "bleu"] }));
+    await assertSucceeds(gagnantes("w2", { personne: true }));
+    await assertFails(gagnantes("w3", { personne: false }));
+    await assertFails(gagnantes("w4", { teams: ["x".repeat(129)] }));
+    await assertFails(gagnantes("w5", { teams: { a: "rose" } }));
     for (const type of ["statues_stop", "statues_play", "statues_song"]) await assertSucceeds(command(REGIE, { type }));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/commands/m-points`), { type: "mime_found", points: 50, expectSeq: 3, by: REGIE, at: serverTimestamp() }));
   });
