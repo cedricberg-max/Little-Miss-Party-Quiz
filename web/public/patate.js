@@ -1,8 +1,8 @@
 /**
- * « Ça va exploser ! » sur la tablette. L'équipe qui tient la bombe choisit à qui l'envoyer (un appui sur l'équipe) ; la
- * mèche colle 2 secondes après la réception, l'envoyeur ne peut pas la récupérer (sauf à 2 équipes), et les équipes
- * qui ne l'ont pas encore eue brillent. Ensuite l'équipe a 3 secondes pour l'envoyer : un gros 3, 2, 1 sur la bombe,
- * sinon elle explose chez elle. Les autres voient chez qui elle est. Module autonome, sans Firebase : la page
+ * « Ça va exploser ! » sur la tablette. L'équipe qui tient la bombe choisit à qui l'envoyer (un appui sur l'équipe, pris
+ * dès que le doigt touche) ; elle peut la renvoyer dès la réception, l'envoyeur ne peut pas la récupérer (sauf à 2
+ * équipes), et les équipes qui ne l'ont pas encore eue brillent. L'équipe a 2 secondes pour l'envoyer : un gros 2, 1 sur
+ * la bombe, sinon elle explose chez elle (cedric, 27/10). Les autres voient chez qui elle est. Module autonome, sans Firebase : la page
  * pupitre envoie le choix (surEnvoi) et passe l'état à maj().
  *
  * Habillage : la même bombe que sur la TV, posée sur son socle. Elle tombe chez nous (lueur rouge qui bat autour de
@@ -188,13 +188,18 @@ export function ecranPatate(hote, { surEnvoi }) {
         nom.textContent = e.nom;
         const note = document.createElement("small");
         b.append(nom, note);
-        b.onclick = () => {
+        // Envoi dès que le doigt touche l'écran, sans attendre qu'il se relève (cedric, 27/10 : chaque centième compte au
+        // ping-pong) ; le clic qui suit (ou celui du clavier) ne renvoie rien, la bombe est déjà partie.
+        const envoyer = (ev) => {
+          if (ev.type === "pointerdown" && ev.button !== 0) return;
           const d = dernier;
           const cible = d?.equipes?.find((x) => x.id === e.id);
           if (!d?.aMoi || d.envoye || (d.colle ?? 1) < 1 || !cible?.permise) return;
           navigator.vibrate?.(60);
           surEnvoi(e.id);
         };
+        b.onpointerdown = envoyer;
+        b.onclick = envoyer;
         return b;
       }));
     }

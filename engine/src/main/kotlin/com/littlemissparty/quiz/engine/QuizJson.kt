@@ -22,6 +22,22 @@ object QuizJson {
 
     /** Statues musicales : au plus autant de chansons dans une manche. */
     const val MAX_STATUES_SONGS = 20
+    const val MAX_SONG_TITLE = 120
+
+    /** Statues musicales : identifiant d'une chanson de la bibliothèque (clé de library/songs et library/entieres). */
+    val SONG_ID = Regex("[-\\w]{1,40}")
+
+    /**
+     * Statues musicales : les chansons { songId, audioId, title } ; une chanson sans chanson entière ni extrait lisible
+     * est sautée, un titre trop long coupé.
+     */
+    private fun chansonsStatues(a: JSONArray?): List<ChansonStatues> = (0 until (a?.length() ?: 0)).mapNotNull { i ->
+        val o = a!!.optJSONObject(i) ?: return@mapNotNull null
+        val songId = o.optString("songId").takeIf { it.matches(SONG_ID) }
+        val audioId = o.optString("audioId").takeIf { it.matches(IMAGE_ID) }
+        if (songId == null && audioId == null) null
+        else ChansonStatues(songId, audioId, o.optString("title").trim().take(MAX_SONG_TITLE).ifEmpty { null })
+    }.distinctBy { it.songId ?: it.audioId }.take(MAX_STATUES_SONGS)
 
     fun parse(json: String): Quiz = parse(JSONObject(json))
 
@@ -74,7 +90,7 @@ object QuizJson {
             text = q.getString("text"),
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
             correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.PORTES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE) q.optInt("correct", -1) else q.getInt("correct"),
-            durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else if (kind == QuestionKind.GONFLEUR) 45 else 20),
+            durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else if (kind == QuestionKind.GONFLEUR) 45 else if (kind == QuestionKind.STATUES) 90 else 20),
             kind = kind,
             double = q.optBoolean("double", false),
             roundTitle = q.optString("round").ifBlank { null },
@@ -95,6 +111,7 @@ object QuizJson {
             lyrics = q.optString("lyrics").takeIf { it.isNotBlank() && it.length <= MAX_PAROLES && chanson && q.optString("refrainId").matches(IMAGE_ID) },
             audioIds = q.optJSONArray("audioIds")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
                 .filter { it.matches(IMAGE_ID) && kind == QuestionKind.STATUES }.distinct().take(MAX_STATUES_SONGS),
+            songs = if (kind != QuestionKind.STATUES) emptyList() else chansonsStatues(q.optJSONArray("songs")),
             points = q.optInt("points", 0).takeIf { it > 0 && (kind == QuestionKind.BLIND || kind == QuestionKind.PICTIONARY) }?.coerceAtMost(MAX_TRACK_POINTS),
             // 0 : tout l'extrait à la révélation (le temps de chanter le refrain).
             revealSec = q.optInt("reveal", BLIND_REVEAL_SEC).let { if (it == 0) 0 else it.coerceIn(3, 60) },

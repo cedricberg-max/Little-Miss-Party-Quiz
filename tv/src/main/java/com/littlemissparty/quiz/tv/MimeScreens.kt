@@ -459,7 +459,7 @@ private fun MimeButtons(state: UiState.Playing, m: MimeUi, actions: TvActions) {
             } else {
                 val again = state.teams.minByOrNull { t -> m.turns.count { it == t.uid } }
                 if (again != null) TvButton("Encore un tour : ${again.name}", { actions.mimeStart(again.uid) }, fontSize = 20.sp)
-                NextButton("Voir le classement", actions.next, key = "between-${m.turns.size}")
+                NextButton(versClassement(state, "Voir le classement"), actions.next, key = "between-${m.turns.size}")
             }
         }
     }

@@ -400,7 +400,8 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
       deck = cards;
       allCards = cards;
       state = {
-        ...state, phase: "question", seq: state.seq + 1, index: 2, qid: "m1", kind: "mime", text: "Animaux", durationMs: 60000,
+        // Au milieu de la fête (un jeu suit) : la fin du tour mène au classement, pas aux résultats finaux.
+        ...state, phase: "question", seq: state.seq + 1, index: 2, total: 4, qid: "m1", kind: "mime", text: "Animaux", durationMs: 60000,
         choices: null, deadline: null, scores, buzzOpen: false,
         mime: { team: null, card: null, found: 0, passed: 0, left: cards.length, turns: [], counts: {}, points: 50 },
       };
@@ -959,7 +960,9 @@ describe("régie", () => {
     // Aucune équipe verte dans la partie : Sarah peut faire mimer une autre équipe, ou passer.
     await box.set(mime(2));
     await page.locator("#mime-info", { hasText: "Aucune équipe Vert dans la partie" }).waitFor();
-    await page.locator("#c-next", { hasText: "Voir le classement" }).waitFor();
+    // Dernier jeu de la fête : pas de classement juste avant, « suivant » lance les résultats finaux (cedric, 27/10).
+    await page.locator("#mime-info", { hasText: "ou passez avec « Résultats finaux 🏆 »" }).waitFor();
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).waitFor();
     assert.equal(await page.locator(".mime-team").count(), 2);
     await page.context().close();
   });
@@ -1435,9 +1438,13 @@ describe("régie", () => {
     await page.locator("#c-next", { hasText: "Titre suivant" }).waitFor();
     await page.click("#blind-cut");
     await waitFor(async () => (await commands()).includes("blind_cut"), "raccourcir envoyé");
-    // Dernier morceau, à double valeur : le bouton mène au bilan.
+    // Dernier morceau, à double valeur, du dernier jeu de la fête : le bouton mène aux résultats finaux, sans bilan
+    // juste avant (cedric, 27/10).
     await box.set({ ...(await read("state")), qid: "b3", index: 2, blind: blindState({ points: 200, played: true, tracks: tracks(["found", "skipped", "revealed"], "bleu") }) });
     await page.locator("#blind-head", { hasText: "Morceau 3 / 3 · 200 points" }).locator(".double", { hasText: "POINTS DOUBLÉS" }).waitFor();
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).waitFor();
+    // Un jeu suit : le bilan du blind test.
+    await box.set({ ...(await read("state")), total: 4 });
     await page.locator("#c-next", { hasText: "Bilan du blind test" }).waitFor();
     await page.context().close();
   });
@@ -1994,7 +2001,7 @@ describe("régie", () => {
     const bombe = { id: "b1", text: "Les Coffres mystères", kind: "coffres", choices: [], correct: -1, round: "Les Coffres mystères" };
     await set(gameRef("conducteur"), { ...plan, coffres: true, questions: [...plan.questions, bombe] });
     const chests = { ready: true, count: 10, order: ["bleu", "rose"], team: "bleu", turn: 0, safe: 6, safeLeft: 6, danger: false, exploded: false, key: "b1-1-0", readyAt: Date.now() + 2500, opened: [], gains: { bleu: 0, rose: 0 } };
-    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "b1", kind: "coffres", text: "Les Coffres mystères", choices: null, deadline: null, total: 3, chests });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "b1", kind: "coffres", text: "Les Coffres mystères", choices: null, deadline: null, total: 4, chests });
     await page.locator("#coffres-info", { hasText: "Au tour de l'équipe Les Bleus" }).waitFor();
     await page.locator("#coffres-info", { hasText: "Encore 6 coffres sans danger" }).waitFor();
     // Le bouton principal n'ouvre jamais de coffre : ce sont les équipes qui jouent.
@@ -2039,7 +2046,7 @@ describe("régie", () => {
     const ballon = { id: "g1", text: "Le Gonfleur fou", kind: "gonfleur", choices: [], correct: -1, round: "Le Gonfleur fou" };
     await set(gameRef("conducteur"), { ...plan, gonfleur: true, questions: [...plan.questions, ballon] });
     const goAt = Date.now() - 2000;
-    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "g1", kind: "gonfleur", text: "Le Gonfleur fou", choices: null, total: 3, resumeAt: goAt, pump: { key: "g1-1", goAt, target: 100 } });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "g1", kind: "gonfleur", text: "Le Gonfleur fou", choices: null, total: 4, resumeAt: goAt, pump: { key: "g1-1", goAt, target: 100 } });
     await page.locator("#gonfleur-info", { hasText: "le premier ballon qui éclate gagne" }).waitFor();
     assert.equal(await page.locator("#c-answer").isVisible(), false, "rien à révéler");
     // Les tapes des tablettes arrivent : la régie montre où en est chaque ballon.
@@ -2067,7 +2074,7 @@ describe("régie", () => {
     await set(gameRef("conducteur"), { ...plan, patate: true, questions: [...plan.questions, bombe] });
     const now = Date.now();
     const potato = { lit: true, holder: "rose", from: null, since: now - 3000, readyAt: now - 1000, canReturn: true, targets: ["bleu"], teams: ["rose", "bleu"], hit: ["rose"], passes: 0, key: "p1-1" };
-    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "patate", text: "Ça va exploser !", choices: null, deadline: null, total: 3, potato });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "patate", text: "Ça va exploser !", choices: null, deadline: null, total: 4, potato });
     await page.locator("#patate-info", { hasText: "La bombe est chez Les Roses" }).waitFor();
     await page.locator("#patate-info", { hasText: "Pas encore touchées : Les Bleus" }).waitFor();
     assert.equal(await page.locator("#c-next").isDisabled(), true, "la mèche décide de la fin, pas la régie");

@@ -36,7 +36,8 @@ import kotlinx.coroutines.delay
  * (habillage/Patate.kt) avec une tension qui monte d'après le temps de mèche écoulé, puis l'explosion. Plusieurs bombes
  * par partie (3 d'office, de 1 à 6 réglé dans la Régie PC) : après chaque explosion sauf la dernière, « Bombe 2 sur 3 »,
  * et la nouvelle bombe part. Une équipe qui garde
- * la bombe plus de 3 secondes la voit exploser chez elle (le bas de l'écran compte 3, 2, 1).
+ * la bombe plus de 2 secondes la voit exploser chez elle (le bas de l'écran compte 2, 1) ; elle peut la renvoyer dès la
+ * réception (cedric, 27/10).
  */
 
 @Composable
@@ -60,8 +61,8 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
     val annonce = p != null && !explosion && p.bomb > 1 && maintenant < p.since
     val porteur = joueuses.indexOfFirst { it.uid == (if (explosion) boom?.holder else p?.holder) }
     val pret = p != null && !p.exploded && maintenant >= p.readyAt && (state.resumeAt ?: 0L) <= maintenant
-    // Anti-triche : 3 secondes pour l'envoyer, sinon elle explose chez l'équipe qui la garde (3, 2, 1 aussi sur sa tablette).
-    val secondes = state.holdUntil?.takeIf { pret }?.let { ((it - maintenant + 999) / 1000).coerceIn(1, 3) }
+    // Anti-triche : 2 secondes pour l'envoyer, sinon elle explose chez l'équipe qui la garde (2, 1 aussi sur sa tablette).
+    val secondes = state.holdUntil?.takeIf { pret }?.let { ((it - maintenant + 999) / 1000).coerceIn(1, 2) }
     // La musique du jeu suit la mèche et finit pile sur l'explosion (habillage).
     MusiquePatate(state.deadline, state.resumeAt ?: 0L, state.serverOffset, brule = p != null && !p.exploded && !explosion && !annonce && !revele && !state.paused)
 
@@ -94,7 +95,7 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                 Text(
                     when {
                         p == null -> ""
-                        explosion && boom?.held == true -> "Gardée plus de 3 secondes ! Toutes les autres équipes gagnent ${boom?.gain ?: 0} points !"
+                        explosion && boom?.held == true -> "Gardée plus de 2 secondes ! Toutes les autres équipes gagnent ${boom?.gain ?: 0} points !"
                         explosion -> "Toutes les autres équipes gagnent ${boom?.gain ?: 0} points !"
                         annonce -> "Attention, une nouvelle bombe arrive !"
                         secondes != null -> "Vite, envoyez la bombe ! Elle explose dans $secondes…"
@@ -106,7 +107,7 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (!state.paused) when {
-                    revele -> NextButton("Voir les scores", actions.next, key = "patate-bilan-${state.index}")
+                    revele -> NextButton(versClassement(state, "Voir les scores"), actions.next, key = "patate-bilan-${state.index}")
                     explosion || annonce -> {}
                     // Sans régie, à la télécommande : la bombe part au hasard (tablette en panne).
                     state.regies == 0 && pret -> TvButton("🎲 Envoyer au hasard", actions.potatoRandom, fontSize = 22.sp)

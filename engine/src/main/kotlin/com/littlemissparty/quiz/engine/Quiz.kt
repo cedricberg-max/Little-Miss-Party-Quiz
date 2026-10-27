@@ -151,6 +151,11 @@ data class Question(
      */
     val audioIds: List<String> = emptyList(),
     /**
+     * Statues musicales (depuis le 27/10) : les chansons, chacune un tour, jouées entières ([ChansonStatues.songId])
+     * ou, à défaut, par leur extrait. Vide : les extraits de [audioIds] (programmes d'avant).
+     */
+    val songs: List<ChansonStatues> = emptyList(),
+    /**
      * Blind test : extrait du refrain (environ 90 s), joué plus fort et en boucle à la révélation, jusqu'au
      * « Titre suivant » de l'animatrice (« on chante tous ensemble »). Absent : l'extrait du morceau est rejoué.
      */
@@ -278,6 +283,12 @@ data class Question(
 
     /** Statues musicales : la musique est-elle arrêtée (tout le monde se fige) à [elapsedMs] de chrono ? */
     fun statueAt(elapsedMs: Long): Boolean = statues.any { elapsedMs in it }
+
+    /** Statues musicales : les chansons jouées, une par tour ([songs], sinon les extraits d'avant). */
+    val statuesSongs: List<ChansonStatues> get() = songs.ifEmpty { audioIds.map { ChansonStatues(null, it) } }
+
+    /** Statues musicales : nombre de tours, un par chanson (un seul sur la musique maison de la TV). */
+    val statuesTours: Int get() = statuesSongs.size.coerceAtLeast(1)
 
     /** Blind test : points de l'équipe qui trouve ce morceau (avant le ×2 de la Super Finale). */
     val trackPoints: Int get() = points ?: Scoring.BLIND_POINTS

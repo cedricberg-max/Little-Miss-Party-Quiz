@@ -35,7 +35,9 @@ class PartieCompleteTest : TestTv() {
             ecran.voit("Toutes les équipes ont répondu")
             if (i == 0) ecran.capture("question-fermee")
             ecran.ok("Révéler la réponse")
-            ecran.voit("Voir les scores")
+            // Après la toute dernière question, plus de classement : les résultats finaux (cedric, 27/10).
+            val derniere = i == total - 1
+            ecran.voit(if (derniere) "Résultats finaux" else "Voir les scores")
             if (i == 0) ecran.capture("revelation", attente = Ecran.APRES_REVELATION)
 
             val factor = if (q.double) 2 else 1
@@ -46,10 +48,14 @@ class PartieCompleteTest : TestTv() {
             assertTrue("Points des Licornes question ${i + 1} : $gagne", gagne.toInt() in (Scoring.BASE * factor)..((Scoring.BASE + Scoring.MAX_BONUS) * factor))
             assertEquals(0L, (licornes.etat(code).child("awards/${dragons.uid}/points").value as Number).toLong())
 
+            if (derniere) {
+                ecran.ok("Résultats finaux")
+                return@forEachIndexed
+            }
             ecran.ok("Voir les scores")
             ecran.voit(titreClassement())
             if (i == 0) ecran.capture("classement")
-            ecran.ok(if (i == total - 1) "Résultats finaux" else "Question suivante")
+            ecran.ok("Question suivante")
         }
 
         ecran.voit("Bravo à toutes les équipes")

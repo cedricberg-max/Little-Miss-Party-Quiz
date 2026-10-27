@@ -580,21 +580,30 @@ function blindMode(st) {
   return st.kind === "blind" && st.blind != null && live.plan?.blindPlay === true;
 }
 
+/** Tout dernier jeu de la prestation : « suivant » lance directement les résultats finaux, sans classement juste avant (cedric, 27/10). */
+function derniere(st) {
+  return st.total != null && (st.index ?? 0) + 1 >= st.total;
+}
+
+function versClassement(st, libelle) {
+  return derniere(st) ? "Résultats finaux 🏆" : libelle;
+}
+
 function nextLabel(st, teamCount) {
   if (blindMode(st)) {
     const b = st.blind;
     if (st.phase === "question") return st.buzz?.team ? "Une équipe répond…" : b.waiting ? (b.played ? "▶ Relancer la musique" : "▶ Lancer le morceau") : "⏸ Arrêter la musique";
-    if (st.phase === "reveal") return blindHasNext(st) ? "Titre suivant ▶" : "Bilan du blind test";
+    if (st.phase === "reveal") return blindHasNext(st) ? "Titre suivant ▶" : versClassement(st, "Bilan du blind test");
   }
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
     case "intro": return "▶ Lancer l'épreuve";
     // Les coffres mystères : ce sont les équipes qui ouvrent les coffres, le bouton principal attend l'explosion.
-    case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
+    case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : versClassement(st, "Voir le classement")) : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
-    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : "Classement final 🏆") : "Voir les scores";
+    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : versClassement(st, "Voir les scores");
     case "scores": {
       const { next, questions } = gamesOf(st);
       // Bilan d'un jeu quitté en cours de route (cedric, 24/10) : « suivant » ouvre le jeu choisi.
@@ -1477,11 +1486,11 @@ function renderMime(st, teams) {
     : playing
     ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · ${m.left} image${m.left > 1 ? "s" : ""} restante${m.left > 1 ? "s" : ""}`
     : seule && m.last
-      ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. Touchez « Voir le classement », puis passez à l'équipe suivante.`
+      ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. Touchez « ${versClassement(st, "Voir le classement")} »${derniere(st) ? "." : ", puis passez à l'équipe suivante."}`
     : seule
       ? seule.length
         ? `Au tour de ${lEquipe(titre)} : ${name(mimeTeam ?? seule[0])}. Faites retourner celui qui devine, puis « Top départ ! ».`
-        : `Aucune équipe ${titre.replace(/^Équipe /, "")} dans la partie : choisissez l'équipe qui mime ces images, ou passez avec « Voir le classement ».`
+        : `Aucune équipe ${titre.replace(/^Équipe /, "")} dans la partie : choisissez l'équipe qui mime ces images, ou passez avec « ${versClassement(st, "Voir le classement")} ».`
     : m.last
         ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
         : "Qui commence ? Choisissez l'équipe puis « Top départ ! ».";
@@ -1490,12 +1499,12 @@ function renderMime(st, teams) {
   const remaining = mimeRemaining(st);
   const done = [...new Set(turns)].filter((id) => live.teams[id]).map(name);
   $("mime-progress").textContent = seule
-    ? done.length ? `Manche de ${lEquipe(titre)} jouée : touchez « Voir le classement ».` : `Manche de ${lEquipe(titre)} : ses ${m.left ?? 0} images`
+    ? done.length ? `Manche de ${lEquipe(titre)} jouée : touchez « ${versClassement(st, "Voir le classement")} ».` : `Manche de ${lEquipe(titre)} : ses ${m.left ?? 0} images`
     : !done.length
     ? `À faire passer : ${remaining.map(name).join(", ") || "aucune équipe"}`
     : remaining.length
       ? `Déjà passées : ${done.join(", ")} · Restent : ${remaining.map(name).join(", ")}`
-      : `Toutes les équipes sont passées (${done.join(", ")}) : touchez « Voir le classement ».`;
+      : `Toutes les équipes sont passées (${done.join(", ")}) : touchez « ${versClassement(st, "Voir le classement")} ».`;
   const box = $("mime-teams");
   box.hidden = !!playing;
   box.classList.toggle("picto", picto);
@@ -2946,7 +2955,7 @@ function renderPreview() {
     const answer = document.createElement("b");
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
-    if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; une équipe qui la garde plus de 3 secondes la voit exploser. À l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
+    if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; une équipe qui la garde plus de 2 secondes la voit exploser. À l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
     if (q.kind === "gonfleur") { li.textContent = "Chaque équipe tapote sa tablette pour gonfler son ballon : le premier qui éclate gagne."; list.appendChild(li); return; }
     if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
     // Blind test et quiz musical : le titre (et l'artiste) de chaque extrait.

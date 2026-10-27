@@ -953,16 +953,13 @@ class RegieTest : TestTv() {
             assertEquals("applied", regie.commande(code, "next"))
             attendreQue("porte ${k + 1} ouverte") { licornes.etat(code).takeIf { (it.child("portes/opened").value as? Number)?.toInt() == k + 1 } }
         }
-        ecran.voit("Classement final")
+        // Dernier jeu de la prestation : plus de classement, le bouton lance les résultats finaux (cedric, 27/10).
+        ecran.voit("Résultats finaux")
         ecran.capture("portes-ouvertes")
         assertEquals(maxOf(0L, avant - 150), points(licornes, code, licornes.uid))
         assertEquals(300L, points(dragons, code, dragons.uid))
 
-        // Classement final des portes, puis la grande finale : scores gardés, rien ne bloque.
-        assertEquals("applied", regie.commande(code, "next"))
-        attendreQue("classement des portes") { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
-        ecran.voit("Résultats finaux")
-        ecran.capture("portes-classement")
+        // Puis directement la grande finale : scores gardés, rien ne bloque.
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
         assertEquals(300L, points(dragons, code, dragons.uid))
@@ -1037,9 +1034,7 @@ class RegieTest : TestTv() {
         ecran.capture("bombe-bilan")
         assertTrue("jamais sous 0", points(licornes, code, licornes.uid) >= 0 && points(dragons, code, dragons.uid) >= 0)
 
-        // Classement, puis la fin : scores gardés, rien ne bloque.
-        assertEquals("applied", regie.commande(code, "next"))
-        attendreQue("classement") { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
+        // Dernier jeu : les résultats finaux directement, sans classement (cedric, 27/10) ; scores gardés, rien ne bloque.
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
     }
@@ -1089,9 +1084,7 @@ class RegieTest : TestTv() {
         assertEquals(avant + Scoring.MINI_PLAYED, points(licornes, code, licornes.uid))
         assertEquals("plus de tapes après la course", false, licornes.gonfler(code, 90))
 
-        // Classement, puis la fin : scores gardés, rien ne bloque.
-        assertEquals("applied", regie.commande(code, "next"))
-        attendreQue("classement") { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
+        // Dernier jeu : les résultats finaux directement, sans classement (cedric, 27/10) ; scores gardés, rien ne bloque.
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
     }
@@ -1132,24 +1125,26 @@ class RegieTest : TestTv() {
         // Points avant toute explosion : le bilan de fin compte toutes les bombes.
         val avant = mapOf(licornes.uid to points(licornes, code, licornes.uid), dragons.uid to points(licornes, code, dragons.uid))
         ecran.voit("La bombe est chez")
-        // L'équipe qui la tient l'envoie : seule sa tablette le peut (vérifié avant, pour ne pas manger les 3 secondes).
+        // L'équipe qui la tient l'envoie : seule sa tablette le peut (vérifié avant, pour ne pas manger les 2 secondes).
         assertEquals("pas l'autre équipe", false, autre.envoyerPatate(code, porteur.uid))
-        // Ni avant la fin de la mèche qui colle, ni après les 3 secondes qui suivent (sinon elle explose chez le porteur) :
-        // envoyée aussitôt la marge passée.
-        attendreQue("départ") { (System.currentTimeMillis() > pret + 1_200).takeIf { it } }
+        // Dès le départ (cedric, 27/10 : plus de mèche qui colle), et avant les 2 secondes (sinon elle explose chez le
+        // porteur) : un peu de marge, l'horloge de l'émulateur et celle du serveur diffèrent.
+        attendreQue("départ") { (System.currentTimeMillis() > pret + 400).takeIf { it } }
         assertTrue(porteur.envoyerPatate(code, autre.uid))
         attendreQue("bombe passée") {
             licornes.etat(code).takeIf { it.child("potato/holder").value == autre.uid && it.child("potato/booms").childrenCount == 0L }
         }
         ecran.capture("patate-passe")
-        // Mèche qui colle : pas de renvoi immédiat (vérifié seulement si l'émulateur est assez rapide pour tomber dedans).
-        // Large marge : l'horloge de l'émulateur et celle du serveur diffèrent, et l'envoi met parfois plus d'une seconde
-        // à arriver (le 20/10, un renvoi parti 500 ms avant la fin est arrivé 110 ms après et a été accepté, à raison).
-        val colle = (licornes.etat(code).child("potato/readyAt").value as Number).toLong()
-        if (System.currentTimeMillis() + 1_500 < colle) assertEquals("mèche qui colle", false, autre.envoyerPatate(code, porteur.uid))
+        // Ping-pong : chaque équipe la renvoie aussitôt reçue, sans attendre ; tous les renvois passent, rien n'explose.
+        assertTrue("renvoi immédiat", autre.envoyerPatate(code, porteur.uid))
+        attendreQue("renvoyée aussitôt") { licornes.etat(code).takeIf { it.child("potato/holder").value == porteur.uid } }
+        assertTrue("re-renvoi immédiat", porteur.envoyerPatate(code, autre.uid))
+        attendreQue("et encore") {
+            licornes.etat(code).takeIf { it.child("potato/holder").value == autre.uid && (it.child("potato/passes").value as? Number)?.toInt() == 3 }
+        }
+        assertEquals("rien n'a explosé pendant le ping-pong", 0L, licornes.etat(code).child("potato/booms").childrenCount)
+        ecran.voit("La bombe est chez")
 
-        // Trois bombes : chacune explose chez l'équipe qui la tient (ici, gardée plus de 3 secondes : elle perd des points,
-        // l'autre en gagne) ; entre deux, la box allume toute seule la suivante, annoncée « Bombe 2 sur 3 ».
         attendreQue("première explosion", 70_000) { licornes.etat(code).takeIf { it.child("potato/booms").childrenCount >= 1 } }
         ecran.capture("patate-boum")
         attendreQue("bombe 2 allumée", 20_000) { licornes.etat(code).takeIf { (it.child("potato/bomb").value as? Number)?.toInt() == 2 } }
@@ -1168,9 +1163,7 @@ class RegieTest : TestTv() {
         assertTrue("jamais plus de $POTATO_POINTS perdus par bombe", booms.all { it.second in 0..POTATO_POINTS.toLong() })
         assertEquals("plus d'envoi après l'explosion", false, licornes.envoyerPatate(code, dragons.uid))
 
-        // Classement, puis la fin : scores gardés, rien ne bloque.
-        assertEquals("applied", regie.commande(code, "next"))
-        attendreQue("classement") { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
+        // Dernier jeu : les résultats finaux directement, sans classement (cedric, 27/10) ; scores gardés, rien ne bloque.
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
     }

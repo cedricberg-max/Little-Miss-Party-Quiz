@@ -67,10 +67,37 @@ val LocalDessin = staticCompositionLocalOf<StateFlow<Dessin>> { MutableStateFlow
  * Le dessin reçu, au format de l'habillage (TableauDessin) : coordonnées 0..1, feutres et épaisseurs de l'ardoise.
  * Une couleur hors palette prend l'encre ; la gomme (couleur papier) recouvre le dessin là où elle passe.
  */
-fun Dessin.pourTableau(): List<TraitDessin> = traits.mapIndexed { i, t ->
+fun Dessin.pourTableau(): List<TraitDessin> = traits.mapIndexed { i, t -> pourTableau(t, i) }
+
+private fun Dessin.pourTableau(t: Trait, i: Int): TraitDessin {
     val couleur = t.couleur?.let { argb -> COULEURS_DESSIN.indexOfFirst { (it.toArgb().toLong() and 0xFFFFFFFFL) == argb }.coerceAtLeast(0) } ?: GOMME_DESSIN
     val points = FloatArray(t.points.size * 2) { k -> (if (k % 2 == 0) t.points[k / 2].first else t.points[k / 2].second) / 1000f }
-    TraitDessin("$effacements-$i", couleur, (t.epaisseur - 1).coerceIn(EPAISSEURS_DESSIN.indices), points)
+    return TraitDessin("$effacements-$i", couleur, (t.epaisseur - 1).coerceIn(EPAISSEURS_DESSIN.indices), points)
+}
+
+/**
+ * [pourTableau] au fil du dessin : seuls les morceaux arrivés depuis la dernière fois sont convertis, les autres gardent
+ * leur objet (le tableau ne trace que les nouveaux). Autre tour, « Tout effacer » ou plus anciens morceaux oubliés :
+ * tout est reconverti.
+ */
+internal class TableauAuFil {
+    private var cle: String? = null
+    private var effacements = -1
+    private var source: List<Trait> = emptyList()
+    private val faits = ArrayList<TraitDessin>()
+
+    fun pour(d: Dessin): List<TraitDessin> {
+        val suite = d.cle == cle && d.effacements == effacements && d.traits.size >= source.size &&
+            (source.isEmpty() || (d.traits[0] === source[0] && d.traits[source.size - 1] === source.last()))
+        if (!suite) {
+            faits.clear()
+            cle = d.cle
+            effacements = d.effacements
+        }
+        for (i in faits.size until d.traits.size) faits += d.pourTableau(d.traits[i], i)
+        source = d.traits
+        return ArrayList(faits)
+    }
 }
 
 @Composable
@@ -79,7 +106,8 @@ fun PictionaryScreen(state: UiState.Playing, actions: TvActions) {
     val team = state.teams.find { it.uid == m.team }
     val secret = state.teams.find { it.uid == m.secret }
     val dessin by LocalDessin.current.collectAsState()
-    val traits = remember(dessin) { dessin.pourTableau() }
+    val auFil = remember { TableauAuFil() }
+    val traits = remember(dessin) { auFil.pour(dessin) }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 20.dp)) {
             Box(
@@ -202,7 +230,7 @@ private fun PictoButtons(state: UiState.Playing, m: MimeUi, actions: TvActions) 
             NextButton("Trouvé !", actions.mimeFound, key = "picto-${m.turns.size}")
         } else if (m.secret == null) {
             val reste = state.teams.any { it.uid !in m.turns }
-            NextButton(if (reste) "Terminer le Pictionary" else "Voir le classement", actions.next, key = "picto-between-${m.turns.size}")
+            NextButton(if (reste) "Terminer le Pictionary" else versClassement(state, "Voir le classement"), actions.next, key = "picto-between-${m.turns.size}")
         }
     }
 }

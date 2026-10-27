@@ -102,6 +102,8 @@ data class GameState(
     val chests: Map<String, ChestRound> = emptyMap(),
     /** « Ça va exploser ! » en cours (null hors de ce jeu, ou avant que la mèche soit allumée). */
     val potato: PotatoRound? = null,
+    /** Statues musicales en cours (null hors de ce jeu, ou pendant sa présentation). */
+    val statues: StatuesRound? = null,
     /**
      * Heure du serveur de la fin de partie ([GameEnded]), seulement tant que la partie est terminée : une partie
      * reprise après la fin (jeu ajouté) n'en a plus, et la fin suivante donne la sienne. La Régie PC efface les
@@ -225,7 +227,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * Le chrono de [q] est en marche (ou en pause) : question ouverte, ou tour de mimes en cours. Portes mystères :
      * jamais de chrono, chacun prend son temps et l'animatrice ferme les choix quand tout le monde est prêt.
      */
-    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !state.intro && !q.isPortes && !q.isCoffres && (!q.isTurns || state.mimeTurn) &&
+    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !state.intro && !q.isPortes && !q.isCoffres && !q.isStatues && (!q.isTurns || state.mimeTurn) &&
         (!q.isPatate || state.potato?.exploded == false) &&
         (!q.isBlind || (state.buzz?.waiting == false && state.segments.isNotEmpty()))
 
@@ -252,7 +254,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      */
     fun networkPause(now: Long, offlineMs: Long, alreadyPaused: Boolean): GameEvent? {
         if (offlineMs < NETWORK_GRACE_MS || state.phase != Phase.QUESTION || state.paused) return null
-        if (alreadyPaused || remainingMs(now) == 0L) return null
+        // Statues musicales : pas de chrono, mais la chanson en cours se met en pause elle aussi.
+        val statues = question?.isStatues == true && !state.intro && state.statues?.enCours == true
+        if (alreadyPaused || (remainingMs(now) == 0L && !statues)) return null
         return pause(now, PAUSE_NETWORK)
     }
 
@@ -267,7 +271,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /**
      * « Ça va exploser ! » : heure du serveur où la bombe explose chez l'équipe qui la garde trop longtemps,
-     * [POTATO_HOLD_MS] après la mèche qui colle ; après une pause, l'équipe a de nouveau [POTATO_HOLD_MS] à la fin du
+     * [POTATO_HOLD_MS] après la réception ; après une pause, l'équipe a de nouveau [POTATO_HOLD_MS] à la fin du
      * décompte (tablette coupée, partie arrêtée : jamais sa faute). Null en pause, entre deux bombes ou hors de ce jeu.
      * Ne dit rien de la mèche, qui reste secrète.
      */
@@ -315,7 +319,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /** Jeu qui commence à la question [index] : il s'ouvre sur son écran de présentation, sans chrono ni buzzer. */
     private fun presented(s: GameState, index: Int): GameState =
-        if (quiz.intros && index in rounds) s.copy(intro = true, segments = emptyList(), resumeAt = null, mime = null, buzz = null)
+        if (quiz.intros && index in rounds) s.copy(intro = true, segments = emptyList(), resumeAt = null, mime = null, buzz = null, statues = null)
         else s.copy(intro = false)
 
     private fun reduceEvent(s: GameState, e: GameEvent): GameState? = when (e) {
@@ -325,7 +329,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         }
         is QuestionOpened -> {
             val q = quiz.questions.getOrNull(e.index)
-            val canOpen = s.phase == Phase.LOBBY || s.phase == Phase.SCORES || s.phase == Phase.REVEAL
+            // Statues musicales : du récap d'une chanson, « Jeu suivant » ouvre directement le jeu suivant.
+            val canOpen = s.phase == Phase.LOBBY || s.phase == Phase.SCORES || s.phase == Phase.REVEAL || statuesJugees(s)
             if (q == null || q.id != e.qid || !canOpen || e.index <= s.index || s.paused) null
             // Une manche de mimes s'ouvre sans chrono : il part au lancement du tour de chaque équipe.
             else presented(open(s, e.index, q, e.at), e.index)
@@ -348,6 +353,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (s.phase == Phase.LOBBY || s.phase == Phase.ENDED || s.paused) null
             else s.copy(
                 hold = Hold(e.reason, e.team, e.at),
+                // Statues musicales : la musique s'arrête là où elle en est ; elle reprendra au même endroit.
+                statues = s.statues?.arretee(e.at),
                 segments = if (s.phase == Phase.QUESTION && s.segments.lastOrNull()?.end == null && s.segments.isNotEmpty()) {
                     // Un chrono encore dans son décompte de reprise n'a pas commencé : rien n'est décompté.
                     s.segments.dropLast(1) + s.segments.last().let { it.copy(end = maxOf(e.at, it.start)) }
@@ -360,10 +367,13 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 s.copy(
                     hold = null,
                     resumeAt = start,
+                    // Statues musicales : la musique repart à la fin du décompte, si elle jouait (pas sur une statue).
+                    statues = s.statues?.let { st -> if (st.dancing && st.enCours && !s.intro) st.copy(since = start) else st },
                     // Entre deux tours de mimes, ou pendant la réponse d'une équipe qui a buzzé, aucun chrono ne tourne.
                     // Blind test en attente du « Lancer » de l'animatrice : la musique ne repart pas toute seule.
-                    // Présentation d'un jeu : le chrono attend le lancement.
-                    segments = if (s.phase == Phase.QUESTION && !s.intro && (s.mime == null || s.mimeTurn) && !s.buzzHeld && s.buzz?.waiting != true) s.segments + Segment(start) else s.segments,
+                    // Présentation d'un jeu : le chrono attend le lancement. Statues musicales : pas de chrono du tout.
+                    segments = if (s.phase == Phase.QUESTION && !s.intro && (s.mime == null || s.mimeTurn) && !s.buzzHeld && s.buzz?.waiting != true &&
+                        quiz.questions.getOrNull(s.index)?.isStatues != true) s.segments + Segment(start) else s.segments,
                 )
             }
         // Accepté en pause pour rejouer les journaux d'avant la pause générale (la fermeture levait la pause) ;
@@ -389,7 +399,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             // La pause est levée, comme pour un saut : le chrono s'arrête, le tour de mimes ou la mèche aussi.
             else s.copy(
                 phase = Phase.SCORES, hold = null, resumeAt = null, segments = closeSegments(s, e.at), mime = null, buzz = null,
-                potato = null, leaveTo = e.qid,
+                potato = null, statues = null, leaveTo = e.qid,
             )
         is ScoresShown -> when {
             s.paused -> null
@@ -495,7 +505,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (e.target !in s.adjustments) null
             else s.copy(adjustments = s.adjustments - e.target)
         is GameEnded ->
-            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null, intro = false, endedAt = e.at)
+            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null, intro = false, endedAt = e.at, statues = null)
         // Mauvaise prestation : retour au salon d'attente, comme une partie neuve (jamais après un point, ni après la fin).
         is ProgramReset -> if (!replaceable(s)) null else GameState()
         is PictoShown -> {
@@ -658,6 +668,44 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 )
             }
         }
+        is StatuesStopped -> statuesEnCours(s, e.qid)?.let { st ->
+            if (!st.dancing) null else s.copy(statues = st.arretee(e.at).copy(dancing = false))
+        }
+        is StatuesDanced -> statuesEnCours(s, e.qid)?.let { st ->
+            if (st.dancing) null else s.copy(statues = st.copy(dancing = true, since = e.at))
+        }
+        is StatuesSongEnded -> statuesEnCours(s, e.qid)?.let { st ->
+            if (e.song != st.song) null else s.copy(statues = st.arretee(e.at).copy(dancing = false, ended = true))
+        }
+        is StatuesSongWon -> {
+            val q = quiz.questions.getOrNull(s.index)
+            val st = s.statues
+            if (s.phase != Phase.QUESTION || s.intro || s.paused || q == null || !q.isStatues || q.id != e.qid || st == null || st.result != null ||
+                e.song != st.song || e.winners.any { it.isBlank() } || e.winners.distinct().size != e.winners.size) null
+            else {
+                val factor = factorIn(s, s.index)
+                // 300 pour chaque gagnante, 150 pour chacune des autres (×2 si doublé) ; « Personne » : rien pour personne.
+                val gains = if (e.winners.isEmpty()) emptyMap()
+                else e.winners.associateWith { Scoring.MINI_WIN * factor } +
+                    e.others.filter { it.isNotBlank() && it !in e.winners }.associateWith { Scoring.MINI_PLAYED * factor }
+                val avant = s.awards[q.id].orEmpty()
+                val cumul = avant + gains.mapValues { (team, pts) ->
+                    val a = avant[team]
+                    Award(null, correct = (a?.correct == true) || team in e.winners, points = (a?.points ?: 0) + pts, bonus = a?.bonus ?: 0)
+                }
+                s.copy(
+                    statues = st.arretee(e.at).copy(dancing = false, result = StatuesResult(st.song, e.winners, gains, e.at)),
+                    awards = s.awards + (q.id to cumul),
+                )
+            }
+        }
+        is StatuesSongStarted -> {
+            val q = quiz.questions.getOrNull(s.index)
+            val st = s.statues
+            if (s.phase != Phase.QUESTION || s.intro || s.paused || q == null || !q.isStatues || q.id != e.qid || st?.result == null ||
+                e.song != st.song + 1 || e.song >= q.statuesTours) null
+            else s.copy(statues = StatuesRound(song = e.song, since = e.at))
+        }
         is BalloonBurst -> {
             val q = quiz.questions.getOrNull(s.index)
             if (s.phase != Phase.QUESTION || q == null || !q.isGonfleur || q.id != e.qid || s.paused || e.teams.isEmpty() ||
@@ -694,7 +742,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * Question [q] ouverte : chrono lancé, ou manche de mimes sans chrono (il part au tour de chaque équipe).
      * Une manche de mimes rouverte (jeu rejoué) repart de zéro : ses mimes ne comptent jamais deux fois.
      */
-    private fun open(s0: GameState, index: Int, q: Question, at: Long): GameState = s0.copy(potato = null, leaveTo = null).let { s ->
+    private fun open(s0: GameState, index: Int, q: Question, at: Long): GameState = s0.copy(potato = null, leaveTo = null, statues = null).let { s ->
         if (q.isTurns) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null,
             mimes = s.mimes - q.id, mime = MimeRound(deck = q.cards.indices.toList()), turnPoints = s.turnPoints + (q.id to q.foundPoints),
@@ -714,6 +762,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(go)), resumeAt = go, mime = null, buzz = null,
             )
         }
+        // Statues musicales : pas de chrono ; la première chanson part de 0:00 dès le lancement du jeu.
+        else if (q.isStatues) s.copy(
+            phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null,
+            awards = s.awards - q.id, statues = StatuesRound(since = at),
+        )
         // Blind test : le morceau s'annonce, la musique attend le « Lancer le morceau » de l'animatrice.
         else if (q.isBlind) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null,
@@ -763,23 +816,32 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             question?.isGonfleur == true -> null
             // « Ça va exploser ! » : seule la mèche décide de la fin.
             question?.isPatate == true -> null
+            // Statues musicales : du récap d'une chanson, « Jeu suivant » (ou les résultats finaux) ; pendant une chanson,
+            // il faut d'abord désigner les gagnantes.
+            question?.isStatues == true -> if (!statuesJugees(state)) null else if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
             state.mime == null -> close(now)
             state.mimeTurn -> mimeStop(now)
-            else -> emit(ScoresShown(nextSeq, now))
+            else -> scoresOuFin(now)
         }
         Phase.CLOSED -> reveal(now, answers)
         // Vrai ou Faux express : « suivant » passe à l'affirmation suivante, comme la box le fait seule.
         Phase.REVEAL -> when {
-            question?.isExpress == true -> expressStep(now, answers)
+            question?.isExpress == true -> expressStep(now, answers, manuel = true)
             // Portes mystères : « suivant » ouvre la porte suivante, puis montre le classement final.
             question?.isPortes == true && state.doorsOpened < question!!.choices.size -> openDoor(now)
             // Blind test : « Titre suivant » annonce le morceau suivant de la playlist, sans le lancer.
             nextTrack() != null -> openQuestion(state.index + 1, now)
-            else -> emit(ScoresShown(nextSeq, now))
+            else -> scoresOuFin(now)
         }
         Phase.SCORES -> leaveTarget?.let { goto(it, now) } ?: if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
         Phase.ENDED -> null
     }
+
+    /**
+     * Fin d'un jeu : son classement, sauf après le tout dernier jeu de la prestation, où « suivant » lance directement les
+     * résultats finaux (cedric, 27/10 : pas de classement juste avant, le podium fait le suspense).
+     */
+    private fun scoresOuFin(now: Long): GameEvent? = if (isLastQuestion) end(now) else emit(ScoresShown(nextSeq, now))
 
     fun openQuestion(index: Int, now: Long): GameEvent? {
         val q = quiz.questions.getOrNull(index) ?: return null
@@ -891,7 +953,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     /** Reprise avec le décompte 3, 2, 1 : le chrono repart quand il se termine. */
     fun resume(now: Long, countdownMs: Long = RESUME_COUNTDOWN_MS): GameEvent? = emit(Resumed(nextSeq, now, countdownMs))
     fun close(now: Long): GameEvent? =
-        if (state.paused || question?.isGonfleur == true || question?.isPatate == true) null else emit(QuestionClosed(nextSeq, now))
+        // Statues musicales : pas de chrono à arrêter, Sarah désigne les gagnantes de chaque chanson.
+        if (state.paused || question?.isGonfleur == true || question?.isPatate == true || question?.isStatues == true) null
+        else emit(QuestionClosed(nextSeq, now))
 
     /** « Ça va exploser ! » : une mèche est à allumer (jeu lancé, pas encore de bombe, ou la précédente vient d'exploser). */
     fun needsPotato(): Boolean {
@@ -925,8 +989,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     }
 
     /**
-     * « Ça va exploser ! » : [team] envoie la bombe à [to]. Refusé si [team] ne la tient pas, avant la fin de la mèche qui
-     * colle, vers l'envoyeur (sauf à 2 équipes), en pause ou pendant un décompte.
+     * « Ça va exploser ! » : [team] envoie la bombe à [to]. Refusé si [team] ne la tient pas, vers l'envoyeur
+     * (sauf à 2 équipes), en pause ou pendant un décompte. Renvoi permis dès la réception (cedric, 27/10).
      */
     fun passPotato(team: String, to: String, now: Long, sentAt: Long = now): GameEvent? {
         val p = state.potato ?: return null
@@ -989,9 +1053,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     /**
      * Vrai ou Faux express : l'étape que la box fait toute seule après un court délai ([expressDelayMs]).
      * Question fermée : révélation. Révélation : affirmation suivante de la même manche, ou scores à la
-     * fin de la manche. Rien en pause, ni hors d'une manche express.
+     * fin de la manche. Rien en pause, ni hors d'une manche express. Après la toute dernière affirmation de la prestation,
+     * la box attend l'animatrice ([manuel]) : son « suivant » lance les résultats finaux.
      */
-    fun expressStep(now: Long, answers: Map<String, Answer>): GameEvent? {
+    fun expressStep(now: Long, answers: Map<String, Answer>, manuel: Boolean = false): GameEvent? {
         val q = question ?: return null
         if (!q.isExpress || state.paused) return null
         return when (state.phase) {
@@ -999,7 +1064,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             Phase.REVEAL -> {
                 val following = quiz.questions.getOrNull(state.index + 1)
                 if (following != null && following.isExpress && following.roundTitle == q.roundTitle) openQuestion(state.index + 1, now)
-                else emit(ScoresShown(nextSeq, now))
+                else if (isLastQuestion && !manuel) null
+                else scoresOuFin(now)
             }
             else -> null
         }
@@ -1143,8 +1209,43 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return emit(RevealCut(nextSeq, now, q.id))
     }
 
-    /** Statues musicales : l'animatrice désigne l'équipe gagnante ; [others] = les autres équipes inscrites. */
+    /** Statues musicales (journaux d'avant le 27/10) : l'équipe gagnante du jeu entier ; [others] = les autres équipes inscrites. */
     fun statuesWin(team: String, others: Collection<String>, now: Long): GameEvent? = emit(StatuesWon(nextSeq, now, team, others.toList()))
+
+    /** Statues musicales : « ✋ STATUE ! », la musique se coupe net. */
+    fun statuesStop(now: Long): GameEvent? = state.qid?.let { emit(StatuesStopped(nextSeq, now, it)) }
+
+    /** Statues musicales : « 💃 On danse ! », la musique reprend là où elle s'était arrêtée. */
+    fun statuesPlay(now: Long): GameEvent? = state.qid?.let { emit(StatuesDanced(nextSeq, now, it)) }
+
+    /** Statues musicales : la box a joué la chanson [song] jusqu'au bout. */
+    fun statuesSongEnded(song: Int, now: Long): GameEvent? = state.qid?.let { emit(StatuesSongEnded(nextSeq, now, it, song)) }
+
+    /**
+     * Statues musicales : les gagnantes de la chanson en cours ([winners], vide pour « Personne ») ; [others] = les autres
+     * équipes inscrites. La chanson s'arrête, la TV annonce les gagnantes puis le récap.
+     */
+    fun statuesSongWin(winners: List<String>, others: Collection<String>, now: Long): GameEvent? {
+        val st = state.statues ?: return null
+        return state.qid?.let { emit(StatuesSongWon(nextSeq, now, it, st.song, winners, others.filter { o -> o !in winners })) }
+    }
+
+    /** Statues musicales : « ▶ Chanson suivante », une fois les gagnantes de la chanson désignées. */
+    fun statuesNextSong(now: Long): GameEvent? {
+        val st = state.statues ?: return null
+        return state.qid?.let { emit(StatuesSongStarted(nextSeq, now, it, st.song + 1)) }
+    }
+
+    /** Statues musicales : la chanson en cours, si elle se joue encore (ni jugée ni finie) et que rien ne la fige. */
+    private fun statuesEnCours(s: GameState, qid: String): StatuesRound? {
+        val q = quiz.questions.getOrNull(s.index)
+        val st = s.statues
+        return st.takeIf { s.phase == Phase.QUESTION && !s.intro && !s.paused && q != null && q.isStatues && q.id == qid && st != null && st.enCours }
+    }
+
+    /** Statues musicales : les gagnantes de la chanson en cours sont désignées (récap à l'écran). */
+    private fun statuesJugees(s: GameState): Boolean =
+        s.phase == Phase.QUESTION && !s.intro && quiz.questions.getOrNull(s.index)?.isStatues == true && s.statues?.result != null
 
     /** Image floue : [team] a buzzé la première (refusé si une équipe attend déjà son verdict, ou si [team] est bloquée). */
     fun buzz(team: String, now: Long): GameEvent? = emit(Buzzed(nextSeq, now, team))
@@ -1176,7 +1277,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         if (question?.isExpress != true || state.paused) return null
         return when (state.phase) {
             Phase.CLOSED -> EXPRESS_CLOSED_MS
-            Phase.REVEAL -> EXPRESS_REVEAL_MS
+            // Toute dernière affirmation de la prestation : la box attend l'animatrice ([expressStep]).
+            Phase.REVEAL -> EXPRESS_REVEAL_MS.takeUnless { isLastQuestion }
             else -> null
         }
     }

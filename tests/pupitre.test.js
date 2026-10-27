@@ -462,16 +462,22 @@ describe("pupitre", () => {
     await roses.locator(".pc-equipe", { hasText: "Les Bleus" }).click();
     await waitFor(async () => (await read("potatoPass/pt-a"))?.to === b, "envoi aux Bleus reçu par la box");
     await roses.locator(".pc-texte", { hasText: "Envoyée à l'équipe Les Bleus !" }).waitFor();
-    // Chez les Bleus : la mèche colle 2 s, puis seuls les Verts sont permis (pas de retour aux Roses).
+    // Chez les Bleus : plus de mèche qui colle (cedric, 27/10), seuls les Verts sont permis tout de suite (pas de retour
+    // aux Roses).
     now = Date.now();
-    await hostState(question({ ...base, potato: potato({ holder: b, from: r, since: now, readyAt: now + 2000, targets: [v], hit: [r, b], passes: 1, key: "pt-b" }) }));
-    await bleus.locator(".pc-texte", { hasText: "La mèche colle" }).waitFor();
-    assert.equal(await bleus.locator(".pc-equipe:not([disabled])").count(), 0, "rien avant la fin de la mèche qui colle");
+    await hostState(question({ ...base, potato: potato({ holder: b, from: r, since: now, readyAt: now, holdUntil: now + 2000, targets: [v], hit: [r, b], passes: 1, key: "pt-b" }) }));
+    await bleus.locator(".pc-texte", { hasText: "Vite, envoyez-la à une autre équipe !" }).waitFor();
+    assert.equal(await bleus.locator(".pc-colle:not([hidden])").count(), 0, "plus de barre de mèche qui colle");
+    assert.equal(await bleus.locator(".pc-equipe", { hasText: "Les Verts" }).isEnabled(), true, "Verts permis dès la réception");
     await bleus.locator(".pc-equipe", { hasText: "Les Roses" }).locator("small", { hasText: "vient de vous l'envoyer" }).waitFor();
-    await waitFor(() => bleus.locator(".pc-equipe", { hasText: "Les Verts" }).isEnabled(), "Verts permis après la mèche qui colle", 6000);
     assert.equal(await bleus.locator(".pc-equipe", { hasText: "Les Roses" }).isDisabled(), true, "pas de retour à l'envoyeur");
-    await bleus.locator(".pc-equipe", { hasText: "Les Verts" }).click();
-    await waitFor(async () => (await read("potatoPass/pt-b"))?.to === v, "envoi aux Verts reçu par la box");
+    // Le doigt touche l'écran (sans se relever) : la bombe part déjà.
+    await bleus.locator(".pc-equipe", { hasText: "Les Verts" }).dispatchEvent("pointerdown", { button: 0, pointerType: "touch", isPrimary: true });
+    await waitFor(async () => (await read("potatoPass/pt-b"))?.to === v, "envoi aux Verts reçu par la box, dès le doigt posé");
+    await bleus.locator(".pc-texte", { hasText: "Envoyée à l'équipe Les Verts !" }).waitFor();
+    // Le doigt se relève : le clic qui suit n'envoie rien de plus.
+    await bleus.locator(".pc-equipe", { hasText: "Les Verts" }).dispatchEvent("click");
+    assert.equal((await read("potatoPass/pt-b"))?.to, v);
     // La première bombe explose chez les Verts : ils perdent 100, les autres gagnent 100, et une autre bombe arrive.
     now = Date.now();
     const boom1 = { holder: v, at: now, lost: 100, gain: 100 };
@@ -518,7 +524,7 @@ describe("pupitre", () => {
     for (const p of [roses, bleus, verts]) await p.context().close();
   });
 
-  test("« Ça va exploser ! » : 3 secondes pour l'envoyer, un gros 3, 2, 1 sur la tablette, sinon BOUM « Gardée plus de 3 secondes » (cedric, 21/10)", async () => {
+  test("« Ça va exploser ! » : 2 secondes pour l'envoyer dès la réception, un gros 2, 1 sur la tablette, sinon BOUM « Gardée plus de 2 secondes » (cedric, 21/10 et 27/10)", async () => {
     const roses = await openPupitre();
     await joinTeam(roses, "Les Roses");
     const bleus = await openPupitre();
@@ -538,18 +544,16 @@ describe("pupitre", () => {
         if (t && window.chiffres.at(-1) !== t) window.chiffres.push(t);
       }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
     });
-    // La mèche colle encore : pas de décompte.
+    // Elle arrive : 2, 1 en grand sur la bombe tout de suite, chez les Roses seulement (un peu plus de 2 s : la machine de
+    // test peut être lente).
     let now = Date.now();
-    await hostState(question({ ...base, potato: potato({ holder: r, since: now, readyAt: now + 2500, holdUntil: now + 5500, key: "pt-a" }) }));
-    await roses.locator(".pc-texte", { hasText: "La mèche colle" }).waitFor();
-    assert.equal(await chiffre(roses).count(), 0, "pas de décompte pendant la mèche qui colle");
-    // Elle peut partir : 3, 2, 1 en grand sur la bombe, chez les Roses seulement.
-    await chiffre(roses).waitFor({ timeout: 5000 });
+    await hostState(question({ ...base, potato: potato({ holder: r, since: now, readyAt: now, holdUntil: now + 2500, key: "pt-a" }) }));
+    await chiffre(roses).waitFor({ timeout: 2000 });
     if (process.env.CAPTURES) await roses.screenshot({ path: `${process.env.CAPTURES}/patate-decompte-portrait.png` });
     assert.equal(await chiffre(bleus).count(), 0, "seule l'équipe qui tient la bombe voit le décompte");
     await roses.setViewportSize({ width: 1280, height: 800 });
     await chiffre(roses).filter({ hasText: /^1$/ }).waitFor({ timeout: 6000 });
-    assert.deepEqual(await roses.evaluate(() => window.chiffres), ["3", "2", "1"], "3, 2, 1 dans l'ordre");
+    assert.deepEqual(await roses.evaluate(() => window.chiffres), ["2", "1"], "2, 1 dans l'ordre");
     if (process.env.CAPTURES) await roses.screenshot({ path: `${process.env.CAPTURES}/patate-decompte-paysage.png` });
     // Le chiffre reste dans la bombe, entier, et ne cache pas les équipes.
     const cadre = await roses.evaluate(() => {
@@ -558,13 +562,13 @@ describe("pupitre", () => {
       return { dedans: c.left >= bombe.left - 1 && c.right <= bombe.right + 1 && c.top >= bombe.top - 1 && c.bottom <= bombe.bottom + 1, chevauche: !(c.right <= eq.left || c.left >= eq.right || c.bottom <= eq.top || c.top >= eq.bottom) };
     });
     assert.deepEqual(cadre, { dedans: true, chevauche: false });
-    // En pause : plus de décompte (la TV redonne 3 secondes à la reprise).
-    await hostState(question({ ...base, paused: true, potato: potato({ holder: r, since: now, readyAt: now + 2500, holdUntil: null, key: "pt-a" }) }));
+    // En pause : plus de décompte (la TV redonne 2 secondes à la reprise).
+    await hostState(question({ ...base, paused: true, potato: potato({ holder: r, since: now, readyAt: now, holdUntil: null, key: "pt-a" }) }));
     await waitFor(async () => (await chiffre(roses).count()) === 0, "plus de décompte en pause");
     // Gardée trop longtemps : BOUM chez les Roses, avant la fin de la mèche.
     now = Date.now();
     await hostState(question({ ...base, potato: potato({ holder: r, since: now - 6000, readyAt: now - 4000, key: null, exploded: true, booms: [{ holder: r, at: now, lost: 0, gain: 100, held: true }] }) }));
-    await roses.locator(".pc-titre", { hasText: "BOUM ! Gardée plus de 3 secondes" }).waitFor();
+    await roses.locator(".pc-titre", { hasText: "BOUM ! Gardée plus de 2 secondes" }).waitFor();
     await bleus.locator(".pc-titre", { hasText: "BOUM ! L'équipe Les Roses l'a gardée trop longtemps" }).waitFor();
     await bleus.locator(".pc-texte", { hasText: "+100 points pour vous !" }).waitFor();
     assert.equal(await chiffre(roses).count(), 0);

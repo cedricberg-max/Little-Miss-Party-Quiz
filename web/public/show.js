@@ -44,7 +44,7 @@ export const bombesDe = (round) => (Number.isInteger(round?.bombs) ? Math.min(6,
 const EN_LETTRES = ["Une", "Deux", "Trois", "Quatre", "Cinq", "Six"];
 /** « Trois bombes par partie », « Une bombe par partie »… */
 export const bombesParPartie = (n = PATATE_BOMBES_DEFAUT) => `${EN_LETTRES[n - 1] ?? n} bombe${n > 1 ? "s" : ""} par partie`;
-export const regleDePatate = (n = PATATE_BOMBES_DEFAUT) => `la bombe peut exploser à tout moment ! Chaque équipe s'en débarrasse en l'envoyant à une autre depuis sa tablette, en 3 secondes au plus, sinon elle lui explose dans les mains ; à chaque explosion, l'équipe qui la tient perd 100 points et toutes les autres en gagnent 100. ${bombesParPartie(n)}`;
+export const regleDePatate = (n = PATATE_BOMBES_DEFAUT) => `la bombe peut exploser à tout moment ! Chaque équipe s'en débarrasse en l'envoyant à une autre depuis sa tablette, dès qu'elle la reçoit : au bout de 2 secondes, elle lui explose dans les mains ; à chaque explosion, l'équipe qui la tient perd 100 points et toutes les autres en gagnent 100. ${bombesParPartie(n)}`;
 export const PATATE_RULE = regleDePatate();
 /** Type de manche joué : les anciennes Portes mystères deviennent les Coffres mystères. */
 export const roundType = (type) => (type === "portes" ? "coffres" : type);

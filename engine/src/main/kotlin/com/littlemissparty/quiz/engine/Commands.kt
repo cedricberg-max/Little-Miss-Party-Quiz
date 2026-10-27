@@ -43,8 +43,17 @@ sealed interface Command {
     /** « Ça va exploser ! » : « 🏁 Dernière bombe » (bombe en cours) ou « ⏭ Jeu suivant » (entre deux bombes). */
     data class PotatoStop(override val id: String, override val expectSeq: Int) : Command
 
-    /** Statues musicales : l'équipe gagnante désignée par l'animatrice. */
-    data class StatuesWin(override val id: String, override val expectSeq: Int, val team: String) : Command
+    /** Statues musicales : les gagnantes de la chanson en cours ([teams] vide : « Personne »). */
+    data class StatuesWin(override val id: String, override val expectSeq: Int, val teams: List<String>) : Command
+
+    /** Statues musicales : « ✋ STATUE ! », la musique se coupe net. */
+    data class StatuesStop(override val id: String, override val expectSeq: Int) : Command
+
+    /** Statues musicales : « 💃 On danse ! », la musique reprend. */
+    data class StatuesPlay(override val id: String, override val expectSeq: Int) : Command
+
+    /** Statues musicales : « ▶ Chanson suivante », après les gagnantes de la chanson. */
+    data class StatuesSong(override val id: String, override val expectSeq: Int) : Command
 
     /** Blind test : lancer ou relancer la musique du morceau. */
     data class BlindPlay(override val id: String, override val expectSeq: Int) : Command
@@ -99,7 +108,11 @@ sealed interface Command {
                 "buzz_ko" -> Judge(id, seq, false)
                 // Blind test : bon titre et bon artiste.
                 "buzz_bonus" -> Judge(id, seq, true, bonus = true)
-                "statues_win" -> StatuesWin(id, seq, m["team"] as String)
+                // Régie d'avant le 27/10 : une seule gagnante, `team`.
+                "statues_win" -> StatuesWin(id, seq, (m["teams"] as? List<*>)?.map { it as String } ?: listOfNotNull(m["team"] as String?))
+                "statues_stop" -> StatuesStop(id, seq)
+                "statues_play" -> StatuesPlay(id, seq)
+                "statues_song" -> StatuesSong(id, seq)
                 "blind_play" -> BlindPlay(id, seq)
                 "blind_unblock" -> BlindUnblock(id, seq)
                 "blind_reveal" -> BlindReveal(id, seq)
@@ -147,7 +160,7 @@ fun Game.execute(
         cmd is Command.Judge || cmd is Command.StatuesWin || cmd is Command.BlindPlay || cmd is Command.BlindUnblock ||
         cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut ||
         cmd is Command.PictoShow || cmd is Command.PictoDraw || cmd is Command.ChestRandom || cmd is Command.PotatoRandom ||
-        cmd is Command.PotatoStop
+        cmd is Command.PotatoStop || cmd is Command.StatuesStop || cmd is Command.StatuesPlay || cmd is Command.StatuesSong
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
     // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
@@ -187,7 +200,10 @@ fun Game.execute(
         is Command.PictoDraw -> pictoDraw(now)
         // Un double appui ne juge qu'une fois : il visait l'équipe que la régie affichait.
         is Command.Judge -> judgeBuzz(cmd.ok, now, cmd.bonus)
-        is Command.StatuesWin -> if (cmd.team !in teams) return refused("unknown_team") else statuesWin(cmd.team, teams - cmd.team, now)
+        is Command.StatuesWin -> if (!teams.containsAll(cmd.teams)) return refused("unknown_team") else statuesSongWin(cmd.teams.distinct(), teams - cmd.teams.toSet(), now)
+        is Command.StatuesStop -> statuesStop(now)
+        is Command.StatuesPlay -> statuesPlay(now)
+        is Command.StatuesSong -> statuesNextSong(now)
         is Command.BlindPlay -> blindPlay(now, unblock = allTried)
         is Command.BlindUnblock -> blindUnblock(now)
         is Command.BlindReveal -> blindReveal(now)

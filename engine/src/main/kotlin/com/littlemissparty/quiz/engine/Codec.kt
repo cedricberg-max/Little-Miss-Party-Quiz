@@ -53,6 +53,14 @@ object Codec {
             is RevealCut -> mapOf("type" to "reveal_cut", "qid" to e.qid)
             is BuzzJudged -> if (e.bonus) mapOf("type" to "buzz_judge", "ok" to e.ok, "bonus" to true) else mapOf("type" to "buzz_judge", "ok" to e.ok)
             is StatuesWon -> mapOf("type" to "statues_win", "team" to e.team, "others" to e.others.ifEmpty { null })
+            is StatuesStopped -> mapOf("type" to "statues_stop", "qid" to e.qid)
+            is StatuesDanced -> mapOf("type" to "statues_play", "qid" to e.qid)
+            is StatuesSongEnded -> mapOf("type" to "statues_end", "qid" to e.qid, "song" to e.song)
+            is StatuesSongWon -> mapOf(
+                "type" to "statues_song_win", "qid" to e.qid, "song" to e.song, "winners" to e.winners.ifEmpty { null },
+                "others" to e.others.ifEmpty { null },
+            )
+            is StatuesSongStarted -> mapOf("type" to "statues_song", "qid" to e.qid, "song" to e.song)
             is PotatoLit -> mapOf("type" to "potato", "qid" to e.qid, "holder" to e.holder, "fuseMs" to e.fuseMs, "teams" to e.teams, "bomb" to e.bomb, "total" to e.total)
             is PotatoStopped -> mapOf("type" to "potato_stop", "qid" to e.qid)
             is PotatoPassed -> mapOf("type" to "potato_pass", "qid" to e.qid, "from" to e.from, "to" to e.to)
@@ -120,6 +128,14 @@ object Codec {
             "potato_boom" -> PotatoExploded(seq, at, m["qid"] as String, m["holder"] as String)
             "balloon" -> BalloonBurst(seq, at, m["qid"] as String, m["team"] as String, (m["teams"] as? List<*>).orEmpty().map { it as String })
             "statues_win" -> StatuesWon(seq, at, m["team"] as String, (m["others"] as? List<*>).orEmpty().map { it as String })
+            "statues_stop" -> StatuesStopped(seq, at, m["qid"] as String)
+            "statues_play" -> StatuesDanced(seq, at, m["qid"] as String)
+            "statues_end" -> StatuesSongEnded(seq, at, m["qid"] as String, m.num("song").toInt())
+            "statues_song_win" -> StatuesSongWon(
+                seq, at, m["qid"] as String, m.num("song").toInt(),
+                (m["winners"] as? List<*>).orEmpty().map { it as String }, (m["others"] as? List<*>).orEmpty().map { it as String },
+            )
+            "statues_song" -> StatuesSongStarted(seq, at, m["qid"] as String, m.num("song").toInt())
             "buzz_judge" -> BuzzJudged(seq, at, m["ok"] == true, m["bonus"] == true)
             "goto" -> Jumped(seq, at, m.num("index").toInt(), m["qid"] as String, (m["clear"] as? List<*>).orEmpty().map { it as String })
             "reset" -> ProgramReset(seq, at)
@@ -232,9 +248,10 @@ object Codec {
                 // Réponses en images : la photo de chaque proposition ("" pour une proposition en texte).
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
                 // « Ça va exploser ! » : la mèche reste un secret, même pour les tablettes.
-                "durationMs" to q.durationMs.takeIf { !q.isPatate },
+                // Statues musicales (depuis le 27/10) : plus de chrono, chaque chanson dure ce qu'elle dure.
+                "durationMs" to q.durationMs.takeIf { !q.isPatate && !q.isStatues },
                 "deadline" to game.deadline().takeIf { !q.isPatate },
-                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && !q.isStatues && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
                 "correct" to if (revealed && !q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
@@ -246,6 +263,7 @@ object Codec {
             if (q.isPortes) out["portes"] = portesState(game)
             if (q.isCoffres) out["chests"] = chestState(game)
             if (q.isPatate) out["potato"] = potatoState(game)
+            if (q.isStatues) out["statues"] = statuesState(game)
             if (q.isGonfleur) out["pump"] = pumpKey(game)?.let { mapOf("key" to it, "goAt" to game.pumpGoAt, "target" to PUMP_TARGET) }
             if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
@@ -278,6 +296,30 @@ object Codec {
                 .associate { it.index.toString() to it.value },
             "picks" to s.awards[q.id].orEmpty().mapValues { it.value.choice },
         )
+    }
+
+    /**
+     * Statues musicales, pour la TV, la régie et les tablettes : la chanson en cours (et le nombre de chansons, leurs
+     * titres), si la musique joue (DANSEZ !) ou non (STATUE !), où elle en est, et les gagnantes une fois désignées.
+     */
+    fun statuesState(game: Game): Map<String, Any?> {
+        val q = game.question ?: return emptyMap()
+        val chansons = q.statuesSongs
+        val out = linkedMapOf<String, Any?>(
+            "songs" to q.statuesTours,
+            "titles" to chansons.map { it.title.orEmpty() }.takeIf { t -> t.any { it.isNotEmpty() } },
+            "annonceMs" to STATUES_ANNONCE_MS,
+        )
+        val st = game.state.statues ?: return out
+        out += mapOf(
+            "song" to st.song,
+            "dancing" to st.dancing,
+            "since" to st.since,
+            "playedMs" to st.playedMs,
+            "ended" to st.ended,
+            "result" to st.result?.let { r -> mapOf("song" to r.song, "winners" to r.winners, "gains" to r.gains, "at" to r.at) },
+        )
+        return out
     }
 
     /** « Ça va exploser ! » : clé où la tablette de l'équipe qui tient la bombe écrit son envoi (`potatoPass/`), une par réception. */

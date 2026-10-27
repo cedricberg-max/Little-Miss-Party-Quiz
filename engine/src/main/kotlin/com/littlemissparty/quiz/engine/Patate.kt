@@ -3,22 +3,24 @@ package com.littlemissparty.quiz.engine
 /*
  * « Ça va exploser ! » : une bombe passe d'équipe en équipe, chaque équipe choisit sur sa tablette à qui l'envoyer.
  * La mèche brûle pendant [POTATO_FUSE_MS], la durée exacte de la musique du jeu (la TV la montre qui raccourcit, sans
- * secondes). Pas de retour à l'envoyeur (sauf à 2 équipes) ; « mèche qui colle » : on ne peut renvoyer la bombe
- * que [POTATO_STICKY_MS] après l'avoir reçue, donc la vitesse du réseau ne désigne jamais le perdant. Contre la triche
- * (garder la bombe et l'envoyer au dernier moment), l'équipe a ensuite [POTATO_HOLD_MS] pour l'envoyer, sinon elle lui
- * explose dans les mains (cedric, 21 octobre, 20 h 58). À l'explosion,
+ * secondes). Pas de retour à l'envoyeur (sauf à 2 équipes). La bombe ne bloque jamais : l'équipe qui la reçoit peut la
+ * renvoyer aussitôt, mais si elle la garde plus de [POTATO_HOLD_MS], elle lui explose dans les mains (cedric, 27 octobre :
+ * plus de « mèche qui colle », ressentie comme une latence entre l'appui sur la tablette et la TV). À l'explosion,
  * l'équipe qui tient la bombe perd [POTATO_POINTS] (jamais sous 0), toutes les autres gagnent autant. [POTATO_BOMBS]
  * bombes par partie : après chaque explosion sauf la dernière, une nouvelle mèche s'allume (cedric, 21 octobre).
  */
 
-/** Mèche qui colle : délai avant de pouvoir renvoyer la bombe reçue. */
-const val POTATO_STICKY_MS = 2_000L
+/**
+ * Délai avant de pouvoir renvoyer la bombe reçue : aucun depuis le 27 octobre (cedric). Les 2 s de « mèche qui colle »
+ * d'avant perdaient les appuis trop rapides. Gardé à 0 pour readyAt, que lisent les règles de la base et les tablettes.
+ */
+const val POTATO_STICKY_MS = 0L
 
 /**
- * Bombe gardée trop longtemps : une fois la mèche qui colle passée, l'équipe a ce temps (de jeu, pauses exclues) pour
- * l'envoyer ; sinon elle explose chez elle, avec la même pénalité qu'au bout de la mèche. Sa tablette compte 3, 2, 1.
+ * Bombe gardée trop longtemps : dès la réception, l'équipe a ce temps (de jeu, pauses exclues) pour l'envoyer ; sinon
+ * elle explose chez elle, avec la même pénalité qu'au bout de la mèche. Sa tablette compte 2, 1 (cedric, 27/10).
  */
-const val POTATO_HOLD_MS = 3_000L
+const val POTATO_HOLD_MS = 2_000L
 
 /**
  * Durée de chaque mèche (millisecondes de jeu, pauses exclues) : exactement la musique du jeu, qui part du début quand la
@@ -79,7 +81,7 @@ data class PotatoRound(
     /** Dernière bombe de la partie. */
     val last: Boolean get() = bomb >= total
 
-    /** À 2 équipes, la bombe repart forcément chez l'envoyeur : seule la mèche qui colle s'applique. */
+    /** À 2 équipes, la bombe repart forcément chez l'envoyeur. */
     val canReturn: Boolean get() = teams.size <= 2
 
     /** Équipes à qui [holder] peut envoyer la bombe. */

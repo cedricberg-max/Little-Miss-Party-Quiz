@@ -286,10 +286,11 @@ private fun BoutonsQuestion(state: UiState.Playing, q: Question, actions: TvActi
         // Vrai ou Faux express : la TV enchaîne seule ; le bouton ne fait qu'aller plus vite.
         else -> NextButton(
             when {
-                q.isExpress -> "Suivant"
+                // Toute dernière affirmation : la box attend l'animatrice pour les résultats finaux.
+                q.isExpress -> if (state.isLast) RESULTATS_FINAUX else "Suivant"
                 // Blind test : le morceau suivant s'annonce, sans démarrer ; après le dernier, le bilan.
-                q.isBlind -> state.blind?.takeIf { it.numero < it.total }?.let { "Titre suivant" } ?: "Bilan du blind test"
-                else -> "Voir les scores"
+                q.isBlind -> state.blind?.takeIf { it.numero < it.total }?.let { "Titre suivant" } ?: versClassement(state, "Bilan du blind test")
+                else -> versClassement(state, "Voir les scores")
             },
             actions.next, key = state.phase,
         )
@@ -633,6 +634,14 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
         }
     }
 }
+
+internal const val RESULTATS_FINAUX = "Résultats finaux"
+
+/**
+ * Bouton qui mène au classement d'un jeu : après le tout dernier jeu de la prestation, il n'y a plus de classement, il
+ * lance directement les résultats finaux (cedric, 27/10).
+ */
+internal fun versClassement(state: UiState.Playing, libelle: String): String = if (state.isLast) RESULTATS_FINAUX else libelle
 
 /** Bouton du classement : résultats finaux, jeu suivant annoncé par son nom, ou question suivante du même jeu. */
 internal fun suiteLabel(state: UiState.Playing): String = when {

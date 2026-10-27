@@ -1013,7 +1013,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         scheduleExpress()
         scheduleArm()
         val g = game ?: return
-        // Fin du chrono, ou (« Ça va exploser ! ») bombe gardée plus de 3 secondes.
+        // Fin du chrono, ou (« Ça va exploser ! ») bombe gardée plus de 2 secondes.
         val deadline = g.wakeAt() ?: return
         timer = viewModelScope.launch {
             // Réveil trop tôt (heure du serveur corrigée entre-temps) : on attend encore, sans jamais abandonner.
@@ -1022,7 +1022,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val done = actions.withLock {
                     val now = serverNow()
                     // Bombe gardée trop longtemps par une équipe dont la tablette vient de se couper : jamais sa faute, on
-                    // attend la pause automatique (après la reprise, l'équipe a de nouveau 3 secondes) ou son retour.
+                    // attend la pause automatique (après la reprise, l'équipe a de nouveau 2 secondes) ou son retour.
                     val coupee = g.remainingMs(now) > 0 && g.state.potato?.holder?.let { it !in online } == true
                     if (g.state.phase == Phase.QUESTION && !g.state.paused && g.timeOver(now) && !coupee) {
                         // Fin de la question, ou fin du tour de mimes.
@@ -2042,7 +2042,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * « Ça va exploser ! » : l'envoi de la tablette de l'équipe qui tient la bombe (games/<code>/potatoPass/<clé> =
-     * { to, at }). Les règles de la base n'acceptent que l'appareil de cette équipe, après la mèche qui colle, vers
+     * { to, at }). Les règles de la base n'acceptent que l'appareil de cette équipe, dès la réception (cedric, 27/10), vers
      * une équipe permise. Une clé par réception : un envoi ne peut servir qu'une fois.
      */
     private fun watchPotato(key: String?) {
@@ -2108,9 +2108,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         drawListener = null
         _dessin.value = Dessin(key)
         val ref = gameRef?.child("drawing")?.child(key ?: return) ?: return
+        // Délai tablette → box de chaque paquet en direct (heure de la tablette lue dans sa clé), pour les rapports ; pas
+        // ceux d'avant l'écoute (box relancée), relus d'un coup.
+        val depuis = serverNow()
         val listener = object : ChildEventListener {
             override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
                 val paquet = snapshot.value as? Map<*, *> ?: return
+                Dessin.heureDeCle(snapshot.key)?.takeIf { it >= depuis }?.let { Reactivite.noter("dessin", serverNow() - it) }
                 _dessin.update { d -> if (d.cle == key) d.avec(paquet) else d }
             }
 

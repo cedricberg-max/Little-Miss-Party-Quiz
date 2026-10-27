@@ -220,6 +220,26 @@ data class Buzzed(override val seq: Int, override val at: Long, val team: String
  */
 data class StatuesWon(override val seq: Int, override val at: Long, val team: String, val others: List<String>) : GameEvent
 
+/** Statues musicales (depuis le 27/10) : « ✋ STATUE ! », Sarah coupe la musique de la chanson en cours. */
+data class StatuesStopped(override val seq: Int, override val at: Long, val qid: String) : GameEvent
+
+/** Statues musicales : « 💃 On danse ! », la musique reprend là où elle s'était arrêtée. */
+data class StatuesDanced(override val seq: Int, override val at: Long, val qid: String) : GameEvent
+
+/** Statues musicales : la chanson [song] est allée au bout (la box le voit à sa lecture) ; Sarah désigne les gagnantes. */
+data class StatuesSongEnded(override val seq: Int, override val at: Long, val qid: String, val song: Int) : GameEvent
+
+/**
+ * Statues musicales : Sarah désigne les gagnantes de la chanson [song] ([winners], vide pour « Personne ») ; la chanson
+ * s'arrête. [others] : les autres équipes inscrites, qui marquent un peu moins (rien pour « Personne »).
+ */
+data class StatuesSongWon(
+    override val seq: Int, override val at: Long, val qid: String, val song: Int, val winners: List<String>, val others: List<String>,
+) : GameEvent
+
+/** Statues musicales : « ▶ Chanson suivante », la chanson [song] part de 0:00. */
+data class StatuesSongStarted(override val seq: Int, override val at: Long, val qid: String, val song: Int) : GameEvent
+
 /**
  * Le Gonfleur fou : fin de la course de [qid]. [team] = le ballon gagnant ([NO_WINNER] si personne n'a tapé) ;
  * [teams] = toutes les équipes qui jouaient (les autres marquent leurs points de participation). Révélation.

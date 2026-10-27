@@ -1465,9 +1465,10 @@ describe("Ça va exploser !", () => {
     await assertSucceeds(passe("bleu", "rose"));
   });
 
-  test("la mèche qui colle, la pause, le décompte de reprise et les autres jeux bloquent l'envoi", async () => {
+  test("un renvoi pas encore permis (readyAt), la pause, le décompte de reprise et les autres jeux bloquent l'envoi", async () => {
+    // Depuis le 27/10, la box permet le renvoi dès la réception (readyAt = réception) ; la règle reste pour les box d'avant.
     await bombe({ readyAt: Date.now() + 60_000 });
-    await assertFails(passe("bleu", "rose"), "mèche qui colle");
+    await assertFails(passe("bleu", "rose"), "renvoi pas encore permis");
     await bombe({}, { paused: true });
     await assertFails(passe("bleu", "rose"), "pause");
     await bombe({}, { resumeAt: Date.now() + 60_000 });

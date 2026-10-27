@@ -1377,7 +1377,8 @@ function renderPatate(st) {
   const boum = p.lit === true && boom != null && (p.exploded === true || now < finBoum);
   const compteur = p.lit === true && (p.bombs ?? 1) > 1 ? `Bombe ${p.bomb ?? 1} sur ${p.bombs}` : "";
   const aMoi = p.lit === true && !boum && p.holder === teamId && !st.paused && !counting(st);
-  // Mèche qui colle : 2 secondes après la réception (et après le décompte d'une reprise).
+  // Renvoi permis dès la réception (cedric, 27/10) ; seul le décompte d'une reprise le retient (readyAt = réception,
+  // ou 2 s plus tard sur une box d'avant le 27/10).
   const depuis = p.since ?? 0;
   const pret = Math.max(p.readyAt ?? 0, st.resumeAt ?? 0);
   const colle = pret <= now ? 1 : Math.max(0, Math.min(1, (now - depuis) / Math.max(1, pret - depuis)));
@@ -1386,8 +1387,8 @@ function renderPatate(st) {
   else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
   else if (boum) {
     const chezMoi = boom.holder === teamId;
-    // Gardée plus de 3 secondes : elle a explosé avant la fin de la mèche.
-    titre = chezMoi ? (boom.held === true ? "💥 BOUM ! Gardée plus de 3 secondes" : "💥 BOUM ! La bombe a explosé chez vous")
+    // Gardée plus de 2 secondes : elle a explosé avant la fin de la mèche.
+    titre = chezMoi ? (boom.held === true ? "💥 BOUM ! Gardée plus de 2 secondes" : "💥 BOUM ! La bombe a explosé chez vous")
       : boom.held === true ? `💥 BOUM ! L'équipe ${nom(boom.holder)} l'a gardée trop longtemps` : `💥 BOUM chez l'équipe ${nom(boom.holder)} !`;
     texte = chezMoi ? ((boom.lost ?? 0) > 0 ? `−${boom.lost} points.` : "Vous n'aviez aucun point à perdre.") : `+${boom.gain ?? 0} points pour vous !`;
     if ((p.bomb ?? 1) < (p.bombs ?? 1) || p.exploded !== true) texte += " Attention, une autre bombe arrive…";
@@ -1400,8 +1401,8 @@ function renderPatate(st) {
     texte = patate.envoye ? `Envoyée à l'équipe ${nom(patate.envoye)} !` : colle < 1 ? "La mèche colle…" : "Vite, envoyez-la à une autre équipe !";
   } else { titre = `La bombe est chez l'équipe ${nom(p.holder)} !`; texte = (p.hit ?? []).includes(teamId) ? "Attention, elle peut revenir chez vous !" : "Préparez-vous, elle peut arriver chez vous !"; }
   if (patate.message) texte = patate.message;
-  // Anti-triche (cedric, 21/10) : 3 secondes pour l'envoyer une fois la mèche décollée, sinon elle explose chez nous.
-  const decompte = aMoi && colle >= 1 && !patate.envoye && p.holdUntil != null ? Math.min(3, Math.max(1, Math.ceil((p.holdUntil - now) / 1000))) : null;
+  // Anti-triche (cedric, 21/10 et 27/10) : 2 secondes pour l'envoyer, sinon elle explose chez nous.
+  const decompte = aMoi && colle >= 1 && !patate.envoye && p.holdUntil != null ? Math.min(2, Math.max(1, Math.ceil((p.holdUntil - now) / 1000))) : null;
   const equipes = (p.teams ?? []).filter((id) => id !== teamId && game.teams[id]).map((id) => ({
     id, nom: game.teams[id].name, couleur: game.teams[id].color,
     permise: (p.targets ?? []).includes(id), envoyeur: id === p.from, neuve: !(p.hit ?? []).includes(id),
@@ -1437,7 +1438,7 @@ async function envoyerPatate(to) {
   try {
     await set(ref(db, `games/${code}/potatoPass/${key}`), { to, at: serverTimestamp() });
   } catch {
-    // Refusé (pause, mèche qui colle encore, réseau) : on peut renvoyer.
+    // Refusé (pause, décompte de reprise, réseau) : on peut renvoyer.
     if (patate && game.state?.potato?.key === key) {
       patate.envoye = null;
       patate.message = "La bombe n'est pas partie : touchez encore une équipe.";
