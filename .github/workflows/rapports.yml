@@ -23,6 +23,9 @@ on:
       touki:
         description: "« apercu » ou « ecrire » : la « Prestation test touki touki » (cedric, 27/10), remplie avec les packs ; ecrire l'ajoute sans rien remplacer ni effacer"
         default: ""
+      quoi:
+        description: "Avec touki : « complete » pour la « Prestation test complète » (tous les jeux), vide pour « touki touki »"
+        default: ""
       noms:
         description: "Captures à afficher, séparées par des virgules"
         default: "question-1,question-8-equipes,revelation,revelation-8-equipes,question-fermee,reponses-en-images,reponses-en-images-revelation,express-affirmation,zoom-mystere-question,zoom-mystere-revelation,image-floue-buzz,image-floue-revelation,juste-chiffre-question,juste-chiffre-revelation,quiz-musical-revelation,mimes-tour,mimes-6-equipes-tour"
@@ -161,9 +164,10 @@ jobs:
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       MODE: ${{ inputs.touki }}
+      QUOI: ${{ inputs.quoi }}
     steps:
       - uses: actions/checkout@v4
-      - name: Prestation test touki touki
+      - name: Prestation de test remplie avec les packs
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"

@@ -4,18 +4,21 @@
 // Le dépôt est public : le journal ne montre que des nombres.
 import { readFileSync } from "node:fs";
 const { GoogleAuth } = process.env.LIBRAIRIE ? {} : await import("google-auth-library");
-import { buildSnapshot, quizKind, playable, zoomQuestions, expressQuestions, activeItems, CONTENT_GAMES, isoDay } from "../../web/public/show.js";
+import { buildSnapshot, chansonJouable, quizKind, playable, zoomQuestions, expressQuestions, activeItems, CONTENT_GAMES, isoDay } from "../../web/public/show.js";
 import { cleanRound } from "../../web/public/manches.js";
 
-const ID = "prestation-test-touki-touki";
+// QUOI=complete (cedric, 27/10 au soir : « il manquait les trois quarts des jeux ») : tous les jeux que la TV 0.1.701
+// connaît (pas encore le Simon), les jeux à packs remplis avec les packs, les chansons tirées dans la bibliothèque.
+const COMPLETE = process.env.QUOI === "complete";
+const ID = COMPLETE ? "prestation-test-complete" : "prestation-test-touki-touki";
 const base = JSON.parse(readFileSync("firebase-config.json", "utf8")).databaseURL.replace(/\/$/, "");
 // LIBRAIRIE=<fichier JSON { quizzes, contents }> : essai local, sans rien lire ni écrire en ligne.
 const locale = process.env.LIBRAIRIE ? JSON.parse(readFileSync(process.env.LIBRAIRIE, "utf8")) : null;
 const token = locale ? null : (await (await new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/firebase.database", "https://www.googleapis.com/auth/userinfo.email"] }).getClient()).getAccessToken()).token;
-const get = async (path) => (locale ? (path === "library/quizzes" ? locale.quizzes : path === "library/contents" ? locale.contents : null)
+const get = async (path) => (locale ? (path === "library/quizzes" ? locale.quizzes : path === "library/contents" ? locale.contents : path === "library/songs" ? locale.songs : null)
   : (await fetch(`${base}/${path}.json?access_token=${token}`)).json());
 
-const [quizzes, contents, deja] = await Promise.all([get("library/quizzes"), get("library/contents"), get(`library/shows/${ID}`)]);
+const [quizzes, contents, deja, songs] = await Promise.all([get("library/quizzes"), get("library/contents"), get(`library/shows/${ID}`), get("library/songs")]);
 const packs = Object.entries(quizzes ?? {}).filter(([id, q]) => q?.pack === true && !id.startsWith("test-"));
 const parSorte = (k) => packs.filter(([, q]) => quizKind(q) === k);
 const ids = (l) => l.map(([id]) => id);
@@ -54,21 +57,44 @@ const pioche = (liste, f, n) => {
   return out;
 };
 const serie = (type, liste, f, n) => liste.length && { type, seriesQuiz: [{ id: "de", origine: "de", questions: pioche(liste, f, n) }] };
+// Chansons de la bibliothèque des sons, mélangées, jamais deux fois : Blind test, Quiz musical, Statues.
+const chansons = melange(Object.entries(songs ?? {}).filter(([, x]) => chansonJouable(x)).map(([id]) => id));
+const prendre = (n) => chansons.splice(0, n);
+const parJeuType = {
+  quiz: serie("quiz", quiz, playable, 20),
+  illustre: serie("illustre", illustres, playable, 20),
+  zoom: serie("zoom", photos.slice(0, moitie), zoomQuestions, 10),
+  flou: photos.length > 1 && serie("flou", photos.slice(moitie), zoomQuestions, 10),
+  express: serie("express", vraiFaux, expressQuestions, 12),
+  quisuis: qui.length && { type: "quisuis", picks: qui.map((x) => CONTENT_GAMES.quisuis.key(x)) },
+  disparu: tours.length && { type: "disparu", objects: 6, seriesMots: [{ id: "de", origine: "de", mots: tours }] },
+  duel: { type: "duel" },
+  coffres: { type: "coffres" },
+  mimes: { type: "mimes" },
+  blind: chansons.length && { type: "blind", chansons: prendre(10) },
+  musical: chansons.length && { type: "musical", chansons: prendre(8) },
+  statues: { type: "statues", ...(chansons.length ? { chansons: prendre(4) } : {}) },
+  chante: { type: "chante" },
+  pictionary: { type: "pictionary" },
+  gonfleur: { type: "gonfleur" },
+  patate: { type: "patate" },
+};
+// L'ordre d'une vraie fête (celui de la prestation de test de la Régie PC), les Coffres pour finir.
+const ORDRE = COMPLETE
+  ? ["quiz", "mimes", "blind", "zoom", "chante", "express", "illustre", "quisuis", "flou", "disparu", "musical", "statues", "pictionary", "gonfleur", "duel", "patate", "coffres"]
+  : ["quiz", "illustre", "zoom", "flou", "express", "quisuis", "disparu", "duel", "coffres"];
 const rounds = [
-  serie("quiz", quiz, playable, 20),
-  serie("illustre", illustres, playable, 20),
-  serie("zoom", photos.slice(0, moitie), zoomQuestions, 10),
-  photos.length > 1 && serie("flou", photos.slice(moitie), zoomQuestions, 10),
-  serie("express", vraiFaux, expressQuestions, 12),
-  qui.length && { type: "quisuis", picks: qui.map((x) => CONTENT_GAMES.quisuis.key(x)) },
-  tours.length && { type: "disparu", objects: 6, seriesMots: [{ id: "de", origine: "de", mots: tours }] },
-  { type: "duel" },
-  { type: "coffres" },
+  ...ORDRE.map((t) => parJeuType[t]),
 ].filter(Boolean).map((r) => cleanRound(r));
 
-const show = { childName: "Touki touki", age: 9, teams: 4, date: isoDay(), status: "publiee", title: "Prestation test touki touki", rounds, notes: "Prestation de test : le plus possible d'images et de questions des packs (27/10)." };
-const { snapshot, problems } = buildSnapshot(ID, show, quizzes, {}, Math.random, {}, contents ?? {});
+const demain = new Date(Date.now() + 864e5).toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" });
+const show = COMPLETE
+  ? { childName: "Touki touki", age: 9, teams: 4, date: demain, status: "publiee", title: "Prestation test complète", rounds,
+    notes: "Prestation de test : tous les jeux, remplis avec les packs et la bibliothèque des sons (27/10)." }
+  : { childName: "Touki touki", age: 9, teams: 4, date: isoDay(), status: "publiee", title: "Prestation test touki touki", rounds, notes: "Prestation de test : le plus possible d'images et de questions des packs (27/10)." };
+const { snapshot, problems } = buildSnapshot(ID, show, quizzes, {}, Math.random, {}, contents ?? {}, {}, songs ?? {});
 console.log(`Packs : ${quiz.length} quiz (${nb(quiz, playable)} questions), ${illustres.length} illustrés (${nb(illustres, playable)}), ${photos.length} séries de photos (${nb(photos, zoomQuestions)}), ${vraiFaux.length} Vrai ou Faux`);
+console.log(`Chansons jouables : ${Object.values(songs ?? {}).filter(chansonJouable).length}`);
 console.log(`Qui a disparu ? : ${tours.length} tours ; Qui suis-je ? : ${qui.length} personnages`);
 console.log(`Jeux : ${rounds.map((r) => r.type).join(", ")}`);
 const parJeu = {};
