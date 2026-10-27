@@ -2155,6 +2155,12 @@ function renderCoffres(st) {
   clearTimeout(coffresPret);
   if (wait > 0) coffresPret = setTimeout(render, wait + 50);
   btn.textContent = coffresArme ? `Touchez encore : coffre au hasard pour ${name(c.team)}` : `🎲 Ouvrir un coffre au hasard pour ${name(c.team)}`;
+  // Le gros bouton attend la bombe ; celui-ci passe au jeu suivant tout de suite, après confirmation (points gardés).
+  const { next } = gamesOf(st);
+  const fin = $("coffres-fin");
+  fin.hidden = !next;
+  fin.disabled = !!pending?.advance;
+  if (next) fin.onclick = () => jumpTo(next, live.state ?? st);
 }
 $("coffres-random").onclick = () => {
   if (!coffresArme) {

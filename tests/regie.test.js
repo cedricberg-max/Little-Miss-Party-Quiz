@@ -2333,6 +2333,38 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("Les coffres mystères : « ⏭ Jeu suivant » quitte les coffres sans attendre la bombe, après confirmation", async () => {
+    // Test du 27/10 au soir : Sarah voulait passer à un autre jeu pendant les coffres et se croyait bloquée.
+    box = startBox();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const plan = (await read("conducteur")) ?? { questions: [] };
+    const bombe = { id: "b1", text: "Les Coffres mystères", kind: "coffres", choices: [], correct: -1, round: "Les Coffres mystères" };
+    const apres = { id: "z1", text: "Couleur du ciel ?", choices: ["Bleu", "Vert"], correct: 0, round: "Quiz final" };
+    const questions = [...plan.questions, bombe, apres];
+    const i = questions.length - 2;
+    await set(gameRef("conducteur"), { ...plan, coffres: true, questions });
+    const chests = { ready: true, count: 10, order: ["bleu", "rose"], team: "bleu", turn: 0, safe: 6, safeLeft: 6, danger: false, exploded: false, key: "b1-1-0", readyAt: Date.now() - 1000, opened: [], gains: { bleu: 0, rose: 0 } };
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: i, qid: "b1", kind: "coffres", text: "Les Coffres mystères", choices: null, deadline: null, total: questions.length, chests });
+    await page.locator("#c-next", { hasText: "Coffres en cours" }).waitFor();
+    // Renoncer : rien n'est envoyé.
+    await page.locator("#coffres-fin:not([hidden])", { hasText: "Jeu suivant" }).click();
+    await respond(page, false);
+    await page.waitForTimeout(300);
+    assert.equal(box.gotos.length, 0);
+    // Confirmer : la régie saute au jeu suivant, bilan des scores d'abord, points gardés.
+    await page.click("#coffres-fin");
+    const asked = await respond(page);
+    assert.match(asked, /points déjà gagnés sont gardés/);
+    await waitFor(() => box.gotos.length === 1, "saut envoyé à la box");
+    assert.deepEqual(box.gotos, [{ index: i + 1, qid: "z1" }]);
+    await page.locator("#coffres[hidden]").waitFor({ state: "attached" });
+    await page.context().close();
+  });
+
   test("Le Gonfleur fou : la régie suit la course ballon par ballon et peut l'arrêter", async () => {
     box = startBox();
     const page = await openRegie();
