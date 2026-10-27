@@ -1978,7 +1978,7 @@ function renderDuel(st, teams) {
   const choix = e?.choix;
   const seule = teams.length < 2;
   $("duel-info").textContent = seule ? "Il faut au moins 2 équipes pour un duel : passez au jeu suivant."
-    : choix ? "Duel à la volée : touchez les 2 équipes qui s'affrontent."
+    : choix ? "Qui affronte qui ? La paire proposée est cochée : touchez une équipe pour la changer."
       : d.step === "standoff" ? "🤠 Face-à-face… mains sur les buzzers ! Le PAN tombe quand la TV le décide."
         : d.step === "result" ? (d.allPlayed ? "Tous les joueurs sont passés." : `Duel ${d.n ?? 1} terminé.`)
           : `${d.extra ? "Duel en plus" : `Duel ${d.n ?? 1} sur ${d.total ?? "?"}`} : appelez les deux joueurs.`;
@@ -2048,7 +2048,7 @@ function renderDuel(st, teams) {
   if (d.step !== "standoff") { clearTimeout(duelStopArme); duelStopArme = null; }
   const pret = (d.step === "ready" || d.step === "result") && !choix && !seule;
   $("duel-autres").hidden = !pret;
-  $("duel-autres").textContent = d.allPlayed && d.step === "result" ? "🤠 Duel en plus : choisir 2 équipes" : "🎯 Choisir 2 autres équipes";
+  $("duel-autres").textContent = d.allPlayed && d.step === "result" ? "🤠 Duel en plus : choisir les 2 équipes" : "🎯 Choisir les 2 équipes";
   $("duel-autres").disabled = busy;
   $("duel-retour").hidden = !choix;
   // « Jeu suivant » au milieu (le gros bouton du bas lance les duels) tant qu'il reste des joueurs à faire passer.
@@ -2096,7 +2096,27 @@ $("duel-stop").onclick = () => {
   duelStopArme = null;
   send("duel_stop", {}, { advance: true }).then((r) => { if (r?.status === "applied") toast("Face-à-face arrêté, sans points : relancez quand les joueurs sont prêts."); });
 };
-$("duel-autres").onclick = () => { duelChoix = []; render(); };
+$("duel-autres").onclick = () => { duelChoix = pairePropose(live.state?.duel ?? {}); render(); };
+
+/**
+ * Paire cochée d'avance dans le choix des équipes (cedric, 27/10) : le duel prêt proposé par la box ; après un duel,
+ * comme la box, les 2 équipes qui ont le moins joué, sans redonner la même paire tout de suite. Sarah change si elle veut.
+ */
+function pairePropose(d) {
+  const presentes = Object.keys(live.teams ?? {});
+  const paire = (Array.isArray(d.teams) ? d.teams : Object.values(d.teams ?? {})).filter((id) => presentes.includes(id));
+  if (d.step === "ready" && paire.length === 2) return paire;
+  const joues = d.played ?? {};
+  const ordre = presentes.map((id, i) => [id, joues[id] ?? 0, i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(([id]) => id);
+  if (ordre.length < 2) return [];
+  const meme = (a, b) => paire.length === 2 && paire.includes(a) && paire.includes(b);
+  for (let i = 0; i < ordre.length; i++) {
+    for (let j = i + 1; j < ordre.length; j++) {
+      if (ordre.length === 2 || !meme(ordre[i], ordre[j])) return [ordre[i], ordre[j]];
+    }
+  }
+  return ordre.slice(0, 2);
+}
 $("duel-retour").onclick = () => { duelChoix = null; render(); };
 $("duel-fin").onclick = async () => {
   const d = live.state?.duel ?? {};

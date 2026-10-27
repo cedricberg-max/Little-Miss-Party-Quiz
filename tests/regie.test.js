@@ -1711,6 +1711,11 @@ describe("régie", () => {
     // Tous les joueurs passés : le gros bouton finit le jeu, un duel en plus reste possible.
     await box.set({ duel: { ...etat, n: 3, step: "result", allPlayed: true, result: { winner: "vert", loser: "rose", early: null, ms: 420, points: 100 } } });
     await page.locator("#duel-autres", { hasText: "🤠 Duel en plus" }).waitFor();
+    // Duel en plus : comme la box, les 2 équipes qui ont le moins joué sont cochées d'avance (pas la paire d'avant).
+    await box.set({ duel: { ...etat, n: 3, step: "result", allPlayed: true, teams: ["vert", "rose"], played: { rose: 2, bleu: 1, vert: 1 }, result: { winner: "vert", loser: "rose", early: null, ms: 420, points: 100 } } });
+    await page.click("#duel-autres");
+    await page.locator("#c-next", { hasText: "🤠 Les Bleus contre Les Verts" }).waitFor();
+    await page.click("#duel-retour");
     assert.equal(await page.locator("#duel-fin").isVisible(), false, "« Jeu suivant » est déjà le gros bouton");
     await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).click();
     await waitFor(async () => (await commandes("next")).length === 1, "jeu suivant");
@@ -1719,14 +1724,18 @@ describe("régie", () => {
 
   test("duel des robots : duel à la volée entre 2 équipes choisies, « Jeu suivant » confirmé, pause, une seule équipe", async () => {
     const { page, etat } = await duelEnCours({});
+    // Qui affronte qui (cedric, 27/10) : la paire proposée par la box est cochée d'avance, Sarah la change.
     await page.click("#duel-autres");
-    await page.locator("#c-next", { hasText: "Touchez 2 équipes" }).waitFor();
-    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    await page.locator("#c-next", { hasText: "🤠 Les Roses contre Les Bleus" }).waitFor();
     assert.equal(await page.locator("#duel-face").isVisible(), false);
     await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
+    await page.locator("#c-next", { hasText: "Touchez 2 équipes" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
     await page.locator("#duel-choix .statues-tuile", { hasText: "Les Verts" }).click();
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
+    assert.deepEqual(await page.locator('#duel-choix [aria-pressed="true"]').allTextContents(), ["Les Roses", "Les Verts"], "2 équipes au plus : la plus ancienne part");
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
     await page.locator("#duel-choix .statues-tuile", { hasText: "Les Bleus" }).click();
-    assert.deepEqual(await page.locator('#duel-choix [aria-pressed="true"]').allTextContents(), ["Les Bleus", "Les Verts"], "2 équipes au plus : la plus ancienne part");
     await page.locator("#c-next", { hasText: "🤠 Les Verts contre Les Bleus" }).click();
     await waitFor(async () => (await commandes("duel_start")).some((c) => JSON.stringify(c.teams) === JSON.stringify(["vert", "bleu"])), "duel à la volée lancé");
     await page.locator("#duel-face").waitFor();
