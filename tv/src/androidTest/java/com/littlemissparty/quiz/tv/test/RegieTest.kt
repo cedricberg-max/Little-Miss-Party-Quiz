@@ -834,7 +834,7 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "statues_win", mapOf("personne" to true)))
         ecran.voit(if (Look.gs) "PERSONNE CETTE FOIS !" else "Personne cette fois !", 8_000)
         assertEquals(Scoring.MINI_WIN.toLong(), points(dragons, code, dragons.uid))
-        assertEquals("refused", regie.commande(code, "statues_song"), "plus de chanson")
+        assertEquals("plus de chanson", "refused", regie.commande(code, "statues_song"))
     }
 
     @Test
