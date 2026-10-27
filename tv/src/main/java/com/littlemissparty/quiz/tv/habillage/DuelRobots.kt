@@ -118,7 +118,7 @@ private val OR = listOf(Color(0xFFFFF7B0), Color(0xFFFFE600), Color(0xFFFFA51F))
  * face-à-face en cours (feintes).
  */
 @Composable
-fun SceneDuel(
+internal fun SceneDuel(
     equipes: List<EquipeDuel>,
     etape: EtapeDuel,
     gagnante: Int?,
