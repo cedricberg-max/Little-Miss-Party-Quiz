@@ -45,3 +45,12 @@ for (const [k, c] of cmds.sort((a, b) => (a[1]?.at ?? 0) - (b[1]?.at ?? 0))) {
   const s = statuts[k];
   console.log(`commande ${iso(c?.at)} ${c?.type} seq ${c?.expectSeq} régie ${regies.indexOf(c?.by) + 1 || "?"} → ${s?.status ?? "-"}${s?.reason ? ` (${s.reason})` : ""}`);
 }
+const cles = Object.keys((await get(`games/${code}/show`, "&shallow=true")) ?? {});
+console.log(`show : ${cles.join(", ")}`);
+const qs = (await get(`games/${code}/show/quiz/questions`)) ?? (await get(`games/${code}/show/snapshot/quiz/questions`)) ?? [];
+const bonnes = Object.fromEntries(Object.values(qs).filter(Boolean).map((q) => [q.id, q.correct]));
+const scores = st.scores ?? {};
+ordre.forEach((id, i) => console.log(`Score équipe ${i + 1} : ${scores[id] ?? "absent"}`));
+for (const [qid, rs] of Object.entries(reponses)) {
+  console.log(`Choix ${qid} (bonne ${bonnes[qid] ?? "?"}) : ${Object.keys(rs ?? {}).map((id) => `équipe ${ordre.indexOf(id) + 1} → ${rs[id]?.choice}`).join(", ")}`);
+}
