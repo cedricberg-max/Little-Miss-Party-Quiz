@@ -13,7 +13,7 @@ export const TEST_NOTES = "Prestation de TEST : les 16 jeux, remplis au 🎲 com
 /** Les 16 jeux, dans l'ordre d'une vraie fête ; les Coffres mystères pour finir. Jamais deux fois le même à la suite. */
 export const JEUX_DU_TEST = [
   "quiz", "mimes", "blind", "zoom", "chante", "express", "illustre", "quisuis",
-  "flou", "disparu", "musical", "statues", "pictionary", "gonfleur", "duel", "patate", "coffres",
+  "flou", "disparu", "musical", "statues", "pictionary", "gonfleur", "duel", "patate", "simon", "coffres",
 ];
 
 /** Clés des anciennes démos (boutons de test d'avant le 24/10), effacées par le nouveau bouton. */

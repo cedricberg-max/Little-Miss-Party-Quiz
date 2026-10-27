@@ -13,7 +13,7 @@ import {
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
   estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES,
   chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND, JEUX_DE_CHANSONS, leurresDeLaManche, chansonsStatues,
-  estJeuDeMots, seriesMots, motsDuJeu, MAX_MOTS, pictoToursBruts, pictoTours, pictoPropositions, pictoPassages, bombesDe, reglagesDuel,
+  estJeuDeMots, seriesMots, motsDuJeu, MAX_MOTS, pictoToursBruts, pictoTours, pictoPropositions, pictoPassages, bombesDe, reglagesDuel, reglagesSimon,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
 import { FAMILLES_PETITS } from "./banque-petits.js";
@@ -22,7 +22,7 @@ import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.
 import { BANQUE, banqueItems, motDeLaBanque } from "./banque-photos.js";
 
 /** Jeux qu'on peut enregistrer en manches, dans l'ordre des tuiles de l'accueil. */
-export const MANCHE_TYPES = ["quiz", "illustre", "mimes", "blind", "musical", "statues", "express", "zoom", "flou", "chante", "quisuis", "disparu", "pictionary", "coffres", "patate", "gonfleur", "duel"];
+export const MANCHE_TYPES = ["quiz", "illustre", "mimes", "blind", "musical", "statues", "express", "zoom", "flou", "chante", "quisuis", "disparu", "pictionary", "coffres", "patate", "gonfleur", "duel", "simon"];
 
 /** Ce que contient la collection d'un jeu (null : jeu sans contenu à choisir). */
 export const COLLECTION_UNIT = {
@@ -311,6 +311,8 @@ export function cleanRound(r, playlists = {}) {
   else if (type === "coffres" || type === "gonfleur") out = { type };
   // Le Duel des robots (cedric, 27/10) : joueurs par équipe (environ), durée min / max du face-à-face, longs duels.
   else if (type === "duel") out = { type, ...reglagesDuel(r) };
+  // Le Simon du Prof (cedric, 27/10) : tours, secondes pour taper une suite, joueurs par équipe (environ).
+  else if (type === "simon") out = { type, ...reglagesSimon(r) };
   // Blind test tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : ses chansons dans l'ordre, cases retirées
   // comprises (en attente de leur 🎲), et le nombre demandé.
   else if (JEUX_DE_CHANSONS.includes(type) && chansonsBrutes(r).some(Boolean)) {
@@ -644,6 +646,10 @@ export function mancheSummary(round, lib = {}) {
   if (BUILTIN_GAMES[r.type]) return roundPicks(r).length ? n(roundPicks(r).length) : `${r.count ?? BUILTIN_GAMES[r.type].count} au hasard`;
   if ((r.type === "zoom" || r.type === "flou") && roundPicks(r).length) return n(roundPicks(r).length);
   if (r.type === "coffres" || r.type === "patate" || r.type === "gonfleur") return "rien à préparer";
+  if (r.type === "simon") {
+    const s = reglagesSimon(r);
+    return `${s.tours} tour${s.tours > 1 ? "s" : ""} · ${s.reponse} s pour taper une suite · environ ${s.joueurs} joueur${s.joueurs > 1 ? "s" : ""} par équipe`;
+  }
   if (r.type === "duel") {
     const d = reglagesDuel(r);
     return `environ ${d.joueurs} joueur${d.joueurs > 1 ? "s" : ""} par équipe · face-à-face de ${d.dureeMin} à ${d.dureeMax} s${d.longs && d.dureeMax < 60 ? ", parfois jusqu'à 60 s" : ""}`;
