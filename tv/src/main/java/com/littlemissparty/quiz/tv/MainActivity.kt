@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
                     mimeStart = viewModel::mimeStart,
                     mimeFound = viewModel::mimeFound,
                     mimePass = viewModel::mimePass,
+                    mimeSkip = viewModel::mimeSkip,
                     mimeStop = viewModel::mimeStop,
                     judgeBuzz = { ok -> viewModel.judgeBuzz(ok) },
                     blindReveal = viewModel::blindReveal,

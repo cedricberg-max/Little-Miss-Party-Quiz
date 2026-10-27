@@ -41,6 +41,9 @@ const val REBUZZ_DELAY_MS = 3_000L
 /** Vrai ou Faux express : temps de la révélation avant l'affirmation suivante. */
 const val EXPRESS_REVEAL_MS = 3_500L
 
+/** Mimes en file : temps entre la fin du tour d'une couleur et son bilan des scores (« TEMPS ÉCOULÉ ! » puis le bravo). */
+const val MIME_BILAN_AUTO_MS = 4_500L
+
 /** Pictionary : nombre de mots proposés au dessinateur. */
 const val PICTO_OFFER = 3
 
@@ -180,6 +183,8 @@ data class MimeRound(
      * « Image suivante » de l'animatrice, une fois le nouveau devineur dos à l'écran. Le chrono, lui, continue.
      */
     val relais: Long? = null,
+    /** Heure du serveur où le dernier tour s'est terminé (null pendant un tour) : la box en tire le bilan des scores. */
+    val ended: Long? = null,
 )
 
 /** Bilan d'un tour ; [card] : le mot joué (Pictionary), montré à tous une fois le tour fini. */
@@ -285,7 +290,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun timeOver(now: Long): Boolean = remainingMs(now) == 0L || heldTooLong(now)
 
     /** Prochain réveil de la box : fin du chrono, ou bombe gardée trop longtemps (la plus proche). */
-    fun wakeAt(): Long? = listOfNotNull(deadline(), holdDeadline()).minOrNull()
+    fun wakeAt(): Long? = listOfNotNull(deadline(), holdDeadline(), mimeBilanAt()).minOrNull()
 
     /**
      * Ajoute un événement au journal s'il est valide. Un événement déjà vu (même numéro)
@@ -310,7 +315,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      */
     private fun reduce(s: GameState, e: GameEvent): GameState? =
         if (s.intro && e !is GameLaunched && e !is Paused && e !is Resumed && e !is ScoreAdjusted && e !is Undone &&
-            e !is Jumped && e !is GameEnded && e !is FactorChosen && e !is DoorSet && e !is ProgramReset) null
+            e !is Jumped && e !is GameEnded && e !is FactorChosen && e !is DoorSet && e !is ProgramReset && e !is MimeTurnStarted) null
         else reduceEvent(s, e)
 
     /** Jeu qui commence à la question [index] : il s'ouvre sur son écran de présentation, sans chrono ni buzzer. */
@@ -495,26 +500,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (m?.secret == null || m.team != null || s.paused || e.choice !in m.offer.indices || m.pick == m.offer[e.choice]) null
             else s.copy(mime = m.copy(pick = m.offer[e.choice]))
         }
-        is MimeTurnStarted -> {
-            val m = s.mime
-            val q = quiz.questions.getOrNull(s.index)
-            val cards = q?.cards.orEmpty()
-            // Pictionary : le dessin commence seulement après que l'équipe a vu son mot.
-            val picto = q?.isPicto == true
-            // Pictionary : le dessin commence seulement après que l'équipe a choisi son mot.
-            if (m == null || m.team != null || s.paused || cards.isEmpty() || e.team.isBlank() || (picto && (m.secret != e.team || m.pick == null))) null
-            else s.copy(
-                segments = listOf(Segment(e.at)), resumeAt = null,
-                // Paquet épuisé par les équipes précédentes : il est rebattu pour que chaque équipe ait son tour.
-                mime = m.copy(
-                    // Pictionary : le mot choisi passe en tête du paquet ; les deux autres mots déjà montrés repartent tout
-                    // au fond, pour qu'aucune autre équipe ne les revoie avant que le paquet soit épuisé.
-                    deck = if (picto) listOf(m.pick!!) + (m.deck - m.offer.toSet()) + (m.offer - m.pick) else m.deck.ifEmpty { cards.indices.toList() },
-                    team = e.team, found = 0, passed = 0, turns = m.turns + e.team, secret = null, offer = emptyList(), pick = null, started = e.at,
-                    relais = null,
-                ),
-            )
-        }
+        // Mimes en file (cedric, 26/10) : « Lancer l'épreuve » montre tout de suite la première image, et la manche de
+        // l'équipe suivante s'ouvre avec son tour : la manche s'ouvre et le tour part dans le même élan.
+        is MimeTurnStarted -> turnStarted(manchePourLeTour(s, e.at) ?: s, e)
         is MimeFound -> {
             val m = s.mime
             val team = m?.team
@@ -552,6 +540,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             else if (m.relais != null) s.copy(mime = m.copy(relais = null))
             else if (m.deck.size < 2) null
             else s.copy(mime = m.copy(deck = m.deck.drop(1) + m.deck.first(), passed = m.passed + 1))
+        }
+        is MimeSkipped -> {
+            val m = s.mime
+            // Seulement pendant qu'une image est montrée : pendant la rotation, les joueurs tournent déjà.
+            if (m?.team == null || s.paused || m.relais != null || quiz.questions.getOrNull(s.index)?.isMime != true) null
+            else s.copy(mime = m.copy(deck = if (m.deck.size < 2) m.deck else m.deck.drop(1) + m.deck.first(), passed = m.passed + 1, relais = e.at))
         }
         is MimeCorrected -> {
             val m = s.mime
@@ -711,6 +705,42 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         }
     }
 
+    /** Tour de mimes (ou dessin du Pictionary) de l'équipe [e].team lancé dans la manche ouverte de [s]. */
+    private fun turnStarted(s: GameState, e: MimeTurnStarted): GameState? {
+        val m = s.mime
+        val q = quiz.questions.getOrNull(s.index)
+        val cards = q?.cards.orEmpty()
+        // Pictionary : le dessin commence seulement après que l'équipe a vu son mot.
+        val picto = q?.isPicto == true
+        // Pictionary : le dessin commence seulement après que l'équipe a choisi son mot.
+        return if (s.intro || m == null || m.team != null || s.paused || cards.isEmpty() || e.team.isBlank() || (picto && (m.secret != e.team || m.pick == null))) null
+        else s.copy(
+            segments = listOf(Segment(e.at)), resumeAt = null,
+            // Paquet épuisé par les équipes précédentes : il est rebattu pour que chaque équipe ait son tour.
+            mime = m.copy(
+                // Pictionary : le mot choisi passe en tête du paquet ; les deux autres mots déjà montrés repartent tout
+                // au fond, pour qu'aucune autre équipe ne les revoie avant que le paquet soit épuisé.
+                deck = if (picto) listOf(m.pick!!) + (m.deck - m.offer.toSet()) + (m.offer - m.pick) else m.deck.ifEmpty { cards.indices.toList() },
+                team = e.team, found = 0, passed = 0, turns = m.turns + e.team, secret = null, offer = emptyList(), pick = null, started = e.at,
+                relais = null, ended = null,
+            ),
+        )
+    }
+
+    /**
+     * Mimes en file (cedric, 26/10) : la manche que le lancement d'un tour ouvre d'abord. Présentation des Mimes à
+     * l'écran : la manche elle-même (« Lancer l'épreuve » montre la première image). Bilan des scores après le tour
+     * d'une couleur : la manche de la couleur suivante, dans le même jeu. Null : rien à ouvrir, le tour part tel quel.
+     */
+    private fun manchePourLeTour(s: GameState, at: Long): GameState? {
+        if (s.paused) return null
+        val q = quiz.questions.getOrNull(s.index) ?: return null
+        if (s.intro) return if (s.phase == Phase.QUESTION && q.isMime) open(s.copy(intro = false), s.index, q, at) else null
+        if (s.phase != Phase.SCORES || s.leaveTo != null || !q.isMime || q.couleur == null) return null
+        val suivante = quiz.questions.getOrNull(s.index + 1)?.takeIf { it.isMime && it.couleur != null && it.roundTitle == q.roundTitle } ?: return null
+        return open(s, s.index + 1, suivante, at)
+    }
+
     private fun closeSegments(s: GameState, at: Long) = s.segments.map { if (it.end == null) it.copy(end = maxOf(at, it.start)) else it }
 
     /** Tour de mimes terminé : chrono arrêté, bilan gardé pour la TV et la régie. */
@@ -719,7 +749,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         val picto = quiz.questions.getOrNull(s.index)?.isPicto == true
         return s.copy(
             segments = s.segments.map { if (it.end == null) it.copy(end = maxOf(at, it.start)) else it },
-            mime = m.copy(team = null, found = 0, passed = 0, relais = null, last = MimeTurn(m.team!!, m.found, m.passed, card.takeIf { picto })),
+            mime = m.copy(team = null, found = 0, passed = 0, relais = null, ended = at, last = MimeTurn(m.team!!, m.found, m.passed, card.takeIf { picto })),
         )
     }
 
@@ -1193,6 +1223,21 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun pictoDraw(now: Long): GameEvent? = state.mime?.secret?.let { mimeStart(it, now) }
     fun mimeFound(now: Long): GameEvent? = emit(MimeFound(nextSeq, now))
     fun mimePass(now: Long): GameEvent? = emit(MimePassed(nextSeq, now))
+    fun mimeSkip(now: Long): GameEvent? = emit(MimeSkipped(nextSeq, now))
+
+    /**
+     * Mimes en file (cedric, 26/10) : le tour d'une couleur est fini depuis [MIME_BILAN_AUTO_MS] (le temps du
+     * « TEMPS ÉCOULÉ ! » et du bravo) : la box montre d'elle-même le bilan des scores, où la jauge de l'équipe monte.
+     */
+    fun mimeBilanDue(now: Long): Boolean = mimeBilanAt()?.let { now >= it } == true
+
+    /** Heure du serveur où la box montre le bilan d'une manche de mimes d'une seule couleur, ou null. */
+    fun mimeBilanAt(): Long? {
+        val m = state.mime ?: return null
+        val ended = m.ended ?: return null
+        val solo = question?.let { it.isMime && it.couleur != null } == true
+        return if (solo && state.phase == Phase.QUESTION && !state.paused && !state.intro && m.team == null && m.last != null) ended + MIME_BILAN_AUTO_MS else null
+    }
     fun mimeFix(team: String, delta: Int, now: Long): GameEvent? = emit(MimeCorrected(nextSeq, now, team, delta))
     fun mimeStop(now: Long): GameEvent? = emit(MimeTurnEnded(nextSeq, now))
 
@@ -1202,6 +1247,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         // Gonfleur fou : la fin du chrono de secours a besoin des tapes des tablettes ([balloon]).
         question?.isGonfleur == true -> null
         question?.isPatate == true -> explode(now)
+        mimeBilanDue(now) -> emit(ScoresShown(nextSeq, now))
         state.mime != null -> mimeStop(now)
         // Blind test : chrono à zéro sans bonne réponse, « Personne n'a trouvé » puis la révélation (titre, pochette,
         // refrain pour chanter tous ensemble), sans points.

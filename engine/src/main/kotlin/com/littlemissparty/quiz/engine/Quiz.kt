@@ -164,6 +164,11 @@ data class Question(
     val points: Int? = null,
     /** Blind test : durée de la séquence de révélation (extrait rejoué, pochette, titre, points), en secondes. */
     val revealSec: Int = BLIND_REVEAL_SEC,
+    /**
+     * Mimes en file (cedric, 23/10 puis 26/10) : couleur (« #F5D000 ») de la seule équipe qui joue cette manche, préparée
+     * pour elle dans la Régie PC. Null : manche jouée tour à tour par toutes les équipes.
+     */
+    val couleur: String? = null,
 ) {
     /** Paroles du refrain, phrase par phrase et mot par mot (vide : pas de paroles). */
     val paroles: List<LigneParole> by lazy { lireParoles(lyrics) }
@@ -175,7 +180,8 @@ data class Question(
             // Pour les mimes et le Pictionary, la durée est celle du tour de chaque équipe.
             require(cards.size in 1..MAX_MIME_CARDS) { "Mimes $id : il faut 1 à $MAX_MIME_CARDS cartes" }
             require(cards.none { it.word.isBlank() }) { "Mimes $id : carte sans mot" }
-            require(durationSec in 15..180) { "Mimes $id : tour entre 15 et 180 s" }
+            // Mimes : durée du tour réglée à la seconde près dans la Régie PC (cedric, 26/10), jusqu'à 5 minutes.
+            require(durationSec in 15..MAX_MIME_TURN_SEC) { "Mimes $id : tour entre 15 et $MAX_MIME_TURN_SEC s" }
             require(points == null || points in 1..MAX_TRACK_POINTS) { "Pictionary $id : valeur entre 1 et $MAX_TRACK_POINTS points" }
         } else if (kind == QuestionKind.CHANTE || kind == QuestionKind.QUISUIS || kind == QuestionKind.BLIND) {
             // Réponse orale jugée par l'animatrice : une seule réponse attendue, pas de propositions à l'écran.
@@ -314,6 +320,9 @@ data class Quiz(val id: String, val title: String, val questions: List<Question>
 data class MimeCard(val word: String, val image: String? = null, val imageId: String? = null)
 
 const val MAX_MIME_CARDS = 200
+
+/** Tour de mimes (ou de Pictionary) le plus long, en secondes. */
+const val MAX_MIME_TURN_SEC = 300
 
 /** Portes mystères : nombre de portes au plus, et valeur la plus forte (bonus ou malus) derrière une porte. */
 const val MAX_DOORS = 4

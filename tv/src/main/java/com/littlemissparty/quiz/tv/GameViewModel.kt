@@ -829,8 +829,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun recover() {
         val g = game ?: return
         // Portes mystères et coffres mystères : pas de chrono, rien ne se ferme seul.
+        // Entre deux tours de mimes, rien ne se ferme seul, sauf le bilan d'une couleur quand son heure est passée.
+        val entreDeuxTours = g.state.mime != null && g.state.mime?.team == null && !g.mimeBilanDue(serverNow())
         if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.question?.isCoffres != true &&
-            g.timeOver(serverNow())
+            !entreDeuxTours && g.timeOver(serverNow())
         ) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
             act { it.timeUp(serverNow()) ?: it.balloon(pumps, teams().map { t -> t.uid }, serverNow(), stop = true) }
@@ -851,6 +853,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val g = game ?: return@withLock
             // Décompte 3, 2, 1 en cours : un second appui sur « Reprendre » ne fait pas avancer la partie.
             if (g.state.resumeAt?.let { serverNow() < it } == true) return@withLock
+            // Mimes en file (cedric, 26/10) : OK sur la présentation des Mimes montre tout de suite la première image de
+            // l'équipe de la couleur ; au bilan d'une couleur, OK lance la manche de la couleur suivante avec son tour.
+            mimeEnFile(g)?.let { team -> commit(g.mimeStart(team, serverNow())); return@withLock }
             when (g.state.phase) {
                 Phase.LOBBY -> if (teams().isNotEmpty()) commit(g.next(serverNow()))
                 // Mimes : arrête le tour en cours, ou termine la manche entre deux tours (« Terminer les mimes »).
@@ -893,8 +898,33 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun togglePause() = act { g -> if (g.state.paused) g.resume(serverNow()) else g.pause(serverNow()) }
 
-    /** Mimes à la télécommande : lancer le tour de [team] (null : l'équipe qui a le moins joué). */
-    fun mimeStart(team: String?) = act { g -> (team ?: g.nextMimeTeam(teams().map { it.uid }))?.let { g.mimeStart(it, serverNow()) } }
+    /**
+     * Mimes à la télécommande : lancer le tour de [team] (null : l'équipe de la couleur de la manche, sinon celle qui a
+     * le moins joué).
+     */
+    fun mimeStart(team: String?) = act { g ->
+        (team ?: equipeDeLaCouleur(g.question?.couleur)?.uid ?: g.nextMimeTeam(teams().map { it.uid }))?.let { g.mimeStart(it, serverNow()) }
+    }
+
+    /** L'équipe inscrite de la couleur [couleur] (« #F5D000 »), ou null. */
+    private fun equipeDeLaCouleur(couleur: String?): Team? = couleur?.let { c -> teams().firstOrNull { it.color.equals(c, ignoreCase = true) } }
+
+    /**
+     * Mimes en file (cedric, 26/10), une manche par couleur : l'équipe dont le tour part au bouton principal, ou null.
+     * Sur la présentation des Mimes ou au début de la manche : celle de sa couleur. Au bilan des scores d'une couleur :
+     * celle de la couleur suivante (sa manche s'ouvre avec son tour). Sans équipe de cette couleur : rien de spécial.
+     */
+    private fun mimeEnFile(g: Game): String? {
+        val s = g.state
+        val q = g.question ?: return null
+        if (s.paused || !q.isMime || q.couleur == null) return null
+        return when {
+            s.phase == Phase.QUESTION && (s.intro || (s.mime?.team == null && s.mime?.turns?.isEmpty() == true)) -> equipeDeLaCouleur(q.couleur)?.uid
+            s.phase == Phase.SCORES && s.leaveTo == null -> g.quiz.questions.getOrNull(s.index + 1)
+                ?.takeIf { it.isMime && it.roundTitle == q.roundTitle }?.couleur?.let { equipeDeLaCouleur(it)?.uid }
+            else -> null
+        }
+    }
 
     /**
      * Mime trouvé à la télécommande. Un appui juste après « Top départ » est le second appui d'un double clic
@@ -916,6 +946,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (now - lastNextAt < NEXT_GUARD_MS) return
         lastNextAt = now
         act { it.mimePass(serverNow()) }
+    }
+
+    /** « ⏭ Passer » à la télécommande : le mimeur abandonne son image, les joueurs tournent. */
+    fun mimeSkip() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNextAt < NEXT_GUARD_MS) return
+        lastNextAt = now
+        act { g -> if (g.justStarted(serverNow())) null else g.mimeSkip(serverNow()) }
     }
 
     /** Image floue à la télécommande (secours de la régie) : verdict sur la réponse orale de l'équipe qui a buzzé. */

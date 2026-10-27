@@ -180,6 +180,12 @@ data class MimeFound(override val seq: Int, override val at: Long) : GameEvent
  */
 data class MimePassed(override val seq: Int, override val at: Long) : GameEvent
 
+/**
+ * Mimes en file (cedric, 26/10) : « ⏭ Passer », le mimeur abandonne son image. Elle repart sous le paquet, sans point,
+ * et les joueurs tournent comme après un mime trouvé : l'écran se vide jusqu'à « Image suivante ».
+ */
+data class MimeSkipped(override val seq: Int, override val at: Long) : GameEvent
+
 /** Correction de l'animatrice (+1 ou −1) sur les mimes trouvés par [team] pendant cette manche, jamais sous zéro. */
 data class MimeCorrected(override val seq: Int, override val at: Long, val team: String, val delta: Int) : GameEvent
 

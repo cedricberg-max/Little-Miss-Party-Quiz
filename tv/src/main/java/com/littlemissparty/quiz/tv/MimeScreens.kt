@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.logoNeonJeu
 import androidx.compose.ui.res.painterResource
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -76,8 +77,9 @@ import kotlinx.coroutines.delay
 import com.littlemissparty.quiz.tv.habillage.PoliceLmp
 
 /*
- * Manche de mimes sur la TV. L'enfant qui devine tourne le dos à l'écran ; ses coéquipiers voient une très
- * grande image et son mot, et miment. L'écran ne décide rien : il affiche l'état du moteur (équipe qui joue,
+ * Manche de mimes sur la TV. Mimes en file (cedric, 26/10) : les joueurs de l'équipe à la queue leu leu, le mimeur
+ * face à l'écran voit une très grande image et son mot et mime pour les trois suivants, dos à l'écran. Trouvé ou passé :
+ * l'écran se vide le temps que les joueurs tournent, puis Sarah montre l'image suivante. L'écran ne décide rien : il affiche l'état du moteur (équipe qui joue,
  * carte, compteurs, chrono calé sur le serveur). La télécommande reste un secours de la régie.
  */
 
@@ -214,21 +216,24 @@ private fun MimeCardView(m: MimeUi, color: Color, photos: Map<String, ByteArray>
         }
         val entree = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value; rotationZ = (1f - pop.value) * -12f }
         if (card != null) MimeCardFace(card, color, card.imageId?.let { photos[it] }, entree)
-        else RelaisFace(color, cle = m.found, modifier = entree)
+        else RelaisFace(color, cle = m.found to m.passed, modifier = entree)
         Gerbe(cle = m.found, actif = m.found > 0, modifier = Modifier.matchParentSize())
-        // Roulement : le tampon laisse vite la place au « Changement de joueur ! ».
+        // Roulement : le tampon laisse vite la place au « On tourne ! ».
         Tampon("TROUVÉ !", cle = m.found, actif = m.found > 0, tailleSp = 56, dureeMs = Tempo.MIME_RELAIS.toInt() + 50, modifier = Modifier.matchParentSize())
+        // « ⏭ Passer » (cedric, 26/10) : le mimeur abandonne, les joueurs tournent aussi.
+        Tampon("PASSÉ !", cle = m.passed, couleur = Neon.Halo, actif = m.passed > 0 && m.relais != null, tailleSp = 56, dureeMs = Tempo.MIME_RELAIS.toInt() + 50, modifier = Modifier.matchParentSize())
     }
 }
 
 /**
- * Mimes en roulement (cedric, 24/10) : le mime est trouvé, deux autres joueurs de l'équipe prennent le relais. Après
- * « TROUVÉ ! », « CHANGEMENT DE JOUEUR ! » claque une seconde, puis la carte reste retournée (« Dos à l'écran ! »)
- * jusqu'à ce que Sarah montre l'image suivante. Même taille que la carte : rien ne saute à l'écran.
+ * Mimes en file (cedric, 24/10 puis 26/10) : le mime est trouvé ou passé, le mimeur file au bout de la queue et le
+ * suivant court face à l'écran. Après « TROUVÉ ! » ou « PASSÉ ! », « ON TOURNE ! » claque une seconde, puis la carte
+ * reste retournée, sans image, jusqu'à ce que Sarah montre l'image suivante : flèches qui tournent et rappel de la
+ * place de chacun. Même taille que la carte : rien ne saute à l'écran.
  */
 @Composable
 private fun RelaisFace(color: Color, cle: Any?, modifier: Modifier) {
-    // 0 : « TROUVÉ ! » ; 1 : « Changement de joueur ! » ; 2 : on attend le nouveau devineur, dos à l'écran.
+    // 0 : « TROUVÉ ! » ou « PASSÉ ! » ; 1 : « On tourne ! » ; 2 : on attend que chacun soit à sa place.
     var etape by remember(cle) { mutableStateOf(0) }
     LaunchedEffect(cle) {
         delay(Tempo.MIME_RELAIS)
@@ -242,9 +247,9 @@ private fun RelaisFace(color: Color, cle: Any?, modifier: Modifier) {
         coup.snapTo(0f)
         coup.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow))
     }
-    val respire by rememberInfiniteTransition(label = "relais").animateFloat(
-        0.55f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "respire",
-    )
+    val boucle = rememberInfiniteTransition(label = "relais")
+    val respire by boucle.animateFloat(0.55f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "respire")
+    val tour by boucle.animateFloat(0f, 360f, infiniteRepeatable(tween(2_400, easing = LinearEasing)), label = "tour")
     Box(
         modifier
             .width(500.dp)
@@ -268,8 +273,8 @@ private fun RelaisFace(color: Color, cle: Any?, modifier: Modifier) {
             ) {
                 Text("🔄", fontSize = 64.sp, lineHeight = 70.sp)
                 Text(
-                    "CHANGEMENT\nDE JOUEUR !",
-                    textAlign = TextAlign.Center, maxLines = 2,
+                    "ON TOURNE !",
+                    textAlign = TextAlign.Center, maxLines = 1,
                     style = TextStyle(
                         fontFamily = PoliceLmp, brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.Or, Neon.OrProfond)),
                         fontSize = 46.sp, lineHeight = 50.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp,
@@ -279,13 +284,13 @@ private fun RelaisFace(color: Color, cle: Any?, modifier: Modifier) {
             }
         } else if (etape == 2) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("🙈", fontSize = 84.sp, lineHeight = 90.sp, modifier = Modifier.scale(0.92f + 0.08f * respire))
+                Text("🔄", fontSize = 76.sp, lineHeight = 84.sp, modifier = Modifier.graphicsLayer { rotationZ = tour }.scale(0.92f + 0.08f * respire))
                 Text(
-                    "Dos à l'écran !", color = Neon.Blanc, fontSize = 40.sp, lineHeight = 44.sp, fontWeight = FontWeight.Black,
+                    "Au mimeur suivant !", color = Neon.Blanc, fontSize = 38.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black,
                     textAlign = TextAlign.Center, maxLines = 1,
                 )
                 Text(
-                    "L'image arrive…", color = Palette.InkSoft, fontSize = 24.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold,
+                    "Le mimeur face à l'écran !", color = Palette.InkSoft, fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center, maxLines = 1,
                 )
             }
@@ -400,6 +405,9 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
             Spacer(Modifier.height(10.dp))
             Text(
                 when {
+                    // Mimes en file (cedric, 26/10) : une couleur par manche, le bilan des scores suit tout seul.
+                    state.question?.couleur != null && m.turns.isNotEmpty() -> "Place au classement !"
+                    state.question?.couleur != null -> "Tous en file : le mimeur face à l'écran, les autres dos à l'écran.\nChaque mime trouvé rapporte ${Scoring.MIME} points."
                     m.turns.isEmpty() -> "Celui qui devine se met dos à la TV, ses coéquipiers miment sans parler.\nChaque mime trouvé rapporte ${Scoring.MIME} points."
                     remainingTeams(state, m).isEmpty() -> "Toutes les équipes sont passées !"
                     else -> "Au tour de ${remainingTeams(state, m).first().name} ! Restent : ${remainingTeams(state, m).joinToString(", ") { it.name }}"
@@ -442,14 +450,21 @@ private fun remainingTeams(state: UiState.Playing, m: MimeUi): List<Team> = stat
 @Composable
 private fun MimeButtons(state: UiState.Playing, m: MimeUi, actions: TvActions) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        val enFile = state.question?.couleur != null
         if (m.team != null && m.relais != null) {
-            // Changement de joueur : le nouveau devineur est dos à l'écran, on montre l'image suivante.
+            // On tourne : chacun est à sa place, on montre l'image suivante.
             TvButton("Arrêter le tour", actions.mimeStop, fontSize = 20.sp)
-            NextButton("Image suivante", actions.mimePass, key = "relais-${m.turns.size}-${m.found}")
+            NextButton("Image suivante", actions.mimePass, key = "relais-${m.turns.size}-${m.found}-${m.passed}")
         } else if (m.team != null) {
-            TvButton("Image suivante", actions.mimePass, fontSize = 20.sp)
+            // Mimes en file : « Passer » fait tourner les joueurs, comme un mime trouvé.
+            if (enFile) TvButton("Passer", actions.mimeSkip, fontSize = 20.sp) else TvButton("Image suivante", actions.mimePass, fontSize = 20.sp)
             TvButton("Arrêter le tour", actions.mimeStop, fontSize = 20.sp)
             NextButton("Trouvé !", actions.mimeFound, key = "turn-${m.turns.size}")
+        } else if (enFile) {
+            // Une manche par couleur : l'équipe de la couleur joue, puis le bilan des scores arrive tout seul.
+            val equipe = state.teams.firstOrNull { it.color.equals(state.question?.couleur, ignoreCase = true) }
+            if (m.turns.isEmpty() && equipe != null) NextButton("Top départ : ${equipe.name}", { actions.mimeStart(equipe.uid) }, key = "between-0")
+            else NextButton("Voir le classement", actions.next, key = "between-${m.turns.size}")
         } else {
             // Chaque équipe passe à son tour ; quand toutes sont passées, le bouton principal mène au classement.
             val next = remainingTeams(state, m).firstOrNull()
