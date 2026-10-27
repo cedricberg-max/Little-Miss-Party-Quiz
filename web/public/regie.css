@@ -326,6 +326,21 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .statues-teams.serree .statues-tuile { min-height: 54px; font-size: 18px; border-radius: 14px; }
 .regie .statues-teams.serree .statues-tuile.personne { min-height: 46px; }
 .regie .statues-retour { align-self: center; min-height: 44px; font-size: 16px; }
+/* Le Duel des robots : les deux équipes face à face, le joueur appelé, puis le bandeau de la gagnante. */
+.regie .duel-face { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+.regie .duel-equipe {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 96px;
+  padding: 8px; border-radius: 18px; background: var(--team); color: #1a0b2e; text-align: center;
+}
+.regie .duel-equipe b { font-size: 22px; font-weight: 900; overflow-wrap: break-word; max-width: 100%; }
+.regie .duel-equipe small { font-size: 15px; font-weight: 800; }
+.regie .duel-vs { font-size: 22px; font-weight: 900; color: var(--gold); }
+.regie .duel-face.en-cours .duel-equipe { box-shadow: 0 0 0 3px #fff, 0 0 24px color-mix(in srgb, var(--team) 70%, transparent); }
+.regie .duel-resultat {
+  margin: 0; padding: 14px; border-radius: 18px; background: var(--team, var(--panel)); color: #1a0b2e;
+  font-size: 22px; font-weight: 900; text-align: center;
+}
+.regie .duel-resultat:not([style*="--team"]) { color: var(--ink); }
 @media (max-height: 640px) {
   .regie .statues-bascule { min-height: 140px; font-size: 40px; }
   .regie .statues-tuile { min-height: 64px; font-size: 18px; }

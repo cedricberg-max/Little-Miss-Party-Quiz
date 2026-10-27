@@ -237,6 +237,18 @@
         <button id="statues-suivante" class="btn statues-suivante" type="button" hidden>▶ Chanson suivante</button>
         <p id="statues-points" class="hint"></p>
       </section>
+      <!-- Le Duel des robots (cedric, 27/10) : deux équipes face à face, la première qui buzze après le PAN gagne. -->
+      <section id="duel" class="flou" hidden aria-label="Le Duel des robots">
+        <p id="duel-info" class="mime-info"></p>
+        <div id="duel-face" class="duel-face"></div>
+        <p id="duel-resultat" class="duel-resultat" hidden></p>
+        <div id="duel-choix" class="statues-teams" hidden></div>
+        <button id="duel-stop" class="btn secondary" type="button" hidden>✋ Arrêter le face-à-face</button>
+        <button id="duel-autres" class="btn secondary" type="button" hidden>🎯 Choisir 2 équipes</button>
+        <button id="duel-retour" class="btn secondary statues-retour" type="button" hidden>← Retour</button>
+        <button id="duel-fin" class="btn secondary" type="button" hidden>⏭ Jeu suivant</button>
+        <p id="duel-points" class="hint"></p>
+      </section>
       <!-- Les coffres mystères : la régie suit les coffres ; elle ne voit ni ne choisit leur contenu (tiré à l'ouverture). -->
       <section id="coffres" class="flou" hidden aria-label="Les Coffres mystères">
         <p id="coffres-info" class="mime-info"></p>

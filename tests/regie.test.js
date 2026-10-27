@@ -1664,6 +1664,112 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  /** Duel des robots : la box publie state.duel (contrat du 27/10) ; l'heure du PAN n'y est jamais. */
+  async function duelEnCours(duel, teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"]], query = `?g=${CODE}&emu=1&cockpit=1`) {
+    box = startBox();
+    for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
+    const plan = [{ id: "d1", kind: "duel", text: "Le Duel des robots", round: "Le Duel des robots", joueurs: 2, faceMin: 20, faceMax: 40, longs: true }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, questions: plan });
+    const etat = { n: 1, total: 3, teams: ["rose", "bleu"], players: [1, 1], step: "ready", extra: false, key: "d1-1", result: null, played: {}, allPlayed: false, ...duel };
+    await box.set({ ...questionState(1), qid: "d1", kind: "duel", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, duel: etat });
+    const page = await openRegie(undefined, query);
+    await pair(page);
+    await inRegie(page);
+    return { page, etat };
+  }
+
+  test("duel des robots : lancer, face-à-face (arrêt en deux appuis), gagnante, trop tôt, personne, duel suivant, résultats", async () => {
+    const { page, etat } = await duelEnCours({});
+    await page.locator("#duel-info", { hasText: "Duel 1 sur 3 : appelez les deux joueurs." }).waitFor();
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Roses" }).locator("small", { hasText: "Joueur n°1" }).waitFor();
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Bleus" }).waitFor();
+    await page.locator("#duel-points", { hasText: "100 points par duel gagné" }).waitFor();
+    assert.equal(await page.locator("#c-tuiles").isVisible(), false, "le milieu est au duel");
+    await page.locator("#c-next", { hasText: "🤠 Lancer le duel" }).click();
+    await waitFor(async () => (await commandes("duel_start")).some((c) => c.teams == null), "face-à-face lancé");
+
+    await box.set({ duel: { ...etat, step: "standoff", key: "d1-1b" } });
+    await page.locator("#duel-info", { hasText: "Face-à-face… mains sur les buzzers" }).waitFor();
+    await page.locator("#c-next", { hasText: "Face-à-face… 🤠" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true, "rien à lancer pendant le face-à-face");
+    assert.equal(await page.locator("#duel-autres").isVisible(), false);
+    await page.click("#duel-stop");
+    await page.locator("#duel-stop", { hasText: "Touchez encore" }).waitFor();
+    assert.equal((await commandes("duel_stop")).length, 0, "un seul appui n'arrête rien");
+    await page.click("#duel-stop");
+    await waitFor(async () => (await commandes("duel_stop")).length === 1, "face-à-face arrêté");
+
+    await box.set({ duel: { ...etat, step: "result", result: { winner: "rose", loser: "bleu", early: null, ms: 312, points: 100 } } });
+    await page.locator("#duel-resultat", { hasText: "🏆 Les Roses gagne le duel en 0,31 s !" }).waitFor();
+    await page.locator("#c-next", { hasText: "▶ Duel suivant" }).click();
+    await waitFor(async () => (await commandes("duel_next")).length === 1, "duel suivant demandé");
+    await box.set({ duel: { ...etat, step: "result", result: { winner: "rose", loser: "bleu", early: "bleu", ms: null, points: 100 } } });
+    await page.locator("#duel-resultat", { hasText: "💥 Les Bleus a tiré trop tôt : Les Roses gagne le duel." }).waitFor();
+    await box.set({ duel: { ...etat, step: "result", result: { winner: null, loser: null, early: null, ms: null, points: 0 } } });
+    await page.locator("#duel-resultat", { hasText: "Personne n'a tiré ! Duel nul, aucun point." }).waitFor();
+
+    // Tous les joueurs passés : le gros bouton finit le jeu, un duel en plus reste possible.
+    await box.set({ duel: { ...etat, n: 3, step: "result", allPlayed: true, result: { winner: "vert", loser: "rose", early: null, ms: 420, points: 100 } } });
+    await page.locator("#duel-autres", { hasText: "🤠 Duel en plus" }).waitFor();
+    assert.equal(await page.locator("#duel-fin").isVisible(), false, "« Jeu suivant » est déjà le gros bouton");
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).click();
+    await waitFor(async () => (await commandes("next")).length === 1, "jeu suivant");
+    await page.context().close();
+  });
+
+  test("duel des robots : duel à la volée entre 2 équipes choisies, « Jeu suivant » confirmé, pause, une seule équipe", async () => {
+    const { page, etat } = await duelEnCours({});
+    await page.click("#duel-autres");
+    await page.locator("#c-next", { hasText: "Touchez 2 équipes" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    assert.equal(await page.locator("#duel-face").isVisible(), false);
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Verts" }).click();
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Bleus" }).click();
+    assert.deepEqual(await page.locator('#duel-choix [aria-pressed="true"]').allTextContents(), ["Les Bleus", "Les Verts"], "2 équipes au plus : la plus ancienne part");
+    await page.locator("#c-next", { hasText: "🤠 Les Verts contre Les Bleus" }).click();
+    await waitFor(async () => (await commandes("duel_start")).some((c) => JSON.stringify(c.teams) === JSON.stringify(["vert", "bleu"])), "duel à la volée lancé");
+    await page.locator("#duel-face").waitFor();
+
+    // Retour sans rien lancer.
+    await page.click("#duel-autres");
+    await page.click("#duel-retour");
+    await page.locator("#c-next", { hasText: "🤠 Lancer le duel" }).waitFor();
+
+    // « Jeu suivant » avant la fin des duels prévus : confirmé, on dit combien il en reste.
+    await page.click("#duel-fin");
+    assert.match(await respond(page, false), /Arrêter les duels \? 3 duels prévus pas encore joués/);
+    assert.equal((await commandes("next")).length, 0);
+    await page.click("#duel-fin");
+    await respond(page);
+    await waitFor(async () => (await commandes("next")).length === 1, "jeu suivant après confirmation");
+
+    await box.set({ paused: true, pauseReason: "regie", duel: { ...etat, step: "ready" }, seq: 9 });
+    await waitFor(async () => page.locator("#duel-autres").isDisabled(), "pause : rien ne part");
+    await page.context().close();
+  });
+
+  test("duel des robots : une seule équipe, la régie le dit et propose le jeu suivant", async () => {
+    const { page } = await duelEnCours({ teams: [] }, [["rose", "Les Roses", "#FF2D8A"]]);
+    await page.locator("#duel-info", { hasText: "Il faut au moins 2 équipes pour un duel" }).waitFor();
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).click();
+    await waitFor(async () => (await commandes("next")).length === 1, "jeu suivant");
+    await page.context().close();
+  });
+
+  test("duel des robots sur 8 équipes : joueur appelé, choix de 2 équipes, gros bouton toujours visible", async () => {
+    const huit = ["Orange", "Vert", "Rose", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"].map((n, i) => [`e${i}`, `Les ${n}s`, TEAM_COLORS_TEST[i % TEAM_COLORS_TEST.length]]);
+    const { page } = await duelEnCours({ teams: ["e0", "e7"], players: [3, 2] }, huit);
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Turquoises" }).locator("small", { hasText: "Joueur n°2" }).waitFor();
+    await capture(page, "regie-duel-pret");
+    await page.click("#duel-autres");
+    assert.equal(await page.locator("#duel-choix .statues-tuile").count(), 8);
+    const bas = await page.locator("#c-next").boundingBox();
+    assert.ok(bas && bas.y + bas.height <= page.viewportSize().height + 1, "le gros bouton reste visible");
+    await capture(page, "regie-duel-choix");
+    await page.context().close();
+  });
+
   test("secours : jeu en cours et suivant, passer au suivant, recommencer un jeu après confirmation", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");

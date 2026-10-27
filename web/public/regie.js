@@ -240,13 +240,13 @@ function questionSuivante(st) {
   const k = (st.index ?? -1) + 1;
   const q = questions[k];
   if (!q || (next && next.start === k) || st.leaveTo != null) return null;
-  if (["portes", "coffres", "gonfleur", "patate", "statues", "mime", "pictionary", "blind"].includes(q.kind)) return null;
+  if (["portes", "coffres", "gonfleur", "patate", "statues", "duel", "mime", "pictionary", "blind"].includes(q.kind)) return null;
   if (q.correct == null) return null;
   return { q, correct: q.correct, text: q.choices?.[q.correct] ?? "", number: q.kind === "number", flou: BUZZ_KINDS.includes(q.kind) };
 }
 
 /** Jeux qui ont déjà leur propre écran au milieu de la régie pendant la question (mimes, blind test, statues…). */
-const MILIEU_OCCUPE = ["mime", "blind", "statues", "coffres", "gonfleur", "patate"];
+const MILIEU_OCCUPE = ["mime", "blind", "statues", "duel", "coffres", "gonfleur", "patate"];
 
 /**
  * Une tuile par équipe (1 à 8) : sa couleur, ses points, ce qu'elle fait (a répondu, réfléchit, sa réponse et ses
@@ -597,6 +597,8 @@ function nextLabel(st, teamCount) {
   }
   const statues = statuesEtape(st);
   if (statues) return statuesBoutonPrincipal(statues, st);
+  const duel = duelEtape(st);
+  if (duel) return duelBoutonPrincipal(duel, st);
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
@@ -684,7 +686,7 @@ function render() {
   }
   answerBtn.classList.toggle("grosse", COCKPIT && !answerBtn.hidden && !(portes && q?.doors));
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
+  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
 
   renderGames(st);
   renderRequests(st, teams);
@@ -697,6 +699,7 @@ function render() {
   renderCoffres(st);
   renderGonfleur(st, teams);
   renderPatate(st);
+  renderDuel(st, teams);
   renderTeams(st, teams);
   if (COCKPIT) renderTuiles(st, teams);
   renderPoints();
@@ -727,6 +730,8 @@ function render() {
   next.disabled = next.disabled || st.paused === true || countdown > 0 || ((st.kind === "coffres" || st.kind === "patate") && st.phase === "question") || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
   const statues = statuesEtape(st);
   if (statues) next.disabled = next.disabled || (!!statues.choix && !statues.choix.personne && !statues.choix.equipes.size) || (!!statues.resultat && statues.annonce > 0);
+  const duel = duelEtape(st);
+  if (duel) next.disabled = next.disabled || duel.d.step === "standoff" || (!!duel.choix && duel.choix.length !== 2);
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
@@ -1936,6 +1941,175 @@ function renderStatuesAvant(st, teams) {
 }
 
 /**
+ * Le Duel des robots (cedric, 27/10) : la box prépare chaque duel (2 équipes, un joueur appelé de chaque) et garde
+ * l'heure du PAN secrète, même pour la régie. Sarah lance le face-à-face, puis « ▶ Duel suivant ». Un duel à la volée
+ * (2 équipes choisies) sert à une équipe qui n'a pas fini de jouer, ou à rejouer une paire.
+ */
+let duelChoix = null; // équipes choisies pour un duel à la volée (tableau d'uid), null = pas d'écran de choix
+let duelStopArme = null;
+
+function duelEtape(st) {
+  const d = st.duel;
+  if (st.kind !== "duel" || !d || (st.phase !== "question" && st.phase !== "closed")) return null;
+  if (d.step === "standoff") duelChoix = null;
+  return { d, choix: d.step === "standoff" ? null : duelChoix, equipes: Object.keys(live.teams ?? {}).length };
+}
+
+const duelNom = (id) => live.teams[id]?.name ?? "Une équipe";
+const duelTemps = (ms) => `${(ms / 1000).toFixed(2).replace(".", ",")} s`;
+
+function duelResultat(r) {
+  if (!r) return "";
+  if (r.early && r.winner) return `💥 ${duelNom(r.early)} a tiré trop tôt : ${duelNom(r.winner)} gagne le duel.`;
+  if (r.early) return `💥 ${duelNom(r.early)} a tiré trop tôt.`;
+  if (r.winner) return `🏆 ${duelNom(r.winner)} gagne le duel${r.ms != null ? ` en ${duelTemps(r.ms)}` : ""} !`;
+  return "Personne n'a tiré ! Duel nul, aucun point.";
+}
+
+function renderDuel(st, teams) {
+  const on = (st.phase === "question" || st.phase === "closed") && st.kind === "duel";
+  $("duel").hidden = !on;
+  if (!on) { duelChoix = null; clearTimeout(duelStopArme); duelStopArme = null; return; }
+  const e = duelEtape(st);
+  const d = e?.d ?? {};
+  const busy = !!pending?.advance || st.paused === true;
+  const paire = Array.isArray(d.teams) ? d.teams : Object.values(d.teams ?? {});
+  const joueurs = Array.isArray(d.players) ? d.players : Object.values(d.players ?? {});
+  const choix = e?.choix;
+  const seule = teams.length < 2;
+  $("duel-info").textContent = seule ? "Il faut au moins 2 équipes pour un duel : passez au jeu suivant."
+    : choix ? "Duel à la volée : touchez les 2 équipes qui s'affrontent."
+      : d.step === "standoff" ? "🤠 Face-à-face… mains sur les buzzers ! Le PAN tombe quand la TV le décide."
+        : d.step === "result" ? (d.allPlayed ? "Tous les joueurs sont passés." : `Duel ${d.n ?? 1} terminé.`)
+          : `${d.extra ? "Duel en plus" : `Duel ${d.n ?? 1} sur ${d.total ?? "?"}`} : appelez les deux joueurs.`;
+  // Les deux équipes face à face, dans leur couleur, avec le joueur appelé.
+  const face = $("duel-face");
+  face.hidden = seule || !!choix || !paire.length;
+  const cle = JSON.stringify([paire, joueurs, paire.map((id) => [live.teams[id]?.name, live.teams[id]?.color])]);
+  if (face.dataset.key !== cle) {
+    face.dataset.key = cle;
+    const carte = (id, i) => {
+      const c = document.createElement("div");
+      c.className = "duel-equipe";
+      c.style.setProperty("--team", live.teams[id]?.color ?? "#fff");
+      const nom = document.createElement("b");
+      nom.textContent = duelNom(id);
+      const j = document.createElement("small");
+      j.textContent = joueurs[i] ? `Joueur n°${joueurs[i]}` : "";
+      c.append(nom, j);
+      return c;
+    };
+    const vs = document.createElement("span");
+    vs.className = "duel-vs";
+    vs.textContent = "VS";
+    face.replaceChildren(...paire.slice(0, 2).flatMap((id, i) => (i ? [vs, carte(id, i)] : [carte(id, i)])));
+  }
+  face.classList.toggle("en-cours", d.step === "standoff");
+  // Résultat : bandeau dans la couleur de la gagnante.
+  const res = $("duel-resultat");
+  const r = d.step === "result" && !choix ? d.result : null;
+  res.hidden = !r;
+  res.textContent = duelResultat(r);
+  if (r?.winner) res.style.setProperty("--team", live.teams[r.winner]?.color ?? "var(--gold)");
+  else res.style.removeProperty("--team");
+  // Choix de 2 équipes pour un duel à la volée.
+  const box = $("duel-choix");
+  box.hidden = !choix;
+  const key = teams.map(([id, t]) => `${id}:${t.name}:${t.color}`).join("|");
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    box.replaceChildren(...teams.map(([id, t]) => {
+      const b = document.createElement("button");
+      b.className = "statues-tuile";
+      b.dataset.team = id;
+      b.style.setProperty("--team", t.color ?? "#fff");
+      b.textContent = t.name;
+      b.onclick = () => {
+        if (!duelChoix) return;
+        navigator.vibrate?.(30);
+        duelChoix = duelChoix.includes(id) ? duelChoix.filter((x) => x !== id) : [...duelChoix, id].slice(-2);
+        render();
+      };
+      return b;
+    }));
+  }
+  box.classList.toggle("serree", teams.length > 4);
+  box.querySelectorAll("button").forEach((b) => {
+    const coche = !!choix?.includes(b.dataset.team);
+    b.classList.toggle("cochee", coche);
+    b.setAttribute("aria-pressed", String(coche));
+    b.disabled = busy;
+  });
+  // Arrêter un face-à-face (buzzer en panne, enfant pas prêt) : deux appuis, jamais par erreur au moment du PAN.
+  const stop = $("duel-stop");
+  stop.hidden = d.step !== "standoff";
+  stop.disabled = busy;
+  stop.textContent = duelStopArme ? "Touchez encore : arrêter sans points" : "✋ Arrêter le face-à-face";
+  if (d.step !== "standoff") { clearTimeout(duelStopArme); duelStopArme = null; }
+  const pret = (d.step === "ready" || d.step === "result") && !choix && !seule;
+  $("duel-autres").hidden = !pret;
+  $("duel-autres").textContent = d.allPlayed && d.step === "result" ? "🤠 Duel en plus : choisir 2 équipes" : "🎯 Choisir 2 autres équipes";
+  $("duel-autres").disabled = busy;
+  $("duel-retour").hidden = !choix;
+  // « Jeu suivant » au milieu (le gros bouton du bas lance les duels) tant qu'il reste des joueurs à faire passer.
+  $("duel-fin").hidden = !pret || (d.step === "result" && !!d.allPlayed);
+  $("duel-fin").disabled = busy;
+  $("duel-points").textContent = `${st.double ? 200 : 100} points par duel gagné. Tirer avant le PAN fait perdre le duel.`;
+}
+
+/** Le gros bouton du bas : lancer le duel, puis le suivant ; tous les joueurs passés, le jeu suivant. */
+function duelBoutonPrincipal(e, st) {
+  const d = e.d;
+  if (e.equipes < 2) return finDuelLabel(st);
+  if (e.choix) return e.choix.length === 2 ? `🤠 ${duelNom(e.choix[0])} contre ${duelNom(e.choix[1])}` : "Touchez 2 équipes";
+  if (d.step === "standoff") return "Face-à-face… 🤠";
+  if (d.step === "result") return d.allPlayed ? finDuelLabel(st) : "▶ Duel suivant";
+  return "🤠 Lancer le duel";
+}
+
+function finDuelLabel(st) {
+  if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
+  const { next, questions } = gamesOf(st);
+  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Jeu suivant ▶";
+}
+
+function duelPrincipal(e) {
+  const d = e.d;
+  navigator.vibrate?.(60);
+  if (e.choix) {
+    if (e.choix.length !== 2) return;
+    const teams = e.choix;
+    duelChoix = null;
+    return send("duel_start", { teams }, { advance: true });
+  }
+  if (e.equipes < 2 || (d.step === "result" && d.allPlayed)) return send("next", {}, { advance: true });
+  if (d.step === "result") return send("duel_next", {}, { advance: true });
+  if (d.step === "ready") return send("duel_start", {}, { advance: true });
+}
+
+$("duel-stop").onclick = () => {
+  if (!duelStopArme) {
+    duelStopArme = setTimeout(() => { duelStopArme = null; render(); }, 4000);
+    return render();
+  }
+  clearTimeout(duelStopArme);
+  duelStopArme = null;
+  send("duel_stop", {}, { advance: true }).then((r) => { if (r?.status === "applied") toast("Face-à-face arrêté, sans points : relancez quand les joueurs sont prêts."); });
+};
+$("duel-autres").onclick = () => { duelChoix = []; render(); };
+$("duel-retour").onclick = () => { duelChoix = null; render(); };
+$("duel-fin").onclick = async () => {
+  const d = live.state?.duel ?? {};
+  const reste = d.allPlayed ? 0 : Math.max(0, (d.total ?? 0) - (d.n ?? 0) + (d.step === "ready" ? 1 : 0));
+  const ok = await demander({
+    title: "Arrêter les duels ?",
+    text: reste ? `${reste} duel${reste > 1 ? "s" : ""} prévu${reste > 1 ? "s" : ""} pas encore joué${reste > 1 ? "s" : ""} : certains joueurs ne seront pas passés.` : "",
+    ok: "⏭ Jeu suivant",
+  });
+  if (ok && duelEtape(live.state ?? {})) send("next", {}, { advance: true });
+};
+
+/**
  * Les coffres mystères : à qui le tour, combien de coffres sans danger, ce qui est sorti. Secours : ouvrir un coffre au
  * hasard pour l'équipe qui joue (deux appuis). Jamais de contenu à l'avance : il est tiré par la box à l'ouverture.
  */
@@ -3126,6 +3300,7 @@ function renderPreview() {
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
     if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; une équipe qui la garde plus de 2 secondes la voit exploser. À l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
+    if (q.kind === "duel") { li.textContent = "Deux équipes face à face, un joueur de chaque : la première qui buzze après le PAN gagne, trop tôt elle perd."; list.appendChild(li); return; }
     if (q.kind === "gonfleur") { li.textContent = "Chaque équipe tapote sa tablette pour gonfler son ballon : le premier qui éclate gagne."; list.appendChild(li); return; }
     if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
     // Blind test et quiz musical : le titre (et l'artiste) de chaque extrait.
@@ -3186,6 +3361,7 @@ const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : s
 const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer aux Coffres mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à « Ça va exploser ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_DUEL = "La TV doit être mise à jour pour jouer au Duel des robots : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
@@ -3205,6 +3381,7 @@ function tvRefuses(questions) {
   if (live.plan.coffres !== true && questions.some((q) => q?.kind === "coffres")) return OLD_TV_COFFRES;
   if (live.plan.gonfleur !== true && questions.some((q) => q?.kind === "gonfleur")) return OLD_TV_GONFLEUR;
   if (live.plan.patate !== true && questions.some((q) => q?.kind === "patate")) return OLD_TV_PATATE;
+  if (live.plan.duel !== true && questions.some((q) => q?.kind === "duel")) return OLD_TV_DUEL;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
   if (live.plan.blindPlay !== true && questions.some((q) => q?.kind === "blind")) return OLD_TV_BLIND;
   if (live.plan.blind !== true && questions.some((q) => q?.audioId)) return OLD_TV_BLIND;
@@ -3922,6 +4099,8 @@ $("c-next").onclick = async () => {
   // Statues : une chanson ne finit jamais sans sa gagnante ; après l'annonce, « next » passe au jeu suivant.
   const statues = st ? statuesEtape(st) : null;
   if (statues?.choix) return validerGagnantes();
+  const duel = st ? duelEtape(st) : null;
+  if (duel) return duelPrincipal(duel, st);
   if (statues && !statues.resultat) { $("statues-choisir").click(); return; }
   if (statues) { send("next", {}, { advance: true }); return; }
   // Blind test : « next » lance, relance ou arrête la musique (la box décide selon l'état du morceau).
