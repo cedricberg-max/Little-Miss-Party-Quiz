@@ -752,7 +752,7 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
      */
     DUEL_FACE("lmp_drumroll_2b", true, gs = "gs_duel_face"),
     DUEL_FEINTE("lmp_whoosh", gs = "gs_duel_feinte"),
-    DUEL_PAN("lmp_impact", gs = "gs_duel_pan"),
+    DUEL_PAN("lmp_impact", gs = "gs_duel_coup"),
     DUEL_VICTOIRE("lmp_crown_hit", gs = "gs_duel_victoire"),
     DUEL_TROP_TOT("lmp_wrong_off", gs = "gs_duel_troptot"),
     TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
