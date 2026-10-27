@@ -5432,7 +5432,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#lib-meta", { hasText: "10 questions" }).waitFor();
     // Fenêtre fermée tout de suite, pendant la copie des pochettes (test du 27/10) : l'ajout part quand même.
     await regie.click("#lib-end");
-    await regie.click("#lib-close");
+    // Fermer aussitôt, sans attendre que le bouton soit stable : la copie peut déjà être finie et la fenêtre fermée.
+    await regie.evaluate(() => document.getElementById("lib-close").click());
     await regie.locator("#r-toast", { hasText: "est ajouté" }).waitFor();
     const blind = (await read("conducteur")).questions.filter((q) => q.kind === "blind" && q.id !== "b0");
     assert.ok(blind.every((q) => q.imageId), "les pochettes suivent");
@@ -6694,7 +6695,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const questions = (await read("show")).quiz.questions;
-    assert.deepEqual(questions.map((q) => [q.kind, q.duration, q.round]), [["express", 9, "Vrai ou Faux express"], ["express", 9, "Vrai ou Faux express"]]);
+    // 20 s par affirmation à tout âge (cedric, test du 27/10 : à peine le temps de lire).
+    assert.deepEqual(questions.map((q) => [q.kind, q.duration, q.round]), [["express", 20, "Vrai ou Faux express"], ["express", 20, "Vrai ou Faux express"]]);
     // En direct : proposé dans les mini-jeux pour chaque quiz qui a des Vrai / Faux.
     await regie.click("#tab-plan");
     await regie.click("#plan-add");
