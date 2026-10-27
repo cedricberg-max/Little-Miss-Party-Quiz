@@ -68,7 +68,8 @@ class FinDeLaFeteTest : TestTv() {
      * de fin ne se lit pas (écran de secours dessiné), la ligne reste au moins sous « Merci d'avoir participé ! ».
      */
     private fun bientotSousLEnseigne() {
-        ecran.voit("À BIENTÔT SUR THE GAME SHOW", 30_000)
+        // Le podium joue d'abord sa chanson (Tempo.PODIUM_FIN, 102,5 s), puis l'écran de fin écrit « À bientôt » 6 s après.
+        ecran.voit("À BIENTÔT SUR THE GAME SHOW", 130_000)
         val elements = ecran.elements()
         val enseigne = elements.first { "Merci d'avoir participé" in it.texte && it.visible }
         val bientot = elements.first { "À BIENTÔT SUR THE GAME SHOW" in it.texte && it.visible }
