@@ -41,6 +41,13 @@ const val SIMON_PAS_MS = 1_000L
 /** Animation « Attention, les chiffres débarquent ! », avant la première suite à chiffres du jeu. */
 const val SIMON_CHIFFRES_MS = 4_500L
 
+/**
+ * Vérification à la TV, colonne par colonne (le temps de chaque élément), puis le bandeau des éliminées ou des
+ * gagnantes : les tablettes attendent jusque-là pour annoncer le résultat.
+ */
+const val SIMON_VERIF_PAS_MS = 700L
+const val SIMON_VERIF_FIN_MS = 1_500L
+
 /** Points du tour gagné (× 2 si le jeu est doublé). */
 const val SIMON_POINTS = Scoring.MINI_WIN
 

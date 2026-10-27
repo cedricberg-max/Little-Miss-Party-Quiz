@@ -393,6 +393,7 @@ object Codec {
                     "winners" to it.winners.ifEmpty { null },
                     "points" to it.points,
                     "bahAlors" to it.bahAlors.takeIf { b -> b },
+                    "at" to it.at,
                 )
             },
         )

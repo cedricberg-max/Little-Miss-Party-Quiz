@@ -685,6 +685,65 @@ describe("pupitre", () => {
     for (const p of [roses, bleus, verts]) await p.context().close();
   });
 
+  test("Le Simon du Prof (cedric, 27/10) : on regarde la TV, puis le joueur appelé tape la suite et valide ; éliminés ou gagné après la vérification", async () => {
+    const roses = await openPupitre();
+    await joinTeam(roses, "Les Roses");
+    const bleus = await openPupitre();
+    await joinTeam(bleus, "Les Bleus");
+    const verts = await openPupitre();
+    await joinTeam(verts, "Les Verts");
+    const teams = await read("teams");
+    const id = (name) => Object.keys(teams).find((t) => teams[t].name === name);
+    const [r, b, v] = [id("Les Roses"), id("Les Bleus"), id("Les Verts")];
+    const simon = (sm) => question({ qid: "s1", kind: "simon", text: "Le Simon du Prof", choices: null, deadline: null, durationMs: null,
+      simon: { tour: 1, tours: 3, suite: 4, step: "ready", key: null, teams: [r, b], players: { [r]: 2, [b]: 1 }, chiffres: false, ...sm } });
+    await hostState(simon({}));
+    await roses.locator(".sm-texte", { hasText: "Prochaine suite : joueur 2, prépare-toi !" }).waitFor();
+    await verts.locator(".sm-texte", { hasText: "Vous jouerez au prochain tour." }).waitFor();
+    // Les chiffres débarquent, puis le robot montre la suite : on regarde la TV, rien à toucher.
+    const t = Date.now();
+    await hostState(simon({ step: "play", key: "s1-1-4-100", startAt: t, chiffresAt: t, montreAt: t + 2_500, reponseAt: t + 4_500, finAt: t + 60_000, chiffres: true }));
+    await roses.locator(".sm-titre", { hasText: "Attention, les chiffres débarquent !" }).waitFor();
+    await roses.locator(".sm-titre", { hasText: "Regarde bien la TV…" }).waitFor({ timeout: 5_000 });
+    assert.equal(await roses.locator(".sm-pave").isVisible(), false, "rien à toucher pendant que le robot montre");
+    // Le chrono part : le joueur appelé tape, chaque appui part en direct vers la TV.
+    await roses.locator(".sm-titre", { hasText: "À toi ! Tape la suite" }).waitFor({ timeout: 5_000 });
+    await roses.locator(".sm-joueur", { hasText: "C'est au tour du joueur 2" }).waitFor();
+    assert.equal(await roses.locator(".sm-chiffres").isVisible(), true, "les chiffres sont là");
+    assert.equal(await verts.locator(".sm-pave").isVisible(), false, "pas du tour : on regarde");
+    await verts.locator(".sm-titre", { hasText: "Les autres équipes jouent…" }).waitFor();
+    assert.equal(await roses.locator(".sm-valider").isDisabled(), true, "suite pas complète");
+    await roses.locator(".sm-boule[data-item=rouge]").dispatchEvent("pointerdown");
+    await waitFor(async () => (await read(`simon/s1-1-4-100/${r}`))?.items === "rouge", "premier appui envoyé");
+    await roses.locator(".sm-boule[data-item=bleu]").dispatchEvent("pointerdown");
+    await roses.locator(".sm-effacer").dispatchEvent("pointerdown");
+    for (const item of ["vert", "jaune", "4"]) await roses.locator(`.sm-touche[data-item="${item}"]`).dispatchEvent("pointerdown");
+    await roses.locator(".sm-compte", { hasText: "Ta suite (4/4)" }).waitFor();
+    assert.equal(await roses.locator(".sm-touche[data-item=orange]").isDisabled(), true, "suite complète : plus d'appui");
+    await roses.locator(".sm-valider").dispatchEvent("pointerdown");
+    await waitFor(async () => (await read(`simon/s1-1-4-100/${r}`))?.ok === true, "suite validée");
+    const envoi = await read(`simon/s1-1-4-100/${r}`);
+    assert.equal(envoi.items, "rouge,vert,jaune,4");
+    assert.equal(typeof envoi.at, "number");
+    await roses.locator(".sm-titre", { hasText: "Suite envoyée !" }).waitFor();
+    // Jugée : la TV vérifie colonne par colonne, la tablette attend avant de dire le résultat.
+    const verdict = { suite: 4, solution: "rouge,vert,jaune,4", wrong: [b], winners: [r], points: 300, at: Date.now() };
+    await hostState(simon({ step: "won", out: { [b]: 4 }, verdict }));
+    await bleus.locator(".sm-titre", { hasText: "Vérification…" }).waitFor();
+    await roses.locator(".sm-titre", { hasText: "Bravo, vous gagnez le tour !" }).waitFor({ timeout: 8_000 });
+    await roses.locator(".sm-texte", { hasText: "+300 points" }).waitFor();
+    await bleus.locator(".sm-titre", { hasText: "Éliminés du tour…" }).waitFor();
+    await verts.locator(".sm-titre", { hasText: "Les Roses gagne le tour !" }).waitFor();
+    // Toutes en erreur dès la première suite : « Bah alors ?! ».
+    await hostState(simon({ step: "judged", suite: 1, verdict: { suite: 1, bahAlors: true, points: 0, at: Date.now() - 10_000 } }));
+    await roses.locator(".sm-titre", { hasText: "Bah alors ?!" }).waitFor();
+    // Nouvelle suite : nouvelle clé, la saisie repart de zéro.
+    const t2 = Date.now();
+    await hostState(simon({ step: "play", suite: 1, key: "s1-1-1-200", startAt: t2 - 4_000, montreAt: t2 - 2_000, reponseAt: t2 - 1_000, finAt: t2 + 60_000 }));
+    await roses.locator(".sm-compte", { hasText: "Ta suite (0/1)" }).waitFor();
+    for (const p of [roses, bleus, verts]) await p.context().close();
+  });
+
   test("blind test : après une erreur, l'équipe attend 3 s après la reprise de la musique puis peut rebuzzer", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
