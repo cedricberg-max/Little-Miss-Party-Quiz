@@ -171,9 +171,20 @@
 .look-gs .pc-compteur { font-family: "GS Orbitron"; font-weight: 700; color: var(--gs-cyan); background: rgba(10, 6, 24, .85); box-shadow: 0 0 0 2px var(--gs-cyan), 0 0 12px rgba(0, 240, 255, .5); }
 .look-gs .pc-colle { background: rgba(10, 6, 24, .85); box-shadow: 0 0 0 2px rgba(0, 240, 255, .6); }
 .look-gs .pc-colle span { background: linear-gradient(90deg, #00f0ff, #8cf9ff 70%, #fff); box-shadow: 0 0 10px #00f0ff; }
-.look-gs .pc-equipe { font-family: "GS Bungee"; font-weight: 400; font-size: clamp(15px, 3.6vw, 22px); background: rgba(10, 6, 24, .88);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, .55), 0 0 0 4px var(--eq), 0 0 18px var(--eq), inset 0 0 16px color-mix(in srgb, var(--eq) 35%, transparent); text-shadow: 0 0 10px var(--eq); }
-.look-gs .pc-equipe small { font-family: "GS Rajdhani"; font-weight: 700; }
-.look-gs .pc-equipe.pc-choisie { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--eq), 0 0 34px var(--eq); }
-.look-gs .pc-equipe.pc-neuve:not(:disabled)::before { box-shadow: 0 0 0 2px rgba(140, 249, 255, .6), 0 0 26px rgba(0, 240, 255, .55); }
-.look-gs .pc-equipe.pc-neuve:not(:disabled)::after { color: #8cf9ff; text-shadow: 0 0 8px #00f0ff; }
+/* Game Show, boutons d'équipe : grosses tuiles pleines dans la couleur de l'équipe, nom en noir, bord blanc et halo
+   de la couleur (cedric, planche du 27/10, option A) : la bonne équipe se voit en une demi-seconde. */
+.look-gs .pc-equipes { gap: 14px; }
+.look-gs #app .pc-equipe { min-height: 116px; border-radius: 22px; font-family: "GS Bungee"; font-weight: 400; color: #10061e; font-size: clamp(20px, 4.6vw, 28px); text-shadow: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--eq) 70%, #fff), var(--eq) 55%, color-mix(in srgb, var(--eq) 80%, #000));
+  box-shadow: 0 0 0 3px #fff, 0 0 26px var(--eq), 0 8px 0 color-mix(in srgb, var(--eq) 55%, #000), 0 12px 20px rgba(0, 0, 0, .5); }
+.look-gs .pc-nom::before { display: none; }
+.look-gs #app .pc-equipe small { font-family: "GS Rajdhani"; font-weight: 700; color: #10061e; opacity: .8; }
+.look-gs #app .pc-equipe.pc-choisie { box-shadow: 0 0 0 4px #fff, 0 0 0 8px #10061e, 0 0 0 11px #fff, 0 0 40px var(--eq); }
+.look-gs .pc-equipe.pc-neuve:not(:disabled)::before { box-shadow: 0 0 0 2px rgba(255, 255, 255, .7), 0 0 26px rgba(255, 255, 255, .45); }
+.look-gs .pc-equipe.pc-neuve:not(:disabled)::after { color: #fff; text-shadow: 0 0 6px #000; }
+@media (orientation: portrait) and (max-width: 599px) {
+  .look-gs #app .pc-equipe { min-height: 84px; font-size: clamp(17px, 4.6vw, 22px); border-radius: 18px; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .look-gs #app .pc-equipe { min-height: 60px; font-size: 19px; border-radius: 16px; box-shadow: 0 0 0 3px #fff, 0 0 18px var(--eq), 0 5px 0 color-mix(in srgb, var(--eq) 55%, #000); }
+}
