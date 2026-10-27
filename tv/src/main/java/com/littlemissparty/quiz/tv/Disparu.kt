@@ -199,13 +199,37 @@ private val BordTuile = Color(0xFFECE4F6)
 private val MotRose = Color(0xFFFF2D8F)
 private val QuestionDoree = Color(0xFFFFE27A)
 
+/** Bord de la carte Game Show autour de sa tuile (côtés, haut + bas) et place du nom dessous, en dp. */
+private const val CADRE_LARGEUR = 14f
+private const val CADRE_HAUTEUR = 11f
+private const val PLACE_NOM = 28f
+
+/**
+ * Côté de la tuile photo, carrée, d'une carte Game Show dans une case de [largeur] × [hauteur] dp : la carte prend
+ * la taille de sa tuile, jamais une bande étroite où la photo serait coupée (test du 27/10 au soir : visages coupés).
+ */
+internal fun coteTuileDisparu(largeur: Float, hauteur: Float): Float =
+    minOf(largeur - CADRE_LARGEUR, hauteur - CADRE_HAUTEUR - PLACE_NOM).coerceAtLeast(0f)
+
 /**
  * Qui a disparu ? en Game Show : une vraie carte opaque, lisible de loin sur le plateau (cedric, planche du 27/10,
  * option A « carte du Pictionary »). La carte disparue devient violette, rayée, avec un « ? » doré ; à la révélation
- * l'objet revient sur sa carte crème, bordée d'or qui brille.
+ * l'objet revient sur sa carte crème, bordée d'or qui brille. La tuile est carrée et la photo y tient en entier,
+ * sans rien couper (cedric, 27/10 au soir : « la plupart des visages sont coupés »).
  */
 @Composable
 private fun CarteGs(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val cote = coteTuileDisparu(maxWidth.value, maxHeight.value)
+        CarteGsCreme(
+            carte, octets, etape, disparu,
+            Modifier.width((cote + CADRE_LARGEUR).dp).height((cote + CADRE_HAUTEUR + PLACE_NOM).dp),
+        )
+    }
+}
+
+@Composable
+private fun CarteGsCreme(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
     val photo = photoCarte(octets, 240)
     val trou = disparu && etape == EtapeDisparu.CHERCHER
     val enOr = disparu && etape == EtapeDisparu.REPONSE
@@ -235,7 +259,8 @@ private fun CarteGs(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, di
                     style = TextStyle(color = QuestionDoree, shadow = Shadow(Color(0xFFFFB347), blurRadius = 18f)),
                     modifier = Modifier.apparition(0, "trou"),
                 )
-                photo != null -> Image(photo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                // La photo entière sur la tuile blanche : jamais de tête ou de visage coupé.
+                photo != null -> Image(photo, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(3.dp))
                 else -> Text(carte.image ?: "⭐", fontSize = taille, lineHeight = taille * 1.15f)
             }
         }
