@@ -38,7 +38,7 @@ class RegieTest : TestTv() {
         ecran.capture("regie-reliee")
 
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Quiz · question 1 / ")
+        ecran.voit("Quiz question 1 / ")
         val q = attendreQuestion(licornes, code, 0)
         assertTrue(licornes.repondre(code, q.id, q.correct))
         ecran.voit("Toutes les équipes ont répondu")
@@ -155,7 +155,7 @@ class RegieTest : TestTv() {
         // La question en cours ne peut pas disparaître du programme.
         assertEquals("current_round", regie.modifierProgramme(code, version, avant.drop(1)))
         assertEquals("applied", regie.modifierProgramme(code, version, avant + ajout))
-        ecran.voit("Quiz · question 1 / ${avant.size}")
+        ecran.voit("Quiz question 1 / ${avant.size}")
         // Préparé sur l'ancienne version (deuxième téléphone en retard) : refusé, rien ne bouge.
         assertEquals("stale", regie.modifierProgramme(code, version, avant))
 
@@ -261,7 +261,7 @@ class RegieTest : TestTv() {
 
         // Quiz : une question jouée jusqu'au classement.
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Quiz · question 1 / 1")
+        ecran.voit("Quiz question 1 / 1")
         attendreQue("question 1 ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] } }
         assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
         ecran.voit("Toutes les équipes ont répondu")
@@ -289,7 +289,7 @@ class RegieTest : TestTv() {
 
         // Jeu suivant : la finale s'ouvre avec les mêmes équipes et les mêmes scores.
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Finale · question 1 / 1")
+        ecran.voit("Finale question 1 / 1")
         assertEquals(apresQuiz + Scoring.MIME, points(licornes, code, licornes.uid))
         ecran.capture("quiz-mimes-finale")
 
@@ -300,7 +300,7 @@ class RegieTest : TestTv() {
         ecran.capture("bilan-jeu-quitte")
         assertEquals(apresQuiz + Scoring.MIME, points(licornes, code, licornes.uid))
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Quiz · question 1 / 1")
+        ecran.voit("Quiz question 1 / 1")
         attendreQue("points du quiz retirés") { points(licornes, code, licornes.uid).takeIf { it == Scoring.MIME.toLong() } }
         assertTrue("La tablette peut répondre de nouveau", licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
         ecran.voit("Toutes les équipes ont répondu")
@@ -402,7 +402,7 @@ class RegieTest : TestTv() {
 
         // Le quiz s'ouvre avec les mêmes équipes et les mêmes scores.
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Quiz · question 1 / 1")
+        ecran.voit("Quiz question 1 / 1")
         assertEquals(Scoring.PICTO.toLong(), points(licornes, code, licornes.uid))
         assertEquals(Scoring.MIME.toLong(), points(dragons, code, dragons.uid))
         assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
@@ -457,7 +457,7 @@ class RegieTest : TestTv() {
 
         assertEquals("applied", regie.commande(code, "next"))
         // Game Show : le nom du jeu est dans l'étape, sur une seule ligne avec « 1 / 2 » (test du 27/10 au soir).
-        if (Look.gs) ecran.voit("Vrai ou Faux express · 1 / 2") else ecran.voit("VRAI OU FAUX EXPRESS")
+        if (Look.gs) ecran.voit("Vrai ou Faux express 1 / 2") else ecran.voit("VRAI OU FAUX EXPRESS")
         attendreQue("première affirmation ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "e1" && it.child("phase").value == "question" } }
         ecran.capture("express-affirmation")
         assertTrue(licornes.repondre(code, "e1", 0))
@@ -1254,7 +1254,7 @@ class RegieTest : TestTv() {
         assertEquals("2 équipes × 2 joueurs : 2 duels", 2L, (e.child("duel/total").value as Number).toLong())
         assertEquals(listOf(1L, 1L), e.child("duel/players").children.map { (it.value as Number).toLong() })
         ecran.voit("Les deux joueurs, la main au-dessus du buzzer !")
-        ecran.voit(if (Look.gs) "LE DUEL DES ROBOTS · 1 / 2" else "Duel 1 sur 2")
+        ecran.voit(if (Look.gs) "LE DUEL DES ROBOTS 1 / 2" else "Duel 1 sur 2")
         ecran.capture("duel-pret")
         assertEquals("pas de buzz avant le face-à-face", false, dragons.buzzerDuel(code, 0))
 

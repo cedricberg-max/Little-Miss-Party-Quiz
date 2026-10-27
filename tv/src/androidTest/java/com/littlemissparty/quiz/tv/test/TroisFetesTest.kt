@@ -102,7 +102,7 @@ class TroisFetesTest : TestTv() {
         // La régie de Tom ne peut ni commander la TV de Léa, ni lire ses bonnes réponses.
         assertNull("Commande de la régie de Tom acceptée chez Léa", regieTom.envoyer(code, "next"))
         assertFalse(regieTom.lireConducteur(code))
-        jamaisSurLaTv(4_000, "+300 POINTS", "BONUS !", "Sirènes", "Comètes", "Pirates", "Quiz · question")
+        jamaisSurLaTv(4_000, "+300 POINTS", "BONUS !", "Sirènes", "Comètes", "Pirates", "Quiz question")
         assertEquals("applied", regieTom.verdict(tom.code, bonusTom))
         assertEquals("refused", regieTom.verdict(tom.code, intrus))
         assertEquals(300L, points(licornesTom, tom.code, licornesTom.uid))
@@ -118,7 +118,7 @@ class TroisFetesTest : TestTv() {
         ecran.apercoit("+100 POINTS")
         assertEquals("applied", regieLea.verdict(code, bonusLea))
         assertEquals("applied", regieLea.commande(code, "next"))
-        ecran.voit("Quiz · question 1 / ")
+        ecran.voit("Quiz question 1 / ")
         attendreQuestion(licornes, code, 0)
         // Inès met sa fête en pause au même moment : la question de Léa continue.
         assertEquals("applied", regieInes.commande(ines.code, "pause"))

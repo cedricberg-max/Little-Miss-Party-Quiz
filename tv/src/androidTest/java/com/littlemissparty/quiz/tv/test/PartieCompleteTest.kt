@@ -25,7 +25,7 @@ class PartieCompleteTest : TestTv() {
         var minimum = 0L
         ecran.lancerLaFete()
         quiz.questions.forEachIndexed { i, q ->
-            ecran.voit("Quiz · question ${i + 1} / $total")
+            ecran.voit("Quiz question ${i + 1} / $total")
             attendreQuestion(licornes, code, i)
             // Les Licornes trouvent toujours, les Dragons se trompent toujours.
             assertTrue("Réponse des Licornes refusée (question ${i + 1})", licornes.repondre(code, q.id, q.correct))
