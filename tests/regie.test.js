@@ -11144,6 +11144,18 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator(".statues-de").click();
     await page.locator("#annonce", { hasText: "déjà dans la liste" }).waitFor();
     assert.equal((await ids()).join(), "s2,s3,s1", "rien de remplacé");
+    // « 🧩 Statues complet » (cedric, 27/10) : ouvert d'office, numéroté ; 🔀 mélange ; ▾ / ▸ le replie.
+    const complet = round.locator(".statues-complet");
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▾ 🧩 Statues complet : 3 chansons, dans l'ordre de passage");
+    assert.deepEqual(await complet.locator(".quiz-complet-num").allTextContents(), ["1", "2", "3"]);
+    await complet.locator(".statues-melanger").click();
+    await waitFor(async () => (await ids()).join() !== "s2,s3,s1", "mélangées");
+    assert.deepEqual((await ids()).sort(), ["s1", "s2", "s3"]);
+    await complet.locator(".quiz-complet-voir").click();
+    await waitFor(async () => !(await complet.locator(".statues-liste").isVisible()), "replié");
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Statues complet : 3 chansons, dans l'ordre de passage");
+    await complet.locator(".quiz-complet-voir").click();
+    await complet.locator(".statues-liste").waitFor();
     const tirees = await ids();
     await aVenir(page);
     await page.click("#show-save");

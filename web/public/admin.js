@@ -3148,6 +3148,8 @@ function pictoSeriesPicker(r) {
 
 /** Nombres de chansons proposés au 🎲 des statues. */
 const STATUES_NOMBRES = [3, 5, 8, 10];
+/** « 🧩 Statues complet » : ouvert d'office ; refermé, le temps de l'écran. */
+const statuesCompletsFermes = new WeakSet();
 
 /**
  * Statues musicales sur vos chansons (cedric, 24/10 : « je devrais pouvoir entendre des musiques présélectionnées dans
@@ -3246,8 +3248,9 @@ function statuesChansons(r) {
       ranger(l);
     };
     const refrain = /^[0-9a-f]{16}$/.test(song.refrainId ?? "");
-    return h("li", { class: "tirage-q blind-chanson statues-chanson", "data-chanson": id },
+    return h("li", { class: "tirage-q blind-chanson statues-chanson quiz-complet-q", "data-chanson": id },
       h("div", { class: "tirage-q-ligne" },
+        h("span", { class: "quiz-complet-num", text: `${i + 1}` }),
         miniPochette(song),
         h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
         h("span", {
@@ -3259,8 +3262,31 @@ function statuesChansons(r) {
         enlever));
   };
   const lignes = ids.map(ligne);
-  const liste = h("ol", { class: "tirage-liste statues-liste" }, ...lignes);
+  const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste statues-liste" }, ...lignes);
   glisserDansLaListe(liste, lignes, (k, j) => ranger(deplaceEn(ids, k, j)));
+  // « 🧩 Statues complet » (cedric, 27/10) : toutes les chansons dans l'ordre de passage ; 🔀 ↑ ↓ glisser ✕.
+  liste.hidden = statuesCompletsFermes.has(r);
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 Statues complet : ${pluriel(ids.length, "chanson")}, dans l'ordre de passage`;
+  const voir = h("button", {
+    type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir statues-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
+    title: "Voir toutes les chansons des statues, dans l'ordre",
+    onclick: (e) => {
+      liste.hidden = !liste.hidden;
+      if (liste.hidden) statuesCompletsFermes.add(r); else statuesCompletsFermes.delete(r);
+      e.currentTarget.textContent = titre();
+      e.currentTarget.setAttribute("aria-expanded", liste.hidden ? "false" : "true");
+    },
+  });
+  const melanger = () => {
+    let nouvel = shuffle(ids);
+    for (let essai = 0; essai < 5 && ids.length > 1 && nouvel.every((c, k) => c === ids[k]); essai++) nouvel = shuffle(ids);
+    ranger(nouvel);
+  };
+  const complet = h("div", { class: "serie quiz-complet statues-complet" },
+    h("div", { class: "serie-tete" },
+      voir,
+      h("button", { type: "button", class: "chip quiz-melanger statues-melanger", text: "🔀 Mélanger", title: "Mélanger toutes les chansons des statues", disabled: ids.length < 2, onclick: melanger })),
+    liste);
   const avant = ids.length ? [] : roundSongs(r, playlists);
   const resume = ids.length ? `${pluriel(ids.length, "chanson")}, ${ids.length > 1 ? "jouées l'une après l'autre" : "jouée en boucle"} : la TV joue leur refrain.`
     : avant.length ? `Pour l'instant : ${pluriel(avant.length, "extrait")} coché${avant.length > 1 ? "s" : ""} avant dans vos playlists. Ajoutez vos chansons pour les remplacer.`
@@ -3270,7 +3296,7 @@ function statuesChansons(r) {
     rappel,
     ajoutPlaylist,
     h("p", { class: "hint small statues-resume", text: resume }),
-    ids.length ? liste : null);
+    ids.length ? complet : null);
 }
 
 /** Jeux que « ＋ Ajouter un jeu » propose, par famille, dans l'ordre des tuiles de l'Accueil. */
