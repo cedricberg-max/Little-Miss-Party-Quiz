@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv.test
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.littlemissparty.quiz.engine.DUEL_POINTS
 import com.littlemissparty.quiz.engine.POTATO_BOMBS
 import com.littlemissparty.quiz.engine.POTATO_POINTS
 import com.littlemissparty.quiz.engine.PUMP_TARGET
@@ -1214,6 +1215,82 @@ class RegieTest : TestTv() {
         // Dernier jeu : les résultats finaux directement, sans classement (cedric, 27/10) ; scores gardés, rien ne bloque.
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
+    }
+
+    @Test
+    fun duelDesRobotsTropTotPuisLePlusRapideApresLePanPuisLaFin() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        // Exactement ce qu'envoie la régie pour une manche « Le Duel des robots » (web/public/show.js) : 2 joueurs par
+        // équipe, face-à-face de 10 s pile, sans long duel.
+        val duel = mapOf(
+            "id" to "dl", "text" to "Le Duel des robots", "choices" to emptyList<String>(), "correct" to -1,
+            "duration" to 10, "kind" to "duel", "double" to false, "round" to "Le Duel des robots",
+            "joueurs" to 2, "faceMin" to 10, "faceMax" to 10, "longs" to false,
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), duel)))
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("question du quiz ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] && it.child("phase").value == "question" } }
+
+        // Jeu suivant : le Duel, lancé par l'animatrice ; la box prépare le premier duel toute seule.
+        attendreQue("premier duel prêt", 30_000) {
+            val e = licornes.etat(code)
+            if (e.child("qid").value == "dl" && e.child("duel/step").value == "ready") true
+            // Jamais « next » une fois le duel ouvert : sans duel prêt, il passerait au jeu suivant.
+            else { if (e.child("qid").value != "dl" || e.child("phase").value == "intro") regie.commande(code, "next"); null }
+        }
+        val e = licornes.etat(code)
+        assertEquals("2 équipes × 2 joueurs : 2 duels", 2L, (e.child("duel/total").value as Number).toLong())
+        assertEquals(listOf(1L, 1L), e.child("duel/players").children.map { (it.value as Number).toLong() })
+        ecran.voit("Les deux joueurs, la main au-dessus du buzzer !")
+        ecran.voit("Duel 1 sur 2")
+        ecran.capture("duel-pret")
+        assertEquals("pas de buzz avant le face-à-face", false, dragons.buzzerDuel(code, 0))
+
+        // Duel 1 : les Dragons buzzent tout de suite, bien avant le PAN : les Licornes gagnent.
+        assertEquals("applied", regie.commande(code, "duel_start"))
+        attendreQue("face-à-face") { licornes.etat(code).takeIf { it.child("duel/step").value == "standoff" } }
+        assertEquals("le PAN reste secret", null, licornes.etat(code).child("deadline").value)
+        ecran.voit("Pas avant le PAN !")
+        ecran.capture("duel-face")
+        assertEquals("next refusé pendant le face-à-face", "refused", regie.commande(code, "next"))
+        assertTrue(dragons.buzzerDuel(code, 0))
+        attendreQue("trop tôt jugé") { licornes.etat(code).takeIf { it.child("duel/result/early").value == dragons.uid } }
+        assertEquals(licornes.uid, licornes.etat(code).child("duel/result/winner").value)
+        ecran.voit("Dragons a buzzé trop tôt…", 10_000)
+        ecran.capture("duel-trop-tot")
+        assertEquals(DUEL_POINTS.toLong(), points(licornes, code, licornes.uid))
+        assertEquals(0L, points(licornes, code, dragons.uid))
+
+        // Duel 2 : on attend le PAN (10 s après le début), les deux buzzent, les Licornes d'abord.
+        assertEquals("applied", regie.commande(code, "duel_next"))
+        attendreQue("duel 2 prêt") { licornes.etat(code).takeIf { it.child("duel/step").value == "ready" && (it.child("duel/n").value as Number).toInt() == 2 } }
+        assertEquals("joueur n° 2 de chaque équipe", listOf(2L, 2L), licornes.etat(code).child("duel/players").children.map { (it.value as Number).toLong() })
+        assertEquals("applied", regie.commande(code, "duel_start"))
+        attendreQue("face-à-face 2") { licornes.etat(code).takeIf { it.child("duel/step").value == "standoff" } }
+        Thread.sleep(12_500)
+        ecran.capture("duel-pan")
+        assertTrue(licornes.buzzerDuel(code, Long.MAX_VALUE))
+        assertTrue(dragons.buzzerDuel(code, Long.MAX_VALUE))
+        attendreQue("duel 2 jugé") { licornes.etat(code).takeIf { it.child("duel/result/winner").value != null } }
+        val r = licornes.etat(code).child("duel/result")
+        assertEquals("le plus rapide après le PAN", licornes.uid, r.child("winner").value)
+        assertEquals(null, r.child("early").value)
+        assertTrue("temps de réaction mesuré", (r.child("ms").value as Number).toLong() >= 0)
+        ecran.voit("Licornes remporte le duel !", 10_000)
+        ecran.capture("duel-gagne")
+        assertEquals(true, licornes.etat(code).child("duel/allPlayed").value)
+        assertEquals(2L * DUEL_POINTS, points(licornes, code, licornes.uid))
+
+        // Tout le monde a joué : dernier jeu, les résultats finaux ; scores gardés.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
+        assertEquals(2L * DUEL_POINTS, points(licornes, code, licornes.uid))
     }
 }
 
