@@ -1302,12 +1302,19 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       return;
     }
     if (round.type === "statues") {
-      // Un seul élément : la musique joue et s'arrête par moments, l'animatrice désigne l'équipe gagnante.
+      // Un seul élément : une chanson par tour, Sarah coupe la musique (STATUE !) et désigne les gagnantes de chaque chanson.
+      // `duration` ne sert plus qu'aux box d'avant le 27/10.
       const duration = STATUES_SECONDS.includes(round.duration) ? round.duration : STATUES_SEC;
-      // Chansons choisies dans la prestation, jouées l'une après l'autre ; aucune : la musique maison de la TV.
+      // Chansons choisies dans la prestation, jouées entières l'une après l'autre (`songs`, copiées dans la partie par la
+      // régie) ; leur extrait reste dans `audioIds`, joué si la chanson entière manque. Aucune : la musique maison de la TV.
       const sons = sonsDesStatues(round, playlists, songs);
+      const entieres = chansonsStatues(round).filter((id) => chansonJouable(songs?.[id]))
+        .map((id) => ({ songId: id, audioId: sonDesStatues(songs[id]), ...(songs[id].title ? { title: String(songs[id].title).slice(0, 120) } : {}) }));
       rounds.push({ title: ROUND_TYPES.statues, count: 1 });
-      questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues, ...(sons.length ? { audioIds: sons } : {}) });
+      questions.push({
+        id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues,
+        ...(sons.length ? { audioIds: sons } : {}), ...(entieres.length ? { songs: entieres } : {}),
+      });
       return;
     }
     if (round.type === "coffres" || round.type === "portes") {

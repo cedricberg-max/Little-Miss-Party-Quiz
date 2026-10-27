@@ -803,6 +803,11 @@ describe("statues musicales", () => {
     const { snapshot } = buildSnapshot("s", { childName: "Léa", age: 7, rounds: [round] }, {}, {}, Math.random, {}, {}, {}, songs);
     assert.deepEqual(snapshot.quiz.questions[0].audioIds, [hex("c"), hex("b")]);
     assert.deepEqual(soundIds(snapshot.quiz.questions), [hex("c"), hex("b")]);
+    // Statues du 27/10 : chaque chanson jouée entière (copiée dans la partie par la régie), son extrait en secours.
+    assert.deepEqual(snapshot.quiz.questions[0].songs, [
+      { songId: "c", audioId: hex("c"), title: "Sous l'océan" },
+      { songId: "a", audioId: hex("b"), title: "Libérée" },
+    ]);
     // Plus aucune chanson jouable : les extraits cochés avant, sinon la musique de la fête.
     const playlists = { p: { title: "P", tracks: [{ title: "F", audioId: hex("f") }] } };
     assert.deepEqual(sonsDesStatues({ ...round, chansons: ["r"] }, playlists, songs), [hex("f")]);

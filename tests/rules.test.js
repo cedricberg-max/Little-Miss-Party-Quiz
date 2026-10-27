@@ -1258,6 +1258,28 @@ describe("blind test : extraits musicaux et playlists", () => {
     await assertSucceeds(get(ref(db(HOST), `games/${CODE}/sounds/${ID}`)));
     await assertFails(get(ref(db("rose"), `games/${CODE}/sounds/${ID}`)));
   });
+  test("statues : la régie copie une chanson entière dans la partie, part par part, une seule fois ; la box la lit, les pupitres non", async () => {
+    await seed({ phase: "lobby" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    const PART = "A".repeat(1000);
+    const chanson = `games/${CODE}/songs/c-1`;
+    await assertFails(set(ref(db("rose"), `${chanson}/p/0`), PART));
+    await assertFails(set(ref(db(HOST), `${chanson}/p/0`), PART));
+    await assertSucceeds(set(ref(db("tel"), `${chanson}/p/0`), PART));
+    await assertSucceeds(set(ref(db("tel"), `${chanson}/p/1`), PART));
+    await assertFails(set(ref(db("tel"), `${chanson}/p/2`), "A".repeat(800001)));
+    await assertFails(set(ref(db("tel"), `${chanson}/p/24`), PART));
+    await assertFails(set(ref(db("tel"), `${chanson}/at`), 1));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/songs/${"x".repeat(41)}/p/0`), PART));
+    await assertFails(update(ref(db("tel"), chanson), { n: 25, kbps: 96, length: 213 }));
+    // `n` écrit en dernier : la copie est finie, plus personne ne la touche.
+    await assertSucceeds(update(ref(db("tel"), chanson), { n: 2, kbps: 96, length: 213 }));
+    await assertFails(set(ref(db("tel"), `${chanson}/p/0`), "B"));
+    await assertFails(set(ref(db("tel"), chanson), null));
+    await assertSucceeds(get(ref(db(HOST), chanson)));
+    await assertSucceeds(get(ref(db("tel"), chanson)));
+    await assertFails(get(ref(db("rose"), chanson)));
+  });
   test("la box dit à la régie si chaque extrait est prêt ; ni la régie ni un pupitre ne l'écrivent", async () => {
     await seed({ phase: "lobby" });
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
