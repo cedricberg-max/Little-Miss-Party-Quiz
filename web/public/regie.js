@@ -2874,6 +2874,7 @@ function openLibrary() {
 
 function closeLibrary() {
   picked = null;
+  refusAjout = null;
   libRejouer = false;
   $("lib").hidden = true;
 }
@@ -3020,6 +3021,7 @@ async function pick(game) {
     const show = (await get(ref(db, `games/${code}/show`))).val();
     profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
   } catch { profile = null; }
+  refusAjout = null;
   picked = { game, source: { ...game.source } };
   if (game.hasardBlind) picked.source.chansons = tirerChansons();
   searchText = "";
@@ -3383,8 +3385,9 @@ function renderPreview() {
     li.append(q.kind === "quisuis" ? `${q.image ?? ""} ${q.cards?.[0]?.word ?? ""}…`.trim() : q.text, answer);
     list.appendChild(li);
   });
-  $("lib-problems").hidden = !problems.length;
-  $("lib-problems").textContent = problems.join(" ");
+  const soucis = [...(refusAjout ? [refusAjout] : []), ...problems];
+  $("lib-problems").hidden = !soucis.length;
+  $("lib-problems").textContent = soucis.join(" ");
   const lobby = st.phase === "lobby";
   const rejeu = enRejeu();
   const after = $("lib-after");
@@ -3447,8 +3450,11 @@ function tvRefuses(questions) {
 }
 
 let adding = false;
+/** Refus de la TV au dernier ajout du jeu choisi : montré dans la fenêtre du jeu, effacé au prochain essai. */
+let refusAjout = null;
 async function addPicked(where) {
   if (!picked || editing || adding) return;
+  refusAjout = null;
   const rejeuEnCours = enRejeu();
   const refused = tvRefuses(picked.questions);
   if (refused) { toast(refused); return; }
@@ -3524,8 +3530,15 @@ async function sendProgram(questions, success, fromLibrary = false, onApplied = 
   const done = (message, applied) => {
     editing = false;
     if (applied) onApplied?.();
-    if (applied || fromLibrary) closeLibrary();
-    toast(message);
+    // Refus pendant un ajout (test du 27/10 : Sarah n'avait rien vu, la fenêtre se fermait sur un petit message) :
+    // le jeu choisi reste ouvert avec la raison bien visible, pour réessayer ou l'ajouter à la fin.
+    if (applied || !fromLibrary || !picked) {
+      if (applied || fromLibrary) closeLibrary();
+      toast(message);
+    } else {
+      refusAjout = `⚠ ${message} Vous pouvez réessayer, ou « Ajouter à la fin ».`;
+      renderLibrary();
+    }
     render();
   };
   let stop = () => {};

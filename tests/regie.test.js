@@ -9757,6 +9757,21 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#r-toast", { hasText: "« Dinosaures · 2 » est ajouté à la fin du programme." }).waitFor();
     assert.deepEqual(await rounds(), ["Animaux", "Animaux", "Animaux", "Dinosaures", "Dinosaures · 2"]);
 
+    // La TV refuse un ajout (test du 27/10 : Sarah n'avait rien vu) : la fenêtre du jeu reste ouverte avec la raison,
+    // « Ajouter à la fin » marche ensuite.
+    box.refuseNextProgram("current_round");
+    await regie.click("#plan-add");
+    await regie.locator('#lib-list [data-game="show/hugo/0"]').click();
+    await regie.click("#lib-after");
+    await regie.locator("#lib-problems", { hasText: "⚠ La manche en cours ne peut pas changer : rien n'a été fait. Vous pouvez réessayer, ou « Ajouter à la fin »." }).waitFor();
+    assert.equal(await regie.locator("#lib").isHidden(), false, "la fenêtre reste ouverte");
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "« Dinosaures · 3 » est ajouté à la fin du programme." }).waitFor();
+    assert.deepEqual(await rounds(), ["Animaux", "Animaux", "Animaux", "Dinosaures", "Dinosaures · 2", "Dinosaures · 3"]);
+    await regie.click('.plan-head[data-round="Dinosaures · 3"] button.remove');
+    await respond(regie);
+    await regie.locator("#r-toast", { hasText: "« Dinosaures · 3 » est retirée du programme." }).waitFor();
+
     // La manche en cours n'a ni flèches ni « Retirer » ; une manche future se déplace et se retire.
     // (« 🔁 Rejouer » oui : le jeu a commencé.)
     assert.equal(await regie.locator('.plan-head[data-round="Animaux"] button:not(.replay)').count(), 0);
