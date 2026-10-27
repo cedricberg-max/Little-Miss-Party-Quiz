@@ -10,7 +10,7 @@ import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFrom
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, dureeEstimee, playable, expressQuestions, zoomQuestions, showTitle, titreAuto, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
-  roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
+  roundFilled, MIME_TURN, MIME_TURN_MAX, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES, MIME_EQUIPES_MAX, mimePerTeam,
@@ -1110,10 +1110,16 @@ function mimeSelection(r) {
   });
 }
 
-/** Durées d'un tour de mimes proposées (secondes) : 2 min d'office (cedric, 24/10). */
-const MIME_DUREES = [60, 90, 120, 150, 180];
-/** Images par équipe proposées (cedric, 24/10 : « une vingtaine par équipe par sécurité »). */
-const MIME_IMAGES = [10, 15, 20, 25, 30];
+/**
+ * Durées d'un tour de mimes proposées (secondes) : 2 min d'office (cedric, 24/10), de 15 s en 15 s jusqu'à 5 min
+ * (cedric, 26/10 : « régler précisément le temps du chrono », une durée pour toutes les équipes).
+ */
+const MIME_DUREES = Array.from({ length: (MIME_TURN_MAX - 30) / 15 + 1 }, (_, k) => 30 + 15 * k);
+/**
+ * Images par équipe proposées (cedric, 24/10 : « une vingtaine par équipe par sécurité » ; 26/10 : « des dizaines et
+ * des dizaines », pour ne jamais en manquer).
+ */
+const MIME_IMAGES = [10, 15, 20, 25, 30, 40, 50, 60];
 const MIME_IMAGES_DEFAUT = 20;
 /** « 2 min », « 1 min 30 », « 45 s ». */
 const enMinutes = (sec) => (sec < 60 ? `${sec} s` : sec % 60 ? `${Math.floor(sec / 60)} min ${sec % 60}` : `${sec / 60} min`);

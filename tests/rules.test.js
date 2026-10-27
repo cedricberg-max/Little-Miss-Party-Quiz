@@ -541,6 +541,9 @@ describe("régie", () => {
     await assertSucceeds(command(REGIE, { type: "mime_start", team: "rose" }));
     await assertSucceeds(command(REGIE, { type: "mime_found" }));
     await assertSucceeds(command(REGIE, { type: "mime_pass" }));
+    // Mimes en file (cedric, 26/10) : « ⏭ Passer » fait tourner les joueurs.
+    await assertSucceeds(command(REGIE, { type: "mime_skip" }));
+    await assertFails(command("rose", { type: "mime_skip" }));
     await assertSucceeds(command(REGIE, { type: "mime_fix", team: "rose", delta: -1 }));
     await assertSucceeds(command(REGIE, { type: "mime_stop" }));
     await assertFails(command("rose", { type: "mime_found" }));

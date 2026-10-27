@@ -3215,12 +3215,21 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
     assert.deepEqual(qs.map((q) => q.id), ["r1m1", "r1m2", "r1m3"]);
     assert.ok(qs.every((q) => q.kind === "mime" && q.round === "Mimes" && q.duration === 45));
     assert.deepEqual(snapshot.rounds.map((r) => [r.title, r.count]), [["Mimes", 3]]);
-    // Chaque équipe ne mime que ses images ; une case retirée ne se joue pas.
-    assert.deepEqual(qs[0].cards.map((c) => c.word).sort(), ["Chat", "Vache"]);
-    assert.deepEqual(qs[1].cards.map((c) => c.word).sort(), ["Lion", "Ma tata", "Pomme"]);
+    // Chaque équipe mime d'abord ses images ; une case retirée ne se joue pas.
+    assert.deepEqual(qs[0].cards.slice(0, 2).map((c) => c.word).sort(), ["Chat", "Vache"]);
+    assert.deepEqual(qs[1].cards.slice(0, 3).map((c) => c.word).sort(), ["Lion", "Ma tata", "Pomme"]);
     assert.equal(qs[1].cards.find((c) => c.word === "Ma tata").imageId, "0123456789abcdef");
-    // Photos libres : copiées dans la partie par la régie au lancement.
-    assert.deepEqual(B.banqueRefs(qs).map((x) => x.cle).sort(), ["chat", "vache"]);
+    // Mimes en file (cedric, 26/10) : la couleur de l'équipe, puis une réserve d'images mimables si elle épuise les
+    // siennes, jamais deux fois la même dans la fête.
+    assert.deepEqual(qs.map((q) => q.couleur), show.teamColors.slice(0, 3));
+    const reserves = qs.map((q, i) => q.cards.slice([2, 3, qs[2].cards.length - S.MIME_RESERVE][i]));
+    assert.ok(reserves.every((r) => r.length === S.MIME_RESERVE));
+    const mots = qs.flatMap((q) => q.cards.map((c) => c.word.toLowerCase()));
+    assert.equal(new Set(mots).size, mots.length);
+    // Photos libres : copiées dans la partie par la régie au lancement, celles de la réserve comprises.
+    const refs = B.banqueRefs(qs).map((x) => x.cle);
+    assert.ok(refs.includes("chat") && refs.includes("vache"));
+    assert.ok(refs.length > 2, "La réserve vient de la banque de photos libres");
     // La régie copie aussi ses images à elle.
     assert.ok(S.choiceImageIds(qs).includes("0123456789abcdef"));
   });

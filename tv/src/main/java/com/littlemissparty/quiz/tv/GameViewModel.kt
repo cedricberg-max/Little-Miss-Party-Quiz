@@ -2310,6 +2310,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "intros" to quiz.intros,
             // Cette box sait jouer les mimes : la régie prévient avant d'en envoyer à une TV trop ancienne.
             "mimes" to true,
+            // Mimes en file (cedric, 26/10) : 1re image au lancement, « ⏭ Passer » (mime_skip), couleur suivante d'un geste.
+            "mimesEnFile" to true,
             "pictionary" to true,
             "numbers" to true,
             "express" to true,
@@ -2347,6 +2349,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },
                     // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.
                     "points" to it.points?.takeIf { _ -> it.isBlind }, "reveal" to it.revealSec.takeIf { _ -> it.isBlind },
+                    // Mimes en file : la couleur de l'équipe seule de la manche, relue après un redémarrage.
+                    "couleur" to it.couleur,
                 ))
             },
         )

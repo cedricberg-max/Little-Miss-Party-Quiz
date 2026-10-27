@@ -147,6 +147,8 @@ export const FLOU_SEC = 40;
  * joueurs, une minute était bien trop court).
  */
 export const MIME_TURN = 120;
+/** Tour de mimes le plus long réglable dans la Régie PC (cedric, 26/10 : « régler précisément le temps du chrono »). */
+export const MIME_TURN_MAX = 300;
 export const MAX_QUESTIONS = 200;
 
 /**
@@ -804,7 +806,7 @@ export const mimeCards = (list) => listOf(list).filter((c) => typeof c?.word ===
  * tirées pour chaque équipe, dans l'ordre des couleurs de la prestation (`equipes` : une liste par équipe, la 1re pour
  * la 1re couleur…). Une image retirée ({ vide: true }, en attente de son 🎲) n'est pas jouée.
  */
-export const MIME_EQUIPES_MAX = 30;
+export const MIME_EQUIPES_MAX = 60;
 /**
  * Les présélections telles qu'enregistrées, une liste par équipe (au plus 8), cases vides comprises ({ vide: true }).
  * Lues par leur rang : la base garde une équipe sans images comme un trou (`{ 0: […], 2: […] }`), jamais décalée.
@@ -827,6 +829,28 @@ export function mimeAges(round) {
 }
 /** Sources du 🎲 des Mimes, choisies par Sarah (« Mes images » : exception à la règle du hasard accordée par cedric). */
 export const MIME_SOURCES = { photos: "📷 Photos libres", emojis: "😀 Émojis", miennes: "🖼️ Mes images" };
+/**
+ * Images de secours d'une manche de mimes (cedric, 26/10) : [n] cartes faciles à mimer, mises après celles de Sarah.
+ * D'abord des personnages et des métiers, puis des animaux et des actions, puis des sports ; en émoji, ou en photo
+ * libre quand la banque a celle du mot. Jamais une image déjà dans la fête ([pris], complété au fur et à mesure).
+ */
+export const MIME_RESERVE = 12;
+export function reserveMimes(n, pris, random = Math.random) {
+  const paliers = [["Métiers", "Imaginaire"], ["Animaux", "Actions"], ["Sports"]];
+  const out = [];
+  for (const themes of paliers) {
+    for (const c of shuffle(MIME_CATALOG.filter((x) => themes.includes(x.theme)), random)) {
+      if (out.length >= n) return out;
+      const carte = mimeCards([avecPhoto({ word: c.word, image: c.image })])[0];
+      const cles = concepts(carte);
+      if (!carte || cles.some((k) => pris.has(k))) continue;
+      cles.forEach((k) => pris.add(k));
+      out.push(carte);
+    }
+  }
+  return out;
+}
+
 /** Titre de la manche de mimes d'une équipe (« Équipe Rose ») : la régie y retrouve la couleur de l'équipe qui joue. */
 export const titreMimeEquipe = (couleur) => `Équipe ${TEAM_COLOR_NAMES[TEAM_COLORS.indexOf(couleur)] ?? "suivante"}`;
 /** La couleur d'une manche de mimes d'une équipe, d'après son titre ; null pour une manche de mimes ordinaire. */
@@ -1239,15 +1263,20 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // joue la 1re présélection, et ainsi de suite. Chaque équipe ne mime que ses images, pendant un tour.
       const couleurs = couleursEquipes(show);
       const equipes = mimeEquipes(round);
-      const duration = Number.isInteger(round.duration) && round.duration >= 15 && round.duration <= 180 ? round.duration : MIME_TURN;
+      const duration = Number.isInteger(round.duration) && round.duration >= 15 && round.duration <= MIME_TURN_MAX ? round.duration : MIME_TURN;
       const vides = couleurs.filter((c, k) => !equipes[k]?.length);
       if (vides.length) problems.push(`Manche ${i + 1} (Mimes) : ${vides.map((c) => titreMimeEquipe(c).toLowerCase()).join(", ")} sans images (🎲 dans la Régie PC).`);
       const jouees = couleurs.map((c, k) => [c, equipes[k] ?? []]).filter(([, cartes]) => cartes.length);
       if (!jouees.length) return;
       rounds.push({ title: ROUND_TYPES.mimes, count: jouees.length, kind: "mime" });
+      // Images de secours (cedric, 26/10) : si une équipe trouve toutes les siennes avant la fin du chrono, la TV
+      // continue avec des personnages, métiers, animaux et actions faciles à mimer, jamais déjà vus dans la fête.
+      jouees.forEach(([, cartes]) => cartes.forEach((x) => concepts(x).forEach((k) => pris.add(k))));
       jouees.forEach(([c, cartes], k) => questions.push({
         // Dans l'ordre de la Régie PC (🔀 l'y mélange, cedric 24/10) : la TV montre les images dans cet ordre.
-        id: `r${i + 1}m${k + 1}`, text: titreMimeEquipe(c), kind: "mime", duration, cards: cartes, round: ROUND_TYPES.mimes,
+        id: `r${i + 1}m${k + 1}`, text: titreMimeEquipe(c), kind: "mime", duration, round: ROUND_TYPES.mimes,
+        // Mimes en file : la couleur de l'équipe seule de la manche (la box lance son tour d'un seul geste).
+        couleur: c, cards: [...cartes, ...reserveMimes(MIME_RESERVE, pris, random)],
       }));
       return;
     }

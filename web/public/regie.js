@@ -1416,6 +1416,8 @@ function renderMime(st, teams) {
   // Mimes en roulement (cedric, 24/10) : après un mime trouvé, deux autres joueurs prennent le relais ; l'image
   // suivante attend « Image suivante », une fois le nouveau devineur dos à l'écran. Le chrono continue.
   const relais = !picto && !!playing && m.relais != null;
+  // Mimes en file (cedric, 26/10) : une manche par couleur, sur une box qui sait faire tourner les joueurs avec « Passer ».
+  const enFile = !picto && !!seule && live.plan?.mimesEnFile === true;
   $("mime").classList.toggle("relais", relais);
   $("mime-now").hidden = !(playing || secret) || !card;
   if (card) {
@@ -1433,15 +1435,21 @@ function renderMime(st, teams) {
         : m.last
           ? `Tour terminé : ${name(m.last.team)} ${m.last.found ? `a trouvé « ${m.last.word ?? "?"} » !` : `n'a pas trouvé « ${m.last.word ?? "?"} ».`} ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
           : "Qui commence ? Choisissez l'équipe, faites retourner ses coéquipiers, puis montrez le mot au dessinateur."
+    : relais && enFile
+    ? `${name(playing)} : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · 🔄 On tourne : le mimeur file au bout, le suivant court face à l'écran. Quand chacun est à sa place, touchez « 👁 Image suivante ».`
     : relais
     ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · 🔄 Changement de joueur : dès que le nouveau devineur est dos à l'écran, touchez « Image suivante ».`
     : playing
     ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · ${m.left} image${m.left > 1 ? "s" : ""} restante${m.left > 1 ? "s" : ""}`
+    : seule && m.last && enFile
+      ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. Le classement arrive sur la TV ; ensuite, quand l'équipe suivante est en file, lancez-la.`
     : seule && m.last
       ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. Touchez « Voir le classement », puis passez à l'équipe suivante.`
     : seule
       ? seule.length
-        ? `Au tour de ${lEquipe(titre)} : ${name(mimeTeam ?? seule[0])}. Faites retourner celui qui devine, puis « Top départ ! ».`
+        ? enFile
+          ? `Au tour de ${lEquipe(titre)} : ${name(mimeTeam ?? seule[0])}. Tous en file : le mimeur face à l'écran, les autres dos à l'écran, puis « Top départ ! ».`
+          : `Au tour de ${lEquipe(titre)} : ${name(mimeTeam ?? seule[0])}. Faites retourner celui qui devine, puis « Top départ ! ».`
         : `Aucune équipe ${titre.replace(/^Équipe /, "")} dans la partie : choisissez l'équipe qui mime ces images, ou passez avec « Voir le classement ».`
     : m.last
         ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
@@ -1488,7 +1496,13 @@ function renderMime(st, teams) {
   $("mime-found").querySelector("small").textContent = picto ? `+${m.points ?? 150} points` : "+1 mime";
   // Pictionary : « Autre mot » tant que le dessinateur découvre le sien ; pas de « Passer » ni de −1 pendant le dessin.
   $("mime-row").hidden = picto ? !secret : !playing;
-  $("mime-pass").textContent = picto ? "Proposer 3 autres mots" : relais ? "▶ Image suivante" : "Image suivante";
+  $("mime-pass").textContent = picto ? "Proposer 3 autres mots" : relais ? (enFile ? "👁 Image suivante" : "▶ Image suivante") : "Image suivante";
+  // Mimes en file : « Image suivante » seulement après Trouvé ou Passer, une fois chacun à sa place.
+  $("mime-pass").hidden = enFile && !relais;
+  // « ⏭ Passer » (cedric, 26/10) : le mimeur abandonne, les joueurs tournent ; à tout moment du tour, sauf pendant
+  // qu'ils tournent déjà (il n'y a alors pas d'image à passer).
+  $("mime-skip").hidden = !enFile || !playing;
+  $("mime-skip").disabled = busy || relais;
   // Changement de joueur : « Image suivante » devient le bouton principal, il montre l'image qui attendait.
   $("mime-pass").classList.toggle("main", relais);
   $("mime-pass").classList.toggle("secondary", !relais);
@@ -1860,6 +1874,7 @@ $("mime-go").onclick = () => {
 };
 $("mime-found").onclick = () => { navigator.vibrate?.(60); send("mime_found", {}, { advance: true }); };
 $("mime-pass").onclick = () => send("mime_pass", {}, { advance: true });
+$("mime-skip").onclick = () => { navigator.vibrate?.(30); send("mime_skip", {}, { advance: true }); };
 $("mime-minus").onclick = () => { const t = live.state?.mime?.team; if (t) send("mime_fix", { team: t, delta: -1 }); };
 $("mime-fix-minus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: -1 }); };
 $("mime-fix-plus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: 1 }); };
@@ -1886,6 +1901,27 @@ function equipesDeLaCouleur(st) {
   const c = couleurMimeEquipe(st?.text ?? live.plan?.questions?.[st?.index]?.text);
   if (!c) return null;
   return Object.entries(live.teams).filter(([, t]) => `${t?.color ?? ""}`.toUpperCase() === c.toUpperCase()).map(([id]) => id);
+}
+
+/**
+ * Mimes en file (cedric, 26/10), une manche par couleur : l'équipe dont le tour part au bouton principal, ou null.
+ * Présentation des Mimes (ou manche ouverte sans tour) : celle de la couleur, « ▶ Lancer l'épreuve » montre tout de
+ * suite sa première image. Bilan des scores d'une couleur : celle de la couleur suivante, sa manche s'ouvre avec son
+ * tour. Sans équipe inscrite de cette couleur : null, le bouton garde son rôle habituel.
+ */
+function mimeEnFile(st) {
+  // Une box d'avant le 26/10 ne sait pas lancer le tour depuis la présentation : déroulé habituel.
+  if (!st || st.paused || live.plan?.mimesEnFile !== true) return null;
+  const questions = live.plan?.questions ?? [];
+  const ici = questions[st.index];
+  const equipe = (q) => {
+    const c = q?.kind === "mime" ? couleurMimeEquipe(q.text) : null;
+    return c ? Object.entries(live.teams).find(([, t]) => `${t?.color ?? ""}`.toUpperCase() === c.toUpperCase())?.[0] ?? null : null;
+  };
+  if (st.phase === "intro" || (st.phase === "question" && st.mime && !st.mime.team && !(st.mime.turns ?? []).length)) return equipe(ici);
+  const suivante = questions[(st.index ?? -1) + 1];
+  if (st.phase === "scores" && st.leaveTo == null && ici?.kind === "mime" && couleurMimeEquipe(ici.text) && suivante?.round === ici.round) return equipe(suivante);
+  return null;
 }
 
 /** « l'équipe Rose » : le titre d'une manche de mimes d'une seule équipe, dans une phrase. */
@@ -3630,6 +3666,12 @@ $("c-next").onclick = async () => {
     ok: "Lancer la démonstration",
   })) {
     switchTab("show");
+    return;
+  }
+  // Mimes en file : la première image de l'équipe de la couleur, ou la manche de la couleur suivante avec son tour.
+  const enFile = mimeEnFile(st);
+  if (enFile) {
+    send("mime_start", { team: enFile }, { advance: true });
     return;
   }
   // Mimes entre deux tours : « Terminer les mimes » passe au classement, après confirmation s'il reste des équipes.
