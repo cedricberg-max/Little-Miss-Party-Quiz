@@ -116,6 +116,20 @@ class PauseTest {
     }
 
     @Test
+    fun `un arrêt du chrono de la régie juste après l'ouverture de la question est refusé, puis accepté après`() {
+        val g = Game(quiz)
+        g.next(t0)
+        // Double appui sur le gros bouton : « Question suivante » puis, dans la même seconde, « Arrêter le chrono ».
+        val double = g.execute(Command.Close("c1", g.state.lastSeq), t0 + 400, teams)
+        assertEquals(CommandStatus.REFUSED, double.status)
+        assertEquals("just_started", double.reason)
+        assertEquals(Phase.QUESTION, g.state.phase)
+        // Un vrai arrêt, 2 secondes après : la question se ferme.
+        assertEquals(CommandStatus.APPLIED, g.execute(Command.Close("c2", g.state.lastSeq), t0 + 2_000, teams).status)
+        assertEquals(Phase.CLOSED, g.state.phase)
+    }
+
+    @Test
     fun `un arrêt du chrono de la régie pendant le décompte de reprise est refusé, puis accepté après`() {
         val g = Game(quiz)
         g.next(t0)

@@ -3920,6 +3920,7 @@ const STATUS_MESSAGES = {
   gone: "Cette demande n'existe plus : l'appareil a peut-être quitté la page.",
   stale_program: "Le programme venait de changer : rien n'a été fait, la liste des jeux est à jour.",
   countdown: "La partie reprend (3, 2, 1) : attendez la fin du décompte.",
+  just_started: "Le chrono vient de partir : rien n'a été arrêté. Touchez à nouveau pour l'arrêter.",
   bad_factor: "Valeur de points inconnue.",
   not_ended: "La partie n'est pas encore terminée : appuyez d'abord longtemps sur « Terminer ».",
   no_name: "Tapez d'abord le nom de l'équipe.",
