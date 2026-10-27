@@ -586,6 +586,8 @@ function nextLabel(st, teamCount) {
     if (st.phase === "question") return st.buzz?.team ? "Une équipe répond…" : b.waiting ? (b.played ? "▶ Relancer la musique" : "▶ Lancer le morceau") : "⏸ Arrêter la musique";
     if (st.phase === "reveal") return blindHasNext(st) ? "Titre suivant ▶" : "Bilan du blind test";
   }
+  const statues = statuesEtape(st);
+  if (statues) return statuesBoutonPrincipal(statues, st);
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
@@ -714,6 +716,8 @@ function render() {
   clearTimeout(countdownTimer);
   if (countdown > 0) countdownTimer = setTimeout(render, countdown + 50);
   next.disabled = next.disabled || st.paused === true || countdown > 0 || ((st.kind === "coffres" || st.kind === "patate") && st.phase === "question") || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
+  const statues = statuesEtape(st);
+  if (statues) next.disabled = next.disabled || (!!statues.choix && !statues.choix.personne && !statues.choix.equipes.size) || (!!statues.resultat && statues.annonce > 0);
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
@@ -1752,17 +1756,147 @@ function renderFlou(st) {
   $("flou-bonus").querySelector("small").textContent = b.team ? `+${base + 50}${times} pour ${name(b.team)}` : "";
 }
 
-/** Statues musicales : un gros bouton par équipe pour désigner la gagnante, à la fin ou dès qu'il n'en reste qu'une. */
+/**
+ * Statues musicales (cedric, 26/10) : Sarah coupe la musique quand elle veut (✋ STATUE ! / 💃 On danse !), puis désigne
+ * la ou les gagnantes de chaque chanson (ou « Personne »). La TV fait le suspense et le bilan ; ensuite « ▶ Chanson
+ * suivante » ou « Jeu suivant ». Une TV d'avant (sans state.statues) garde l'ancien écran : un bouton par équipe.
+ */
+const STATUES_ANNONCE_MS = 8000; // suspense + gagnante(s) à la TV avant le bilan ; la box publie la sienne (annonceMs)
+let statuesChoix = null; // écran gagnant ouvert : { cle, equipes: Set, personne }
+let statuesAnnonce = null;
+
+/** Où en est la chanson : en cours, écran gagnant, annonce de la gagnante à la TV, ou bilan affiché. */
+function statuesEtape(st) {
+  const s = st.statues;
+  if (st.kind !== "statues" || !s || (st.phase !== "question" && st.phase !== "closed")) return null;
+  const cle = `${st.index ?? 0}:${s.song ?? 0}`;
+  const resultat = s.result && (s.result.song ?? s.song) === s.song ? s.result : null;
+  if (resultat || (statuesChoix && statuesChoix.cle !== cle)) statuesChoix = null;
+  // Chanson allée au bout toute seule : l'écran gagnant s'ouvre directement.
+  if (!resultat && s.ended === true && !statuesChoix) statuesChoix = { cle, equipes: new Set(), personne: false };
+  const annonce = resultat ? (resultat.at ?? 0) + (s.annonceMs ?? STATUES_ANNONCE_MS) - (Date.now() + serverOffset) : 0;
+  return { s, cle, resultat, choix: resultat ? null : statuesChoix, annonce, encore: (s.song ?? 0) + 1 < (s.songs ?? 1) };
+}
+
 function renderStatues(st, teams) {
   const on = (st.phase === "question" || st.phase === "closed") && st.kind === "statues";
   $("statues").hidden = !on;
-  if (!on) return;
+  clearTimeout(statuesAnnonce);
+  if (!on) { statuesChoix = null; return; }
+  const e = statuesEtape(st);
+  if (!e) return renderStatuesAvant(st, teams);
+  const { s, resultat, choix, annonce, encore } = e;
+  const busy = !!pending?.advance || st.paused === true;
+  const name = (id) => live.teams[id]?.name ?? "Une équipe";
+  const titre = s.titles?.[s.song ?? 0];
+  const chanson = [(s.songs ?? 1) > 1 ? `Chanson ${(s.song ?? 0) + 1} sur ${s.songs}` : "", titre ? `« ${titre} »` : ""].filter(Boolean).join(" · ");
+  const gagnantes = resultat ? (Array.isArray(resultat.winners) ? resultat.winners : Object.values(resultat.winners ?? {})) : [];
+  $("statues-info").textContent = resultat
+    ? `${gagnantes.length ? `🏆 ${gagnantes.map(name).join(", ")} ${gagnantes.length > 1 ? "gagnent" : "gagne"} la chanson.` : "Personne ne gagne cette chanson."} ${annonce > 0 ? "Annonce sur la TV…" : "Bilan des scores sur la TV."}`
+    : choix ? `${s.ended === true ? "La chanson est finie. " : ""}Qui a gagné ? Touchez une ou plusieurs équipes, ou «\u00a0Personne\u00a0».`
+      : `${chanson ? `${chanson}. ` : ""}${s.dancing === true ? "💃 Les enfants dansent." : "✋ Statue ! Éliminez ceux qui bougent."}`;
+  const bascule = $("statues-bascule");
+  bascule.hidden = !!resultat || !!choix;
+  bascule.textContent = s.dancing === true ? "✋ STATUE !" : "💃 On danse !";
+  bascule.classList.toggle("danse", s.dancing !== true);
+  bascule.disabled = busy;
+  $("statues-choisir").hidden = !!resultat || !!choix;
+  $("statues-choisir").disabled = busy;
+  // Écran gagnant : une grosse tuile par équipe dans sa couleur, à cocher, et « Personne ».
+  const box = $("statues-teams");
+  box.hidden = !choix;
+  const key = `choix|${teams.map(([id, t]) => `${id}:${t.name}:${t.color}`).join("|")}`;
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    const personne = document.createElement("button");
+    personne.className = "statues-tuile personne";
+    personne.dataset.team = "";
+    personne.textContent = "Personne";
+    personne.onclick = () => basculerGagnante(null);
+    box.replaceChildren(...teams.map(([id, t]) => {
+      const b = document.createElement("button");
+      b.className = "statues-tuile";
+      b.dataset.team = id;
+      b.style.setProperty("--team", t.color ?? "#fff");
+      b.textContent = t.name;
+      b.onclick = () => basculerGagnante(id);
+      return b;
+    }), personne);
+  }
+  box.classList.toggle("serree", teams.length > 4);
+  box.querySelectorAll("button").forEach((b) => {
+    const coche = !!choix && (b.dataset.team ? choix.equipes.has(b.dataset.team) : choix.personne);
+    b.classList.toggle("cochee", coche);
+    b.setAttribute("aria-pressed", String(coche));
+    b.disabled = busy;
+  });
+  $("statues-retour").hidden = !choix || s.ended === true;
+  $("statues-suivante").hidden = !resultat || annonce > 0 || !encore;
+  $("statues-suivante").disabled = busy;
+  if (resultat && annonce > 0) statuesAnnonce = setTimeout(render, annonce + 50);
+  $("statues-points").textContent = resultat ? "" : `${st.double ? "600" : "300"} points pour chaque gagnante, ${st.double ? "300" : "150"} pour les autres équipes. «\u00a0Personne\u00a0» : aucun point.`;
+}
+
+function basculerGagnante(id) {
+  const c = statuesChoix;
+  if (!c) return;
+  navigator.vibrate?.(30);
+  if (id == null) {
+    c.personne = !c.personne;
+    if (c.personne) c.equipes.clear();
+  } else {
+    c.personne = false;
+    if (c.equipes.has(id)) c.equipes.delete(id);
+    else c.equipes.add(id);
+  }
+  render();
+}
+
+$("statues-bascule").onclick = () => {
+  const s = live.state?.statues;
+  if (!s) return;
+  navigator.vibrate?.(80);
+  send(s.dancing === true ? "statues_stop" : "statues_play", {}, { advance: true });
+};
+$("statues-choisir").onclick = () => {
+  const e = statuesEtape(live.state ?? {});
+  if (!e || e.resultat) return;
+  statuesChoix = { cle: e.cle, equipes: new Set(), personne: false };
+  render();
+};
+$("statues-retour").onclick = () => { statuesChoix = null; render(); };
+async function validerGagnantes() {
+  const c = statuesChoix;
+  if (!c || (!c.personne && !c.equipes.size)) return;
+  navigator.vibrate?.(60);
+  // « Personne » : un tableau vide disparaît dans la base, la box reçoit donc aussi personne: true.
+  const r = await send("statues_win", c.personne ? { teams: [], personne: true } : { teams: [...c.equipes] }, { advance: true });
+  if (r?.status === "applied" && statuesChoix === c) statuesChoix = null;
+  render();
+}
+$("statues-suivante").onclick = () => { navigator.vibrate?.(60); send("statues_song", {}, { advance: true }); };
+
+/** Bouton principal pendant les statues : passer par l'écran gagnant, attendre l'annonce, puis « Jeu suivant ». */
+function statuesBoutonPrincipal(e, st) {
+  const c = e.choix;
+  if (c) return c.personne ? "✓ Valider : personne" : c.equipes.size > 1 ? `✓ Valider : ${c.equipes.size} gagnantes` : c.equipes.size ? `✓ Valider : ${live.teams[[...c.equipes][0]]?.name ?? "1 gagnante"}` : "Touchez la ou les gagnantes";
+  if (!e.resultat) return e.encore ? "⏭ Chanson suivante" : "⏭ Finir la chanson";
+  if (e.annonce > 0) return "Annonce sur la TV…";
+  if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
+  const { next, questions } = gamesOf(st);
+  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Jeu suivant ▶";
+}
+
+/** Ancienne TV : un gros bouton par équipe pour désigner la gagnante, à la fin ou dès qu'il n'en reste qu'une. */
+function renderStatuesAvant(st, teams) {
+  for (const id of ["statues-bascule", "statues-choisir", "statues-retour", "statues-suivante"]) $(id).hidden = true;
   const busy = !!pending?.advance || st.paused === true;
   $("statues-info").textContent = st.phase === "closed"
     ? "La musique est finie : touchez l'équipe gagnante."
     : "Musique en cours : les enfants dansent et se figent à chaque arrêt. Éliminez ceux qui bougent, puis touchez l'équipe gagnante.";
   const box = $("statues-teams");
-  const key = teams.map(([id, t]) => `${id}:${t.name}`).join("|");
+  box.hidden = false;
+  const key = `avant|${teams.map(([id, t]) => `${id}:${t.name}`).join("|")}`;
   if (box.dataset.key !== key) {
     box.dataset.key = key;
     box.replaceChildren(...teams.map(([id, t]) => {
@@ -3350,6 +3484,40 @@ async function copySounds(questions) {
       console.warn("Extrait non copié", id, e);
     }
   }
+  for (const songId of chansonsEntieres(questions)) {
+    try {
+      await copierEntiere(songId);
+    } catch (e) {
+      console.warn("Chanson entière non copiée", songId, e);
+    }
+  }
+}
+
+/** Statues musicales : les chansons de la bibliothèque à jouer en entier (songs: [{ songId, audioId, title }]). */
+function chansonsEntieres(questions) {
+  const ids = (questions ?? []).filter((q) => q?.kind === "statues")
+    .flatMap((q) => (Array.isArray(q.songs) ? q.songs : Object.values(q.songs ?? {})).map((x) => x?.songId))
+    .filter((id) => typeof id === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(id));
+  return [...new Set(ids)];
+}
+
+/**
+ * Chanson entière copiée de library/entieres dans la partie, à l'identique et part par part (800 000 caractères au
+ * plus chacune) ; n, kbps et length ensemble en dernier : la box sait qu'elle est complète, et plus rien ne s'écrit
+ * dessus ensuite. Absente de la bibliothèque : la box joue l'extrait.
+ */
+async function copierEntiere(songId) {
+  const cible = `games/${code}/songs/${songId}`;
+  if (typeof (await get(ref(db, `${cible}/n`))).val() === "number") return;
+  const source = `library/entieres/${songId}`;
+  const [n, kbps, length] = await Promise.all(["n", "kbps", "length"].map((k) => get(ref(db, `${source}/${k}`)).then((x) => x.val())));
+  if (typeof n !== "number" || n < 1) return;
+  for (let i = 0; i < n; i++) {
+    const part = (await get(ref(db, `${source}/p/${i}`))).val();
+    if (typeof part !== "string") return;
+    await set(ref(db, `${cible}/p/${i}`), part);
+  }
+  await update(ref(db, cible), { n, ...(typeof kbps === "number" ? { kbps } : {}), ...(typeof length === "number" ? { length } : {}) });
 }
 
 /** « l'anniversaire de Chloé », ou le titre de la prestation entre guillemets (dans une phrase). */
@@ -3700,6 +3868,11 @@ $("c-next").onclick = async () => {
     const game = st.kind === "pictionary" ? "le Pictionary" : "les mimes";
     if (!await demander({ title: `Terminer ${game} ?`, text: `${names} ${left.length > 1 ? "ne sont" : "n'est"} pas encore ${left.length > 1 ? "passées" : "passée"}.`, ok: `Terminer ${game}` })) return;
   }
+  // Statues : une chanson ne finit jamais sans sa gagnante ; après l'annonce, « next » passe au jeu suivant.
+  const statues = st ? statuesEtape(st) : null;
+  if (statues?.choix) return validerGagnantes();
+  if (statues && !statues.resultat) { $("statues-choisir").click(); return; }
+  if (statues) { send("next", {}, { advance: true }); return; }
   // Blind test : « next » lance, relance ou arrête la musique (la box décide selon l'état du morceau).
   send(st?.phase === "question" && !(st.mime && !st.mime.team) && !blindMode(st) ? "close" : "next", {}, { advance: true });
 };
