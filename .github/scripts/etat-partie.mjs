@@ -23,3 +23,18 @@ const cherche = (process.env.MOT || "").trim().toLowerCase();
 console.log(`Conducteur : ${c.id === "demo" ? "QUIZ DE DÉMONSTRATION" : c.id ? "prestation chargée" : "aucun"}, intros ${c.intros === true ? "oui" : "non"}, ${c.rounds?.length ?? "?"} jeux`);
 if (cherche) console.log(`Titre contient le mot cherché : ${String(c.title ?? "").toLowerCase().includes(cherche) ? "oui" : "non"}`);
 console.log(`Phase ${st.phase ?? "?"}, question ${st.index ?? "?"}, ${teams} équipes, pause ${st.paused === true ? "oui" : "non"}`);
+const equipes = (await get(`games/${code}/teams`)) ?? {};
+const presence = (await get(`games/${code}/presence`)) ?? {};
+const ordre = Object.entries(equipes).sort((a, b) => (a[1]?.joinedAt ?? 0) - (b[1]?.joinedAt ?? 0)).map(([id]) => id);
+const iso = (t) => (typeof t === "number" ? new Date(t).toISOString().slice(11, 19) + "Z" : "?");
+const reponses = (await get(`games/${code}/answers`)) ?? {};
+ordre.forEach((id, i) => {
+  const n = Object.values(reponses).filter((q) => q && q[id]).length;
+  console.log(`Équipe ${i + 1} : entrée ${iso(equipes[id]?.joinedAt)}, en ligne ${presence[id]?.online === true ? "oui" : "non"}, appareil ${equipes[id]?.device ? (equipes[id].device === id ? "le sien" : "autre") : "-"}, ${n} réponses`);
+});
+console.log(`Question en cours ${st.qid ?? "?"} (${st.kind ?? "?"}), fin du chrono ${iso(st.deadline)}, maintenant ${iso(Date.now())}`);
+for (const [qid, rs] of Object.entries(reponses)) {
+  console.log(`Réponses ${qid} : ${Object.keys(rs ?? {}).map((id) => `équipe ${ordre.indexOf(id) + 1} à ${iso(rs[id]?.at)}`).join(", ")}`);
+}
+const log = Object.values((await get(`games/${code}/log`, '&orderBy="$key"&limitToLast=40')) ?? {}).sort((a, b) => a.seq - b.seq);
+for (const e of log) console.log(`journal ${iso(e.at)} ${e.type}${e.qid ? ` ${e.qid}` : ""}${e.team ? ` équipe ${ordre.indexOf(e.team) + 1}` : ""}`);
