@@ -220,6 +220,8 @@ class DirecteurSonore {
             }
             Ecran.VERROUILLEE -> {
                 o += Ordre.Jouer(Son.VERROU)
+                // Chrono à zéro alors qu'une équipe n'a pas répondu : le signal « temps écoulé » sous le tampon.
+                if (i.tempsEcoule) o += Ordre.Jouer(Son.MIME_FIN)
                 if (!i.express) o += Ordre.Musique(Ambiance.SUSPENSE)
             }
             Ecran.REVELATION -> if (i.nombre) {
@@ -538,6 +540,8 @@ data class Instant(
     val duelEtape: String = "",
     /** Le Simon du Prof : une suite est en cours (le robot la montre, les équipes la tapent). */
     val simonSuite: Boolean = false,
+    /** Quiz : question fermée par la fin du chrono (une équipe n'a pas répondu), « TEMPS ÉCOULÉ ! » à l'écran. */
+    val tempsEcoule: Boolean = false,
     val flou: Boolean = false,
     val chante: Boolean = false,
     val quiSuis: Boolean = false,

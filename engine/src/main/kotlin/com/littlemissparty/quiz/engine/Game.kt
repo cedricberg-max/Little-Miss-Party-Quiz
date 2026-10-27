@@ -20,6 +20,15 @@ const val ANSWER_CLOCK_MARGIN_MS = 2_000L
 /** Vrai ou Faux express : temps entre la fermeture et la révélation (la TV annonce « Temps écoulé »). */
 const val EXPRESS_CLOSED_MS = 1_200L
 
+/**
+ * Quiz (classique, illustré, musical, vrai ou faux, juste chiffre, zoom) : chrono à zéro alors qu'une équipe n'a pas
+ * répondu, la TV annonce « TEMPS ÉCOULÉ ! » puis révèle seule la réponse après ce temps (cedric, 27/10).
+ */
+const val TEMPS_ECOULE_MS = 2_500L
+
+/** Jeux à chrono dont la réponse se révèle seule après « TEMPS ÉCOULÉ ! » (l'express enchaîne déjà tout seul). */
+val QUIZ_REVELATION_AUTO = setOf(QuestionKind.CLASSIC, QuestionKind.TRUE_FALSE, QuestionKind.NUMBER, QuestionKind.ZOOM)
+
 /** Blind test : un extrait relancé à moins de ce temps de sa fin repart du début. */
 const val BLIND_END_MARGIN_MS = 1_000L
 
@@ -302,7 +311,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun timeOver(now: Long): Boolean = remainingMs(now) == 0L || heldTooLong(now)
 
     /** Prochain réveil de la box : fin du chrono, ou bombe gardée trop longtemps (la plus proche). */
-    fun wakeAt(): Long? = listOfNotNull(deadline(), holdDeadline(), mimeBilanAt(), duelJugeAt(), simonJugeAt()).minOrNull()
+    fun wakeAt(): Long? = listOfNotNull(deadline(), holdDeadline(), mimeBilanAt(), duelJugeAt(), simonJugeAt(), revelationAutoAt()).minOrNull()
 
     /**
      * Ajoute un événement au journal s'il est valide. Un événement déjà vu (même numéro)
@@ -1595,6 +1604,24 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             Phase.REVEAL -> EXPRESS_REVEAL_MS.takeUnless { isLastQuestion }
             else -> null
         }
+    }
+
+    /**
+     * La question a été fermée par la fin du chrono (et pas par l'animatrice, ni parce que toutes les équipes avaient
+     * répondu) : la TV annonce « TEMPS ÉCOULÉ ! » et révèle seule la réponse ([revelationAutoAt]).
+     */
+    fun tempsEcoule(): Boolean {
+        val q = question ?: return false
+        if (state.phase != Phase.CLOSED || state.intro || state.mime != null || state.segments.isEmpty()) return false
+        if (q.kind !in QUIZ_REVELATION_AUTO) return false
+        return state.elapsedAt(Long.MAX_VALUE) >= durationOf(q)
+    }
+
+    /** Heure du serveur de la révélation automatique après « TEMPS ÉCOULÉ ! », ou null (pause, fermée à la main…). */
+    fun revelationAutoAt(): Long? {
+        if (state.paused || !tempsEcoule()) return null
+        val fermee = state.segments.last().end ?: return null
+        return fermee + TEMPS_ECOULE_MS
     }
 
     fun adjust(team: String, delta: Int, reason: String, now: Long): GameEvent? =

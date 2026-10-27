@@ -210,6 +210,8 @@ sealed interface UiState {
         /** Le Simon du Prof : joueurs par équipe (le joueur appelé tourne), et le dernier tour est gagné (« Jeu suivant »). */
         val simonJoueurs: Int = 0,
         val simonFini: Boolean = false,
+        /** Quiz : la question a été fermée par la fin du chrono, la TV annonce « TEMPS ÉCOULÉ ! » avant la réponse. */
+        val tempsEcoule: Boolean = false,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -1220,8 +1222,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     // Bombe gardée trop longtemps par une équipe dont la tablette vient de se couper : jamais sa faute, on
                     // attend la pause automatique (après la reprise, l'équipe a de nouveau 2 secondes) ou son retour.
                     val coupee = g.remainingMs(now) > 0 && g.state.potato?.holder?.let { it !in online } == true
-                    // Simon du Prof : fin du chrono, la box juge la suite avec ce que les tablettes ont tapé.
-                    if (g.question?.isSimon == true) {
+                    // Quiz : « TEMPS ÉCOULÉ ! » affiché, la réponse se révèle seule (cedric, 27/10).
+                    val revelation = g.revelationAutoAt()
+                    if (revelation != null) {
+                        if (now >= revelation) {
+                            commit(g.reveal(now, collectAnswers()))
+                            true
+                        } else g.wakeAt() != deadline
+                    } else if (g.question?.isSimon == true) {
                         val due = g.simonJugeAt()
                         if (due != null && now >= due) {
                             commit(g.judgeSimon(reponsesSimon(g), now))
@@ -1296,6 +1304,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 pauseReason = s.hold?.reason,
                 resumeAt = s.resumeAt,
                 deadline = g.deadline(),
+                tempsEcoule = g.tempsEcoule(),
                 // « Ça va exploser ! » : la mèche tirée au sort remplace la durée de la question.
                 remainingMs = q?.let { g.durationOf(it) - s.elapsedAt(Long.MAX_VALUE) }?.coerceAtLeast(0) ?: 0,
                 awards = revealedAwards,

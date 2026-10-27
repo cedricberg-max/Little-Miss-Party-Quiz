@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -54,6 +54,19 @@ import kotlinx.coroutines.delay
 private val NIVEAUX = listOf(5, 8, 12, 18, 26, 38, 56, 80, 120, 170)
 
 /**
+ * Les deux niveaux de la pile (flous de [NIVEAUX], puis la photo nette) fondus l'un dans l'autre pour [niveau]. Avant la
+ * révélation, jamais la photo nette : le niveau le plus net reste une petite image agrandie.
+ */
+internal fun niveauxAffiches(niveau: Float, revealed: Boolean): Pair<Int, Int> {
+    val max = if (revealed) NIVEAUX.size else NIVEAUX.size - 1
+    val bas = niveau.toInt().coerceIn(0, max)
+    return bas to (bas + 1).coerceAtMost(max)
+}
+
+/** Nombre de niveaux flous avant la photo nette. */
+internal val NIVEAUX_FLOUS: Int get() = NIVEAUX.size
+
+/**
  * Temps restant du chrono de la question, mis à jour en continu ; figé pendant une pause, pendant le
  * décompte de reprise et pendant la réponse orale d'une équipe qui a buzzé (la box n'a plus d'échéance).
  */
@@ -101,11 +114,13 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     val progress = (1f - remaining.toFloat() / total).coerceIn(0f, 1f)
     // Lent au début, plus rapide vers la fin : l'image reste mystérieuse un bon moment.
     val cible = if (revealed) NIVEAUX.size.toFloat() else (NIVEAUX.size - 1) * progress * progress
-    val niveau by animateFloatAsState(
-        cible,
-        animationSpec = if (revealed) tween(1_200, easing = FastOutSlowInEasing) else tween(120, easing = LinearEasing),
-        label = "flou",
-    )
+    // Une animation par question : partie de la photo nette de la révélation d'avant, elle repassait une fraction de
+    // seconde par les niveaux nets sur la nouvelle photo (test du 27/10 au soir : « on l'a vue une fraction de seconde »).
+    val anim = remember(q.id) { Animatable(cible) }
+    LaunchedEffect(q.id, cible, revealed) {
+        anim.animateTo(cible, if (revealed) tween(1_200, easing = FastOutSlowInEasing) else tween(120, easing = LinearEasing))
+    }
+    val niveau = anim.value
     Box(
         modifier.clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.12f)),
         contentAlignment = Alignment.Center,
@@ -113,8 +128,7 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
         if (nette != null && niveaux.isNotEmpty()) {
             // Fondu entre deux niveaux voisins : la photo se précise en douceur, sans à-coups.
             val pile = niveaux + nette
-            val bas = niveau.toInt().coerceIn(0, pile.size - 1)
-            val haut = (bas + 1).coerceAtMost(pile.size - 1)
+            val (bas, haut) = niveauxAffiches(niveau, revealed)
             val t = (niveau - bas).coerceIn(0f, 1f)
             Image(
                 pile[bas], contentDescription = "Image floue", contentScale = ContentScale.Crop,

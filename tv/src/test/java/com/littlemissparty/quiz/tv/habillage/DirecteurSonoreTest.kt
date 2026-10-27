@@ -489,6 +489,22 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `chrono à zéro sans toutes les réponses, le signal temps écoulé sous le verrou, jamais quand Sarah arrête le chrono`() {
+        val d = DirecteurSonore()
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 3, reponses = 2)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 2, equipes = 3))
+        d.observer(question)
+        val temps = d.observer(question.copy(ecran = Ecran.VERROUILLEE, tempsEcoule = true))
+        assertTrue(Son.VERROU in temps.sons())
+        assertTrue(Son.MIME_FIN in temps.sons())
+        d.observer(question.copy(index = 4, ecran = Ecran.CLASSEMENT))
+        d.observer(question.copy(index = 5))
+        val main = d.observer(question.copy(index = 5, ecran = Ecran.VERROUILLEE))
+        assertTrue(Son.VERROU in main.sons())
+        assertFalse(Son.MIME_FIN in main.sons())
+    }
+
+    @Test
     fun `vrai ou faux express, musique continue, verdict ding ou pouet, ni roulement ni tension`() {
         val d = DirecteurSonore()
         val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 6, equipes = 2, propositions = 2, express = true, reponseVraie = true)

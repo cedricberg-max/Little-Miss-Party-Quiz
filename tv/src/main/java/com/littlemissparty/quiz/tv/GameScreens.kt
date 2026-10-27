@@ -73,6 +73,7 @@ import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.LogoLmp
 import com.littlemissparty.quiz.tv.habillage.Victoire
 import com.littlemissparty.quiz.tv.habillage.Tempo
+import com.littlemissparty.quiz.tv.habillage.Tampon
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.apres
 import com.littlemissparty.quiz.tv.habillage.rebond
@@ -234,6 +235,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
         // Jeux au buzzer : « La parole est à … » en grand, puis en bandeau tant que l'équipe répond
         // (le blind test a sa propre scène au buzz).
         if (q.isBuzz && !q.isBlind) key(state.index) { AnnonceParole(state) }
+        // Quiz : chrono à zéro et une équipe sans réponse, « TEMPS ÉCOULÉ ! » claque au centre avant la révélation
+        // automatique (cedric, 27/10).
+        if (state.phase == Phase.CLOSED && state.tempsEcoule) Tampon("TEMPS ÉCOULÉ !", cle = state.index, couleur = Neon.Halo, tailleSp = 96, dureeMs = 2_300)
     }
 }
 

@@ -204,6 +204,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         duel = s.question?.isDuel == true,
         duelEtape = if (s.question?.isDuel == true) s.duel?.step.orEmpty() else "",
         simonSuite = s.question?.isSimon == true && s.simon?.enCours == true,
+        tempsEcoule = s.phase == Phase.CLOSED && s.tempsEcoule,
         disparu = if (s.question?.isDisparu == true) disparu else 0,
         // Blind test : présentation du 1er morceau, chanson qui joue, points doublés, révélation raccourcie, bilan.
         blind = blind != null,
