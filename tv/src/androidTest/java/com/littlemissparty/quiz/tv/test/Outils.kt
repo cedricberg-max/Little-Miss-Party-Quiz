@@ -520,6 +520,18 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         }
     }.onFailure { Log.i(TAG, "Buzz du duel refusé : ${it.message}") }.isSuccess
 
+    /**
+     * Le Simon du Prof : la tablette envoie la suite tapée ([items], codes du moteur), validée ou non ([ok]) ; false
+     * si le serveur refuse (pas de suite en cours, équipe éliminée, chrono pas parti ou fini, déjà validé).
+     */
+    fun repondreSimon(code: String, items: List<String>, ok: Boolean = true): Boolean = runCatching {
+        val cle = etat(code).child("simon/key").value?.toString() ?: error("pas de suite en cours")
+        bloquer {
+            base.getReference("games/$code/simon/$cle/$uid")
+                .setValue(mapOf("items" to items.joinToString(","), "ok" to ok, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Suite du Simon refusée : ${it.message}") }.isSuccess
+
     /** « Ça va exploser ! » : la tablette de l'équipe qui tient la bombe l'envoie à [vers] ; false si le serveur refuse. */
     fun envoyerPatate(code: String, vers: String): Boolean = runCatching {
         val cle = etat(code).child("potato/key").value?.toString() ?: error("pas de bombe en jeu")

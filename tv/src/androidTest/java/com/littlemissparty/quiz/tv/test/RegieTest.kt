@@ -2,6 +2,7 @@ package com.littlemissparty.quiz.tv.test
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.littlemissparty.quiz.engine.DUEL_POINTS
+import com.littlemissparty.quiz.engine.SIMON_POINTS
 import com.littlemissparty.quiz.engine.POTATO_BOMBS
 import com.littlemissparty.quiz.engine.POTATO_POINTS
 import com.littlemissparty.quiz.engine.PUMP_TARGET
@@ -1301,6 +1302,80 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
         assertEquals(2L * DUEL_POINTS, points(licornes, code, licornes.uid))
+    }
+
+    @Test
+    fun simonDuProfBahAlorsPuisEliminationPuisGagnantDuTour() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        // Exactement ce qu'envoie la régie pour une manche « Le Simon du Prof » (web/public/show.js) : un seul tour,
+        // 5 s pour taper, 2 joueurs par équipe.
+        val simon = mapOf(
+            "id" to "sm", "text" to "Le Simon du Prof", "choices" to emptyList<String>(), "correct" to -1,
+            "kind" to "simon", "double" to false, "round" to "Le Simon du Prof", "tours" to 1, "reponse" to 5, "joueurs" to 2,
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), simon)))
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("question du quiz ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] && it.child("phase").value == "question" } }
+
+        // Jeu suivant : le Simon, lancé par l'animatrice ; la box prépare le premier tour toute seule.
+        attendreQue("premier tour prêt", 30_000) {
+            val e = licornes.etat(code)
+            if (e.child("qid").value == "sm" && e.child("simon/step").value == "ready") true
+            else { if (e.child("qid").value != "sm" || e.child("phase").value == "intro") regie.commande(code, "next"); null }
+        }
+        assertEquals(1L, (licornes.etat(code).child("simon/suite").value as Number).toLong())
+        ecran.voit("PRÊTS ?")
+        ecran.voit("LE SIMON DU PROF · TOUR 1")
+        ecran.capture("simon-pret")
+        assertEquals("rien à taper avant la suite", false, licornes.repondreSimon(code, listOf("rouge")))
+
+        // Suite 1 : les deux équipes valident une suite vide (toutes fausses dès la première suite) : « Bah alors ?! ».
+        assertEquals("applied", regie.commande(code, "simon_go"))
+        ecran.voit("REGARDEZ BIEN…")
+        ecran.capture("simon-montre", 2_300)
+        assertEquals("next refusé pendant une suite", "refused", regie.commande(code, "next"))
+        ecran.voit("À VOUS DE JOUER !", 10_000)
+        assertTrue(licornes.repondreSimon(code, emptyList()))
+        assertTrue(dragons.repondreSimon(code, emptyList()))
+        attendreQue("suite 1 jugée") { licornes.etat(code).takeIf { it.child("simon/step").value == "judged" } }
+        val bah = licornes.etat(code).child("simon/verdict")
+        assertEquals(true, bah.child("bahAlors").value)
+        assertEquals("personne n'est éliminé", null, licornes.etat(code).child("simon/out").value)
+        ecran.voit("BAH ALORS,", 10_000)
+        ecran.capture("simon-bah-alors")
+        val solution = bah.child("solution").value.toString().split(",")
+        assertEquals(1, solution.size)
+
+        // La même suite relancée : les Licornes la tapent juste, les Dragons se trompent ; les Licornes, dernières en
+        // jeu, gagnent le tour.
+        assertEquals("applied", regie.commande(code, "simon_go"))
+        ecran.voit("À VOUS DE JOUER !", 15_000)
+        assertTrue(licornes.repondreSimon(code, solution))
+        // Les Dragons tapent une mauvaise boule sans valider : la box les juge à la fin du chrono.
+        assertTrue(dragons.repondreSimon(code, listOf(if (solution[0] == "rouge") "vert" else "rouge"), ok = false))
+        ecran.voit("✓ Validé", 4_000)
+        ecran.capture("simon-direct")
+        attendreQue("tour gagné") { licornes.etat(code).takeIf { it.child("simon/step").value == "won" } }
+        ecran.capture("simon-verif")
+        val v = licornes.etat(code).child("simon/verdict")
+        assertEquals(listOf(licornes.uid), v.child("winners").children.map { it.value })
+        assertEquals(listOf(dragons.uid), v.child("wrong").children.map { it.value })
+        ecran.voit("REMPORTE LE TOUR", 10_000)
+        ecran.capture("simon-gagne")
+        assertEquals(SIMON_POINTS.toLong(), points(licornes, code, licornes.uid))
+        assertEquals(0L, points(licornes, code, dragons.uid))
+        assertEquals(true, licornes.etat(code).child("simon/last").value)
+
+        // Dernier tour joué, dernier jeu : les résultats finaux ; scores gardés.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
+        assertEquals(SIMON_POINTS.toLong(), points(licornes, code, licornes.uid))
     }
 }
 
