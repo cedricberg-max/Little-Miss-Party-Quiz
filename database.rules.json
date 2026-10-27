@@ -155,8 +155,18 @@
               ".write": "auth != null && newData.exists() && !data.exists() && root.child('games').child($code).child('state/kind').val() === 'duel' && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && root.child('games').child($code).child('state/duel/step').val() === 'standoff' && root.child('games').child($code).child('state/duel/key').val() === $key && (root.child('games').child($code).child('state/duel/teams/0').val() === $team || root.child('games').child($code).child('state/duel/teams/1').val() === $team) && root.child('games').child($code).child('teams').child($team).exists() && (root.child('games').child($code).child('teams').child($team).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($team).child('device').exists() && auth.uid === $team))",
               ".validate": "newData.child('t').isNumber() && newData.child('at').val() === now",
               "$other": {
-                ".validate": "$other === 't' || $other === 'at'"
+                ".validate": "$other === 't' || $other === 'at' || (($other === 'r' || $other === 'o') && newData.isNumber())"
               }
+            }
+          }
+        },
+        "horloge": {
+          ".read": "auth != null",
+          "$k": {
+            ".write": "auth != null && newData.exists() && (($k === 'box' && root.child('games').child($code).child('hostUid').val() === auth.uid) || (root.child('games').child($code).child('teams').child($k).exists() && (root.child('games').child($code).child('teams').child($k).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($k).child('device').exists() && auth.uid === $k))))",
+            ".validate": "newData.child('at').val() === now",
+            "$other": {
+              ".validate": "$other === 'at'"
             }
           }
         },

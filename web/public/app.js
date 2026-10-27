@@ -10,6 +10,7 @@ import { watchVersion, showUpdateBanner } from "./version.js";
 import { setAwake, isAwake, onAwakeChange } from "./awake.js";
 import { envoyeurDessin } from "./picto.js";
 import { creerArdoise, choisirMot } from "./ardoise.js";
+import { mesurerHorloge, garder } from "./horloge.js";
 import { animationSpectateurs } from "./spectateurs.js";
 import { choisirPorte, ecranPorteOuverte } from "./portes.js";
 import { ecranCoffres, REVELATION_MS } from "./coffres.js";
@@ -824,6 +825,20 @@ function renderStatues(st) {
  * rapide). Un seul buzz par face-à-face.
  */
 let duelEnvoye = null;
+// Horloge fine du duel ({ rtt, offset } : heure du serveur = performance.now() + offset), mesurée pendant que les
+// joueurs se placent ; et l'instant du dernier appui (touche du buzzer USB ou doigt posé), pris par le système.
+let horlogeDuel = null;
+let horlogeMesuree = null;
+let dernierAppui = null;
+function mesurerPourLeDuel(cle) {
+  if (horlogeMesuree === cle) return;
+  horlogeMesuree = cle;
+  const chemin = ref(db, `games/${code}/horloge/${teamId}`);
+  mesurerHorloge(() => set(chemin, { at: serverTimestamp() }), async () => (await get(chemin)).val()?.at)
+    .then((m) => { horlogeDuel = garder(horlogeDuel, m); });
+}
+/** Heure du serveur à l'instant [p] (performance.now()) : horloge fine si mesurée, sinon celle de Firebase. */
+const heureServeur = (p) => Math.round(horlogeDuel ? p + horlogeDuel.offset : performance.timeOrigin + p + serverOffset);
 const nomEquipe = (uid) => game.teams[uid]?.name ?? "Une équipe";
 function renderDuel(st) {
   clearInterval(timerHandle);
@@ -839,6 +854,8 @@ function renderDuel(st) {
   buzz.disabled = !moi || !face || !d.key || duelEnvoye === d.key;
   buzz.classList.toggle("winner", d.step === "result" && d.result?.winner === teamId);
   document.body.dataset.duel = moi ? d.step ?? "" : "";
+  // Pendant que les joueurs se placent : l'horloge de la tablette est calée sur celle du serveur.
+  if (moi && d.step === "ready") mesurerPourLeDuel(`${st.qid}-${d.n}`);
   const contre = equipes.length === 2 ? `${nomEquipe(equipes[0])} contre ${nomEquipe(equipes[1])}` : "";
   if (!d.step || d.step === "none") status.textContent = "Le Duel des robots : il faut au moins 2 équipes. Regardez la TV !";
   else if (d.step === "ready") status.textContent = moi
@@ -867,8 +884,10 @@ async function buzzDuel(st, t) {
   sonBuzz(() => beep(880, 160));
   navigator.vibrate?.(120);
   $("play-status").textContent = "Buzz envoyé ! Regardez la TV…";
+  // Pour les rapports de la box : aller-retour et décalage de l'horloge fine (ms), s'ils sont mesurés.
+  const mesure = horlogeDuel ? { r: Math.round(horlogeDuel.rtt), o: Math.round(horlogeDuel.offset - performance.timeOrigin) } : {};
   try {
-    await set(ref(db, `games/${code}/duel/${d.key}/${teamId}`), { t, at: serverTimestamp() });
+    await set(ref(db, `games/${code}/duel/${d.key}/${teamId}`), { t, at: serverTimestamp(), ...mesure });
   } catch {
     // Face-à-face arrêté ou déjà jugé : l'écran suit l'état de la TV.
   }
@@ -1593,8 +1612,11 @@ function sonBuzz(sinon) {
 }
 
 $("buzz").onclick = async () => {
-  // Duel des robots : l'heure de l'appui (heure du serveur), prise avant tout le reste.
-  const appui = Date.now() + serverOffset;
+  // Duel des robots : l'heure de l'appui (heure du serveur) : celle où la touche ou le doigt est descendu, pas celle du
+  // clic (doigt relevé), prise avant tout le reste.
+  const p = dernierAppui != null && performance.now() - dernierAppui < 1_000 ? dernierAppui : performance.now();
+  dernierAppui = null;
+  const appui = heureServeur(p);
   const buzz = $("buzz");
   if (buzz.disabled) return;
   if (game?.state?.kind === "duel" && game.state.phase === "question") return buzzDuel(game.state, appui);
@@ -1624,14 +1646,23 @@ document.addEventListener("keydown", (e) => {
   // (une réponse, une équipe à qui passer la patate…), ni deux fois si on le garde enfoncé.
   e.preventDefault();
   if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur();
-  if (!e.repeat && buzzAffiche()) $("buzz").click();
+  if (!e.repeat && buzzAffiche()) {
+    dernierAppui = e.timeStamp || performance.now();
+    $("buzz").click();
+  }
 });
 // Espace appuie sur un bouton au relâché : même garde.
 document.addEventListener("keyup", (e) => { if (e.key === " " && !enFrappe(e) && !document.body.classList.contains("regie-mode")) e.preventDefault(); });
 // Buzzer réglé en usine comme un clic de souris : un clic n'importe où sur l'écran du BUZZ compte (sur le BUZZ lui-même,
 // c'est déjà un clic normal). Les doigts sur l'écran ne sont pas concernés.
 document.addEventListener("pointerdown", (e) => {
-  if (e.pointerType !== "mouse" || !buzzAffiche() || (e.target instanceof Element && e.target.closest("#buzz"))) return;
+  // Duel des robots : le doigt posé sur le BUZZ compte tout de suite (pas au doigt relevé).
+  if (e.target instanceof Element && e.target.closest("#buzz") && buzzAffiche()) {
+    dernierAppui = e.timeStamp || performance.now();
+    if (game?.state?.kind === "duel" && !$("buzz").disabled) $("buzz").click();
+    return;
+  }
+  if (e.pointerType !== "mouse" || !buzzAffiche()) return;
   e.preventDefault();
   $("buzz").click();
 }, true);

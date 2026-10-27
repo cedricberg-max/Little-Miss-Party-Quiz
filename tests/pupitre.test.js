@@ -633,6 +633,11 @@ describe("pupitre", () => {
     await verts.locator("#play-status", { hasText: "Duel n° 3 : Les Roses contre Les Bleus. Regardez la TV !" }).waitFor();
     assert.equal(await verts.locator("#buzz").isVisible(), false, "les autres équipes regardent");
     assert.equal(await roses.locator("#buzz").isDisabled(), true, "pas avant le lancement du duel");
+    // Pendant que les joueurs se placent, chaque tablette du duel cale son horloge sur celle du serveur.
+    await waitFor(async () => typeof (await read(`horloge/${r}`))?.at === "number", "horloge des Roses mesurée");
+    await waitFor(async () => typeof (await read(`horloge/${b}`))?.at === "number", "horloge des Bleus mesurée");
+    assert.equal(await read(`horloge/${id("Les Verts")}`), null, "pas les équipes qui regardent");
+    await roses.waitForTimeout(1_500);
     // Face-à-face : rien ne dit quand tombe le PAN ; un appui envoie l'heure de l'appui (heure du serveur).
     await hostState(duel({ step: "standoff", key: "d1-3-100" }));
     await roses.locator("#play-status", { hasText: "Attends le PAN !" }).waitFor();
@@ -643,6 +648,9 @@ describe("pupitre", () => {
     const envoi = await read(`duel/d1-3-100/${r}`);
     assert.ok(Math.abs(envoi.t - avant) < 5_000, "heure de l'appui proche de maintenant");
     assert.equal(typeof envoi.at, "number");
+    assert.ok(envoi.t <= envoi.at + 50, "l'appui est avant l'arrivée");
+    assert.equal(typeof envoi.r, "number", "aller-retour de l'horloge fine, pour les rapports");
+    assert.equal(typeof envoi.o, "number", "décalage de l'horloge fine");
     await roses.locator("#play-status", { hasText: "Buzz envoyé !" }).waitFor();
     assert.equal(await roses.locator("#buzz").isDisabled(), true, "un seul buzz par face-à-face");
     // Gros buzzer USB des Bleus : une touche.

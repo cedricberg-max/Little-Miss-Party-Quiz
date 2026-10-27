@@ -1540,7 +1540,9 @@ describe("Le Duel des robots", () => {
     await assertFails(buzz("bleu", "bleu", "r9d-1-100", { t: Date.now(), at: 5 }), "heure du serveur obligatoire");
     await assertFails(buzz("bleu", "bleu", "r9d-1-100", { at: serverTimestamp() }), "heure de l'appui obligatoire");
     await assertFails(buzz("bleu", "bleu", "r9d-1-100", { t: Date.now(), at: serverTimestamp(), gagne: true }));
-    await assertSucceeds(buzz("bleu"));
+    await assertFails(buzz("bleu", "bleu", "r9d-1-100", { t: Date.now(), at: serverTimestamp(), r: "vite" }), "mesures en nombres");
+    // Avec les mesures de l'horloge fine (aller-retour, décalage), pour les rapports de la box.
+    await assertSucceeds(buzz("bleu", "bleu", "r9d-1-100", { t: Date.now(), at: serverTimestamp(), r: 42, o: -180 }));
     await assertFails(buzz("bleu"), "un seul buzz par face-à-face");
     await assertSucceeds(buzz("rose"));
     await assertFails(set(ref(db("bleu"), `games/${CODE}/duel`), null));
@@ -1556,6 +1558,20 @@ describe("Le Duel des robots", () => {
     await assertFails(buzz("bleu"), "pause");
     await seed({ kind: "quiz", duel: { teams: ["bleu", "rose"], step: "standoff", key: "r9d-1-100" } });
     await assertFails(buzz("bleu"), "pas dans ce jeu");
+  });
+
+  test("horloge fine : chaque tablette pose l'heure du serveur sous son équipe, la box sous « box », personne d'autre", async () => {
+    await face({ step: "ready" });
+    const pose = (uid, k, data = { at: serverTimestamp() }) => set(ref(db(uid), `games/${CODE}/horloge/${k}`), data);
+    await assertSucceeds(pose("bleu", "bleu"));
+    await assertSucceeds(pose("bleu", "bleu"), "plusieurs mesures de suite");
+    await assertFails(pose("bleu", "rose"), "jamais pour une autre équipe");
+    await assertFails(pose("bleu", "box"));
+    await assertSucceeds(pose(HOST, "box"));
+    await assertFails(pose("bleu", "bleu", { at: 5 }), "heure du serveur obligatoire");
+    await assertFails(pose("bleu", "bleu", { at: serverTimestamp(), x: 1 }));
+    await assertFails(set(ref(db("inconnu"), `games/${CODE}/horloge/inconnu`), { at: serverTimestamp() }), "pas une équipe");
+    assert.equal(typeof (await get(ref(db("rose"), `games/${CODE}/horloge/bleu/at`))).val(), "number");
   });
 
   test("tablette remplacée : seul le nouvel appareil buzze ; la régie lance, prépare et arrête les duels", async () => {
