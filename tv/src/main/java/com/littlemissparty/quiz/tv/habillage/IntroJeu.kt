@@ -60,6 +60,7 @@ internal fun familleType(kind: QuestionKind?, musique: Boolean = false, images: 
     QuestionKind.COFFRES -> "bombe"
     QuestionKind.GONFLEUR -> "gonfleur"
     QuestionKind.PATATE -> "patate"
+    QuestionKind.DUEL -> "duel"
     else -> when {
         musique -> "musical"
         images -> "illustre"

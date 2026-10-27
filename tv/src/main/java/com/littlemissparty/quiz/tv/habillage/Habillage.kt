@@ -75,6 +75,9 @@ object Habillage {
 
     /** La vidéo de l'écran de fin du Game Show passe : le décor ne lit pas son propre fond vidéo. */
     val finVideo = mutableStateOf(false)
+
+    /** Le Duel des robots du Game Show passe ses plans vidéo : le décor ne lit pas son propre fond vidéo. */
+    val videoDuel = mutableStateOf(false)
 }
 
 /**
@@ -117,7 +120,7 @@ fun HabillageTv(state: UiState) {
     val dore = (state as? UiState.Playing)?.let { it.question?.double == true && it.phase in listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL) } == true
     // Accueil du Game Show : le robot qui dort, sous Get Lucky ; pendant la grande intro, aucune autre vidéo.
     val salon = (state as? UiState.Playing)?.phase == Phase.LOBBY
-    DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || Habillage.introJeu.value || Habillage.finVideo.value)
+    DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || Habillage.introJeu.value || Habillage.finVideo.value || Habillage.videoDuel.value)
 }
 
 /** « question zoom », « presentation gonfleur », « scores », « accueil »… : l'écran, tel que le compte la fluidité. */
@@ -198,6 +201,8 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         statuesAnnonce = if (s.question?.isStatues == true) annonceStatues else 0,
         statuesGagnantes = s.statues?.result?.winners?.isNotEmpty() == true,
         patate = s.question?.isPatate == true,
+        duel = s.question?.isDuel == true,
+        duelPret = s.question?.isDuel == true && s.duel?.step == "ready",
         disparu = if (s.question?.isDisparu == true) disparu else 0,
         // Blind test : présentation du 1er morceau, chanson qui joue, points doublés, révélation raccourcie, bilan.
         blind = blind != null,

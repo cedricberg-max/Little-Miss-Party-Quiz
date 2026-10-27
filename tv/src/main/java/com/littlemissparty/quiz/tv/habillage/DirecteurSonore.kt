@@ -423,6 +423,9 @@ class DirecteurSonore {
             // Qui a disparu ? : musique douce pour mémoriser, presque rien pendant le tour de magie.
             // « Ça va exploser ! » : sa propre musique, calée sur la mèche (MusiquePatate) ; les boucles se taisent.
             i.patate && i.ecran != Ecran.REVELATION -> Ambiance.SILENCE
+            // Le Duel des robots : un air de suspense pendant que les joueurs s'approchent, puis le silence du
+            // face-à-face, rompu seulement par les feintes et le PAN (DuelScreens).
+            i.duel -> if (i.duelPret) Ambiance.SUSPENSE else Ambiance.SILENCE
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             // Game Show : Qui suis-je ? est un jeu qui bouge, sur la musique des mimes (cedric, 23/10), en retrait sous les indices.
@@ -504,6 +507,9 @@ data class Instant(
     val statuesGagnantes: Boolean = false,
     /** « Ça va exploser ! » : le jeu a sa propre musique, calée sur la mèche ; ni boucle, ni bips, ni tension. */
     val patate: Boolean = false,
+    /** Le Duel des robots ; [duelPret] : un duel est prêt, pas encore lancé (sinon face-à-face ou bilan, en silence). */
+    val duel: Boolean = false,
+    val duelPret: Boolean = false,
     val flou: Boolean = false,
     val chante: Boolean = false,
     val quiSuis: Boolean = false,
@@ -727,6 +733,15 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
      */
     COUINE_1("gs_couine_1"), COUINE_2("gs_couine_2"), COUINE_3("gs_couine_3"),
     BALLON_ECLATE("lmp_ballon_eclate", true),
+    /**
+     * Le Duel des robots (cedric, 27/10) : le face-à-face commence, une feinte, le PAN, la victoire, un tir trop tôt.
+     * Design classique : des sons de l'appli ; Game Show : ceux du western néon quand ils sont livrés.
+     */
+    DUEL_FACE("lmp_drumroll_2b", gs = "gs_duel_face"),
+    DUEL_FEINTE("lmp_whoosh", gs = "gs_duel_feinte"),
+    DUEL_PAN("lmp_impact", gs = "gs_duel_pan"),
+    DUEL_VICTOIRE("lmp_crown_hit", gs = "gs_duel_victoire"),
+    DUEL_TROP_TOT("lmp_wrong_off", gs = "gs_duel_troptot"),
     TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
     PATATE_PASSE("lmp_patate_passe"),
     /** Musique de « Ça va exploser ! » (extrait choisi par cedric) : sa fin tombe sur l'explosion, voir [MusiquePatate]. */
