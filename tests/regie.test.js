@@ -4996,7 +4996,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const mesPhotos = Object.fromEntries(deck.cards.filter((c) => c.imageId).map((c) => [c.word, c.imageId]));
     for (const c of mime.cards.filter((x) => mesPhotos[x.word])) assert.equal(c.imageId, mesPhotos[c.word]);
     assert.equal(mime.cards.find((c) => c.word === "Chat").imageId, undefined);
-    assert.equal(disparu.cards.length >= 5, true);
+    assert.equal(disparu.cards.length, 4, "4 cartes à 7 ans (cedric, 27/10)");
     assert.ok(disparu.cards.every((c) => chambre.objects.some((o) => o.word === c.word && o.imageId === c.imageId)));
     const wanted = [...new Set([...mime.cards, ...disparu.cards].map((c) => c.imageId).filter(Boolean))];
     await waitFor(async () => { const copied = (await read("choiceImages")) ?? {}; return wanted.every((id) => typeof copied[id] === "string"); }, "photos copiées dans la partie");
@@ -7467,13 +7467,18 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC (cedric, 24/10) : Qui a disparu ? se construit comme le Quiz : 🎲 des grilles d'émojis, une grille composée avec vos images, des grilles de photos libres, chacune avec ses objets en petit ; « Qui a disparu ? complet » (↑ ↓ ✕ 🔀)", async () => {
-    const { buildSnapshot } = await import("../web/public/show.js");
+  test("Régie PC (cedric, 27/10) : Qui a disparu ? comme les autres jeux : l'âge (celui de la prestation), 4 / 6 / 8 cartes et le nombre de tours ; le 🎲 et son champ ; un ancien anniversaire ; « Qui a disparu ? complet » (↑ ↓ glisser 🔀, ✕ laisse un 🎲)", async () => {
+    const { buildSnapshot, niveauDeFamille } = await import("../web/public/show.js");
+    const { DISPARU_THEMES } = await import("../web/public/buzz-cards.js");
     const PNG = `data:image/png;base64,${png([40, 160, 90]).toString("base64")}`;
     const MES = ["a1", "a2", "a3", "a4", "a5", "a6"].map((x) => x.padStart(16, "0"));
     const NOMS = ["Doudou", "Vélo", "Ballon", "Tortue", "Cabane", "Gâteau"];
     await seedLibrary("images", Object.fromEntries(MES.map((id) => [id, PNG])));
     await seedLibrary("medias", Object.fromEntries(MES.map((id, k) => [id, { name: NOMS[k], cat: "Maison", createdAt: 1, updatedAt: 1 }])));
+    // Un ancien anniversaire : un tour « Les outils » de 8 cartes.
+    const outils = DISPARU_THEMES.find((t) => t.theme === "Les outils");
+    await seedLibrary("shows", { luna: { childName: "Luna", age: 12, date: "2026-05-10", status: "archivee", updatedAt: 1,
+      rounds: [{ type: "disparu", objects: 8, seriesMots: [{ id: "de", origine: "de", mots: [{ theme: outils.theme, objects: outils.objects.slice(0, 8) }] }] }] } });
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
@@ -7481,68 +7486,93 @@ describe("bibliothèque de quiz et prestations", () => {
     await ajouterJeu(page, "disparu");
     const round = page.locator('#show-rounds .jeu-bloc[data-jeu="disparu"] .round');
     const compteur = round.locator(".round-head > .quiz-compteur");
-    assert.equal(await compteur.textContent(), "Aucune grille pour l'instant : la TV en tirera 4 au hasard");
-    // Un jeu encore vide se voit en haut de la page (cedric, 24/10), en simple alerte : la TV le remplira au hasard.
-    await page.locator("#show-ready li.ready-alerte", { hasText: "⚠ Qui a disparu ? : aucune grille choisie pour l'instant, la TV en tirera 4 au hasard." }).waitFor();
-    // Les outils : le 🎲 seul sur sa ligne, puis vos images, puis les photos libres.
-    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-ligne", "quiz-ajouts vos-images grille-images", "quiz-ajouts disparu-photos"]);
+    assert.equal(await compteur.textContent(), "Aucun tour pour l'instant : la TV en tirera 4 au hasard");
+    await page.locator("#show-ready li.ready-alerte", { hasText: "⚠ Qui a disparu ? : aucun tour choisi pour l'instant, la TV en tirera 4 au hasard." }).waitFor();
+    // Les lignes : âge, cartes et tours ; le 🎲 et son champ ; le rappel ; vos images.
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)),
+      ["de-ligne disparu-reglages", "de-ligne de-unique-ligne", "quiz-ajouts quiz-rappel fine", "quiz-ajouts vos-images grille-images"]);
+    const age = round.locator("select.disparu-age");
+    const cartes = round.locator("select.disparu-cartes");
+    const tours = round.locator("select.disparu-tours");
+    // L'âge de la prestation d'office (9 ans : les moyens, 6 cartes) ; 4, 6 ou 8 cartes.
+    assert.deepEqual([await age.inputValue(), await cartes.inputValue(), await tours.inputValue()], ["MOYENS", "6", "4"]);
+    assert.deepEqual(await cartes.locator("option").allTextContents(), ["4 cartes par tour", "6 cartes par tour", "8 cartes par tour"]);
+    // Les petits : 4 cartes, des familles simples.
+    await age.selectOption("PETITS");
+    await waitFor(async () => (await cartes.inputValue()) === "4", "4 cartes chez les petits");
+    const champ = round.locator(".de-unique-champ");
+    await champ.focus();
+    // Le champ ne propose que des familles (plus de lignes « Émojis » / « Photos libres »).
+    const proposees = await round.locator(".de-unique-ligne .packs-suggestion b").evaluateAll((xs) => xs.map((x) => x.textContent));
+    assert.ok(proposees.includes("Fruits") && !proposees.includes("Émojis") && !proposees.includes("Photos libres"), `familles proposées : ${proposees}`);
+    await round.locator(".disparu-tours").selectOption("3");
+    await round.locator(".de-unique").click();
+    await compteur.filter({ hasText: /^3 tours/ }).waitFor();
+    await waitFor(async () => !(await page.locator("#show-ready li.ready-alerte").count()), "plus d'alerte une fois des tours tirés");
+    const complet = round.locator(".quiz-complet");
+    const lignes = complet.locator(".quiz-complet-q");
+    const ordre = () => lignes.evaluateAll((xs) => xs.map((x) => x.dataset.mot));
+    const niveauDe = (cle) => (cle.startsWith("photos · ") ? 1 : niveauDeFamille(DISPARU_THEMES.find((t) => t.theme.toLowerCase() === cle)));
+    assert.ok((await ordre()).every((c) => niveauDe(c) === 1), `familles simples : ${await ordre()}`);
+    for (let k = 0; k < 3; k++) assert.equal(await lignes.nth(k).locator(".grille-vignette").count(), 4);
 
-    // Le 🎲 : 3 grilles d'émojis de 7 objets (9 ans).
-    await round.locator(".quiz-outils > .tirage-ligne .tirage-nombre").selectOption("3");
-    await round.locator(".quiz-outils > .tirage-ligne .tirage-de").click();
-    await compteur.filter({ hasText: "3 grilles" }).waitFor();
-    await waitFor(async () => !(await page.locator("#show-ready li.ready-alerte").count()), "plus d'alerte une fois des grilles tirées");
-    const de = round.locator('.quiz-series > li.serie[data-origine="de"]');
-    assert.equal(await de.locator(".serie-voir").textContent(), "▾ 🎲 3 grilles tirées au hasard (émojis)");
-    const grillesDe = de.locator(".serie-liste .tirage-q");
-    assert.equal(await grillesDe.count(), 3);
-    for (let k = 0; k < 3; k++) assert.equal(await grillesDe.nth(k).locator(".grille-vignette.emoji").count(), 7);
-
-    // Une grille avec vos images : de 5 à 12 cochées.
+    // 6 cartes : chaque tour déjà là en prend 6 (d'autres objets de sa famille).
+    await cartes.selectOption("6");
+    await waitFor(async () => (await lignes.nth(2).locator(".grille-vignette").count()) === 6, "6 cartes par tour");
+    for (let k = 0; k < 3; k++) assert.equal(await lignes.nth(k).locator(".grille-vignette").count(), 6);
+    // « Images réelles », 2 tours ; puis un mot (« guitare ») : sa famille.
+    const images = round.locator("select.disparu-images");
+    assert.equal(await images.inputValue(), "mixte");
+    await images.selectOption("reelles");
+    await champ.fill("");
+    await tours.selectOption("2");
+    await round.locator(".de-unique").click();
+    await compteur.filter({ hasText: /^5 tours/ }).waitFor();
+    const apres = await ordre();
+    assert.ok(apres.slice(3).every((c) => c.startsWith("photos · ")), apres.join());
+    assert.equal(await lignes.nth(4).locator('img.grille-vignette[src^="banque/"]').count(), 6);
+    await champ.fill("guitare");
+    await tours.selectOption("1");
+    await round.locator(".de-unique").click();
+    await compteur.filter({ hasText: /^6 tours/ }).waitFor();
+    assert.ok(["la musique", "photos · musique"].includes((await ordre())[5]), (await ordre())[5]);
+    // Un ancien anniversaire : son tour, à 6 cartes comme les autres.
+    await round.locator(".quiz-rappel-cherche").fill("luna");
+    await round.locator('.quiz-rappel-item[data-show="luna"]', { hasText: "1 tour" }).click();
+    await compteur.filter({ hasText: /^7 tours/ }).waitFor();
+    assert.equal((await ordre())[6], "les outils");
+    assert.equal(await lignes.nth(6).locator(".grille-vignette").count(), 6);
+    // Vos images : autant que de cartes par tour.
     await round.locator(".grille-images-titre").click();
     const ajouter = round.locator(".grille-images-ajouter");
-    assert.equal(await ajouter.textContent(), "Cochez de 5 à 12 images (0)");
-    assert.equal(await ajouter.isDisabled(), true);
-    for (const id of MES.slice(0, 5)) await round.locator(`.vos-images-tuile[data-image="${id}"]`).click();
-    assert.equal(await ajouter.textContent(), "＋ Faire une grille avec ces 5 images");
+    assert.equal(await ajouter.textContent(), "Cochez 6 images (0)");
+    for (const id of MES) await round.locator(`.vos-images-tuile[data-image="${id}"]`).click();
+    assert.equal(await ajouter.textContent(), "＋ Faire un tour avec ces 6 images");
     await ajouter.click();
-    await compteur.filter({ hasText: "4 grilles" }).waitFor();
-    const vos = round.locator('.quiz-series > li.serie[data-origine="images"]');
-    assert.equal(await vos.locator(".serie-voir").textContent(), "▾ ⭐ 1 grille de vos images");
-    await vos.locator('[data-mot="vos images 1"] img.grille-vignette').nth(4).waitFor();
-    assert.equal(await vos.locator('[data-mot="vos images 1"] img.grille-vignette').count(), 5);
+    await compteur.filter({ hasText: /^8 tours/ }).waitFor();
+    assert.equal((await ordre())[7], "vos images 1");
 
-    // Les photos libres : 2 grilles, une famille de photos chacune.
-    await round.locator(".disparu-photos-nombre").selectOption("2");
-    await round.locator(".disparu-photos-de").click();
-    await compteur.filter({ hasText: "6 grilles" }).waitFor();
-    const libres = round.locator('.quiz-series > li.serie[data-origine="photos"]');
-    assert.equal(await libres.locator(".serie-voir").textContent(), "▾ 📷 2 grilles de photos libres");
-    const themes = await libres.locator(".serie-liste .tirage-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
-    for (const t of themes) assert.match(t, /^photos · /);
-    assert.equal(await libres.locator(".serie-liste .tirage-q").first().locator('img.grille-vignette[src^="banque/"]').count(), 7);
-    // ✕ : un 🎲 prend sa place, il tire une autre famille de photos.
-    await libres.locator(".serie-liste .tirage-retirer").first().click();
-    await compteur.filter({ hasText: "5 grilles" }).waitFor();
-    assert.equal(await libres.locator(".serie-voir").textContent(), "▾ 📷 1 grille de photos libres, 1 à tirer");
-    await libres.locator(".serie-liste li.vide .tirage-de").click();
-    await compteur.filter({ hasText: "6 grilles" }).waitFor();
-    const themes2 = await libres.locator(".serie-liste .tirage-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
-    assert.ok(!themes2.includes(themes[0]), "la famille retirée ne revient pas");
-    for (const t of themes2) assert.match(t, /^photos · /);
-
-    // « Qui a disparu ? complet » : les 6 grilles, ↓, 🔀.
-    const complet = round.locator(".quiz-complet");
-    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Qui a disparu ? complet : 6 grilles, dans l'ordre de passage");
-    await complet.locator(".quiz-complet-voir").click();
-    const ordre = () => complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
+    // « Qui a disparu ? complet » : ouvert d'office ; ↓, glisser, 🔀.
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▾ 🧩 Qui a disparu ? complet : 8 tours, dans l'ordre de passage");
     const avant = await ordre();
-    assert.equal(avant.length, 6);
-    const descendu = [avant[1], avant[0], ...avant.slice(2)];
-    await complet.locator(".quiz-complet-q").nth(0).locator(".quiz-complet-descendre").click();
-    await waitFor(async () => (await ordre()).join() === descendu.join(), "la première passe en 2e");
+    await lignes.nth(0).locator(".quiz-complet-descendre").click();
+    await waitFor(async () => (await ordre()).join() === [avant[1], avant[0], ...avant.slice(2)].join(), "la première passe en 2e");
+    await glisser(lignes.nth(7), lignes.nth(0), false);
+    await waitFor(async () => (await ordre())[0] === "vos images 1", "glissé en tête");
     await complet.locator(".quiz-melanger").click();
-    await waitFor(async () => (await ordre()).join() !== descendu.join(), "mélangées");
+    await waitFor(async () => (await ordre()).join() !== avant.join(), "mélangés");
+    // ✕ : sa place reste, avec un petit 🎲 et son champ (en « Émojis » : une famille d'émojis).
+    await images.selectOption("emojis");
+    const melange = await ordre();
+    await lignes.nth(2).locator(".tirage-retirer").click();
+    const vide = complet.locator(".quiz-case-vide");
+    await vide.waitFor();
+    assert.equal(await complet.locator(".quiz-complet-liste > li").nth(2).getAttribute("class"), await vide.getAttribute("class"), "à la même place");
+    await vide.locator(".quiz-case-de").click();
+    await vide.waitFor({ state: "detached" });
+    const neuf = (await ordre())[2];
+    assert.ok(!melange.includes(neuf) && !neuf.startsWith("photos · ") && neuf !== melange[2], neuf);
+    assert.equal(await lignes.nth(2).locator(".grille-vignette").count(), 6);
     const joues = await ordre();
     await capture(page, "qui-a-disparu");
 
@@ -7550,20 +7580,94 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
     const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
     const [qd] = zoe.rounds;
-    assert.deepEqual(qd.seriesMots.map((x) => [x.origine, x.mots.length]), [["de", 3], ["images", 1], ["photos", 2]]);
-    assert.deepEqual(qd.seriesMots[1].mots[0].objects.map((o) => [o.word, o.imageId]), NOMS.slice(0, 5).map((w, k) => [w, MES[k]]));
-    assert.ok(qd.seriesMots[2].mots.every((g) => g.objects.every((o) => o.banque)), "photos libres gardées");
-    // Sur la TV : chaque grille telle quelle, dans l'ordre du « complet ».
+    assert.deepEqual([qd.objects, qd.profil], [6, "PETITS"], "les cartes et l'âge choisis restent");
+    const mots = qd.seriesMots.flatMap((x) => x.mots).filter((m) => !m.vide);
+    assert.equal(mots.length, 8);
+    assert.ok(mots.every((g) => g.objects.length === 6), "6 cartes à chaque tour");
+    assert.deepEqual(mots.find((g) => g.theme === "Vos images 1").objects.map((o) => [o.word, o.imageId]), NOMS.map((w, k) => [w, MES[k]]));
+    // Sur la TV : chaque tour tel quel, dans l'ordre du « complet », 6 cartes.
     const { snapshot, problems } = buildSnapshot("zoe", zoe, {});
     assert.deepEqual(problems, []);
     const questions = snapshot.quiz.questions.filter((q) => q.kind === "disparu");
-    assert.equal(questions.length, 6);
-    const parTheme = new Map(qd.seriesMots.flatMap((x) => x.mots).map((g) => [g.theme.toLowerCase(), g]));
+    assert.equal(questions.length, 8);
+    const parTheme = new Map(mots.map((g) => [g.theme.toLowerCase(), g]));
     questions.forEach((q, k) => {
       const g = parTheme.get(joues[k]);
+      assert.equal(q.cards.length, 6);
       assert.deepEqual(q.cards.map((c) => c.word).sort(), g.objects.map((o) => o.word).sort());
-      assert.ok(g.objects.some((o) => o.word === q.choices[0]), "l'objet qui disparaît est dans sa grille");
+      assert.ok(g.objects.some((o) => o.word === q.choices[0]), "l'objet qui disparaît est dans son tour");
     });
+    await page.context().close();
+  });
+
+  test("Régie PC (cedric, 27/10) : Qui a disparu ? en émojis, en images réelles ou mixte ; aux images réelles, seulement les images carrées bien cadrées des packs, jamais leurs paysages", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const PNG = (k) => `data:image/png;base64,${png([20 * k, 200 - 15 * k, 90]).toString("base64")}`;
+    const IDS = Array.from({ length: 10 }, (_, k) => `${k}`.repeat(16));
+    const HEROS = ["Thor", "Hulk", "Loki", "Groot", "Rocket", "Vision", "Wanda", "Faucon"];
+    await seedLibrary("images", Object.fromEntries(IDS.map((id, k) => [id, PNG(k)])));
+    await seedLibrary("quizzes", {
+      // Un Quiz illustré : ses réponses, des personnages carrés bien cadrés.
+      marvel: { title: "Marvel illustré", theme: "Marvel", kind: "photo", pack: true, niveau: "Facile", updatedAt: 1, questions: [0, 1].map((q) => ({
+        text: `Qui ? ${q}`, choices: HEROS.slice(4 * q, 4 * q + 4), correct: 0, status: "validee", choiceImages: IDS.slice(4 * q, 4 * q + 4) })) },
+      // Une série de photos du Zoom (des paysages) : jamais tirée ici.
+      paysages: { title: "Paysages", theme: "Paysages", kind: "images", source: "photos", pack: true, niveau: "Facile", updatedAt: 1, questions: [8, 9].map((k) => ({
+        text: "Qu'est-ce que c'est ?", choices: [`Lieu ${k}`, "A", "B", "C"], correct: 0, imageId: IDS[k], status: "validee" })) },
+    });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "9");
+    await ajouterJeu(page, "disparu");
+    const round = page.locator('#show-rounds .jeu-bloc[data-jeu="disparu"] .round');
+    const compteur = round.locator(".round-head > .quiz-compteur");
+    const images = round.locator("select.disparu-images");
+    const tours = round.locator("select.disparu-tours");
+    const champ = round.locator(".de-unique-champ");
+    const lignes = round.locator(".quiz-complet .quiz-complet-q");
+    const ordre = () => lignes.evaluateAll((xs) => xs.map((x) => x.dataset.mot));
+    // Sur la première ligne, mixte d'office.
+    assert.deepEqual(await round.locator(".disparu-reglages > *").evaluateAll((xs) => xs.map((x) => x.className.split(" ").pop())), ["disparu-age-titre", "disparu-age", "disparu-images", "disparu-cartes", "disparu-tours"]);
+    assert.equal(await images.inputValue(), "mixte");
+    assert.deepEqual(await images.locator("option").allTextContents(), ["Mixte : émojis et images réelles", "Émojis", "Images réelles"]);
+    // Émojis : 2 tours, que des émojis.
+    await images.selectOption("emojis");
+    await tours.selectOption("2");
+    await round.locator(".de-unique").click();
+    await compteur.filter({ hasText: /^2 tours/ }).waitFor();
+    assert.equal(await lignes.locator("img.grille-vignette").count(), 0);
+    assert.equal(await lignes.locator(".grille-vignette.emoji").count(), 12);
+    // Images réelles, « Marvel » : les personnages du Quiz illustré.
+    await images.selectOption("reelles");
+    await champ.fill("Marvel");
+    await tours.selectOption("1");
+    await round.locator(".de-unique").click();
+    await compteur.filter({ hasText: /^3 tours/ }).waitFor();
+    assert.equal((await ordre())[2], "marvel");
+    assert.equal(await lignes.nth(2).locator("img.grille-vignette").count(), 6);
+    // « Paysages » : une série du Zoom, jamais tirée.
+    await champ.fill("Paysages");
+    await round.locator(".de-unique").click();
+    await page.locator("#annonce", { hasText: "Aucune famille libre ne répond à « Paysages »" }).waitFor();
+    assert.equal(await lignes.count(), 3);
+    // Au hasard en images réelles : des photos (ni émoji).
+    await champ.fill("");
+    await tours.selectOption("2");
+    await round.locator(".de-unique").click();
+    await compteur.filter({ hasText: /^5 tours/ }).waitFor();
+    for (const k of [3, 4]) {
+      assert.equal(await lignes.nth(k).locator(".grille-vignette.emoji").count(), 0);
+      assert.equal(await lignes.nth(k).locator("img.grille-vignette").count(), 6);
+    }
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+    assert.equal(zoe.rounds[0].images, "reelles");
+    // Sur la TV : le tour Marvel montre les images des personnages, chacune avec son nom.
+    const { snapshot } = buildSnapshot("zoe", zoe, {});
+    const marvel = snapshot.quiz.questions.filter((q) => q.kind === "disparu")[2];
+    assert.equal(marvel.cards.length, 6);
+    assert.ok(marvel.cards.every((c) => IDS.slice(0, 8).includes(c.imageId) && c.word === HEROS[IDS.indexOf(c.imageId)]));
     await page.context().close();
   });
 

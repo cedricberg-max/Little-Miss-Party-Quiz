@@ -272,7 +272,11 @@ export function cleanRound(r, playlists = {}) {
           ...(PROFILES[x.pioche.profil] ? { profil: x.pioche.profil } : {}) } } : {}),
     })).filter((x) => x.mots.length) : [];
     const ordre = series.length && Object.values(r.ordreMots ?? {}).length ? motsDuJeu(r).map((x) => x.cle) : [];
+    // Qui a disparu ? (cedric, 27/10) : l'âge choisi dans sa carte (la difficulté des familles) reste.
     out = { type, count: r.count ?? BUILTIN_GAMES[type].count, ...(type === "disparu" && r.objects ? { objects: r.objects } : {}), ...photos,
+      ...(type === "disparu" && PROFILES[r.profil] ? { profil: r.profil } : {}),
+      // Et la source des images du 🎲 : émojis, images réelles ou mixte.
+      ...(type === "disparu" && ["emojis", "reelles", "mixte"].includes(r.images) ? { images: r.images } : {}),
       ...(series.length ? { seriesMots: series, ...(ordre.length ? { ordreMots: ordre } : {}) } : picks) };
   }
   // Mimes : un paquet, ou le catalogue au hasard ; cartes choisies (tirage modifié à la main) gardées dans la manche.

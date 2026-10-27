@@ -319,7 +319,7 @@ describe("tableau de bord des prestations", () => {
     }
     // La TV les tire au hasard : prête quand même, avec l'alerte.
     for (const [round, texte] of [[{ type: "pictionary" }, "Pictionary : aucun mot choisi pour l'instant, la TV les tirera au hasard."],
-      [{ type: "disparu", count: 3 }, "Qui a disparu ? : aucune grille choisie pour l'instant, la TV en tirera 3 au hasard."],
+      [{ type: "disparu", count: 3 }, "Qui a disparu ? : aucun tour choisi pour l'instant, la TV en tirera 3 au hasard."],
       [{ type: "chante" }, "Chante le mot ! : aucun mot choisi pour l'instant, la TV en tirera 6 au hasard."],
       [{ type: "quisuis" }, "Qui suis-je ? : aucun personnage choisi pour l'instant, la TV en tirera 5 au hasard."]]) {
       assert.deepEqual(avec(round), { level: "prete", todo: [], alertes: [texte] }, round.type);
@@ -613,16 +613,39 @@ describe("Qui a disparu ?", () => {
     for (const q of qs) {
       assert.equal(q.kind, "disparu");
       assert.equal(q.round, "Qui a disparu ?");
-      assert.equal(q.cards.length, 7, "7 objets chez les Moyens");
+      assert.equal(q.cards.length, 6, "6 cartes chez les Moyens (cedric, 27/10 : un nombre pair)");
       assert.equal(q.correct, 0);
       assert.equal(q.cards.filter((c) => c.word === q.choices[0]).length, 1, "l'objet disparu est dans la grille");
       assert.equal(q.image, q.cards.find((c) => c.word === q.choices[0]).image);
-      assert.equal(q.duration, 14 + 3 + 25, "mémorisation (2 s par objet), tour de magie, recherche");
+      assert.equal(q.duration, 12 + 3 + 25, "mémorisation (2 s par objet), tour de magie, recherche");
       assert.ok(q.cards.every((c) => c.image && c.word));
     }
     const petits = buildSnapshot("x", { childName: "Tom", age: 6, rounds: [{ type: "disparu", count: 2 }] }, {}).snapshot.quiz.questions;
-    assert.deepEqual(petits.map((q) => [q.cards.length, q.duration]), [[5, 38], [5, 38]], "5 objets et 10 s pour mémoriser chez les Petits");
+    assert.deepEqual(petits.map((q) => [q.cards.length, q.duration]), [[4, 38], [4, 38]], "4 cartes et 10 s pour mémoriser chez les Petits");
     assert.equal(roundFilled({ type: "disparu" }), true);
+  });
+});
+
+describe("Qui a disparu ? (cedric, 27/10) : cartes par tour et difficulté selon l'âge", () => {
+  test("4, 6 ou 8 cartes ; les familles du niveau de l'âge d'abord : simples aux petits, qui se ressemblent aux grands", async () => {
+    const { DISPARU_CARTES, famillesPourLAge, niveauDeFamille } = await import("../web/public/show.js");
+    assert.deepEqual(DISPARU_CARTES, [4, 6, 8]);
+    assert.deepEqual(["PETITS", "MOYENS", "GRANDS", "ADULTES", "NEUTRE"].map((p) => disparuObjects({}, p)), [4, 6, 8, 8, 6]);
+    const familles = DISPARU_THEMES;
+    const niveau = (t) => niveauDeFamille(t);
+    assert.equal(niveau(familles.find((t) => t.theme === "Fruits")), 1);
+    assert.equal(niveau(familles.find((t) => t.theme === "Les émotions")), 3);
+    assert.equal(niveau({ theme: "Photos · Animaux", objects: [{ word: "Chat", banque: "chat" }] }), 1, "les photos libres : simples");
+    const n1 = familles.filter((t) => niveau(t) === 1).length;
+    const n3 = familles.filter((t) => niveau(t) === 3).length;
+    for (let essai = 0; essai < 5; essai++) {
+      const petits = famillesPourLAge(familles, "PETITS").map(niveau);
+      assert.ok(petits.slice(0, n1).every((x) => x === 1) && petits.at(-1) === 3, "les petits : niveau 1, le 3 en dernier");
+      const grands = famillesPourLAge(familles, "GRANDS").map(niveau);
+      assert.ok(grands.slice(0, familles.length - n1).every((x) => x >= 2) && grands.slice(-n1).every((x) => x === 1), "les grands : 3 et 2 d'abord");
+      assert.equal(famillesPourLAge(familles, "NEUTRE").length, familles.length);
+    }
+    assert.ok(n3 >= 4);
   });
 });
 
@@ -1126,10 +1149,10 @@ describe("Régie PC : contenus intégrés réglés, nombre de questions, notes",
     const grids = snapshot.quiz.questions.filter((q) => q.kind === "disparu");
     assert.equal(grids.length, 8);
     assert.ok(grids.slice(0, 4).every((q) => q.cards.length === 11), "11 objets demandés sur la première manche");
-    assert.ok(grids.slice(4).every((q) => q.cards.length === 5), "la seconde suit l'âge (6-8 ans : 5)");
+    assert.ok(grids.slice(4).every((q) => q.cards.length === 4), "la seconde suit l'âge (6-8 ans : 4)");
     const family = (q) => DISPARU_THEMES.find((t) => q.cards.every((c) => t.objects.some((o) => o.word === c.word))).theme;
     assert.equal(new Set(grids.map(family)).size, 8, "8 familles différentes sur les deux manches");
-    assert.equal(disparuObjects({ objects: 40 }, "MOYENS"), 7);
+    assert.equal(disparuObjects({ objects: 40 }, "MOYENS"), 6);
   });
 
   test("Pictionary : mots rangés en séries, la manche garde seulement les séries choisies", () => {
@@ -2269,7 +2292,9 @@ describe("photos à soi sur les cartes de mimes et les objets de Qui a disparu ?
     assert.deepEqual(famille.objects, objets);
     assert.equal(S.disparuGroup(famille), "Mes photos");
     assert.equal(S.disparuGroup(DISPARU_THEMES[0]), "Émojis");
-    assert.equal(S.contentExtras("disparu", { extra: [{ theme: "Trop peu", objects: objets.slice(0, 4) }] }).length, 0);
+    // 4 au moins (cedric, 27/10 : un tour de 4 cartes).
+    assert.equal(S.contentExtras("disparu", { extra: [{ theme: "Juste assez", objects: objets.slice(0, 4) }] }).length, 1);
+    assert.equal(S.contentExtras("disparu", { extra: [{ theme: "Trop peu", objects: objets.slice(0, 3) }] }).length, 0);
     // Tirage en photos : une famille de photos à soi passe avec les familles tout en photos.
     // (famille d'émojis inventée : la banque de photos grandit, une vraie famille peut devenir tout en photos)
     const emojis = { theme: "Formes", objects: ["Zigzag", "Spirale", "Losange", "Pentagone", "Hexagone"].map((word) => ({ word, image: "🔷" })) };
