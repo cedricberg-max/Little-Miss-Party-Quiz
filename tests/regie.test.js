@@ -4879,7 +4879,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // l'équipe les épuise, jamais une image déjà dans la fête.
     assert.deepEqual(questions.slice(4, 8).map((q) => q.couleur), ["#FF2D95", "#FF6B1A", "#39FF14", "#FFE600"]);
     const reserves = questions.slice(4, 8).map((q, i) => q.cards.slice(saved[1].equipes[i].length).map((c) => c.word.toLowerCase()));
-    assert.ok(reserves.every((r) => r.length === MIME_RESERVE), "Une réserve pour chaque équipe");
+    assert.ok(reserves.every((r) => r.length >= 20 && r.length <= MIME_RESERVE), "Quelques dizaines d'images de secours pour chaque équipe");
     const tous = [...saved[1].equipes.flat().map((c) => c.word.toLowerCase()), ...reserves.flat()];
     assert.equal(new Set(tous).size, tous.length, "Jamais deux fois la même image");
     assert.deepEqual(questions.slice(8).map((q) => q.text), ["soleil", "maman"]);
@@ -7544,7 +7544,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.ok(qs.every((q) => q.round === "Mimes" && q.duration === 90));
     // Ses images d'abord, puis la réserve mimable (mimes en file, cedric 26/10).
     assert.deepEqual(qs.map((q, i) => q.cards.slice(0, listes[i].length).map((c) => c.word)), listes);
-    assert.ok(qs.every((q, i) => q.cards.length === listes[i].length + MIME_RESERVE));
+    assert.ok(qs.every((q, i) => q.cards.length >= listes[i].length + 20 && q.cards.length <= listes[i].length + MIME_RESERVE));
     // Lancée par la régie : les photos libres des cartes sont copiées dans la partie, l'ordre ne bouge pas.
     await seedLibrary("shows/zoe", { ...zoe, date: "2099-12-02", status: "publiee" });
     box = startBox();

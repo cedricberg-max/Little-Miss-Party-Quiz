@@ -3222,8 +3222,13 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
     // Mimes en file (cedric, 26/10) : la couleur de l'équipe, puis une réserve d'images mimables si elle épuise les
     // siennes, jamais deux fois la même dans la fête.
     assert.deepEqual(qs.map((q) => q.couleur), show.teamColors.slice(0, 3));
-    const reserves = qs.map((q, i) => q.cards.slice([2, 3, qs[2].cards.length - S.MIME_RESERVE][i]));
-    assert.ok(reserves.every((r) => r.length === S.MIME_RESERVE));
+    const reserves = qs.map((q) => q.cards.filter((c) => !show.rounds[0].equipes.flat().some((x) => x?.word === c.word)));
+    assert.ok(reserves.every((r) => r.length >= 25 && r.length <= S.MIME_RESERVE), "Quelques dizaines d'images de secours par équipe");
+    assert.ok(Math.max(...reserves.map((r) => r.length)) - Math.min(...reserves.map((r) => r.length)) <= 1, "Autant pour chaque équipe");
+    // 8 équipes : la réserve se partage, toujours à parts égales et sans doublon.
+    const huit = S.reserveMimes(8, new Set(), () => 0.5);
+    assert.ok(huit.every((r) => r.length >= 15), huit.map((r) => r.length).join(","));
+    assert.equal(new Set(huit.flat().map((c) => c.word)).size, huit.flat().length);
     const mots = qs.flatMap((q) => q.cards.map((c) => c.word.toLowerCase()));
     assert.equal(new Set(mots).size, mots.length);
     // Photos libres : copiées dans la partie par la régie au lancement, celles de la réserve comprises.
