@@ -381,6 +381,9 @@ internal fun QuestionPanneau3d(p: PlanchesQuiz3d, texte: String, modifier: Modif
  * L'onglet « Question 4 / 10 » : plaque néon cyan, texte blanc à lueur cyan, réduit (jusqu'à 12 sp) plutôt que coupé ;
  * encore trop long (« Quiz musical · Comptines · question 1 / 10 »), il passe sur deux lignes, jamais de « … ».
  */
+/** L'étape d'un jeu sur deux lignes : le nom du jeu, puis « question 9 / 12 » entier. */
+internal fun etapeSurDeuxLignes(texte: String): String = texte.replaceFirst(" · ", " ·\n")
+
 @Composable
 internal fun OngletQuiz3d(p: PlanchesQuiz3d, texte: String, modifier: Modifier) {
     val k = LocalDensity.current.density / 2f
@@ -396,8 +399,10 @@ internal fun OngletQuiz3d(p: PlanchesQuiz3d, texte: String, modifier: Modifier) 
             t
         }
         val tient = remember(texte, dispo, taille) { mesure.measure(texte, style(taille), maxLines = 1, softWrap = false).size.width <= dispo }
+        // Trop long même en petit : deux lignes coupées après le « · », jamais au milieu de « question 9 / 12 »
+        // (test du 27/10 au soir : le « 12 » était tombé seul sous le « 9 »).
         Text(
-            texte, maxLines = if (tient) 1 else 2, softWrap = !tient, style = style(taille),
+            if (tient) texte else etapeSurDeuxLignes(texte), maxLines = 2, softWrap = false, style = style(taille),
             modifier = Modifier
                 .drawBehind { neufParts(p.onglet, -60f * k, -60f * k, size.width + 120f * k, size.height + 120f * k, 140, 98, k) }
                 .padding(horizontal = 22.dp, vertical = 9.dp),

@@ -456,7 +456,8 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, serie + avant))
 
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("VRAI OU FAUX EXPRESS")
+        // Game Show : le nom du jeu est dans l'étape, sur une seule ligne avec « 1 / 2 » (test du 27/10 au soir).
+        if (Look.gs) ecran.voit("Vrai ou Faux express · 1 / 2") else ecran.voit("VRAI OU FAUX EXPRESS")
         attendreQue("première affirmation ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "e1" && it.child("phase").value == "question" } }
         ecran.capture("express-affirmation")
         assertTrue(licornes.repondre(code, "e1", 0))

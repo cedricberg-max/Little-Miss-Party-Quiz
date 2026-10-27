@@ -98,7 +98,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
-                if (q.isExpress) {
+                // Game Show : le nom du jeu est déjà dans l'étape ; la pastille en double serrait l'étape sur deux lignes.
+                if (q.isExpress && !Look.gs) {
                     Spacer(Modifier.width(16.dp))
                     Text(
                         "VRAI OU FAUX EXPRESS",
