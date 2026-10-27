@@ -11128,10 +11128,14 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator('.statues-chanson[data-chanson="s1"] .tirage-retirer').click();
     await waitFor(async () => (await ids()).join() === "s2,s3", "retirée");
     await capture(page, "statues-vos-chansons");
-    // 🎲 : tirées au hasard dans la bibliothèque, elles remplacent la liste.
+    // 🎲 (cedric, 27/10) : chaque tirage s'ajoute à la fin de la liste, jamais une chanson déjà dedans.
     await round.locator(".statues-nombre").selectOption("3");
     await round.locator(".statues-de").click();
-    await waitFor(async () => (await ids()).sort().join() === "s1,s2,s3", "3 chansons tirées");
+    await waitFor(async () => (await ids()).join() === "s2,s3,s1", "la seule chanson libre ajoutée à la fin");
+    await page.locator("#annonce", { hasText: "Seulement 1 chanson de plus" }).waitFor();
+    await round.locator(".statues-de").click();
+    await page.locator("#annonce", { hasText: "déjà dans la liste" }).waitFor();
+    assert.equal((await ids()).join(), "s2,s3,s1", "rien de remplacé");
     const tirees = await ids();
     await aVenir(page);
     await page.click("#show-save");
