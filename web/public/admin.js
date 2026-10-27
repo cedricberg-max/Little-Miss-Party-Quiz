@@ -10,7 +10,7 @@ import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFrom
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, dureeEstimee, playable, expressQuestions, zoomQuestions, showTitle, titreAuto, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
-  roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
+  roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES, MIME_EQUIPES_MAX, mimePerTeam,
@@ -4689,11 +4689,9 @@ function roundFields(r) {
       r.type === "disparu" ? photoSwitch(r) : null,
       picksSelection(r))
     : r.type === "statues"
-    // Statues musicales : la durée de la musique et vos chansons (aucune : la musique de la fête).
-    ? h("div", { class: "grow picto-round" },
-      h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); roundCtx.summary(); } },
-        ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` }))),
-      statuesChansons(r))
+    // Statues musicales : vos chansons (aucune : la musique de la fête). Plus de durée à régler (cedric, 27/10) :
+    // chaque chanson se joue en entier.
+    ? h("div", { class: "grow picto-round" }, statuesChansons(r))
     : r.type === "pictionary"
     // Pictionary : les mots viennent du catalogue (page du jeu) ; le temps de dessin et les séries de mots.
     ? h("div", { class: "grow picto-round" },

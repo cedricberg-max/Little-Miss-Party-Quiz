@@ -833,7 +833,7 @@ describe("statues musicales", () => {
     // Enregistrées : vos chansons, à la place des extraits cochés avant.
     assert.deepEqual(M.cleanRound(round, playlists), { type: "statues", duration: 60, chansons: ["c", "a", "r", "zz"] });
     assert.deepEqual(M.cleanRound({ type: "statues", duration: 60, songs: [hex("f")] }, playlists), { type: "statues", duration: 60, songs: [hex("f")] });
-    assert.equal(M.mancheSummary({ type: "statues", duration: 60, chansons: ["a", "c"] }, {}), "60 s · 2 chansons");
+    assert.equal(M.mancheSummary({ type: "statues", duration: 60, chansons: ["a", "c"] }, {}), "2 chansons");
   });
 });
 

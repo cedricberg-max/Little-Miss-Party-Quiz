@@ -627,7 +627,7 @@ export function mancheSummary(round, lib = {}) {
   if (MUSIC_GAMES[r.type]) return roundTracks(r).length ? n(roundTracks(r).length) : lib.playlists?.[r.playlistId]?.title ?? "playlist";
   if (r.type === "statues") {
     const k = chansonsStatues(r).length;
-    return `${r.duration ?? STATUES_SEC} s · ${k ? `${k} chanson${k > 1 ? "s" : ""}` : roundSongs(r, lib.playlists).length ? n(roundSongs(r, lib.playlists).length) : "musique de la fête"}`;
+    return k ? `${k} chanson${k > 1 ? "s" : ""}` : roundSongs(r, lib.playlists).length ? n(roundSongs(r, lib.playlists).length) : "musique de la fête";
   }
   if (r.type === "pictionary" && pictoTours(r).some((ps) => ps.length)) {
     // Préparé par équipe (cedric, 24/10) : passages et mots proposés.
