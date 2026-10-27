@@ -43,6 +43,7 @@ class FinDeLaFeteTest : TestTv() {
 
         assertEquals("applied", regie.commande(code, "end"))
         attendreQue("partie terminée") { licornes.etat(code).child("phase").value?.takeIf { it == "ended" } }
+        if (Look.gs) bientotSousLEnseigne()
         ecran.capture("ecran-de-fin")
 
         // « 🏁 Fin de la fête » : nouvelle partie à l'accueil, l'ancienne marquée quittée.
@@ -59,5 +60,21 @@ class FinDeLaFeteTest : TestTv() {
         attendreQue("régie reliée à la nouvelle partie") { regie.estRelie(nouveau).takeIf { it } }
         assertEquals(nouveau, licornes.etat(code).child("suite").value)
         ecran.capture("retour-accueil")
+    }
+
+    /**
+     * Game Show (cedric, 27/10 au soir) : « ★ À bientôt sur The Game Show ★ » mordait le bas de l'enseigne « MERCI ! » et
+     * ne se lisait pas. La ligne est maintenant sous l'enseigne, avec un vrai écart (plus que le halo rose). Si la vidéo
+     * de fin ne se lit pas (écran de secours dessiné), la ligne reste au moins sous « Merci d'avoir participé ! ».
+     */
+    private fun bientotSousLEnseigne() {
+        ecran.voit("À BIENTÔT SUR THE GAME SHOW", 30_000)
+        val elements = ecran.elements()
+        val enseigne = elements.first { "Merci d'avoir participé" in it.texte && it.visible }
+        val bientot = elements.first { "À BIENTÔT SUR THE GAME SHOW" in it.texte && it.visible }
+        // L'écran de fin est dessiné sur 540 dp de haut : 20 dp au moins entre les deux, à l'échelle de la fenêtre.
+        val ecart = bientot.haut - enseigne.bas
+        val minimum = if ("★" in bientot.texte) bientot.hauteurFenetre * 20f / 540f else 0f
+        assertTrue("« À bientôt » trop près de « Merci » : $ecart px (au moins $minimum)", ecart >= minimum)
     }
 }

@@ -274,11 +274,11 @@ class Ecran(private val nomTest: () -> String) {
 
     /**
      * Un texte de l'interface Compose, lu dans l'arbre sémantique de l'appli ; [centreX] : milieu de sa boîte dans la
-     * fenêtre, de largeur [largeurFenetre] (pixels).
+     * fenêtre, de largeur [largeurFenetre] (pixels) ; [haut] et [bas] : bords haut et bas de sa boîte (pixels).
      */
     data class Element(
         val texte: String, val focus: Boolean, val visible: Boolean, val entier: Boolean = false,
-        val centreX: Float = -1f, val largeurFenetre: Int = 0,
+        val centreX: Float = -1f, val largeurFenetre: Int = 0, val haut: Float = -1f, val bas: Float = -1f, val hauteurFenetre: Int = 0,
     )
 
     /**
@@ -323,7 +323,7 @@ class Ecran(private val nomTest: () -> String) {
             // boundsInWindow est rognée par les parents : plus petite que le texte, il est coupé.
             val entier = visible && b.top >= 0 && b.left >= 0 && b.bottom <= fenetre.height && b.right <= fenetre.width &&
                 b.height >= n.size.height - 1 && b.width >= n.size.width - 1
-            liste += Element(textes.joinToString(" "), n.config.getOrNull(SemanticsProperties.Focused) == true, visible, entier, b.center.x, fenetre.width)
+            liste += Element(textes.joinToString(" "), n.config.getOrNull(SemanticsProperties.Focused) == true, visible, entier, b.center.x, fenetre.width, b.top, b.bottom, fenetre.height)
         }
         n.children.forEach { parcourir(it, fenetre, liste) }
     }

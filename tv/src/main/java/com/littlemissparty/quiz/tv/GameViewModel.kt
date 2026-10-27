@@ -1822,6 +1822,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val next = if (reason == null) (if (base == null) Game(q!!, g.events) else g.withProgram(q!!)) else null
             if (reason == null && next == null) reason = "invalid"
             val status = clean(mapOf("id" to id, "status" to if (reason == null) "applied" else "refused", "reason" to reason, "at" to ServerValue.TIMESTAMP))
+            // Un programme refusé se lit dans les rapports de la box (test du 27/10 au soir : deux ajouts de jeu sans
+            // effet sur le téléphone, et la réponse de la box effacée par l'envoi suivant). Sans titres ni noms.
+            if (reason != null) gameRef?.database?.let { db ->
+                CrashReporter.report(
+                    db, "programme",
+                    "refusé ($reason) : ${if (base == null) "prestation complète" else "modification"}, base ${base ?: "-"}, en vigueur $programRev, " +
+                        "${q?.questions?.size ?: "?"} questions envoyées contre ${g.quiz.questions.size}, question ${g.state.index}, phase ${g.state.phase}${if (g.state.intro) " (présentation)" else ""}",
+                )
+            }
             if (next != null) {
                 game = next
                 programRev = id

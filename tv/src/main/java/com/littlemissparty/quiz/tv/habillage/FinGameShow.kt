@@ -13,10 +13,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -147,18 +147,29 @@ private fun MessagesFin() {
                 .graphicsLayer { alpha = voile.value }
                 .background(Brush.verticalGradient(0f to Color.Transparent, 0.45f to VOILE_FIN.copy(alpha = 0.72f), 1f to VOILE_FIN.copy(alpha = 0.85f))),
         )
-        // Enseigne « MERCI ! » qui grésille en s'allumant puis respire (cedric, planche du 27/10, option B).
-        EnseigneMerci(allumee, Modifier.align(Alignment.TopCenter).offset(y = 391.dp))
-        Text(
-            "★ À BIENTÔT SUR THE GAME SHOW ★", maxLines = 1, softWrap = false,
-            style = TextStyle(
-                fontFamily = PoliceGsTitre, fontSize = 16.5.sp, color = GS.CyanClair, textAlign = TextAlign.Center, letterSpacing = 0.6.sp,
-                shadow = Shadow(GS.Cyan, Offset.Zero, 20f),
-            ),
-            modifier = Modifier.align(Alignment.TopCenter).offset(y = 496.dp).graphicsLayer { alpha = bientot.value },
-        )
+        // Enseigne « MERCI ! » qui grésille en s'allumant puis respire (cedric, planche du 27/10, option B), et dessous,
+        // dans la même colonne, « À bientôt » : jamais l'un sur l'autre, quelle que soit la hauteur de l'enseigne
+        // (cedric, 27/10 au soir : la ligne mordait le bas de l'enseigne et ne se lisait pas).
+        Column(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            EnseigneMerci(allumee, Modifier)
+            Spacer(Modifier.height(ECART_ENSEIGNE_BIENTOT))
+            Text(
+                "★ À BIENTÔT SUR THE GAME SHOW ★", maxLines = 1, softWrap = false,
+                style = TextStyle(
+                    fontFamily = PoliceGsTitre, fontSize = 16.5.sp, color = GS.CyanClair, textAlign = TextAlign.Center, letterSpacing = 0.6.sp,
+                    shadow = Shadow(GS.Cyan, Offset.Zero, 20f),
+                ),
+                modifier = Modifier.graphicsLayer { alpha = bientot.value },
+            )
+        }
     }
 }
+
+/** Entre le bas de l'enseigne et « À bientôt » : plus que son halo rose (27,75 dp), pour que la ligne reste nette. */
+private val ECART_ENSEIGNE_BIENTOT = 30.dp
 
 private val RoseEnseigne = Color(0xFFFF2D95)
 private val FondEnseigne = Color(0xDB0C061C)
