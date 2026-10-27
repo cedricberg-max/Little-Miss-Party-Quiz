@@ -129,7 +129,8 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
         } else {
             Text("?", color = Palette.Gold, fontSize = 140.sp, fontWeight = FontWeight.Black)
         }
-        if (!revealed) {
+        // Game Show : le titre est déjà dans l'enseigne, plus de pastille en double (cedric, planche du 27/10).
+        if (!revealed && !Look.gs) {
             Text(
                 "IMAGE FLOUE",
                 color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
