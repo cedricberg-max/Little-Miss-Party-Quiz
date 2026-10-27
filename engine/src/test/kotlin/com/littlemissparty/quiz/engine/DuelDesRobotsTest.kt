@@ -452,4 +452,58 @@ class DuelDesRobotsTest {
         h.duelPanShown(pan2 - 900, pan2)
         assertEquals(pan2 - DUEL_AVANCE_MAX_MS, h.state.duel!!.reference)
     }
+
+    @Test
+    fun `quiz, duel puis quiz, les points se gardent d'un jeu a l'autre, retour au duel et rejeu coherents`() {
+        val q2 = quiz.copy(id = "q2")
+        val g = Game(Quiz("p", "P", listOf(quiz, duel, q2)))
+        var t = t0
+        fun relue() = assertEquals(g.state, relu(g).state, "box redémarrée : même partie")
+        // Quiz : « orange » répond juste.
+        g.next(t)
+        assertEquals("q1", g.state.qid)
+        t += 5_000
+        g.next(t)
+        assertEquals(Phase.CLOSED, g.state.phase)
+        g.next(t + 500, mapOf("orange" to Answer(0, t - 1_000)))
+        val apresQuiz = g.state.scores()["orange"]!!
+        assertTrue(apresQuiz > 0)
+        while (g.state.qid != "d1") { t += 1_000; assertNotNull(g.next(t), "suivant bloqué en ${g.state.phase}") }
+        relue()
+        // Duel : un premier duel joué et gagné.
+        assertNotNull(g.readyDuel(equipes, t, random = Random(3)))
+        val (a, _) = g.state.duel!!.teams
+        val pan = g.lance(t + 1_000)
+        g.duelPanShown(pan, pan + 20)
+        g.duelBuzz(a, pan + 250, pan + 300)
+        g.timeUp(pan + 250 + DUEL_LATENCE_MAX_MS)
+        assertEquals(a, g.state.duel!!.result!!.winner)
+        relue()
+        val avantQ2 = g.state.scores()
+        assertEquals(apresQuiz + (if (a == "orange") DUEL_POINTS else 0), avantQ2["orange"])
+        // Jeu suivant : le quiz q2, scores gardés, plus aucun duel en cours.
+        t = pan + 10_000
+        assertEquals(CommandStatus.APPLIED, g.run("next", t).status)
+        assertEquals("q2", g.state.qid)
+        assertNull(g.state.duel)
+        assertEquals(avantQ2, g.state.scores())
+        relue()
+        // Retour au duel depuis q2 : le duel repart de zéro (ses points seulement), le quiz garde les siens.
+        assertNotNull(g.goto(1, t + 5_000))
+        if (g.state.phase == Phase.SCORES) g.next(t + 6_000)
+        assertEquals("d1", g.state.qid)
+        assertEquals(apresQuiz, g.state.scores()["orange"] ?: 0)
+        assertEquals(0, g.state.scores()[a]?.takeIf { a != "orange" } ?: 0)
+        assertNotNull(g.readyDuel(equipes, t + 7_000, random = Random(4)))
+        assertEquals(1, g.state.duel!!.n, "la ronde recommence")
+        relue()
+        // Et on va jusqu'au bout : le quiz q2 puis les résultats, sans blocage.
+        t += 8_000
+        assertEquals(CommandStatus.APPLIED, g.run("next", t).status)
+        assertEquals("q2", g.state.qid)
+        var n = 0
+        while (g.state.phase != Phase.ENDED) { t += 1_000; assertNotNull(g.next(t), "suivant bloqué en ${g.state.phase}"); assertTrue(++n < 10) }
+        assertEquals(apresQuiz, g.state.scores()["orange"])
+        relue()
+    }
 }
