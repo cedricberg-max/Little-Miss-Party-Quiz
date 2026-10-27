@@ -1779,6 +1779,89 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  /** Simon du Prof : la box publie state.simon (contrat du 27/10 au soir) ; la suite secrète n'y est jamais avant le bilan. */
+  async function simonEnCours(simon, teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"]]) {
+    box = startBox();
+    for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
+    const plan = [{ id: "s1", kind: "simon", text: "Le Simon du Prof", round: "Le Simon du Prof", choices: [], correct: -1, double: false, tours: 2, reponse: 10, joueurs: 4 }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, questions: plan });
+    const etat = { tour: 1, tours: 2, suite: 3, step: "ready", teams: teams.map(([id]) => id), out: {}, players: Object.fromEntries(teams.map(([id], i) => [id, i + 1])), last: false, verdict: null, ...simon };
+    await box.set({ ...questionState(1), qid: "s1", kind: "simon", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, simon: etat });
+    const page = await openRegie(undefined, `?g=${CODE}&emu=1&cockpit=1`);
+    await pair(page);
+    await inRegie(page);
+    return { page, etat };
+  }
+
+  test("Simon du Prof : lancer la suite, l'arrêter en deux appuis, bilan après la vérification TV, suite et tour suivants, jeu suivant", async () => {
+    const { page, etat } = await simonEnCours({});
+    await page.locator("#simon-info", { hasText: "Tour 1 sur 2. Suite de 3 : appelez le joueur de chaque équipe." }).waitFor();
+    await page.locator("#simon-equipes li", { hasText: "Les Bleus" }).locator("span", { hasText: "en jeu · joueur n°2" }).waitFor();
+    await page.locator("#simon-points", { hasText: "300 points pour l'équipe qui gagne le tour" }).waitFor();
+    assert.equal(await page.locator("#c-tuiles").isVisible(), false, "le milieu est au Simon");
+    assert.equal(await page.locator("#c-answer").isVisible(), false, "pas de « bonne réponse » : la suite est secrète");
+    await page.locator("#c-next", { hasText: "▶ Lancer la suite de 3" }).click();
+    await waitFor(async () => (await commandes("simon_go")).length === 1, "suite lancée");
+
+    await box.set({ simon: { ...etat, step: "play", key: "s1-1-3-1", finAt: Date.now() + 9000 } });
+    await page.locator("#simon-info", { hasText: "Suite de 3 en cours : fin du chrono dans" }).waitFor();
+    await page.locator("#c-next", { hasText: "Suite en cours… 🔴" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true, "rien à lancer pendant la suite");
+    await page.click("#simon-stop");
+    await page.locator("#simon-stop", { hasText: "Touchez encore" }).waitFor();
+    assert.equal((await commandes("simon_stop")).length, 0, "un seul appui n'arrête rien");
+    await page.click("#simon-stop");
+    await waitFor(async () => (await commandes("simon_stop")).length === 1, "suite arrêtée");
+
+    // Suite jugée : le bouton attend la vérification colonne par colonne de la TV (3 × 0,7 s + 1,5 s).
+    const verdict = { suite: 3, solution: "rouge,vert,jaune", answers: {}, wrong: ["vert"], winners: [], points: 300, at: Date.now() };
+    await box.set({ simon: { ...etat, step: "judged", suite: 4, out: { vert: 3 }, verdict } });
+    await page.locator("#c-next", { hasText: "Vérification à la TV…" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    await page.locator("#c-next", { hasText: "▶ Suite suivante (4 éléments)" }).waitFor({ timeout: 8000 });
+    await page.locator("#simon-verdict", { hasText: "Bonne suite : 🔴 🟢 🟡 · Erreur : Les Verts" }).waitFor();
+    await page.locator("#simon-equipes li.eliminee", { hasText: "Les Verts" }).locator("span", { hasText: "éliminée (suite de 3)" }).waitFor();
+    await page.click("#c-next");
+    await waitFor(async () => (await commandes("simon_go")).length === 2, "suite suivante");
+
+    // « Bah alors » : toutes fausses, la même suite se rejoue.
+    await box.set({ simon: { ...etat, step: "judged", suite: 4, verdict: { ...verdict, suite: 4, solution: "rouge,vert,jaune,4", wrong: ["rose", "bleu"], bahAlors: true, at: Date.now() - 9000 } } });
+    await page.locator("#c-next", { hasText: "▶ Relancer la suite" }).waitFor();
+    await page.locator("#simon-verdict", { hasText: "🔴 🟢 🟡 4" }).waitFor();
+
+    // Tour gagné, puis dernier tour : « Jeu suivant ».
+    await box.set({ simon: { ...etat, step: "won", suite: 5, out: { vert: 3, bleu: 5 }, verdict: { ...verdict, suite: 5, solution: "bleu,bleu,rouge,4,2", wrong: ["bleu"], winners: ["rose"], at: Date.now() - 9000 } } });
+    await page.locator("#simon-info", { hasText: "🏆 Les Roses gagne le tour." }).waitFor();
+    await page.locator("#simon-equipes li", { hasText: "Les Roses" }).locator("span", { hasText: "🏆 gagne le tour" }).waitFor();
+    await page.locator("#c-next", { hasText: "▶ Tour suivant (2 / 2)" }).click();
+    await waitFor(async () => (await commandes("simon_go")).length === 3, "tour suivant");
+    await box.set({ simon: { ...etat, tour: 2, step: "won", last: true, verdict: { ...verdict, winners: ["bleu", "rose"], at: Date.now() - 9000 } } });
+    await page.locator("#simon-info", { hasText: "Les Bleus, Les Roses gagnent le tour." }).waitFor();
+    assert.equal(await page.locator("#simon-fin").isVisible(), false, "« Jeu suivant » est déjà le gros bouton");
+    await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).click();
+    await waitFor(async () => (await commandes("next")).length === 1, "jeu suivant");
+    await page.context().close();
+  });
+
+  test("Simon du Prof : « Jeu suivant » en cours de route confirmé, pause, 8 équipes lisibles", async () => {
+    const huit = ["Orange", "Vert", "Rose", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"].map((n, i) => [`e${i}`, `Les ${n}s`, TEAM_COLORS_TEST[i % TEAM_COLORS_TEST.length]]);
+    const { page, etat } = await simonEnCours({ out: { e3: 4 } }, huit);
+    assert.equal(await page.locator("#simon-equipes li").count(), 8);
+    await page.locator("#simon-equipes li.eliminee", { hasText: "Les Jaunes" }).waitFor();
+    const bas = await page.locator("#c-next").boundingBox();
+    assert.ok(bas && bas.y + bas.height <= page.viewportSize().height + 1, "le gros bouton reste visible");
+    await capture(page, "regie-simon-8-equipes");
+    await page.click("#simon-fin");
+    assert.match(await respond(page, false), /Arrêter le Simon du Prof \? 2 tours pas encore gagnés/);
+    assert.equal((await commandes("next")).length, 0);
+    await page.click("#simon-fin");
+    await respond(page);
+    await waitFor(async () => (await commandes("next")).length === 1, "jeu suivant après confirmation");
+    await box.set({ paused: true, pauseReason: "regie", simon: { ...etat, step: "ready" }, seq: 9 });
+    await waitFor(async () => page.locator("#simon-fin").isDisabled(), "pause : rien ne part");
+    await page.context().close();
+  });
+
   test("secours : jeu en cours et suivant, passer au suivant, recommencer un jeu après confirmation", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");

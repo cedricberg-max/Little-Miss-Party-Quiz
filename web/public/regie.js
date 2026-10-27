@@ -240,13 +240,13 @@ function questionSuivante(st) {
   const k = (st.index ?? -1) + 1;
   const q = questions[k];
   if (!q || (next && next.start === k) || st.leaveTo != null) return null;
-  if (["portes", "coffres", "gonfleur", "patate", "statues", "duel", "mime", "pictionary", "blind"].includes(q.kind)) return null;
+  if (["portes", "coffres", "gonfleur", "patate", "statues", "duel", "simon", "mime", "pictionary", "blind"].includes(q.kind)) return null;
   if (q.correct == null) return null;
   return { q, correct: q.correct, text: q.choices?.[q.correct] ?? "", number: q.kind === "number", flou: BUZZ_KINDS.includes(q.kind) };
 }
 
 /** Jeux qui ont déjà leur propre écran au milieu de la régie pendant la question (mimes, blind test, statues…). */
-const MILIEU_OCCUPE = ["mime", "blind", "statues", "duel", "coffres", "gonfleur", "patate"];
+const MILIEU_OCCUPE = ["mime", "blind", "statues", "duel", "simon", "coffres", "gonfleur", "patate"];
 
 /**
  * Une tuile par équipe (1 à 8) : sa couleur, ses points, ce qu'elle fait (a répondu, réfléchit, sa réponse et ses
@@ -599,6 +599,8 @@ function nextLabel(st, teamCount) {
   if (statues) return statuesBoutonPrincipal(statues, st);
   const duel = duelEtape(st);
   if (duel) return duelBoutonPrincipal(duel, st);
+  const simon = simonEtape(st);
+  if (simon) return simonBoutonPrincipal(simon, st);
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
@@ -660,7 +662,7 @@ function render() {
 
   const portes = (q?.kind ?? st.kind) === "portes";
   // Portes et coffres mystères : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
-  const correct = portes || ["coffres", "gonfleur", "patate"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
+  const correct = portes || ["coffres", "gonfleur", "patate", "simon"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
   answerBtn.hidden = intro || !inQuestion || (correct == null && !(portes && q?.doors));
   if (portes && q?.doors) {
@@ -686,7 +688,7 @@ function render() {
   }
   answerBtn.classList.toggle("grosse", COCKPIT && !answerBtn.hidden && !(portes && q?.doors));
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
+  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "simon" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
 
   renderGames(st);
   renderRequests(st, teams);
@@ -700,6 +702,7 @@ function render() {
   renderGonfleur(st, teams);
   renderPatate(st);
   renderDuel(st, teams);
+  renderSimon(st);
   renderTeams(st, teams);
   if (COCKPIT) renderTuiles(st, teams);
   renderPoints();
@@ -732,6 +735,8 @@ function render() {
   if (statues) next.disabled = next.disabled || (!!statues.choix && !statues.choix.personne && !statues.choix.equipes.size) || (!!statues.resultat && statues.annonce > 0);
   const duel = duelEtape(st);
   if (duel) next.disabled = next.disabled || duel.d.step === "standoff" || (!!duel.choix && duel.choix.length !== 2);
+  const simon = simonEtape(st);
+  if (simon) next.disabled = next.disabled || simon.s.step === "play" || simon.s.step === "none" || simon.verif > 0;
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
@@ -2130,6 +2135,127 @@ $("duel-fin").onclick = async () => {
 };
 
 /**
+ * Le Simon du Prof (cedric, 27/10) : la box tient la suite secrète et juge ; Sarah lance chaque suite, l'arrête si
+ * un enfant n'est pas prêt, puis passe à la suite ou au tour suivant. La TV vérifie colonne par colonne avant le
+ * bandeau : le bouton suivant attend la fin de cette vérification.
+ */
+let simonStopArme = null;
+let simonMinuteur = null;
+const SIMON_COLONNE_MS = 700;
+const SIMON_BANDEAU_MS = 1500;
+const SIMON_BOULES = { rouge: "🔴", vert: "🟢", bleu: "🔵", jaune: "🟡", orange: "🟠", violet: "🟣", rose: "🩷", blanc: "⚪" };
+
+function simonEtape(st) {
+  const s = st.simon;
+  if (st.kind !== "simon" || !s || (st.phase !== "question" && st.phase !== "closed")) return null;
+  const v = s.verdict;
+  const verif = (s.step === "judged" || s.step === "won") && v?.at ? v.at + (v.suite ?? s.suite ?? 0) * SIMON_COLONNE_MS + SIMON_BANDEAU_MS - (Date.now() + serverOffset) : 0;
+  return { s, verif };
+}
+
+const simonListe = (x) => (Array.isArray(x) ? x : Object.values(x ?? {}));
+const simonSuite = (texte) => String(texte ?? "").split(",").filter(Boolean).map((x) => SIMON_BOULES[x.trim()] ?? x.trim()).join(" ");
+
+function renderSimon(st) {
+  const on = (st.phase === "question" || st.phase === "closed") && st.kind === "simon";
+  $("simon").hidden = !on;
+  clearTimeout(simonMinuteur);
+  if (!on) { clearTimeout(simonStopArme); simonStopArme = null; return; }
+  const e = simonEtape(st);
+  const s = e?.s ?? { step: "none" };
+  const busy = !!pending?.advance || st.paused === true;
+  const name = (id) => live.teams[id]?.name ?? "Une équipe";
+  const v = s.verdict;
+  const tour = (s.tours ?? 1) > 1 ? `Tour ${s.tour ?? 1} sur ${s.tours}. ` : "";
+  const reste = s.step === "play" && s.finAt ? Math.ceil((s.finAt - (Date.now() + serverOffset)) / 1000) : 0;
+  $("simon-info").textContent = s.step === "none" ? "Le robot prof prépare sa première suite…"
+    : s.step === "ready" ? `${tour}Suite de ${s.suite ?? 1} : appelez le joueur de chaque équipe.`
+      : s.step === "play" ? `${tour}🔴 Suite de ${s.suite ?? 1} en cours${reste > 0 ? ` : fin du chrono dans ${reste} s` : ""}.`
+        : e.verif > 0 ? "Vérification sur la TV…"
+          : s.step === "won" ? `${tour}🏆 ${simonListe(v?.winners).map(name).join(", ") || "Personne"} ${simonListe(v?.winners).length > 1 ? "gagnent" : "gagne"} le tour.`
+            : v?.bahAlors ? "Bah alors ! Toutes les équipes se sont trompées : la même suite se rejoue."
+              : `${tour}Suite réussie : la suivante aura ${s.suite ?? ""} éléments.`;
+  // Bilan de la suite jugée : la bonne suite, et qui s'est trompé.
+  const verdict = $("simon-verdict");
+  const voir = (s.step === "judged" || s.step === "won") && v && e.verif <= 0;
+  verdict.hidden = !voir;
+  if (voir) {
+    const faux = simonListe(v.wrong);
+    verdict.textContent = `Bonne suite : ${simonSuite(v.solution)}${faux.length ? ` · Erreur : ${faux.map(name).join(", ")}` : ""}`;
+  }
+  // Les équipes du tour : en jeu ou éliminée, et le joueur appelé.
+  const out = s.out ?? {};
+  const gagnantes = s.step === "won" ? simonListe(v?.winners) : [];
+  const lignes = simonListe(s.teams).map((id) => {
+    const li = document.createElement("li");
+    li.style.setProperty("--team", live.teams[id]?.color ?? "#fff");
+    li.classList.toggle("eliminee", out[id] != null);
+    const nom = document.createElement("b");
+    nom.textContent = name(id);
+    const etat = document.createElement("span");
+    etat.textContent = gagnantes.includes(id) ? "🏆 gagne le tour"
+      : out[id] != null ? `éliminée (suite de ${out[id]})`
+        : `en jeu${s.players?.[id] ? ` · joueur n°${s.players[id]}` : ""}`;
+    li.append(nom, etat);
+    return li;
+  });
+  const liste = $("simon-equipes");
+  const cle = lignes.map((li) => li.textContent + li.className).join("|");
+  if (liste.dataset.key !== cle) { liste.dataset.key = cle; liste.replaceChildren(...lignes); }
+  // Arrêter une suite (enfant pas prêt, tablette en panne) : deux appuis, personne n'est éliminé.
+  const stop = $("simon-stop");
+  stop.hidden = s.step !== "play";
+  stop.disabled = busy;
+  stop.textContent = simonStopArme ? "Touchez encore : arrêter, personne n'est éliminé" : "✋ Arrêter la suite";
+  if (s.step !== "play") { clearTimeout(simonStopArme); simonStopArme = null; }
+  $("simon-fin").hidden = !["ready", "judged", "won"].includes(s.step) || (s.step === "won" && s.last === true);
+  $("simon-fin").disabled = busy;
+  $("simon-points").textContent = `${st.double ? 600 : 300} points pour l'équipe qui gagne le tour.`;
+  // Chrono qui défile, puis bouton suivant à la fin de la vérification à la TV.
+  if (s.step === "play" && reste > 0) simonMinuteur = setTimeout(render, 1000);
+  else if (e && e.verif > 0) simonMinuteur = setTimeout(render, e.verif + 50);
+}
+
+function simonBoutonPrincipal(e, st) {
+  const s = e.s;
+  if (s.step === "none") return "Le robot prof se prépare…";
+  if (s.step === "play") return "Suite en cours… 🔴";
+  if (e.verif > 0) return "Vérification à la TV…";
+  if (s.step === "ready") return `▶ Lancer la suite de ${s.suite ?? 1}`;
+  if (s.step === "judged") return s.verdict?.bahAlors ? "▶ Relancer la suite" : `▶ Suite suivante (${s.suite ?? ""} éléments)`;
+  if (s.step === "won") return s.last === true ? finDuelLabel(st) : `▶ Tour suivant (${(s.tour ?? 1) + 1} / ${s.tours ?? 1})`;
+  return finDuelLabel(st);
+}
+
+function simonPrincipal(e) {
+  const s = e.s;
+  if (s.step === "play" || s.step === "none" || e.verif > 0) return;
+  navigator.vibrate?.(60);
+  if (s.step === "won" && s.last === true) return send("next", {}, { advance: true });
+  return send("simon_go", {}, { advance: true });
+}
+
+$("simon-stop").onclick = () => {
+  if (!simonStopArme) {
+    simonStopArme = setTimeout(() => { simonStopArme = null; render(); }, 4000);
+    return render();
+  }
+  clearTimeout(simonStopArme);
+  simonStopArme = null;
+  send("simon_stop", {}, { advance: true }).then((r) => { if (r?.status === "applied") toast("Suite arrêtée, personne n'est éliminé : relancez quand les joueurs sont prêts."); });
+};
+$("simon-fin").onclick = async () => {
+  const s = live.state?.simon ?? {};
+  const restent = Math.max(0, (s.tours ?? 1) - (s.tour ?? 1) + (s.step === "won" ? 0 : 1));
+  const ok = await demander({
+    title: "Arrêter le Simon du Prof ?",
+    text: restent ? `${restent} tour${restent > 1 ? "s" : ""} pas encore gagné${restent > 1 ? "s" : ""}.` : "",
+    ok: "⏭ Jeu suivant",
+  });
+  if (ok && simonEtape(live.state ?? {})) send("next", {}, { advance: true });
+};
+
+/**
  * Les coffres mystères : à qui le tour, combien de coffres sans danger, ce qui est sorti. Secours : ouvrir un coffre au
  * hasard pour l'équipe qui joue (deux appuis). Jamais de contenu à l'avance : il est tiré par la box à l'ouverture.
  */
@@ -3360,6 +3486,7 @@ function renderPreview() {
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
     if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; une équipe qui la garde plus de 2 secondes la voit exploser. À l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
+    if (q.kind === "simon") { li.textContent = "Le robot prof montre une suite de boules qui s'allument ; un joueur de chaque équipe la retape sur sa tablette. Une erreur élimine l'équipe du tour."; list.appendChild(li); return; }
     if (q.kind === "duel") { li.textContent = "Deux équipes face à face, un joueur de chaque : la première qui buzze après le PAN gagne, trop tôt elle perd."; list.appendChild(li); return; }
     if (q.kind === "gonfleur") { li.textContent = "Chaque équipe tapote sa tablette pour gonfler son ballon : le premier qui éclate gagne."; list.appendChild(li); return; }
     if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
@@ -3422,6 +3549,7 @@ const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : s
 const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer aux Coffres mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à « Ça va exploser ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_SIMON = "La TV doit être mise à jour pour jouer au Simon du Prof : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DUEL = "La TV doit être mise à jour pour jouer au Duel des robots : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
@@ -3443,6 +3571,7 @@ function tvRefuses(questions) {
   if (live.plan.gonfleur !== true && questions.some((q) => q?.kind === "gonfleur")) return OLD_TV_GONFLEUR;
   if (live.plan.patate !== true && questions.some((q) => q?.kind === "patate")) return OLD_TV_PATATE;
   if (live.plan.duel !== true && questions.some((q) => q?.kind === "duel")) return OLD_TV_DUEL;
+  if (live.plan.simon !== true && questions.some((q) => q?.kind === "simon")) return OLD_TV_SIMON;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
   if (live.plan.blindPlay !== true && questions.some((q) => q?.kind === "blind")) return OLD_TV_BLIND;
   if (live.plan.blind !== true && questions.some((q) => q?.audioId)) return OLD_TV_BLIND;
@@ -4188,6 +4317,8 @@ $("c-next").onclick = async () => {
   if (statues?.choix) return validerGagnantes();
   const duel = st ? duelEtape(st) : null;
   if (duel) return duelPrincipal(duel, st);
+  const simon = st ? simonEtape(st) : null;
+  if (simon) return simonPrincipal(simon);
   if (statues && !statues.resultat) { $("statues-choisir").click(); return; }
   if (statues) { send("next", {}, { advance: true }); return; }
   // Blind test : « next » lance, relance ou arrête la musique (la box décide selon l'état du morceau).
