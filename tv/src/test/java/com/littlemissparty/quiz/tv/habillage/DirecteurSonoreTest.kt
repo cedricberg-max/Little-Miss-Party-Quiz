@@ -993,29 +993,50 @@ class DirecteurSonoreTest {
         val d = DirecteurSonore()
         d.observer(salon)
         val entre = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)
-        assertEquals(Ambiance.SIMON, d.observer(entre).musique())
-        assertEquals(Ambiance.SILENCE, d.observer(entre.copy(simonSuite = true)).musique())
-        assertEquals(Ambiance.SIMON, d.observer(entre).musique())
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(entre).musique())
+        assertEquals(Ambiance.SIMON_SUITE, d.observer(entre.copy(simonSuite = true)).musique())
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(entre).musique())
     }
 
     @Test
-    fun `simon du prof - Prix choc entre deux suites en Game Show, la musique des questions en Classique, rien ailleurs`() {
-        assertEquals("gs_simon_boucle", Lit.SIMON.fichierPour(true))
-        assertNull(Lit.SIMON.fichierPour(false))
-        assertTrue(Ambiance.SIMON.volume(Lit.SIMON, gs = true) in 0.3f..0.8f)
-        assertEquals(0f, Ambiance.SIMON.volume(Lit.LEGER, gs = true), 0f)
-        assertEquals(Ambiance.QUESTION.volume(Lit.LEGER), Ambiance.SIMON.volume(Lit.LEGER), 0f)
-        // Aucune autre ambiance ne joue la boucle du Simon.
-        Ambiance.entries.filter { it != Ambiance.SIMON }.forEach { assertEquals("$it", 0f, it.volume(Lit.SIMON, gs = true), 0f) }
-        // Le fichier est bien là, en WAV 44,1 kHz stéréo comme les autres boucles, et d'une longueur de 64 temps.
-        val wav = java.io.File("src/main/res/raw/gs_simon_boucle.wav")
-        assertTrue(wav.isFile)
-        val octets = wav.length() - 44
-        assertEquals(30.03, octets / (44_100.0 * 4), 0.01)
-        // Hors du Simon (même écran de question), rien ne change.
+    fun `simon du prof - trois boucles de Prix choc en Game Show, la musique des questions ou le silence en Classique`() {
         val d = DirecteurSonore()
         d.observer(salon)
-        assertEquals(Ambiance.QUESTION, d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 4)).musique())
+        val gs = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true, gameShow = true)
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(gs).musique())
+        assertEquals(Ambiance.SIMON_SUITE, d.observer(gs.copy(simonSuite = true)).musique())
+        // Les chiffres débarquent pendant la suite suivante : la partie où tout joue.
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(gs).musique())
+        assertEquals(Ambiance.SIMON_FORT, d.observer(gs.copy(simonSuite = true, simonChiffres = true)).musique())
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(gs).musique())
+        // Chaque ambiance ne fait jouer que sa boucle ; aucune autre ambiance ne joue celles du Simon.
+        val boucles = mapOf(Ambiance.SIMON_ENTRE to Lit.SIMON_DOUCE, Ambiance.SIMON_SUITE to Lit.SIMON_SUITE, Ambiance.SIMON_FORT to Lit.SIMON_FORT)
+        for ((a, l) in boucles) {
+            assertTrue("$a", a.volume(l, gs = true) in 0.3f..1f)
+            Lit.entries.filter { it != l }.forEach { assertEquals("$a / $it", 0f, a.volume(it, gs = true), 0f) }
+        }
+        Ambiance.entries.filter { it !in boucles }.forEach { a -> boucles.values.forEach { assertEquals("$a", 0f, a.volume(it, gs = true), 0f) } }
+        // Classique : la douce devient la musique des questions, les suites restent silencieuses (comme avant).
+        assertEquals(Ambiance.QUESTION.volume(Lit.LEGER), Ambiance.SIMON_ENTRE.volume(Lit.LEGER), 0f)
+        Lit.entries.forEach { assertEquals(0f, Ambiance.SIMON_SUITE.volume(it), 0f); assertEquals(0f, Ambiance.SIMON_FORT.volume(it), 0f) }
+        // Les fichiers : WAV 44,1 kHz stéréo, 8 ou 16 mesures à 127,87 BPM (à quelques échantillons près, raccord calé).
+        for ((nom, mesures) in listOf("gs_simon_douce" to 8, "gs_simon_suite" to 16, "gs_simon_fort" to 16)) {
+            assertEquals(nom, Lit.entries.single { it.fichierPour(true) == nom }.fichierPour(true))
+            assertNull(Lit.entries.single { it.fichierPour(true) == nom }.fichierPour(false))
+            val wav = java.io.File("src/main/res/raw/$nom.wav")
+            assertEquals("$nom : 4 octets par image stéréo 16 bits", 0L, (wav.length() - 44) % 4)
+            assertEquals(nom, mesures * 4 * 60 / 127.87, (wav.length() - 44) / (44_100.0 * 4), 0.01)
+        }
+        // Hors du Simon, rien ne change.
+        assertEquals(Ambiance.QUESTION, DirecteurSonore().let { it.observer(salon); it.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 4)).musique() })
+    }
+
+    @Test
+    fun `simon du prof - la presentation joue la douce en Game Show, la presentation habituelle en Classique`() {
+        val gs = DirecteurSonore().let { it.observer(salon); it.observer(Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true, gameShow = true)) }
+        assertTrue(Ordre.Musique(Ambiance.SIMON_ENTRE, Tempo.TRANSITION_MUSIQUE) in gs)
+        val cl = DirecteurSonore().let { it.observer(salon); it.observer(Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)) }
+        assertTrue(Ordre.Musique(Ambiance.PRESENTATION, Tempo.TRANSITION_MUSIQUE) in cl)
     }
 
     @Test

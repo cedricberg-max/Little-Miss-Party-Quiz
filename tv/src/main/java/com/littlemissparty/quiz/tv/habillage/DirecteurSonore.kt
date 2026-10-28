@@ -129,10 +129,10 @@ class DirecteurSonore {
                 // Présentation d'un jeu : le jingle du rideau, puis une musique douce sous la voix de Sarah.
                 o += Ordre.Jouer(Son.TRANSITION)
                 o += Ordre.Musique(Ambiance.SILENCE)
-                o += Ordre.Musique(Ambiance.PRESENTATION, Tempo.TRANSITION_MUSIQUE)
+                o += Ordre.Musique(ambiance(i), Tempo.TRANSITION_MUSIQUE)
             } else {
                 o += Ordre.Jouer(Son.WHOOSH)
-                o += Ordre.Musique(Ambiance.PRESENTATION)
+                o += Ordre.Musique(ambiance(i))
             }
             Ecran.QUESTION -> {
                 // Le Vrai ou Faux express garde sa musique nerveuse d'un bout à l'autre de la série.
@@ -358,8 +358,8 @@ class DirecteurSonore {
             if (i.duel && i.duelEtape != p.duelEtape) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.duelEtape == "standoff") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
-            // Simon du Prof : la musique se tait net quand une suite démarre (les notes des boules), revient après.
-            if (i.simonSuite != p.simonSuite) {
+            // Simon du Prof : la musique change net quand une suite démarre (Classique : elle se tait), revient après.
+            if (i.simonSuite != p.simonSuite || i.simonChiffres != p.simonChiffres) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.simonSuite) Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
             // Statues musicales : « gel ! » quand la musique s'arrête, petit élan quand elle repart.
@@ -438,7 +438,11 @@ class DirecteurSonore {
     private fun ambiance(i: Instant) = when (i.ecran) {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
-        Ecran.PRESENTATION -> if (i.duel) Ambiance.DUEL_PRESENTATION else Ambiance.PRESENTATION
+        Ecran.PRESENTATION -> when {
+            i.duel -> Ambiance.DUEL_PRESENTATION
+            i.simon && i.gameShow -> Ambiance.SIMON_ENTRE
+            else -> Ambiance.PRESENTATION
+        }
         Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
             i.express -> Ambiance.EXPRESS
             // Extrait musical : rien ne doit couvrir la chanson.
@@ -454,8 +458,13 @@ class DirecteurSonore {
                 "ready" -> Ambiance.DUEL_ANNONCE
                 else -> Ambiance.DUEL_ENTRE
             }
-            // Le Simon du Prof : silence pendant une suite, qu'on entende la note de chaque boule ; « Prix choc » entre deux.
-            i.simon && i.ecran == Ecran.QUESTION -> if (i.simonSuite) Ambiance.SILENCE else Ambiance.SIMON
+            // Le Simon du Prof : la boucle douce entre deux suites, celle aux percussions pendant une suite (la note de
+            // chaque boule passe par-dessus), la partie où tout joue quand les chiffres arrivent.
+            i.simon && i.ecran == Ecran.QUESTION -> when {
+                !i.simonSuite -> Ambiance.SIMON_ENTRE
+                i.simonChiffres -> Ambiance.SIMON_FORT
+                else -> Ambiance.SIMON_SUITE
+            }
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             // Game Show : Qui suis-je ? est un jeu qui bouge, sur la musique des mimes (cedric, 23/10), en retrait sous les indices.
@@ -546,6 +555,8 @@ data class Instant(
     /** Le Simon du Prof : sa question est à l'écran ; une suite est en cours (le robot la montre, les équipes la tapent). */
     val simon: Boolean = false,
     val simonSuite: Boolean = false,
+    /** Le Simon du Prof : la suite en cours a des chiffres (à partir de [com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES]). */
+    val simonChiffres: Boolean = false,
     /** Quiz : question fermée par la fin du chrono (une équipe n'a pas répondu), « TEMPS ÉCOULÉ ! » à l'écran. */
     val tempsEcoule: Boolean = false,
     val flou: Boolean = false,
@@ -617,10 +628,16 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
     /** Game Show : la boucle western du Duel des robots (36 temps, 21,24 s, sans blanc), sous l'annonce et entre deux duels. */
     DUEL(null, "gs_duel_intro_boucle"),
     /**
-     * Game Show : la boucle du Simon du Prof, « Prix choc » d'Etienne de Crécy (choix de cedric, 28/10) : 64 temps à
-     * 127,87 BPM (30,03 s), pris en plein morceau, raccord fondu sur 30 ms.
+     * Game Show, le Simon du Prof sur « Prix choc » d'Etienne de Crécy (cedric, 28/10), trois boucles prises entre les
+     * passages chantés (jamais la voix) à 127,87 BPM, coupées sur un début de mesure là où la suite ressemble le plus
+     * au début (raccord fondu sur 60 ms) : la douce, sans batterie (8 mesures, 15 s, de 0:01,9) ; avec les premières
+     * percussions (16 mesures, 30 s, de 0:43,2) ; la partie où tout joue (16 mesures, 30 s, de 2:02,0). Volumes laissés
+     * tels quels (pas de limiteur, qui changerait le niveau au raccord) : la douce et celle aux percussions sont plus
+     * basses dans le fichier, leurs ambiances les remontent.
      */
-    SIMON(null, "gs_simon_boucle"),
+    SIMON_DOUCE(null, "gs_simon_douce"),
+    SIMON_SUITE(null, "gs_simon_suite"),
+    SIMON_FORT(null, "gs_simon_fort"),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -653,10 +670,14 @@ enum class Ambiance(
     /** Duel des robots : entre deux duels, sous le résultat ; Game Show : la boucle western à −10 dB. */
     DUEL_ENTRE(legere = 0.3f, gameShow = mapOf(Lit.DUEL to 0.32f)),
     /**
-     * Le Simon du Prof entre deux suites ; Game Show : « Prix choc » (cedric, 28/10), assez bas pour que Sarah parle
-     * par-dessus ; Classique : la musique des questions.
+     * Le Simon du Prof, Game Show (« Prix choc », cedric 28/10) : la boucle douce à la présentation et entre deux suites,
+     * sous la voix de Sarah ; Classique : la musique des questions.
      */
-    SIMON(legere = 0.7f, gameShow = mapOf(Lit.SIMON to 0.55f)),
+    SIMON_ENTRE(legere = 0.7f, gameShow = mapOf(Lit.SIMON_DOUCE to 0.82f)),
+    /** Pendant une suite : la boucle aux percussions, assez bas pour entendre la note de chaque boule ; Classique : silence. */
+    SIMON_SUITE(gameShow = mapOf(Lit.SIMON_SUITE to 0.84f)),
+    /** Pendant une suite avec des chiffres (longue, plus dure) : la partie où tout joue ; Classique : silence. */
+    SIMON_FORT(gameShow = mapOf(Lit.SIMON_FORT to 0.55f)),
     /**
      * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
      * trop éteint (cedric, 24/10).
@@ -695,7 +716,7 @@ enum class Ambiance(
             Lit.PAUSE -> pause
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
-            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON -> 0f
+            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT -> 0f
         }
     }
 }

@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.QuestionKind
@@ -205,6 +206,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         duelEtape = if (s.question?.isDuel == true) s.duel?.step.orEmpty() else "",
         simon = s.question?.isSimon == true,
         simonSuite = s.question?.isSimon == true && s.simon?.enCours == true,
+        simonChiffres = s.question?.isSimon == true && s.simon?.enCours == true && (s.simon?.suite ?: 0) >= SIMON_CHIFFRES_DES,
         tempsEcoule = s.phase == Phase.CLOSED && s.tempsEcoule,
         disparu = if (s.question?.isDisparu == true) disparu else 0,
         // Blind test : présentation du 1er morceau, chanson qui joue, points doublés, révélation raccourcie, bilan.
