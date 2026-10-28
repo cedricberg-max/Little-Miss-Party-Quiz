@@ -445,6 +445,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             s.phase == Phase.REVEAL -> s.copy(phase = Phase.SCORES)
             // Fin d'une manche de mimes, entre deux tours : les points sont déjà comptés, on passe au classement.
             s.phase == Phase.QUESTION && s.mime != null && !s.mimeTurn -> s.copy(phase = Phase.SCORES, mime = null)
+            // Fin des statues, du duel ou du Simon : leurs points sont déjà comptés, le tableau des scores avant le jeu suivant.
+            s.phase == Phase.QUESTION && !s.intro && quiz.questions.getOrNull(s.index)?.let { it.isStatues || it.isDuel || it.isSimon } == true ->
+                s.copy(phase = Phase.SCORES, statues = null, duel = null, simon = null)
             else -> null
         }
         is DoorSet -> {
@@ -974,13 +977,14 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             question?.isGonfleur == true -> null
             // « Ça va exploser ! » : seule la mèche décide de la fin.
             question?.isPatate == true -> null
-            // Statues musicales : du récap d'une chanson, « Jeu suivant » (ou les résultats finaux) ; pendant une chanson,
-            // il faut d'abord désigner les gagnantes.
-            question?.isStatues == true -> if (!statuesJugees(state)) null else if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
-            // Duel des robots : « Jeu suivant » entre deux duels, jamais pendant un face-à-face.
-            question?.isDuel == true -> if (!duelLibre(state)) null else if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
-            // Simon du Prof : « Jeu suivant » entre deux suites, jamais pendant une suite.
-            question?.isSimon == true -> if (!simonLibre(state)) null else if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
+            // Statues musicales : du récap d'une chanson, le tableau des scores (ou les résultats finaux), comme à la fin de
+            // chaque jeu (test du 28/10 : le jeu suivant partait sans les jauges) ; pendant une chanson, il faut d'abord
+            // désigner les gagnantes.
+            question?.isStatues == true -> if (!statuesJugees(state)) null else scoresOuFin(now)
+            // Duel des robots : les scores entre deux duels, jamais pendant un face-à-face.
+            question?.isDuel == true -> if (!duelLibre(state)) null else scoresOuFin(now)
+            // Simon du Prof : les scores entre deux suites, jamais pendant une suite.
+            question?.isSimon == true -> if (!simonLibre(state)) null else scoresOuFin(now)
             state.mime == null -> close(now)
             state.mimeTurn -> mimeStop(now)
             else -> scoresOuFin(now)

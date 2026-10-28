@@ -476,7 +476,7 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
         val dernier = game.isLastQuestion
         when {
             q.isMime -> next()
-            // Statues : du récap de la chanson, « Jeu suivant » (ou les résultats finaux), sans classement.
+            // Statues : du récap de la chanson, le tableau des scores (ou les résultats finaux), comme après chaque jeu.
             q.isStatues -> {
                 etape("récap")
                 next()
@@ -580,7 +580,7 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
             if (state.phase == Phase.SCORES && state.index == manche.last) return
             // Dernier jeu de la prestation : les résultats finaux, sans classement (cedric, 27/10).
             if (state.phase == Phase.ENDED) return
-            // Statues : le récap mène droit au jeu suivant.
+            // Garde-fou : jamais au-delà du jeu en cours.
             if (state.index !in manche) return
             if (state.phase == Phase.SCORES) next()
             assertTrue(state.index in manche)

@@ -254,9 +254,11 @@ class SimonDuProfTest {
         assertTrue(g.simonFini)
         assertEquals(CommandStatus.REFUSED, g.run("simon_go", t0 + 80_000).status, "2 tours seulement")
         assertEquals(mapOf("orange" to SIMON_POINTS, "vert" to SIMON_POINTS), g.state.scores().filterValues { it != 0 })
-        assertNotNull(g.next(t0 + 90_000), "« Jeu suivant »")
-        assertEquals("q1", g.state.qid)
+        assertNotNull(g.next(t0 + 90_000), "« Voir les scores »")
+        assertEquals(Phase.SCORES, g.state.phase)
         assertNull(g.state.simon)
+        assertNotNull(g.next(t0 + 95_000), "« Jeu suivant »")
+        assertEquals("q1", g.state.qid)
     }
 
     @Test

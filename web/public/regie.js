@@ -1927,9 +1927,8 @@ function statuesBoutonPrincipal(e, st) {
   if (c) return c.personne ? "✓ Valider : personne" : c.equipes.size > 1 ? `✓ Valider : ${c.equipes.size} gagnantes` : c.equipes.size ? `✓ Valider : ${live.teams[[...c.equipes][0]]?.name ?? "1 gagnante"}` : "Touchez la ou les gagnantes";
   if (!e.resultat) return e.encore ? "⏭ Chanson suivante" : "⏭ Finir la chanson";
   if (e.annonce > 0) return "Annonce sur la TV…";
-  if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
-  const { next, questions } = gamesOf(st);
-  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Jeu suivant ▶";
+  // Fin du jeu : le tableau des scores sur la TV, comme après chaque jeu (test du 28/10), puis « Jeu suivant ».
+  return versClassement(st, "Voir les scores");
 }
 
 /** Ancienne TV : un gros bouton par équipe pour désigner la gagnante, à la fin ou dès qu'il n'en reste qu'une. */
@@ -2084,10 +2083,9 @@ function duelBoutonPrincipal(e, st) {
   return "🤠 Lancer le duel";
 }
 
+/** Fin du duel ou du Simon : le tableau des scores sur la TV (test du 28/10), puis « Jeu suivant » ; au dernier jeu, les résultats. */
 function finDuelLabel(st) {
-  if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
-  const { next, questions } = gamesOf(st);
-  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Jeu suivant ▶";
+  return versClassement(st, "Voir les scores");
 }
 
 function duelPrincipal(e) {
