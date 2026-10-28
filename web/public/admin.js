@@ -19,7 +19,7 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
-  questionsDuQuiz, ordreAvecCasesVides, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
+  questionsDuQuiz, ordreAvecCasesVides, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, texteDeQuestion, zoomRoundQuestions,
   estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie, DUEL_JOUEURS, DUEL_DUREES, reglagesDuel, SIMON_TOURS, SIMON_REPONSES, reglagesSimon,
   DISPARU_CARTES, famillesPourLAge,
   pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX, leurresDeChanson, parolesDuHook,
@@ -3742,8 +3742,8 @@ function piocherQuiz(r, { qcm = 0, chiffres = 0, profil, theme = null }) {
 function textesPris(r) {
   const manches = roundCtx === prestationCtx && editing ? editing.rounds.filter(Boolean) : [r];
   const textes = [...new Set([r, ...manches])].flatMap((m) => [...questionsDesSeries(m, quizzes), ...roundTirees(m),
-    ...(roundSeriesQuiz(m).length ? [] : roundQuizIds(m).flatMap((id) => playable(quizzes[id])))].map((q) => q?.text));
-  return new Set([...textes, ...casesDuTirage(r).filter((q) => !caseVide(q)).map((q) => q.text), ...(r.ecartees ?? [])].filter(Boolean));
+    ...(roundSeriesQuiz(m).length ? [] : roundQuizIds(m).flatMap((id) => playable(quizzes[id])))].map((q) => (q ? texteDeQuestion(q) : null)));
+  return new Set([...textes, ...casesDuTirage(r).filter((q) => !caseVide(q)).map(texteDeQuestion), ...(r.ecartees ?? [])].filter(Boolean));
 }
 
 /** Thème du 🎲 d'un Quiz illustré (null : tous les thèmes). */
@@ -4632,7 +4632,7 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
   if (vides.length) quizCompletsDeplies.add(r);
   const photos = estJeuDePhotos(r.type);
   const unite = photos ? "photo" : r.type === "express" ? "affirmation" : "question";
-  const sig = (q) => (photos ? signatureQuestion(q, r.type) : q.text);
+  const sig = (q) => (photos ? signatureQuestion(q, r.type) : texteDeQuestion(q));
   const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
     && !assemblage.some((x) => x.q.kind === "number" && /bougie/i.test(x.q.text ?? ""))
     ? questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r) : null;

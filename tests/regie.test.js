@@ -10651,7 +10651,7 @@ describe("bibliothèque de quiz et prestations", () => {
   test("Prestation de test + pack « Drapeaux et pays » (cedric, 28/10) : ses questions en plus au Quiz, au Zoom et à l'Image floue, drapeau dès la question", async () => {
     const id = (k) => `${k}`.padStart(2, "0").repeat(8);
     const drapeaux = { title: "Drapeaux et pays 1", theme: "Drapeaux et pays", niveau: "Moyen", pack: true, kind: "classique", source: "json", updatedAt: 1,
-      questions: Array.from({ length: 12 }, (_, k) => ({ text: `À quel pays est ce drapeau n° ${k + 1} ?`, choices: ["Japon", "Chine", "Italie", "Canada"], correct: k % 4,
+      questions: Array.from({ length: 12 }, (_, k) => ({ text: "À quel pays est ce drapeau ?", choices: ["Japon", "Chine", "Italie", "Canada"], correct: k % 4,
         status: "validee", imageId: id(k + 10), imageVisible: true })) };
     const photos = { title: "Drapeaux et pays photos 1", theme: "Drapeaux et pays", niveau: "Moyen", pack: true, kind: "images", source: "photos", updatedAt: 1,
       questions: ["Japon", "Chine", "Italie", "Canada", "Suisse", "Brésil"].map((rep, k) => ({ text: "Qu'est-ce que c'est ?", choices: [rep, "Grèce", "Inde", "Maroc"], correct: 0, status: "validee", imageId: id(k + 40) })) };
@@ -10669,6 +10669,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const qd = serieDrapeaux(jeu.quiz).questions;
     assert.ok(qd.length >= 3);
     assert.ok(qd.every((q) => q.imageVisible === true && /^[0-9a-f]{16}$/.test(q.imageId)), "drapeau montré dès la question");
+    assert.equal(new Set(qd.map((q) => q.imageId)).size, qd.length, "même texte, chaque drapeau une seule fois");
     for (const t of ["zoom", "flou"]) assert.ok(serieDrapeaux(jeu[t])?.questions.length >= 1, `${t} : des drapeaux`);
     // Jamais deux fois le même drapeau entre le Zoom mystère et l'Image floue.
     const vus = [...serieDrapeaux(jeu.zoom).questions, ...serieDrapeaux(jeu.flou).questions].map((q) => q.imageId);

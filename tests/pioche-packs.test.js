@@ -144,3 +144,20 @@ describe("Drapeau montré dès la question (cedric, 28/10)", () => {
     assert.equal(avant.imageVisible, undefined, "comme avant : la photo à la révélation");
   });
 });
+
+describe("« À quel pays est ce drapeau ? » posé pour chaque drapeau (cedric, 28/10)", () => {
+  test("même texte, drapeaux différents : chaque question compte, et un drapeau déjà pris n'est jamais repris", () => {
+    const D = (k) => `${k}`.repeat(16).slice(0, 16);
+    const drapeaux = { title: "Drapeaux et pays 1", theme: "Drapeaux et pays", niveau: "Moyen", pack: true, kind: "classique",
+      questions: [1, 2, 3, 4].map((k) => q("À quel pays est ce drapeau ?", { imageId: D(k), imageVisible: true })) };
+    const cat = catalogueDesPacks({ drapeaux });
+    assert.equal(cat.length, 4, "quatre questions, pas une seule");
+    const tous = piocherDansLesPacks(cat, 4, { mode: "hasard" }, hasard);
+    assert.equal(new Set(tous.map((x) => x.q.imageId)).size, 4);
+    const sauf = piocherDansLesPacks(cat, 4, { mode: "hasard", exclus: new Set([cat[0].cle]) }, hasard);
+    assert.deepEqual(sauf.map((x) => x.q.imageId).sort(), [D(2), D(3), D(4)]);
+    // Sans l'option, deux questions au même texte restent une seule (comme avant).
+    const memes = { ...drapeaux, questions: [q("Même ?", { imageId: D(1) }), q("Même ?", { imageId: D(2) })] };
+    assert.equal(piocherDansLesPacks(catalogueDesPacks({ memes }), 4, { mode: "hasard" }, hasard).length, 1);
+  });
+});

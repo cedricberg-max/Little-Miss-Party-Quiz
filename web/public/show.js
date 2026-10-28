@@ -636,11 +636,16 @@ export const estEnSeries = (type) => JEUX_EN_SERIES.includes(type ?? "quiz");
 export const JEUX_DE_PHOTOS = ["zoom", "flou"];
 export const estJeuDePhotos = (type) => JEUX_DE_PHOTOS.includes(type);
 /**
+ * Le texte qui distingue une question de quiz : son texte ; avec sa photo montrée dès la question, son texte et sa photo
+ * (« À quel pays est ce drapeau ? » se pose pour chaque drapeau, cedric 28/10 : jamais pris pour la même question).
+ */
+export const texteDeQuestion = (q) => (q?.imageVisible === true && /^[0-9a-f]{16}$/.test(q?.imageId ?? "") ? `${q?.text ?? ""} #${q.imageId}` : `${q?.text ?? ""}`);
+/**
  * Ce qui reconnaît une question dans sa série : son texte ; au Zoom mystère et à l'Image floue, sa photo (leurs
  * questions disent toutes « Qu'est-ce que c'est ? »).
  */
 export const signatureQuestion = (q, type) => (estJeuDePhotos(type) && (IMAGE_ID.test(q?.imageId ?? "") || q?.banque)
-  ? (IMAGE_ID.test(q?.imageId ?? "") ? `i:${q.imageId}` : `b:${q.banque}`) : `${q?.text ?? ""}`.trim().toLowerCase());
+  ? (IMAGE_ID.test(q?.imageId ?? "") ? `i:${q.imageId}` : `b:${q.banque}`) : texteDeQuestion(q).trim().toLowerCase());
 /**
  * Questions d'un quiz de la bibliothèque jouables dans un jeu en séries : ses photos au Zoom et à l'Image floue, ses
  * Vrai / Faux au Vrai ou Faux express.

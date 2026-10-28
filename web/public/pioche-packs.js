@@ -8,7 +8,7 @@
  * Jamais une question déjà dans la prestation ni retirée (✕) ; d'abord celles du niveau de la prestation, puis les
  * autres s'il en manque (le niveau d'une question changé à la main passe avant celui de son pack). Fonctions pures, testées.
  */
-import { playable, quizKind, illustreQuestions, expressQuestions, zoomQuestions, estJeuDePhotos } from "./show.js";
+import { playable, quizKind, illustreQuestions, expressQuestions, zoomQuestions, estJeuDePhotos, texteDeQuestion } from "./show.js";
 import { niveauDuQuiz, lireNiveau, themeDuQuiz, cleTheme } from "./rangement.js";
 import { contientTout, parPertinence, sansAccent } from "./recherche.js";
 
@@ -41,7 +41,7 @@ const QUESTIONS_DU_JEU = {
 };
 const questionsDuJeu = (jeu) => QUESTIONS_DU_JEU[estJeuDePhotos(jeu) ? "photos" : jeu] ?? QUESTIONS_DU_JEU.quiz;
 /** Ce qui rend une question unique dans la prestation : sa photo au Zoom et à l'Image floue, son texte ailleurs. */
-export const cleDePack = (q, jeu = "quiz") => (estJeuDePhotos(jeu) ? `i:${q.imageId}` : q.text);
+export const cleDePack = (q, jeu = "quiz") => (estJeuDePhotos(jeu) ? `i:${q.imageId}` : texteDeQuestion(q));
 
 /**
  * Les questions des packs importés (aux photos : de toutes mes séries) jouables dans le jeu [jeu] : `{ id, quizId, titre, theme, niveau, cle, q }`.
