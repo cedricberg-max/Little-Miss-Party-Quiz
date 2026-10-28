@@ -56,6 +56,8 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.MotsNeon
 import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.ConfettisLegers
+import com.littlemissparty.quiz.tv.habillage.EnseigneQuiSuis
 import com.littlemissparty.quiz.tv.habillage.selonLook
 import com.littlemissparty.quiz.tv.habillage.ANNONCE_MULTIPLICATEUR_MS
 import com.littlemissparty.quiz.tv.habillage.AnnonceMultiplicateur
@@ -88,6 +90,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
     // Blind test ou quiz musical : l'extrait joue depuis le cache de la box, calé sur le chrono.
     ExtraitMusical(q, state)
     Box(Modifier.fillMaxSize()) {
+        // Qui suis-je ? du Game Show : des confettis légers tombent derrière les indices (planche du 28/10).
+        if (Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION) ConfettisLegers(Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (Look.gs) EtapeGs(state.etape ?: "Question ${state.index + 1}", Modifier.weight(1f, fill = false))
@@ -136,7 +140,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène). Qui a
                 // disparu ? y a droit aussi, lettres de couleur comme « Quel est ce titre ? » (cedric, 25/10 au soir).
                 val panneau = planchesQuiz3d()?.takeIf { !q.isBuzz || q.isDisparu }
-                if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index), festif = q.isMusical || q.isDisparu)
+                // Qui suis-je ? du Game Show : l'enseigne de fête à ampoules (planche du 28/10, version A).
+                if (Look.gs && q.isQuiSuis) Box(Modifier.fillMaxWidth().apparition(0, state.index), contentAlignment = Alignment.Center) { EnseigneQuiSuis() }
+                else if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index), festif = q.isMusical || q.isDisparu)
                 else if (Look.gs && q.isMusical && q.text.length <= 24) MotsNeon(q.text, 40.sp, Modifier.apparition(0, state.index))
                 else Text(
                     q.text,

@@ -628,6 +628,12 @@ class RegieTest : TestTv() {
         ecran.voit("J'ai une crinière")
         assertFalse("le deuxième indice attend son tour", ecran.affiche("Je rugis très fort"))
         ecran.voit("Je rugis très fort", 20_000)
+        // Game Show (planche du 28/10, version A) : l'appel au buzz en néon, sans buzzer dessiné.
+        if (Look.gs) {
+            ecran.voit("BUZZEZ !")
+            ecran.voit("dès que vous savez\nqui je suis")
+            ecran.capture("qui-suis-je-indices", attente = 600)
+        }
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "p1" && it.child("buzzOpen").value == true } }
         assertTrue(licornes.buzzer(code))
         ecran.voit("Licornes a buzzé !")

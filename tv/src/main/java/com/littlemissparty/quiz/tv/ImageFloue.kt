@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.GS
+import com.littlemissparty.quiz.tv.habillage.AppelBuzzQuiSuis
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.RevelationNeon
 import com.littlemissparty.quiz.tv.habillage.apparition
@@ -220,6 +221,8 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 if (q.isFlou) "Temps écoulé ! Voyons ce qui se cachait…" else if (q.isBlind) "Temps écoulé ! Écoutons la réponse…" else "Temps écoulé !",
                 color = Palette.Gold, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
             )
+            // Qui suis-je ? du Game Show (planche du 28/10) : « BUZZEZ ! » en néon, sans buzzer dessiné, et les essais ratés.
+            Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION -> AppelBuzzQuiSuis(passees.map { it.name })
             q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Text(
                 "Mémorisez bien tous les objets !",
                 color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
@@ -235,7 +238,7 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
             )
         }
-        if (passees.isNotEmpty() && state.phase == Phase.QUESTION) {
+        if (passees.isNotEmpty() && state.phase == Phase.QUESTION && !(Look.gs && q.isQuiSuis && buzzer == null)) {
             Spacer(Modifier.height(24.dp))
             Text(
                 "Déjà essayé : " + passees.joinToString(", ") { it.name },
