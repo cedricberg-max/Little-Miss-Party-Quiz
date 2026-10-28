@@ -203,6 +203,8 @@ fun Game.execute(
     // Chrono parti il y a moins de 1,5 s : le gros bouton du téléphone venait d'afficher « Question suivante » ; ce second
     // appui d'un double clic fermait la question dans la même seconde (test du 27/10 : « Temps écoulé ! » sur les tablettes).
     if (cmd is Command.Close && justStarted(now)) return refused("just_started")
+    // Vrai ou Faux express : les scores de fin de série viennent de s'afficher seuls ; on les laisse à l'écran.
+    if (cmd is Command.Next && scoresJustShown(now)) return refused("scores_just_shown")
     // Toutes les équipes inscrites ont déjà tenté leur chance : à la relance, tout le monde peut rebuzzer.
     val allTried = state.buzz?.blocked?.let { b -> b.isNotEmpty() && teams.isNotEmpty() && teams.all { it in b } } == true
     val event = when (cmd) {

@@ -49,6 +49,11 @@ const val REBUZZ_DELAY_MS = 3_000L
 
 /** Vrai ou Faux express : temps de la révélation avant l'affirmation suivante. */
 const val EXPRESS_REVEAL_MS = 3_500L
+/**
+ * Vrai ou Faux express : les scores de fin de série arrivent tout seuls. Pendant ce temps, un « suivant » de la régie est
+ * un appui réflexe (test du 28/10 : scores à 21:19:53, « suivant » à 21:19:54, jeu suivant lancé sans les jauges).
+ */
+const val EXPRESS_SCORES_GUARD_MS = 4_000L
 
 /** Mimes en file : temps entre la fin du tour d'une couleur et son bilan des scores (« TEMPS ÉCOULÉ ! » puis le bravo). */
 const val MIME_BILAN_AUTO_MS = 4_500L
@@ -257,6 +262,13 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * est presque toujours le second appui d'un double clic sur OK (celui qui a lancé la question ou la reprise).
      * Mesuré sur l'heure du serveur, il ne dépend pas du moment où la télécommande livre l'appui.
      */
+    /** Fin d'une série express : les scores sont à l'écran depuis moins de [EXPRESS_SCORES_GUARD_MS]. */
+    fun scoresJustShown(now: Long): Boolean {
+        if (state.phase != Phase.SCORES || question?.isExpress != true) return false
+        val shown = log.lastOrNull { it is ScoresShown } ?: return false
+        return now - shown.at < EXPRESS_SCORES_GUARD_MS
+    }
+
     fun justStarted(now: Long, ms: Long = CLOSE_GUARD_MS): Boolean {
         val q = question ?: return false
         if (!timerRuns(q) || state.paused) return false

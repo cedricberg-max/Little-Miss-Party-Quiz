@@ -585,6 +585,18 @@ function derniere(st) {
   return st.total != null && (st.index ?? 0) + 1 >= st.total;
 }
 
+/**
+ * Vrai ou Faux express : une autre affirmation de la même série suit. La TV enchaîne toute seule et les scores
+ * n'arrivent qu'à la fin de la série (cedric, 28/10) : jamais « Voir les scores » entre deux affirmations.
+ */
+function expressSuivante(st) {
+  if (st.kind !== "express") return false;
+  const questions = live.plan?.questions ?? [];
+  const q = questions[st.index ?? -1];
+  const n = questions[(st.index ?? -1) + 1];
+  return q != null && n != null && n.kind === "express" && (n.round ?? null) === (q.round ?? null);
+}
+
 function versClassement(st, libelle) {
   return derniere(st) ? "Résultats finaux 🏆" : libelle;
 }
@@ -609,7 +621,7 @@ function nextLabel(st, teamCount) {
     case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : versClassement(st, "Voir le classement")) : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
-    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : versClassement(st, "Voir les scores");
+    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : expressSuivante(st) ? "Affirmation suivante ▶" : versClassement(st, "Voir les scores");
     case "scores": {
       const { next, questions } = gamesOf(st);
       // Bilan d'un jeu quitté en cours de route (cedric, 24/10) : « suivant » ouvre le jeu choisi.
@@ -4116,6 +4128,7 @@ const STATUS_MESSAGES = {
   stale_program: "Le programme venait de changer : rien n'a été fait, la liste des jeux est à jour.",
   countdown: "La partie reprend (3, 2, 1) : attendez la fin du décompte.",
   just_started: "Le chrono vient de partir : rien n'a été arrêté. Touchez à nouveau pour l'arrêter.",
+  scores_just_shown: "Les scores viennent de s'afficher : laissez-les quelques secondes à l'écran, puis touchez à nouveau.",
   bad_factor: "Valeur de points inconnue.",
   not_ended: "La partie n'est pas encore terminée : appuyez d'abord longtemps sur « Terminer ».",
   no_name: "Tapez d'abord le nom de l'équipe.",

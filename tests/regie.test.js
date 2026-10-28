@@ -2477,6 +2477,30 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("Vrai ou Faux express : jamais « Voir les scores » entre deux affirmations, seulement à la fin de la série", async () => {
+    box = startBox();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await addTeam("rose", "Les Roses");
+    const plan = (await read("conducteur")) ?? { questions: [] };
+    const i = plan.questions.length;
+    const aff = (id, text) => ({ id, text, kind: "express", choices: ["Vrai", "Faux"], correct: 0, round: "Vrai ou Faux express" });
+    const apres = { id: "c9", text: "Quelle est la capitale de la France ?", kind: "classic", choices: ["Paris", "Lyon", "Nice", "Lille"], correct: 0, round: "Quiz" };
+    await set(gameRef("conducteur"), { ...plan, express: true, questions: [...plan.questions, aff("e1", "Le Soleil est une étoile."), aff("e2", "Les poissons volent."), apres] });
+    const revelation = (index, qid, text) => ({
+      ...questionState(box.state.seq + 1, 0), phase: "reveal", index, qid, kind: "express", text, choices: ["Vrai", "Faux"], deadline: null, total: i + 3,
+    });
+    // Test du 28/10 : « Voir les scores » s'affichait après chaque affirmation, alors que la TV enchaîne seule.
+    await box.set(revelation(i, "e1", "Le Soleil est une étoile."));
+    await page.locator("#c-next", { hasText: "Affirmation suivante" }).waitFor();
+    assert.equal(await page.locator("#c-next", { hasText: "Voir les scores" }).count(), 0);
+    // Dernière affirmation de la série : les scores, avant le jeu suivant.
+    await box.set(revelation(i + 1, "e2", "Les poissons volent."));
+    await page.locator("#c-next", { hasText: "Voir les scores" }).waitFor();
+    await page.context().close();
+  });
+
   test("« Ça va exploser ! » : la régie voit chez qui est la bombe et peut l'envoyer au hasard en deux appuis", async () => {
     box = startBox();
     const page = await openRegie();
