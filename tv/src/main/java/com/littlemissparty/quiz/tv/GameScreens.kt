@@ -158,6 +158,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 // Sinon, à la révélation, l'illustration facultative (photo ou émoji) apparaît à gauche des propositions.
                 if (revealed && q.isMusical && apres(MUSICAL_GRILLE_MS, q.id)) {
                     RevelationMusicale(q, state, Modifier.weight(1f).fillMaxWidth())
+                } else if (revealed && Look.gs && q.isNumber) {
+                    // Juste Chiffre du Game Show : la machine à sous, puis la règle des écarts (planche du 28/10, « A puis B »).
+                    RevelationJusteChiffreGs(state, Modifier.weight(1f).fillMaxWidth())
                 } else Row(Modifier.weight(1f)) {
                     // Zoom mystère : la photo est la question, elle se dévoile pendant tout le chrono.
                     if (q.isFlou) {
@@ -558,7 +561,9 @@ private fun TeamStatus(
 ) {
     val color = team.color.toColor()
     // Les points tombent comme des tampons, une équipe gagnante après l'autre, juste après la bonne réponse.
-    val delai = if (rangGagnant >= 0) Tempo.tampon(rangGagnant, express) else Tempo.revelationOr(express)
+    val delai = (if (rangGagnant >= 0) Tempo.tampon(rangGagnant, express) else Tempo.revelationOr(express)) +
+        // Juste Chiffre du Game Show : les points arrivent avec la règle des écarts, pas sous la machine à sous.
+        (if (Look.gs && isNumber) Tempo.JUSTE_GS_RETARD else 0L)
     val montre = apres(delai, points != null, actif = points != null)
     val revealedPoints = points.takeIf { montre }
     val taille = if (compacte) 14.sp else 16.sp

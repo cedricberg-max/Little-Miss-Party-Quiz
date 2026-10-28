@@ -437,6 +437,8 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("écart 6")
         ecran.capture("juste-chiffre-revelation", attente = Ecran.APRES_REVELATION)
+        // Game Show : la règle des écarts, les équipes et le « +100 » une fois tout posé.
+        if (Look.gs) ecran.capture("juste-chiffre-regle", attente = 3_500)
         attendreQue("points de la plus proche") { points(licornes, code, licornes.uid).takeIf { it == Scoring.NUMBER_CLOSEST.toLong() } }
         assertEquals(0L, points(dragons, code, dragons.uid))
     }

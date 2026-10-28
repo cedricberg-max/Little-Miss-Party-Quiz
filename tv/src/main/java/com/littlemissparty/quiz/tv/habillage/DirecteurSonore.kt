@@ -231,8 +231,10 @@ class DirecteurSonore {
                 o += Ordre.Jouer(if (i.pile) Son.CHIFFRE_PILE else Son.BONNE_REPONSE, Tempo.REVELATION_OR)
                 o += Ordre.Jouer(Son.IMPACT, Tempo.REVELATION_OR)
                 o += Ordre.Musique(Ambiance.FETE, Tempo.REVELATION_OR)
-                for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k))
-                if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS)
+                // Game Show : les points attendent la règle des écarts (révélation « A puis B » du 28/10).
+                val retard = if (i.gameShow) Tempo.JUSTE_GS_RETARD else 0L
+                for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k) + retard)
+                if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS + retard)
             } else if (i.blind) {
                 // Blind test : rembobinage et fanfare quand une équipe a trouvé, simple carillon sinon (jamais moqueur).
                 o += Ordre.Musique(Ambiance.SILENCE)
@@ -872,6 +874,8 @@ object Tempo {
     const val REVELATION_TAMPON = 2_500L
     const val REVELATION_TAMPON_PAS = 200L
     const val REVELATION_POINTS = 3_000L
+    /** Juste Chiffre du Game Show : tampons et points tombent avec le « +100 » de la règle des écarts, pas avant. */
+    const val JUSTE_GS_RETARD = 3_750L
     const val CLASSEMENT_COMPTEUR = 300L
     const val CLASSEMENT_COURONNE = 1_800L
     /** Grand gagnant : 7 s de suspense (lmp_roulement_final), puis l'impact ; jingle et musique de fête ensuite. */

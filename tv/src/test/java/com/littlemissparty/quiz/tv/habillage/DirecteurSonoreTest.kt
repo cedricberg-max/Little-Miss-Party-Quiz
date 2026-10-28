@@ -489,6 +489,23 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `juste chiffre du Game Show, tampons et points attendent la regle des ecarts, le Classique ne change pas`() {
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 2, nombre = true, propositions = 0)
+        val gs = DirecteurSonore().let { d -> d.observer(question.copy(gameShow = true)); d.observer(question.copy(gameShow = true, ecran = Ecran.REVELATION, gagnants = 1)) }
+        // Le son de la bonne réponse reste avec la machine à sous ; les points viennent avec le « +100 ».
+        assertTrue(Ordre.Jouer(Son.BONNE_REPONSE, Tempo.REVELATION_OR) in gs)
+        assertTrue(Ordre.Jouer(Son.TAMPON, Tempo.tampon(0) + Tempo.JUSTE_GS_RETARD) in gs)
+        assertTrue(Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS + Tempo.JUSTE_GS_RETARD) in gs)
+        assertFalse(Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS) in gs)
+        // Personne de proche : aucun point, aucun son de points, même en retard.
+        val rien = DirecteurSonore().let { d -> d.observer(question.copy(gameShow = true)); d.observer(question.copy(gameShow = true, ecran = Ecran.REVELATION, gagnants = 0)) }
+        assertFalse(Son.POINTS in rien.sons())
+        val classique = DirecteurSonore().let { d -> d.observer(question); d.observer(question.copy(ecran = Ecran.REVELATION, gagnants = 1)) }
+        assertTrue(Ordre.Jouer(Son.TAMPON, Tempo.tampon(0)) in classique)
+        assertTrue(Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS) in classique)
+    }
+
+    @Test
     fun `chrono à zéro sans toutes les réponses, le signal temps écoulé sous le verrou, jamais quand Sarah arrête le chrono`() {
         val d = DirecteurSonore()
         val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 3, reponses = 2)
