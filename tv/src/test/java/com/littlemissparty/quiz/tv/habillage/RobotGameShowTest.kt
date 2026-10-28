@@ -240,4 +240,19 @@ class RobotGameShowTest {
         }
         throw AssertionError("${f.name} : pas de piste vidéo")
     }
+    @Test
+    fun `lueur au sol sous le robot seulement quand il est pose, jamais en vol`() {
+        assertEquals(1f, lueurSol(1f), 0f)
+        assertEquals(0f, lueurSol(0.6f), 0f)
+        // Il plonge sous l'écran : la lueur s'en va avec lui.
+        assertEquals(0f, lueurSol(1.2f), 0f)
+        // Clips en vol ou tête en bas : jamais de lueur pendant tout le trajet.
+        for (c in CATALOGUE.filter { it.fichier == "gs_robot_vole" || it.fichier == "gs_robot_envers" }) {
+            for (ms in 0..c.trajet.totalMs step 100) assertEquals("$c à $ms ms", 0f, lueurSol(c.trajet.a(ms.toFloat()).second), 0f)
+        }
+        // Posé au bord (applaudit, robot dance) : pleine lueur au milieu du numéro.
+        for (c in CATALOGUE.filter { it.fichier == "gs_robot_applaudit" || it.fichier == "gs_robot_robotdance" }) {
+            assertEquals("$c", 1f, lueurSol(c.trajet.a(2_000f).second), 0f)
+        }
+    }
 }
