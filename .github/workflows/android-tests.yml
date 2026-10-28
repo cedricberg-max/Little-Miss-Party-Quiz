@@ -18,6 +18,16 @@ on:
   # Plus de relance sur main après la fusion : la PR a déjà joué ces tests sur le même code (≈ 12 % des minutes
   # d'octobre). Une relance à la main reste possible avant une publication (« Run workflow »).
   workflow_dispatch:
+    inputs:
+      design:
+        description: "Décor des tests : gs (décor dessiné, par défaut) ou gs3d (plateau 3D de la box : son affiche sur l'émulateur, pour des captures comme sur la TV)"
+        type: choice
+        options: [gs, gs3d]
+        default: gs
+      classes:
+        description: "Seulement ces classes de tests (ex. RegieTest,PartieCompleteTest), vide = toutes"
+        type: string
+        default: ""
 
 # Un nouvel envoi sur la même branche annule l'essai précédent (minutes GitHub économisées).
 concurrency:
@@ -118,6 +128,9 @@ jobs:
           # seulement l'émulateur local (adresse IP 10.0.2.2).
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -dns-server 192.0.2.1
           script: bash .github/android-tests/run.sh
+        env:
+          DESIGN_TESTS: ${{ inputs.design || 'gs' }}
+          CLASSES_TESTS: ${{ inputs.classes || '' }}
 
       - name: Résumé des résultats
         if: always()
