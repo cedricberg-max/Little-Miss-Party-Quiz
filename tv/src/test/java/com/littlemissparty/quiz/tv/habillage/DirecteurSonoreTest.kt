@@ -1035,6 +1035,11 @@ class DirecteurSonoreTest {
         // Classique : la douce devient la musique des questions, les suites restent silencieuses (comme avant).
         assertEquals(Ambiance.QUESTION.volume(Lit.LEGER), Ambiance.SIMON_ENTRE.volume(Lit.LEGER), 0f)
         Lit.entries.forEach { assertEquals(0f, Ambiance.SIMON_SUITE.volume(it), 0f); assertEquals(0f, Ambiance.SIMON_FORT.volume(it), 0f) }
+        // Les notes des boules passent nettement au-dessus de la musique (cedric, 28/10 au soir : « pas assez fort ») :
+        // notes presque à fond, musique des suites baissée par rapport à avant (0,84 et 0,55).
+        assertTrue(NotesSimon.VOLUME >= 0.9f && NotesSimon.VOLUME <= 1f)
+        assertTrue(Ambiance.SIMON_SUITE.volume(Lit.SIMON_SUITE, gs = true) <= 0.6f)
+        assertTrue(Ambiance.SIMON_FORT.volume(Lit.SIMON_FORT, gs = true) <= 0.45f)
         // Les fichiers : WAV 44,1 kHz stéréo, 8 ou 16 mesures à 127,87 BPM (à quelques échantillons près, raccord calé).
         for ((nom, mesures) in listOf("gs_simon_douce" to 8, "gs_simon_suite" to 16, "gs_simon_fort" to 16)) {
             assertEquals(nom, Lit.entries.single { it.fichierPour(true) == nom }.fichierPour(true))

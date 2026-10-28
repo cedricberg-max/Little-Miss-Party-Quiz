@@ -20,7 +20,8 @@ object NotesSimon {
     private const val TAG = "NotesSimon"
     private const val FREQUENCE = 22_050
     private const val DUREE_MS = 450
-    private const val VOLUME = 0.45f
+    /** Presque à fond (la note culmine à 1,0 × [VOLUME]) : elles passaient sous la musique (cedric, 28/10 au soir). */
+    internal const val VOLUME = 0.95f
 
     /** Hertz de chaque élément (codes du moteur). */
     private val NOTES = mapOf(

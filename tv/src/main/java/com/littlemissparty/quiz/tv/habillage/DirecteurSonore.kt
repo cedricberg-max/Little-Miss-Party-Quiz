@@ -677,10 +677,13 @@ enum class Ambiance(
      * sous la voix de Sarah ; Classique : la musique des questions.
      */
     SIMON_ENTRE(legere = 0.7f, gameShow = mapOf(Lit.SIMON_DOUCE to 0.82f)),
-    /** Pendant une suite : la boucle aux percussions, assez bas pour entendre la note de chaque boule ; Classique : silence. */
-    SIMON_SUITE(gameShow = mapOf(Lit.SIMON_SUITE to 0.84f)),
-    /** Pendant une suite avec des chiffres (longue, plus dure) : la partie où tout joue ; Classique : silence. */
-    SIMON_FORT(gameShow = mapOf(Lit.SIMON_FORT to 0.55f)),
+    /**
+     * Pendant une suite : la boucle aux percussions, assez bas pour que la note de chaque boule passe nettement au-dessus
+     * (cedric, 28/10 au soir : « pas assez fort ») ; Classique : silence.
+     */
+    SIMON_SUITE(gameShow = mapOf(Lit.SIMON_SUITE to SIMON_MUSIQUE_SUITE)),
+    /** Pendant une suite avec des chiffres (longue, plus dure) : la partie où tout joue, baissée de même ; Classique : silence. */
+    SIMON_FORT(gameShow = mapOf(Lit.SIMON_FORT to SIMON_MUSIQUE_FORT)),
     /**
      * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
      * trop éteint (cedric, 24/10).
@@ -969,3 +972,7 @@ internal fun vitesseEtiree(dureeFichierMs: Int, etireSurMs: Long): Float =
 
 /** Un son étiré ne descend pas sous cette vitesse : au-delà, il deviendrait pâteux. */
 internal const val VITESSE_MIN = 0.6f
+
+/** Simon : musique sous les notes des boules (avant le 28/10 au soir : 0,84 et 0,55, les notes s'y perdaient). */
+internal const val SIMON_MUSIQUE_SUITE = 0.6f
+internal const val SIMON_MUSIQUE_FORT = 0.42f
