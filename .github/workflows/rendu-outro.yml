@@ -1,0 +1,60 @@
+# Outro du robot : calcule les images 3D de la vidéo de fin sur 20 machines en même temps.
+# Lit les fichiers de la branche « outro-rendu-sources » et dépose les morceaux vidéo sur la branche
+# « outro-rendu-resultats » (jamais fusionnées). Ne publie rien sur le site ni sur la TV.
+name: Rendu outro (images 3D)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/project-thread-6i3ebq]
+    paths: [.github/workflows/rendu-outro.yml, tools/rendu-outro-version.txt]
+
+permissions:
+  contents: write
+
+jobs:
+  rendu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: outro-rendu-sources
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Installer three.js et le navigateur
+        run: |
+          npm install --no-save three@0.169.0 playwright@1.48.2
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y -q ffmpeg
+      - name: Calculer la part ${{ matrix.part }}
+        run: python3 -u decoupe.py ${{ matrix.part }} 20
+      - uses: actions/upload-artifact@v4
+        with:
+          name: part-${{ matrix.part }}
+          path: sortie/*.mp4
+          retention-days: 3
+
+  depot:
+    needs: rendu
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: parts
+          merge-multiple: true
+      - name: Déposer sur la branche outro-rendu-resultats
+        run: |
+          cd parts && ls -la
+          git init -q -b outro-rendu-resultats
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Rendu outro ($GITHUB_SHA)"
+          git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/outro-rendu-resultats"
