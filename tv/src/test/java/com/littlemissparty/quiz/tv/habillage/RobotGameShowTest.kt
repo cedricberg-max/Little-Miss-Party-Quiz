@@ -221,7 +221,7 @@ class RobotGameShowTest {
             assertEquals("${c.fichier} : hauteur", 2144, hauteur)
             assertEquals("${c.fichier} : largeur prévue ${formatClip(c.fichier) * 1060f}, fichier $largeur", largeur.toFloat(), formatClip(c.fichier) * 1060f, 1f)
         }
-        assertEquals(0.8f, formatClip("gs_robot_salto"), 0f)
+        assertEquals(0.8f, formatClip("gs_robot_inconnu"), 0f)
     }
 
     /** Largeur et hauteur de la piste vidéo d'un MP4, lues dans sa boîte « tkhd » (nombres 16.16). */

@@ -413,7 +413,7 @@ private fun PauseRobot(code: String) {
 private val CLIPS_LARGES = setOf(
     "gs_robot_confettis", "gs_robot_coucou", "gs_robot_danse", "gs_robot_descente", "gs_robot_dort", "gs_robot_energie",
     "gs_robot_ola", "gs_robot_podium", "gs_robot_robotdance", "gs_robot_tete", "gs_robot_tourne", "gs_robot_traverse",
-    "gs_robot_vole",
+    "gs_robot_vole", "gs_robot_batterie", "gs_robot_bravo", "gs_robot_coeur", "gs_robot_fusee", "gs_robot_guitare", "gs_robot_salto",
 )
 
 /** Largeur / hauteur d'une moitié du clip (couleur au-dessus, transparence au-dessous). */
