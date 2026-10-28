@@ -24,7 +24,7 @@ on:
         description: "« apercu » ou « ecrire » : la « Prestation test touki touki » (cedric, 27/10), remplie avec les packs ; ecrire l'ajoute sans rien remplacer ni effacer"
         default: ""
       quoi:
-        description: "Avec touki : « complete » (tous les jeux), « courte » (tous les jeux, séries courtes), vide pour « touki touki » ; touki « simon » ajoute le Simon à la courte"
+        description: "Avec touki : « complete » (tous les jeux), « courte » (tous les jeux, séries courtes), vide pour « touki touki », « marco » ; touki « simon » ajoute le Simon à la courte, « menage » efface les prestations de test"
         default: ""
       noms:
         description: "Captures à afficher, séparées par des virgules"
@@ -158,7 +158,7 @@ jobs:
             "$RUNNER_TEMP/rapports.json"
 
   touki:
-    if: inputs.touki == 'apercu' || inputs.touki == 'ecrire' || inputs.touki == 'simon'
+    if: inputs.touki == 'apercu' || inputs.touki == 'ecrire' || inputs.touki == 'simon' || inputs.touki == 'menage'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

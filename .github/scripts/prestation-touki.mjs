@@ -13,8 +13,11 @@ const COMPLETE = process.env.QUOI === "complete";
 // QUOI=courte (cedric, 28/10 : « des séries un peu plus courtes, de manière à mener le jeu de A à Z ») : tous les jeux,
 // 2 à 4 éléments chacun, avec la Super Finale ; des drapeaux au Quiz si le pack est importé. Le Simon s'ajoute avec
 // MODE=simon une fois la version qui le connaît publiée (la Régie PC d'avant l'enlèverait).
-const COURTE = process.env.QUOI === "courte";
-const ID = COURTE ? "prestation-test-courte" : COMPLETE ? "prestation-test-complete" : "prestation-test-touki-touki";
+// QUOI=marco (cedric, 28/10 au soir) : « Anniversaire Marco Mouly », la courte avec le Simon, les questions à images
+// d'abord.
+const MARCO = process.env.QUOI === "marco";
+const COURTE = process.env.QUOI === "courte" || MARCO;
+const ID = MARCO ? "anniversaire-marco-mouly" : COURTE ? "prestation-test-courte" : COMPLETE ? "prestation-test-complete" : "prestation-test-touki-touki";
 const base = JSON.parse(readFileSync("firebase-config.json", "utf8")).databaseURL.replace(/\/$/, "");
 // LIBRAIRIE=<fichier JSON { quizzes, contents }> : essai local, sans rien lire ni écrire en ligne.
 const locale = process.env.LIBRAIRIE ? JSON.parse(readFileSync(process.env.LIBRAIRIE, "utf8")) : null;
@@ -22,6 +25,25 @@ const token = locale ? null : (await (await new GoogleAuth({ scopes: ["https://w
 const get = async (path) => (locale ? (path === "library/quizzes" ? locale.quizzes : path === "library/contents" ? locale.contents : path === "library/songs" ? locale.songs : null)
   : (await fetch(`${base}/${path}.json?access_token=${token}`)).json());
 
+// MODE=menage (cedric, 28/10 au soir : « fais le ménage sur les prestations test ») : efface les prestations de test
+// (clé test-… ou prestation-test-…, origine « test », titre avec « test » ou 🧪, fêtes de Touktouka / Touki touki) et
+// les manches gardées pour elles. Jamais une autre prestation : le journal n'en donne que le nombre.
+if (process.env.MODE === "menage" && !locale) {
+  const shows = (await get("library/shows")) ?? {};
+  const manches = (await get("library/manches")) ?? {};
+  const deTest = ([id, x]) => id !== "anniversaire-marco-mouly" && x && (id.startsWith("test-") || id.startsWith("prestation-test-")
+    || x.origin === "test" || /\btest\b|🧪/i.test(x.title ?? "") || /touk/i.test(x.childName ?? ""));
+  const effacees = Object.entries(shows).filter(deTest);
+  const ids = new Set(effacees.map(([id]) => id));
+  const manchesEffacees = Object.entries(manches).filter(([, m]) => ids.has(m?.showId)).map(([id]) => id);
+  for (const [id, x] of effacees) console.log(`Effacée : ${id} « ${x.title ?? ""} »`);
+  console.log(`${effacees.length} prestations de test et ${manchesEffacees.length} manches à effacer ; ${Object.keys(shows).length - effacees.length} autres prestations gardées`);
+  const chemins = Object.fromEntries([...effacees.map(([id]) => [`library/shows/${id}`, null]), ...manchesEffacees.map((id) => [`library/manches/${id}`, null])]);
+  if (!Object.keys(chemins).length) process.exit(0);
+  const res = await fetch(`${base}/.json?access_token=${token}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(chemins) });
+  console.log(res.ok ? "Ménage fait." : `Écriture refusée : ${res.status}`);
+  process.exit(res.ok ? 0 : 1);
+}
 const [quizzes, contents, deja, songs] = await Promise.all([get("library/quizzes"), get("library/contents"), get(`library/shows/${ID}`), get("library/songs")]);
 const packs = Object.entries(quizzes ?? {}).filter(([id, q]) => q?.pack === true && !id.startsWith("test-"));
 const parSorte = (k) => packs.filter(([, q]) => quizKind(q) === k);
@@ -54,8 +76,11 @@ const qui = activeItems("quisuis", contents?.quisuis).filter((x) => x?.serie && 
 const melange = (l) => l.map((x) => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
 const versSerie = (q) => (q.kind === "number" ? { text: q.text, nombre: true, correct: q.correct }
   : { text: q.text, choices: q.choices, correct: q.correct, ...(q.imageId ? { imageId: q.imageId } : {}), ...(q.choiceImages ? { choiceImages: q.choiceImages } : {}) });
+const aImages = (q) => /^[0-9a-f]{16}$/.test(q?.imageId ?? "") || Object.values(q?.choiceImages ?? {}).some((x) => /^[0-9a-f]{16}$/.test(x ?? ""));
 const pioche = (liste, f, n) => {
-  const tas = melange(liste).map(([, q]) => melange(f(q)));
+  // Marco Mouly : seulement les questions avec leurs images quand il y en a assez.
+  const garder = (qs) => (MARCO && qs.filter(aImages).length ? qs.filter(aImages) : qs);
+  const tas = melange(liste).map(([, q]) => melange(garder(f(q))));
   const out = [];
   for (let k = 0; out.length < n && tas.some((t) => t.length); k = (k + 1) % tas.length) if (tas[k].length) out.push(versSerie(tas[k].pop()));
   return out;
@@ -82,6 +107,7 @@ const parJeuType = {
   disparu: tours.length && { type: "disparu", objects: 6, seriesMots: [{ id: "de", origine: "de", mots: tours.slice(0, N(5, 2)) }] },
   duel: COURTE ? { type: "duel", joueurs: 1, dureeMin: 15, dureeMax: 25, longs: false } : { type: "duel" },
   coffres: { type: "coffres" },
+  simon: { type: "simon", tours: 2, joueurs: 1 },
   mimes: COURTE ? { type: "mimes", perTeam: 1 } : { type: "mimes" },
   blind: chansons.length && { type: "blind", chansons: prendre(N(10, 3)) },
   musical: chansons.length && { type: "musical", chansons: prendre(N(8, 3)) },
@@ -93,14 +119,17 @@ const parJeuType = {
 };
 // L'ordre d'une vraie fête (celui de la prestation de test de la Régie PC), les Coffres pour finir.
 const ORDRE = COMPLETE || COURTE
-  ? ["quiz", "mimes", "blind", "zoom", "chante", "express", "illustre", "quisuis", "flou", "disparu", "musical", "statues", "pictionary", "gonfleur", "duel", "patate", "coffres"]
+  ? ["quiz", "mimes", "blind", "zoom", "chante", "express", "illustre", "quisuis", "flou", "disparu", "musical", "statues", "pictionary", "gonfleur", "duel", "patate", ...(MARCO ? ["simon"] : []), "coffres"]
   : ["quiz", "illustre", "zoom", "flou", "express", "quisuis", "disparu", "duel", "coffres"];
 const rounds = [
   ...ORDRE.map((t) => parJeuType[t]),
 ].filter(Boolean).map((r) => cleanRound(r));
 
 const demain = new Date(Date.now() + 864e5).toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" });
-const show = COURTE
+const show = MARCO
+  ? { childName: "Marco Mouly", age: 9, teams: 4, date: isoDay(), status: "publiee", title: "Anniversaire Marco Mouly", rounds,
+    notes: "Prestation de test (28/10) : tous les jeux, Simon compris, séries courtes, images des packs d'abord." }
+  : COURTE
   ? { childName: "Touki touki", age: 9, teams: 4, date: isoDay(), status: "publiee", title: "Prestation test courte", rounds,
     notes: "Prestation de test courte : tous les jeux, 2 à 4 éléments chacun, pour les jouer de A à Z (28/10)." }
   : COMPLETE
