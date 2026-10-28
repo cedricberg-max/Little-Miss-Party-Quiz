@@ -4,7 +4,7 @@ import {
   getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator, query, orderByKey, limitToLast,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
-import { TEST_PRESTATION, TEST_TITRE, TEST_FICHE, TEST_NOTES, JEUX_DU_TEST, demosAEffacer, nbDemos } from "./test-show.js";
+import { TEST_PRESTATION, TEST_TITRE, TEST_FICHE, TEST_NOTES, JEUX_DU_TEST, THEME_DRAPEAUX, JEUX_DRAPEAUX, demosAEffacer, nbDemos } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
@@ -6668,6 +6668,25 @@ function lignesDemos(plan) {
 const tic = () => new Promise((fin) => setTimeout(fin, 0));
 
 /**
+ * Un thème de packs en plus dans la prestation ouverte (les drapeaux, cedric 28/10) : dans chaque jeu de [jeux], son 🎲
+ * touché une fois de plus avec ce thème tapé, ses questions à la suite des autres. Thème pas importé : rien ne change.
+ */
+async function ajouterLeTheme(theme, jeux) {
+  const cle = cleTheme(theme);
+  if (!themesExistants().some((t) => cleTheme(t) === cle)) return;
+  for (const jeu of jeux) {
+    const bloc = $("show-rounds").querySelector(`.jeu-bloc[data-jeu="${jeu}"]`);
+    const champ = bloc?.querySelector(".de-unique-champ");
+    const de = bloc?.querySelector(".de-unique");
+    if (!champ || !de) continue;
+    champ.value = theme;
+    champ.dispatchEvent(new Event("input"));
+    de.click();
+    await tic();
+  }
+}
+
+/**
  * Touche une fois le 🎲 de chaque jeu de la prestation ouverte, comme Sarah (celui de chaque équipe aux Mimes) : chaque
  * jeu se remplit avec son propre tirage (âge, équipes, « jamais deux fois » avec les jeux d'avant).
  */
@@ -6750,6 +6769,7 @@ $("test-prestation").onclick = async () => {
     editing.rounds = JEUX_DU_TEST.map((type) => ({ type, [JEU_OUVERT]: true }));
     refreshRounds();
     await toucherLesDes();
+    await ajouterLeTheme(THEME_DRAPEAUX, JEUX_DRAPEAUX);
     // Tout replié, comme une prestation qu'on ouvre : une ligne par jeu.
     editing.rounds.forEach((r) => { if (r) r[JEU_OUVERT] = false; });
     refreshRounds();

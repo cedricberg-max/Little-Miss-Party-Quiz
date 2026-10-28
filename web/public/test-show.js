@@ -16,6 +16,13 @@ export const JEUX_DU_TEST = [
   "flou", "disparu", "musical", "statues", "pictionary", "gonfleur", "duel", "patate", "simon", "coffres",
 ];
 
+/**
+ * Le pack « Drapeaux et pays » (cedric, 28/10 : « des questions de drapeau en plus des questions des différents packs ») :
+ * une fois importé, la prestation de test en pioche aussi au Quiz, au Zoom mystère et à l'Image floue.
+ */
+export const THEME_DRAPEAUX = "Drapeaux et pays";
+export const JEUX_DRAPEAUX = ["quiz", "zoom", "flou"];
+
 /** Clés des anciennes démos (boutons de test d'avant le 24/10), effacées par le nouveau bouton. */
 export const ANCIENNES_DEMOS = {
   shows: ["test-lea-9-ans", "test-lea-tous-les-jeux"],
