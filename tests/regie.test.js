@@ -7314,6 +7314,47 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 28/10) : dans le « Zoom mystère complet », la miniature a la forme de la TV (4:3) ; un clic la recadre pour cette prestation seulement (le pack reste tel quel) ; Annuler ne change rien", async () => {
+    const PNG = `data:image/png;base64,${png([200, 120, 40]).toString("base64")}`;
+    const LION = "a8a8a8a8a8a8a8a8";
+    await seedLibrary("images", { [LION]: PNG });
+    await seedLibrary("medias", { [LION]: { name: "Lion", cat: "Animaux", createdAt: 1, updatedAt: 1 } });
+    await seedLibrary("quizzes", { savane2: { title: "Savane", pack: true, kind: "classique", source: "json", updatedAt: 1, theme: "Savane",
+      questions: [{ text: "Qui est-ce ?", choices: ["Lion", "Tigre", "Ours", "Loup"], correct: 0, imageId: LION, status: "validee" }] } });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Nina");
+    await ajouterJeu(page, "zoom");
+    const round = page.locator("#show-rounds .round").nth(0);
+    await round.locator(".vos-images-cherche").fill("lion");
+    await round.locator(`.vos-images-tuile[data-image="${LION}"]`).click();
+    const mini = round.locator(".quiz-complet .quiz-complet-q .tirage-photo.recadrable");
+    await mini.waitFor();
+    const taille = await mini.evaluate((el) => [el.getBoundingClientRect().width, el.getBoundingClientRect().height]);
+    assert.ok(Math.abs(taille[0] / taille[1] - 4 / 3) < 0.05, `forme 4:3 comme sur la TV (${taille})`);
+    // Annuler : rien ne change.
+    await mini.click();
+    await page.locator(".cadre-boite").waitFor();
+    await page.locator(".cadre-boite button", { hasText: "Annuler" }).click();
+    await page.locator(".cadre-boite").waitFor({ state: "detached" });
+    // Zoom puis Valider : une nouvelle image, pour cette prestation.
+    await mini.click();
+    await page.locator(".cadre-zoom").fill("2.5");
+    await page.locator(".cadre-boite button", { hasText: "Valider le cadrage" }).click();
+    await page.locator(".cadre-boite").waitFor({ state: "detached" });
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const nina = Object.values(await library("shows")).find((x) => x.childName === "Nina");
+    const qs = nina.rounds[0].seriesQuiz.flatMap((x) => x.questions ?? []).filter((q) => q && !q.vide);
+    assert.equal(qs.length, 1);
+    assert.match(qs[0].imageId, /^[0-9a-f]{16}$/);
+    assert.notEqual(qs[0].imageId, LION, "la photo recadrée");
+    assert.equal(qs[0].choices[qs[0].correct], "Lion");
+    assert.equal(typeof (await library(`images/${qs[0].imageId}`)), "string", "rangée dans la bibliothèque");
+    assert.equal(await library("quizzes/savane2/questions/0/imageId"), LION, "le pack reste tel quel");
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 24/10) : Chante le mot ! se construit comme le Quiz : 🎲 au nombre de mots choisi, un mot écrit à la main, « Chante le mot ! complet » (↑ ↓ ✕ 🔀) ; jamais de manche ; un mot déjà dans la fête en rouge, mais possible", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const { CHANTE_WORDS } = await import("../web/public/buzz-cards.js");

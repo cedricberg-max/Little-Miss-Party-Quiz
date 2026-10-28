@@ -4017,7 +4017,7 @@ const miniature = (q) => (q.banque ? h("img", { class: "tirage-mini", src: chemi
  * Les réponses d'une question du Quiz illustré, chacune avec sa petite image, la bonne marquée (cedric, 23/10 : vérifier
  * d'un coup d'œil) : photo de la banque, sinon émoji (tirée au 🎲), ou image de la bibliothèque.
  */
-function reponsesIllustrees(q) {
+function reponsesIllustrees(q, recadrer = (img) => img) {
   const photos = choiceImageList(q);
   const libres = Array.isArray(q.choiceBanque) ? q.choiceBanque : [];
   return h("span", { class: "tirage-reponses" }, ...(q.choices ?? []).map((c, k) => {
@@ -4025,7 +4025,7 @@ function reponsesIllustrees(q) {
     const image = photos[k] ? photoBibliotheque(photos[k], { class: "tirage-rep-img", loading: "lazy" })
       : libre?.cle ? h("img", { class: "tirage-rep-img", src: cheminPhotoBanque(libre.cle), alt: "", loading: "lazy" })
       : libre?.emoji ? h("span", { class: "tirage-rep-img emoji", text: libre.emoji }) : null;
-    return h("span", { class: `tirage-rep${k === q.correct ? " bonne" : ""}`, title: k === q.correct ? `${c} (la bonne réponse)` : c }, image, h("span", { class: "tirage-rep-mot", text: c }));
+    return h("span", { class: `tirage-rep${k === q.correct ? " bonne" : ""}`, title: k === q.correct ? `${c} (la bonne réponse)` : c }, image && recadrer(image, k), h("span", { class: "tirage-rep-mot", text: c }));
   }));
 }
 
@@ -4052,8 +4052,7 @@ const reponsePhoto = (q) => `${q.choices?.[q.correct] ?? q.text ?? ""}`.replace(
  */
 function nomDePhoto(r, x, changer) {
   const texte = h("span", { class: "tirage-texte", text: reponsePhoto(x.q), title: x.q.text });
-  const serie = x.serie;
-  const gardee = serie?.origine === "quiz" ? null : (serie?.questions ?? []).find((q) => q && cleQuestion(serie, q, r.type) === x.cle);
+  const gardee = questionGardee(r, x);
   if (!gardee) return texte;
   const ouvrir = () => {
     const champ = h("input", { type: "text", class: "photo-nom", maxlength: 60, value: reponsePhoto(gardee), "aria-label": "Nouveau nom de la photo (la réponse à trouver)" });
@@ -4084,6 +4083,62 @@ function nomDePhoto(r, x, changer) {
   };
   const bouton = h("button", { type: "button", class: "icon photo-renommer", text: "✎", title: "Renommer la photo (la réponse à trouver)", "aria-label": `Renommer « ${reponsePhoto(x.q)} »`, onclick: ouvrir });
   return h("span", { class: "photo-nom-bloc" }, texte, bouton);
+}
+
+/**
+ * La question gardée dans la série de la prestation (tirée au 🎲, piochée dans les packs, écrite à la main), qu'on peut
+ * changer pour cette prestation seulement. Celle d'un quiz rappelé en entier reste dans la Bibliothèque : null.
+ */
+const questionGardee = (r, x) => (x.serie?.origine === "quiz" ? null
+  : (x.serie?.questions ?? []).find((q) => q && cleQuestion(x.serie, q, r.type) === x.cle) ?? null);
+
+/** Une image de la bibliothèque, pour le cadrage : celle déjà chargée, sinon lue dans la base. */
+async function imageDeLaBibliotheque(id) {
+  if (!imageCache[id]) {
+    const data = (await get(ref(db, `library/images/${id}`))).val();
+    if (typeof data === "string") imageCache[id] = data;
+  }
+  return imageCache[id] ?? null;
+}
+
+/**
+ * Miniature d'un « … complet » recadrable (cedric, 28/10 : « que les images soient affichées telles qu'elles sont dans
+ * la télé et que je puisse dans les petites miniatures réajuster ») : elle a déjà la forme de la TV (4:3 pour la photo
+ * de la révélation, du Zoom mystère et de l'Image floue, carré pour une réponse en image) ; un clic ouvre le cadrage
+ * (glisser + zoom). L'image recadrée ne vaut que pour cette prestation : le pack et la Bibliothèque restent tels quels.
+ * [k] : la réponse en image recadrée (sinon la photo de la question). Une photo de la banque se recadre dans
+ * « 🧸 Photos de la banque », une question d'un quiz rappelé en entier dans la Bibliothèque : rien à cliquer ici.
+ */
+function recadrable(img, r, x, changer, k = null) {
+  const gardee = img?.tagName === "IMG" ? questionGardee(r, x) : null;
+  if (!gardee) return img;
+  const reponse = k !== null;
+  const choices = Array.isArray(gardee.choices) ? gardee.choices : Object.values(gardee.choices ?? {});
+  const ids = () => choiceImageList({ choices, choiceImages: gardee.choiceImages });
+  if (reponse ? !IMAGE_ID.test(ids()[k] ?? "") : !(IMAGE_ID.test(gardee.imageId ?? "") || gardee.banque)) return img;
+  img.classList.add("recadrable");
+  img.title = "Cliquer pour recadrer l'image comme sur la TV (pour cette prestation seulement)";
+  img.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const source = reponse ? await imageDeLaBibliotheque(ids()[k])
+      : IMAGE_ID.test(gardee.imageId ?? "") ? await imageDeLaBibliotheque(gardee.imageId) : cheminPhotoBanque(gardee.banque);
+    await cadrer(source, reponse ? "vignette" : "revelation", async (blob) => {
+      if (reponse) {
+        const nouvelles = ids();
+        nouvelles[k] = await storeChoiceImage(blob);
+        gardee.choiceImages = nouvelles;
+      } else {
+        // Au Zoom mystère et à l'Image floue, la clé d'une photo sans identifiant vient de son image : elle la garde
+        // (sa place dans l'ordre de passage).
+        if (!(typeof gardee.id === "string" && gardee.id) && estJeuDePhotos(r.type)) gardee.id = x.cle.slice(`${x.serie.id ?? ""}|`.length);
+        gardee.imageId = await storeIllustration(blob);
+        delete gardee.banque;
+        delete gardee.emoji;
+      }
+      changer();
+    });
+  });
+  return img;
 }
 
 /** La bonne réponse de [q] devient [nom] ; une autre proposition qui s'écrivait déjà ainsi prend l'ancien nom. */
@@ -4770,10 +4825,11 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
   const lignes = vue.map((x, k) => (x.vide ? caseVideQuiz(x, k) : h("li", { class: `tirage-q quiz-complet-q${x.bougies ? " quiz-complet-bougies" : ""}${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
-      photos ? apercuPhoto(x.q) : null,
+      photos ? recadrable(apercuPhoto(x.q), r, x, changer) : null,
       photos ? nomDePhoto(r, x, changer) : h("span", { class: "tirage-texte", text: `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
       themeDePack(x.cle),
-      photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q) : r.type === "express" ? reponseVF(x.q) : miniature(x.q),
+      photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q, (img, k) => recadrable(img, r, x, changer, k))
+        : r.type === "express" ? reponseVF(x.q) : recadrable(miniature(x.q), r, x, changer),
       r.type === "illustre" && sansSesImages(x.q) ? alerteSansImages() : null,
       clesFinale.has(x.cle) ? etiquetteFinale(r) : null,
       h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer cette ${unite} plus tôt`, "aria-label": `Monter cette ${unite}`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
