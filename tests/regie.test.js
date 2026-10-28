@@ -1846,6 +1846,8 @@ describe("régie", () => {
   test("Simon du Prof : « Jeu suivant » en cours de route confirmé, pause, 8 équipes lisibles", async () => {
     const huit = ["Orange", "Vert", "Rose", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"].map((n, i) => [`e${i}`, `Les ${n}s`, TEAM_COLORS_TEST[i % TEAM_COLORS_TEST.length]]);
     const { page, etat } = await simonEnCours({ out: { e3: 4 } }, huit);
+    // La liste se remplit à l'arrivée de l'état de la partie : on attend la 8e équipe avant de compter.
+    await page.locator("#simon-equipes li").nth(7).waitFor();
     assert.equal(await page.locator("#simon-equipes li").count(), 8);
     await page.locator("#simon-equipes li.eliminee", { hasText: "Les Jaunes" }).waitFor();
     const bas = await page.locator("#c-next").boundingBox();
