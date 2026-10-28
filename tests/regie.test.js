@@ -2411,11 +2411,10 @@ describe("régie", () => {
     await box.set({ ...box.state, seq: box.state.seq + 1, chests: { ...chests, team: "bleu", turn: 7, safeLeft: 0, danger: true, goldLeft: false, key: "b1-1-7", opened: [...opened, or] } });
     await page.locator("#coffres-opened", { hasText: "Les Roses : coffre 9 ⭐ +500" }).waitFor();
     assert.equal(await page.locator("#coffres-info", { hasText: "coffre en or" }).count(), 0, "le coffre en or est trouvé");
-    // La bombe : jeu fini. Pas de tableau des scores après les coffres (cedric, 28/10) : dernier jeu, les résultats finaux.
-    await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", total: 3, chests: { ...chests, team: null, key: null, exploded: true, opened: [...opened, { team: "rose", chest: 1, delta: -300, bomb: true, at: Date.now() }] } });
+    // La bombe : jeu fini, le bouton principal mène au classement.
+    await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", chests: { ...chests, team: null, key: null, exploded: true, opened: [...opened, { team: "rose", chest: 1, delta: -300, bomb: true, at: Date.now() }] } });
     await page.locator("#coffres[hidden]").waitFor({ state: "attached" });
-    await page.locator("#c-next", { hasText: "Résultats finaux" }).waitFor();
-    assert.equal(await page.locator("#c-next", { hasText: "Voir les scores" }).count(), 0, "jamais « Voir les scores » après les coffres");
+    await page.locator("#c-next", { hasText: "Voir les scores" }).waitFor();
     await page.context().close();
   });
 

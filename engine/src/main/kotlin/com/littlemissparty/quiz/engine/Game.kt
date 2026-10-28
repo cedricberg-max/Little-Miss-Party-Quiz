@@ -537,7 +537,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 (e.gold && (e.bomb || !r.danger || r.goldFound || e.delta != GOLD_POINTS))) null
             else {
                 val next = r.copy(opened = r.opened + ChestOpen(e.team, e.chest, e.delta, e.bomb, e.at, e.gold))
-                // La bombe arrête le jeu : bilan des coffres, puis le jeu suivant (ou les résultats finaux).
+                // La bombe arrête le jeu : bilan des coffres, puis classement.
                 s.copy(chests = s.chests + (e.qid to next), phase = if (next.team == null) Phase.REVEAL else s.phase)
             }
         }
@@ -998,9 +998,6 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             question?.isPortes == true && state.doorsOpened < question!!.choices.size -> openDoor(now)
             // Blind test : « Titre suivant » annonce le morceau suivant de la playlist, sans le lancer.
             nextTrack() != null -> openQuestion(state.index + 1, now)
-            // Coffres mystères : chaque coffre a déjà montré le classement, pas de tableau des scores en plus (cedric,
-            // 28/10) : le jeu suivant, ou directement les résultats finaux s'ils étaient le dernier jeu.
-            question?.isCoffres == true -> if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
             else -> scoresOuFin(now)
         }
         Phase.SCORES -> leaveTarget?.let { goto(it, now) } ?: if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)

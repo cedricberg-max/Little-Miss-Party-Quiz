@@ -124,8 +124,7 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (!state.paused) when {
-                    // Pas de tableau des scores après les coffres (cedric, 28/10) : le jeu suivant, ou les résultats finaux.
-                    state.phase == Phase.REVEAL -> NextButton(suiteLabel(state), actions.next, key = "coffres-bilan-${state.index}")
+                    state.phase == Phase.REVEAL -> NextButton(versClassement(state, "Voir les scores"), actions.next, key = "coffres-bilan-${state.index}")
                     // Sans régie, à la télécommande : un coffre au hasard pour l'équipe qui joue (tablette en panne).
                     r?.team != null && state.regies == 0 && maintenant >= r.readyAt ->
                         TvButton("🎲 Coffre au hasard", actions.chestRandom, fontSize = 22.sp)
