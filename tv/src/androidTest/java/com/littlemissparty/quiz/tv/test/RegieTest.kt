@@ -9,6 +9,7 @@ import com.littlemissparty.quiz.engine.PUMP_TARGET
 import com.littlemissparty.quiz.engine.Scoring
 import com.littlemissparty.quiz.tv.habillage.Habillage
 import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.PropositionDisparu
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -908,6 +909,76 @@ class RegieTest : TestTv() {
         ecran.motsEntiers("Personne n'a trouvé, ce n'est pas grave !")
         ecran.motsEntiers("Bateau à moteur")
         ecran.capture("qui-a-disparu-personne", attente = Ecran.APRES_REVELATION)
+    }
+
+    /**
+     * Planche du 28/10 pour cedric : Qui a disparu ? en photos, 4, 6 puis 8 cartes, capturé en B (l'écran d'aujourd'hui,
+     * enseigne au-dessus) puis en A (sans l'enseigne, les cartes prennent sa place). Photos dessinées, en portrait,
+     * paysage et carré, comme les affiches et les photos de la Régie PC.
+     */
+    @Test
+    fun quiADisparuEnPhotosPropositionsAetB() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        val noms = listOf("Robot", "Fusée", "Licorne", "Dragon", "Pirate", "Sirène", "Château", "Dino")
+        val formats = listOf(600 to 900, 900 to 600, 700 to 700, 600 to 900, 900 to 600, 600 to 900, 700 to 700, 900 to 600)
+        val ids = noms.indices.map { i -> "%016x".format(0xd15a0000L + i) }
+        ids.forEachIndexed { i, id -> regie.copierPhoto(code, id, photoDessinee(i, formats[i].first, formats[i].second)) }
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val tours = listOf(4, 6, 8).map { n ->
+            mapOf(
+                "id" to "p$n", "text" to "Qui a disparu ?", "choices" to listOf(noms[1]), "correct" to 0,
+                "duration" to 40, "kind" to "disparu", "double" to false, "round" to "Qui a disparu ?",
+                "cards" to (0 until n).map { mapOf("word" to noms[it], "imageId" to ids[it]) },
+            )
+        }
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, tours + avant))
+        try {
+            for (n in listOf(4, 6, 8)) {
+                assertEquals("applied", regie.commande(code, "next"))
+                attendreQue("tour de $n cartes ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "p$n" } }
+                ecran.voit("MÉMORISEZ !")
+                ecran.capture("disparu-$n-cartes-B", attente = 2_500)
+                PropositionDisparu.sansEnseigne = true
+                ecran.capture("disparu-$n-cartes-A", attente = 1_500)
+                PropositionDisparu.sansEnseigne = false
+                attendreQue("buzzer ouvert ($n cartes)", 40_000) { licornes.etat(code).takeIf { it.child("buzzOpen").value == true } }
+                assertEquals("applied", regie.commande(code, "next"))
+                ecran.voit("Temps écoulé !")
+                assertEquals("applied", regie.commande(code, "next"))
+                ecran.voit("Personne n'a trouvé, ce n'est pas grave !")
+            }
+        } finally {
+            PropositionDisparu.sansEnseigne = false
+        }
+    }
+
+    /** Une « photo » dessinée : ciel en dégradé, sol, un personnage rond avec ses yeux, en haut de l'image. */
+    private fun photoDessinee(i: Int, largeur: Int, hauteur: Int): String {
+        val teintes = listOf(0xFF3A7BD5, 0xFFE94E77, 0xFF7B4397, 0xFF11998E, 0xFFF7971E, 0xFF00B4DB, 0xFFDA4453, 0xFF56AB2F)
+        val image = android.graphics.Bitmap.createBitmap(largeur, hauteur, android.graphics.Bitmap.Config.ARGB_8888)
+        val toile = android.graphics.Canvas(image)
+        val pinceau = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        pinceau.shader = android.graphics.LinearGradient(0f, 0f, 0f, hauteur.toFloat(), teintes[i].toInt(), 0xFF101030.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        toile.drawRect(0f, 0f, largeur.toFloat(), hauteur.toFloat(), pinceau)
+        pinceau.shader = null
+        pinceau.color = 0xFF2E7D32.toInt()
+        toile.drawRect(0f, hauteur * 0.8f, largeur.toFloat(), hauteur.toFloat(), pinceau)
+        val r = minOf(largeur, hauteur) * 0.28f
+        val cx = largeur / 2f
+        val cy = hauteur * 0.12f + r
+        pinceau.color = 0xFFFFD6A5.toInt()
+        toile.drawCircle(cx, cy, r, pinceau)
+        pinceau.color = 0xFF202020.toInt()
+        toile.drawCircle(cx - r * 0.35f, cy - r * 0.1f, r * 0.12f, pinceau)
+        toile.drawCircle(cx + r * 0.35f, cy - r * 0.1f, r * 0.12f, pinceau)
+        pinceau.color = teintes[(i + 3) % teintes.size].toInt()
+        toile.drawRect(cx - r * 0.9f, cy + r * 1.05f, cx + r * 0.9f, hauteur * 0.8f, pinceau)
+        val octets = java.io.ByteArrayOutputStream().also { image.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }.toByteArray()
+        return "data:image/jpeg;base64," + android.util.Base64.encodeToString(octets, android.util.Base64.NO_WRAP)
     }
 
     @Test

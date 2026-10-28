@@ -28,6 +28,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -56,6 +58,14 @@ import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.PoliceGsTitre
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
+
+/**
+ * Proposition A du 28/10 (cedric choisit entre A et B sur captures) : en Game Show, pas d'enseigne « Qui a disparu ? »
+ * au-dessus des cartes, elles prennent sa hauteur. Éteinte = B, l'écran d'aujourd'hui. Seuls les tests l'allument.
+ */
+internal object PropositionDisparu {
+    var sansEnseigne by mutableStateOf(false)
+}
 
 /** Qui a disparu ? : où en est la question, d'après le chrono. */
 enum class EtapeDisparu { MEMORISER, MAGIE, CHERCHER, REPONSE }
