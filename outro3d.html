@@ -472,6 +472,7 @@ if (OUV || SHOT === 23 || SHOT === 28) {
 
 // --- La fusée : coque nacrée, bagues graphite, ailerons néon, gros hublot, emblème planète
 const fusee = new THREE.Group(); fusee.position.set(FX, .12, FZ); scene.add(fusee);
+const PA = -.52, PD = new THREE.Vector3(Math.cos(PA), 0, Math.sin(PA)), PY0 = 1.05, PY1 = 3.45, PW = .5;   // vraie porte ouverte dans la coque, entre deux ailerons (angle, bas, haut, demi-largeur en radians)
 const prof = []; const HF = 8.2;
 for (let i = 0; i <= 40; i++) { const u = i / 40; const y = u * HF; const r = u < .08 ? lerp0(1.05, 1.25, u / .08) : u < .55 ? 1.25 : 1.25 * Math.cos((u - .55) / .45 * Math.PI / 2) ** .8; prof.push(new THREE.Vector2(Math.max(r, .02), y)); }
 function lerp0(a, b, t) { return a + (b - a) * t; }
@@ -481,11 +482,15 @@ const coqueT = tex(2048, 2048, (g, w, h) => { g.fillStyle = "#e4def0"; g.fillRec
   for (const v of [.2, .32, .44, .62, .75]) { g.beginPath(); g.moveTo(0, h * (1 - v)); g.lineTo(w, h * (1 - v)); g.stroke(); }
   g.fillStyle = "rgba(60,45,100,.45)"; for (let i = 0; i < 64; i++) for (const v of [.205, .325, .445]) { g.beginPath(); g.arc(i * w / 64 + 8, h * (1 - v) + 10, 3.5, 0, 7); g.fill(); } });
 const trouT = (() => { const c = document.createElement("canvas"); c.width = 2048; c.height = 2048; const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, 2048, 2048);
-  g.fillStyle = "#000"; g.beginPath(); g.ellipse(1024, 2048 * (1 - 4.05 / 8.2), 2048 * .5 / (2 * Math.PI * 1.25), 2048 * .5 / 8.2, 0, 0, 7); g.fill(); return new THREE.CanvasTexture(c); })();
+  g.fillStyle = "#000"; g.beginPath(); g.ellipse(1024, 2048 * (1 - 4.05 / 8.2), 2048 * .5 / (2 * Math.PI * 1.25), 2048 * .5 / 8.2, 0, 0, 7); g.fill();
+  { const ph = Math.atan2(-PD.x, -PD.z), uc = ((ph % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / (2 * Math.PI) * 2048, dw = PW * .88 / (2 * Math.PI) * 2048;   // trou de la porte
+    g.beginPath(); g.roundRect(uc - dw, 2048 * (1 - PY1 / 8.2), 2 * dw, 2048 * (PY1 - PY0) / 8.2, 30); g.fill(); }
+  return new THREE.CanvasTexture(c); })();
 const coqueM = nacre.clone(); coqueM.map = coqueT; coqueM.alphaMap = trouT; coqueM.alphaTest = .5; coqueM.side = THREE.DoubleSide;
 const coque = new THREE.Mesh(new THREE.LatheGeometry(prof, 128), coqueM); coque.rotation.y = Math.PI; fusee.add(coque);
-for (const [y, r] of [[.9, 1.27], [3.2, 1.27], [4.6, 1.255]]) { const b = new THREE.Mesh(new THREE.TorusGeometry(r, .06, 16, 96), graphite); b.rotation.x = Math.PI / 2; b.position.y = y; fusee.add(b);
-  const n = new THREE.Mesh(new THREE.TorusGeometry(r + .02, .018, 8, 96), led(y < 2 ? C.cyan : C.rose, 2.5)); n.rotation.x = Math.PI / 2; n.position.y = y + .08; fusee.add(n); }
+for (const [y, r] of [[.9, 1.27], [3.2, 1.27], [4.6, 1.255]]) { const coupe = y > 3 && y < 4, arc = coupe ? 2 * Math.PI - 2 * PW - .12 : 2 * Math.PI, z0 = coupe ? PA + PW + .06 : 0;
+  const b = new THREE.Mesh(new THREE.TorusGeometry(r, .06, 16, 96, arc), graphite); b.rotation.set(Math.PI / 2, 0, z0); b.position.y = y; fusee.add(b);
+  const n = new THREE.Mesh(new THREE.TorusGeometry(r + .02, .018, 8, 96, arc), led(y < 2 ? C.cyan : C.rose, 2.5)); n.rotation.set(Math.PI / 2, 0, z0); n.position.y = y + .08; fusee.add(n); }
 const pointe = new THREE.Mesh(new THREE.SphereGeometry(.12, 24, 16), led(C.jaune, 5)); pointe.position.y = HF + .05; fusee.add(pointe);
 // ailerons
 const ail = new THREE.Shape(); ail.moveTo(0, 0); ail.lineTo(1.3, -.6); ail.lineTo(1.4, -1.2); ail.lineTo(0, -.2); ail.lineTo(0, 2.2); ail.lineTo(0, 0);
@@ -510,7 +515,7 @@ const hubN = new THREE.Mesh(new THREE.TorusGeometry(.5, .02, 12, 96), led(C.cyan
 const vitre = new THREE.Mesh(new THREE.CircleGeometry(.52, 64), new THREE.MeshPhysicalMaterial({ color: 0x0a1630, roughness: .04, metalness: 0, transparent: true, opacity: PLAN === "22" ? .18 : .7, clearcoat: 1, depthWrite: false })); vitre.position.z = .03; hublot.add(vitre);
 // cockpit : intérieur sombre avec écrans, visible par le hublot
 { const fondC = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 1.6, 48, 1, true), new THREE.MeshStandardMaterial({ color: 0x140c26, roughness: .6, side: THREE.BackSide })); fondC.position.y = hubY; fusee.add(fondC);
-  for (let k = 0; k < 14; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(.07, .05, .02), led([C.rose, C.cyan, C.jaune, C.vert][k % 4], 3)); const a = Math.PI + (k - 7) * .09; b.position.set(Math.sin(a) * 1.05, hubY - .45 + (k % 3) * .12, Math.cos(a) * 1.05); b.lookAt(0, b.position.y, 0); fusee.add(b); } }
+  const LEDC = new THREE.Group(); fusee.add(LEDC); window.LEDC = LEDC; for (let k = 0; k < 14; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(.07, .05, .02), led([C.rose, C.cyan, C.jaune, C.vert][k % 4], 3)); const a = Math.PI + (k - 7) * .09; b.position.set(Math.sin(a) * 1.05, hubY - .45 + (k % 3) * .12, Math.cos(a) * 1.05); b.lookAt(0, b.position.y, 0); LEDC.add(b); } }
 // cockpit (lumière intérieure derrière le hublot)
 const cockLight = new THREE.PointLight(0x9fd8ff, PLAN === "22" ? 6 : 1.5, 3, 1.2); cockLight.position.set(0, hubY + .3, .9); fusee.add(cockLight);
 // emblème planète (violette, anneaux) peint sur la coque
@@ -525,14 +530,24 @@ const embI = PLAN === "9" ? 2.6 : .6;
 const embM = new THREE.Mesh(new THREE.CylinderGeometry(1.262, 1.262, 1.5, 64, 1, true, -.6, 1.2), new THREE.MeshStandardMaterial({ map: emb, emissiveMap: emb, emissive: 0xffffff, emissiveIntensity: embI, transparent: true, color: 0xffffff }));
 embM.position.y = 2.05; embM.rotation.y = Math.PI * .5 - .0; fusee.add(embM);
 embM.rotation.y = PLAN === "9" ? 1.0 : 0;
-// passerelle : du sol jusqu'à une porte ouverte sur le flanc droit
-if (PLAN === "5" || PLAN === "22") {
-  const A = new THREE.Vector3(FX + 4.2, .05, FZ + 1.6), B = new THREE.Vector3(FX + 1.3, 2.3, FZ + .35);
-  const L = A.distanceTo(B), M = A.clone().add(B).multiplyScalar(.5);
-  const pas = new THREE.Mesh(new THREE.BoxGeometry(.9, .08, L), graphite); pas.position.copy(M); pas.lookAt(B); scene.add(pas);
-  for (const s2 of [-1, 1]) { const r = new THREE.Mesh(new THREE.BoxGeometry(.03, .03, L), led(C.cyan, 2.5)); r.position.copy(M); r.lookAt(B); r.translateX(s2 * .45); r.translateY(.35); scene.add(r); }
-  const porte = new THREE.Mesh(new THREE.PlaneGeometry(.8, 1.3), ledM(0x9fd8ff, 1.6)); porte.position.set(FX + 1.27, 2.95, FZ + .35); porte.rotation.y = Math.PI / 2 - .27; fusee.parent.add(porte); window.PORTE_F = porte;
-}
+// passerelle : du sol jusqu'à la vraie porte ouverte dans la coque (direction PD, entre deux ailerons)
+const RAMPE = { A: new THREE.Vector3(FX + PD.x * 4.75, .05, FZ + PD.z * 4.75), B: new THREE.Vector3(FX + PD.x * 1.3, PY0 + .12, FZ + PD.z * 1.3) };
+{ const { A, B } = RAMPE; const L = A.distanceTo(B), M = A.clone().add(B).multiplyScalar(.5);
+  const pas = new THREE.Mesh(new THREE.BoxGeometry(1.0, .08, L), graphite); pas.position.copy(M); pas.lookAt(B); pas.translateY(-.04); scene.add(pas);
+  for (const s2 of [-1, 1]) { const r = new THREE.Mesh(new THREE.BoxGeometry(.03, .03, L), led(C.cyan, 2.5)); r.position.copy(M); r.lookAt(B); r.translateX(s2 * .5); r.translateY(.35); scene.add(r);
+    const p0 = new THREE.Mesh(new THREE.CylinderGeometry(.015, .015, .35, 8), graphite); p0.position.copy(A); p0.lookAt(B); p0.translateX(s2 * .5); p0.translateY(.17); scene.add(p0); }
+  // cadre néon de la porte (montants + linteau et seuil courbés sur la coque)
+  const ang = (t, r, y) => new THREE.Vector3(Math.cos(t) * r, y, Math.sin(t) * r);
+  for (const sd of [-1, 1]) { const t = PA + sd * PW * .9, m = new THREE.Mesh(new THREE.BoxGeometry(.05, PY1 - PY0, .05), led(C.cyan, 3)); m.position.copy(ang(t, 1.28, (PY0 + PY1) / 2)); m.rotation.y = -t; fusee.add(m);
+    const j = new THREE.Mesh(new THREE.BoxGeometry(.12, PY1 - PY0 + .1, .1), graphite); j.position.copy(ang(t + sd * .05, 1.27, (PY0 + PY1) / 2)); j.rotation.y = -t; fusee.add(j); }
+  for (const y of [PY0, PY1]) { const t = new THREE.Mesh(new THREE.TorusGeometry(1.28, .025, 8, 24, PW * 1.8), led(C.cyan, 3)); t.rotation.set(Math.PI / 2, 0, PA - PW * .9); t.position.y = y; fusee.add(t); }
+  const SAS = new THREE.Group(); fusee.add(SAS); window.SAS = SAS;
+  // sas éclairé derrière la porte : on voit un vrai intérieur, lumière chaude
+  const sas = new THREE.Mesh(new THREE.CylinderGeometry(1.18, 1.18, PY1 - PY0 + .1, 48, 1, true), new THREE.MeshStandardMaterial({ color: 0x2a1d3d, roughness: .7, side: THREE.BackSide })); sas.position.y = (PY0 + PY1) / 2; SAS.add(sas);
+  const solS = new THREE.Mesh(new THREE.CircleGeometry(1.18, 48), new THREE.MeshStandardMaterial({ color: 0x3a3050, roughness: .5, metalness: .6 })); solS.rotation.x = -Math.PI / 2; solS.position.y = PY0 + .005; SAS.add(solS);
+  const plafS = solS.clone(); plafS.rotation.x = Math.PI / 2; plafS.position.y = PY1 + .05; SAS.add(plafS);
+  const fondS = new THREE.Mesh(new THREE.PlaneGeometry(1.2, PY1 - PY0 - .2), ledM(0xffc890, 1.6)); fondS.position.copy(ang(PA, -.95, (PY0 + PY1) / 2)); fondS.rotation.y = Math.atan2(PD.x, PD.z); SAS.add(fondS); window.PORTE_F = fondS;
+  const lS = new THREE.PointLight(0xffc890, 6, 3.5, 1.4); lS.position.copy(ang(PA, .3, PY1 - .4)); SAS.add(lS); window.PORTE_L = lS; }
 fusee.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 
 // --- Fumée / brume au sol (sprites doux)
@@ -581,7 +596,7 @@ const lumPorte = new THREE.SpotLight(0xcfe6ff, 0, 30, .55, .5, 1.2); lumPorte.po
 // --- Look « Duel » (?look=duel) : brume violette au lieu de noire, ciel d'ambiance plus généreux, liserés chauds/froids, grille néon au sol
 const LOOK = P.get("look");
 window.prepSouv = async (u) => {                                                        // souvenir affiché dans l'écran du visage (plans 11 et début du 14)
-  const n = SHOT === 11 ? Math.min(322, Math.round(u * DUR(11) * 25)) : SHOT === 14 && u < .22 ? 322 : null; if (n === null) return;
+  const n = SHOT === 11 || SHOT === 12 ? Math.min(322, Math.max(0, Math.round((DEB[SHOT] + u * DUR(SHOT) - 32) * 25))) : null; if (n === null) return;
   const t = await TL.loadAsync(`souv/hdB/${String(n).padStart(5, "0")}.png`); t.colorSpace = THREE.SRGBColorSpace; if (window._souv) window._souv.dispose(); window._souv = t; };
 if (LOOK === "duel") {
   scene.fog.color.set(0x2a0c3a); scene.fog.density = .016;
@@ -604,7 +619,8 @@ if (PV) {
   const box = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.castShadow = b.receiveShadow = true; murF.add(b); return b; };
   // couloir : 8 m de profondeur derrière l'ouverture (murF local z>0 = dehors)
   const cm = new THREE.MeshPhysicalMaterial({ ...TX.mur, color: PV === "C" ? 0xd8dcf0 : 0x9a96b0, roughness: .6, metalness: .6, side: THREE.BackSide });
-  const cor = new THREE.Mesh(new THREE.BoxGeometry(5, 6.5, 8), cm); cor.position.set(0, 3.25, 4.2); cor.receiveShadow = true; murF.add(cor);
+  const cor = new THREE.Mesh(new THREE.BoxGeometry(5, 6.44, 8), cm); cor.position.set(0, 3.25, 4.2);   // sol du couloir 3 cm au-dessus du sol du hangar (plus de scintillement)
+  cor.receiveShadow = true; murF.add(cor);
   const fond = new THREE.Mesh(new THREE.PlaneGeometry(5, 6.5), new THREE.MeshBasicMaterial({ color: PV === "B" ? 0xffd9a0 : 0xcfe6ff, fog: false })); fond.position.set(0, 3.25, 8.1); fond.rotation.y = Math.PI; murF.add(fond);
   for (let i = 0; i < 4; i++) { const z = 1 + i * 1.9;
     box(4.6, .06, .5, led(PV === "B" ? 0xffc070 : 0xbfe4ff, 3), 0, 6.42, z);
@@ -624,8 +640,8 @@ if (PV) {
   }
   if (PV === "B") {
     // deux battants blindés à moitié ouverts, la lumière chaude passe entre
-    for (const sx of [-1, 1]) { const bt = box(1.6, 6.4, .3, new THREE.MeshPhysicalMaterial({ ...TX.cont, color: 0x5c5878, roughness: .7, metalness: .9 }), sx * 1.75, 3.2, .35);
-      const st = box(1.4, .35, .02, new THREE.MeshStandardMaterial({ map: rayures, roughness: .5 }), sx * 1.75, 1.0, .19); }
+    for (const sx of [-1, 1]) { const bt = box(1.6, 6.4, .3, new THREE.MeshPhysicalMaterial({ ...TX.cont, color: 0x5c5878, roughness: .7, metalness: .9 }), sx * 1.75, 3.2, .62);
+      const st = box(1.4, .35, .02, new THREE.MeshStandardMaterial({ map: rayures, roughness: .5 }), sx * 1.75, 1.0, .46); }
     scene.fog.color.set(0x1a1428);
   }
   if (PV === "C") {
@@ -655,14 +671,48 @@ const plaque = new THREE.Mesh(new THREE.BoxGeometry(.34, .2, .02), new THREE.Mes
   const ecr = new THREE.Mesh(new THREE.PlaneGeometry(.31, .17), new THREE.MeshBasicMaterial({ map: tex(512, 280, (g, w, h) => { const r = g.createLinearGradient(0, 0, w, h); r.addColorStop(0, "#1b0d3a"); r.addColorStop(1, "#08132e"); g.fillStyle = r; g.fillRect(0, 0, w, h); g.strokeStyle = "rgba(255,230,0,.8)"; g.lineWidth = 6; g.strokeRect(10, 10, w - 20, h - 20); }), toneMapped: false })); ecr.position.z = .011; plaque.add(ecr); plaque.ecran = ecr; }
 scene.add(plaque); plaque.visible = false;
 const console_ = new THREE.Group(); fusee.add(console_); console_.visible = false;
-{ const tab = new THREE.Mesh(new THREE.BoxGeometry(1.3, .08, .45), graphite); tab.position.set(0, hubY - .55, -.75); tab.rotation.x = -.35; console_.add(tab);
+{ // vrai poste de pilotage : plancher, pupitre posé au sol, plateau incliné avec boutons dessus, tableau de bord avec écrans
+  const sol = new THREE.Mesh(new THREE.CircleGeometry(1.15, 48), new THREE.MeshPhysicalMaterial({ ...TX.grille, roughness: 1, metalness: 1 })); sol.rotation.x = -Math.PI / 2; sol.position.y = 2.1; console_.add(sol);
+  const corps = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.15, .45), graphite); corps.position.set(0, 2.1 + .575, -.86); console_.add(corps);
+  const pl = new THREE.Group(); pl.position.set(0, 3.27, -.72); pl.rotation.x = .45; console_.add(pl); console_.plateau = pl;
+  pl.add(new THREE.Mesh(new THREE.BoxGeometry(1.56, .06, .62), new THREE.MeshPhysicalMaterial({ color: 0x1d1830, roughness: .35, metalness: .6, clearcoat: .6 })));
+  const liser = new THREE.Mesh(new THREE.BoxGeometry(1.58, .015, .015), led(C.cyan, 2.5)); liser.position.set(0, .03, .31); pl.add(liser);
   const cols = [C.rose, C.cyan, C.jaune, C.vert, C.orange, C.violet];
-  for (let i = 0; i < 18; i++) { const b = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, .02, 16), led(cols[i % 6], 3)); b.position.set(-.5 + (i % 9) * .125, hubY - .5 + Math.floor(i / 9) * .05, -.7 - Math.floor(i / 9) * .12); b.rotation.x = -.35; console_.add(b); }
-  const lev = new THREE.Mesh(new THREE.CylinderGeometry(.015, .015, .22), acier); lev.position.set(.5, hubY - .4, -.62); lev.rotation.x = -.6; console_.add(lev); console_.levier = lev;
-  const lp = new THREE.PointLight(0x9fd8ff, 4, 2.5, 1.2); lp.position.set(0, hubY + .2, .3); console_.add(lp); }
+  for (let r = 0; r < 2; r++) for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(new THREE.CylinderGeometry(.03, .032, .025, 20), led(cols[(i + r * 2) % 6], 3)); b.position.set(.22 + i * .088, .043, -.12 + r * .12); pl.add(b); }
+  for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(new THREE.BoxGeometry(.03, .02, .16), graphite); f.position.set(-.62 + i * .08, .04, -.18); pl.add(f); const k = new THREE.Mesh(new THREE.BoxGeometry(.05, .03, .03), led(C.jaune, 2.5)); k.position.set(-.62 + i * .08, .06, -.18 - i * .04); pl.add(k); }
+  const ecrT = (seed) => tex(512, 320, (g, w, h) => { g.fillStyle = "#06122a"; g.fillRect(0, 0, w, h); g.strokeStyle = "rgba(94,230,255,.35)"; g.lineWidth = 2;
+    for (let x = 0; x < w; x += 32) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); } for (let y = 0; y < h; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+    g.strokeStyle = seed ? "#ff4fd8" : "#5ee6ff"; g.lineWidth = 6; g.beginPath(); for (let x = 0; x <= w; x += 8) g.lineTo(x, h / 2 + Math.sin(x / (seed ? 23 : 37)) * h * .28 * Math.cos(x / 90)); g.stroke(); });
+  const e1 = new THREE.Mesh(new THREE.PlaneGeometry(.34, .2), new THREE.MeshBasicMaterial({ map: ecrT(0), toneMapped: false })); e1.rotation.x = -Math.PI / 2; e1.position.set(-.04, .032, -.1); pl.add(e1);
+  const lev = new THREE.Mesh(new THREE.CylinderGeometry(.015, .015, .22), acier); lev.position.set(.73, .12, .14); pl.add(lev); console_.levier = lev;
+  const pom = new THREE.Mesh(new THREE.SphereGeometry(.035, 16, 12), led(C.rose, 3)); pom.position.y = .11; lev.add(pom);
+  // tableau de bord vertical derrière le pupitre, avec grand écran « carte du ciel »
+  const tb = new THREE.Mesh(new THREE.BoxGeometry(1.7, .95, .06), graphite); tb.position.set(0, 3.95, -1.02); console_.add(tb);
+  const carte = tex(1024, 560, (g, w, h) => { g.fillStyle = "#070320"; g.fillRect(0, 0, w, h); for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(255,255,255,${.3 + rnd() * .7})`; g.fillRect(rnd() * w, rnd() * h, 2, 2); }
+    g.strokeStyle = "#ffd25a"; g.setLineDash([14, 12]); g.lineWidth = 5; g.beginPath(); g.moveTo(120, h - 90); g.bezierCurveTo(380, 120, 640, 420, w - 160, 120); g.stroke(); g.setLineDash([]);
+    g.fillStyle = "#9b3dff"; g.beginPath(); g.arc(w - 160, 120, 46, 0, 7); g.fill(); g.strokeStyle = "#ffd25a"; g.lineWidth = 6; g.beginPath(); g.ellipse(w - 160, 120, 78, 18, -.35, 0, 7); g.stroke();
+    g.fillStyle = "#5ee6ff"; g.beginPath(); g.arc(120, h - 90, 16, 0, 7); g.fill(); });
+  const grand = new THREE.Mesh(new THREE.PlaneGeometry(1.0, .55), new THREE.MeshBasicMaterial({ map: carte, toneMapped: false })); grand.position.set(-.18, 3.98, -.985); console_.add(grand);
+  const e2 = new THREE.Mesh(new THREE.PlaneGeometry(.4, .25), new THREE.MeshBasicMaterial({ map: ecrT(1), toneMapped: false })); e2.position.set(.55, 4.1, -.985); console_.add(e2);
+  for (let i = 0; i < 4; i++) { const v = new THREE.Mesh(new THREE.BoxGeometry(.06, .04, .02), led(cols[i], 3)); v.position.set(.42 + i * .09, 3.78, -.985); console_.add(v); }
+  const cad = new THREE.Mesh(new THREE.BoxGeometry(1.74, .02, .08), led(C.rose, 2)); cad.position.set(0, 4.43, -1.0); console_.add(cad);
+  const lp = new THREE.PointLight(0x9fd8ff, 4, 2.8, 1.2); lp.position.set(0, 4.2, .1); console_.add(lp); }
+// --- Planche photo (souvenirs du jour) : sort du haut de sa tête comme d'une imprimante, il la serre contre lui puis la pose sur le pupitre
+const PH_W = .44, PH_H = .31;
+const plancheT = await TL.loadAsync("tex/planche-photo.png"); plancheT.colorSpace = THREE.SRGBColorSpace; plancheT.anisotropy = 8;
+const planche = new THREE.Mesh(new THREE.PlaneGeometry(PH_W, PH_H), new THREE.MeshStandardMaterial({ map: plancheT, emissiveMap: plancheT, emissive: 0xffffff, emissiveIntensity: .32, roughness: .55, side: THREE.DoubleSide }));
+scene.add(planche); planche.visible = false;
+const fente = new THREE.Mesh(new THREE.BoxGeometry(.52, .02, .05), graphite); fente.position.set(0, .325, .12); tete.add(fente); fente.visible = false;
+const fenteL = new THREE.Mesh(new THREE.BoxGeometry(.5, .006, .012), led(C.cyan, 3)); fenteL.position.set(0, .337, .145); tete.add(fenteL); fenteL.visible = false;
+const sortPlanche = (k) => { // k de 0 à 1 : part visible de la feuille au-dessus de la tête (le haut sort en premier)
+  R.updateMatrixWorld(true); const s = Math.max(.001, k); planche.scale.set(1, s, 1);
+  plancheT.repeat.set(1, s); plancheT.offset.set(0, 1 - s);
+  const p = new THREE.Vector3(0, .325 + PH_H * s / 2, .12).applyMatrix4(tete.matrixWorld); planche.position.copy(p); tete.getWorldQuaternion(planche.quaternion); planche.visible = true; };
+const tientPlanche = (d, h, lat, rx = 0) => { plancheT.repeat.set(1, 1); plancheT.offset.set(0, 0); planche.scale.set(1, 1, 1); planche.visible = true;
+  planche.position.copy(devant(d, h, lat)); planche.rotation.set(rx, R.rotation.y, 0, "YXZ"); };
 // --- Outils d'animation
 const VIS = (n) => { face.material.map = VISAGES[n] || VISAGES.accueil; face.material.blending = THREE.AdditiveBlending; face.material.color.setScalar(1); };
-const SOUV_ECRAN = () => { face.material.map = window._souv; face.material.blending = THREE.NormalBlending; face.material.color.setScalar(.78); };   // souvenir lisible, pas brûlé par le bloom
+const SOUV_ECRAN = () => { if (!window._souv) return; face.material.map = window._souv; face.material.blending = THREE.NormalBlending; face.material.color.setScalar(.78); };   // souvenir lisible, pas brûlé par le bloom
 const vole = (t, amp = .035) => .14 + amp * Math.sin(t * 2 * Math.PI / 1.7);
 const placeR = (x, z, ry, t, dy = 0) => { R.position.set(x, vole(t) + dy, z); R.rotation.y = ry; };
 const viseR = (dx = 0, dy = 0, dz = 0) => V(R.position.x + dx, R.position.y + TETE + dy, R.position.z + dz);
@@ -670,11 +720,12 @@ const devant = (d, h = 0, lat = 0) => { const a = R.rotation.y; return V(R.posit
 const lampes = (n) => LAMPES.forEach((L, i) => { const k = Math.min(1, Math.max(0, n - i)); const fl = k > 0 && k < 1 ? (Math.sin(i * 7 + n * 90) > 0 ? 1 : .15) : 1; L.amp.visible = k > 0; L.c.visible = k > 0; L.l.intensity = L.i * k * fl; L.amp.material.emissiveIntensity = 8 * k * fl; });
 const trappes = (o) => TRAPPES.forEach(([m, s, b]) => { m.position.x = FX + s * (b + o * 5.5); });
 const flammes = (k) => { FLAMMES.forEach((f, i) => { f.visible = k > .01; f.scale.set(1, .3 + k * (1 + .12 * Math.sin(T * 40 + i)), 1); }); if (FEU) FEU.intensity = 25 * k; };
+const RPOS = (sR) => { const yR = sR >= 4.75 ? .05 : sR <= 1.3 ? PY0 + .12 : PY0 + .12 - (sR - 1.3) / 3.45 * (PY0 + .07); placeR(FX + PD.x * sR, FZ + PD.z * sR, R.rotation.y, T, Math.max(0, yR - .03)); };   // robot sur l'axe de la rampe (sR = distance à l'axe de la fusée)
 const regle = (pos, cible, fov) => { cam.position.copy(pos); cam.lookAt(cible); if (fov) cam.fov = fov; cam.updateProjectionMatrix(); };
 const secoue = (a) => { cam.position.x += a * Math.sin(T * 53); cam.position.y += a * Math.sin(T * 61 + 1); };
 // début de chaque plan dans la vidéo (secondes, vidéo = piste − 2 s)
-const DEB = { 1: 0, 2: 3, 3: 6, 4: 9, 5: 11, 6: 14, 7: 16.7, 8: 19.3, 9: 21.9, 10: 27, 11: 32, 12: 34.5, 14: 45, 15: 50, 16: 53, 17: 56, 18: 61, 19: 65, 20: 69, 21: 73, 22: 76, 23: 81, 24: 86, 25: 91, 26: 97, 27: 103, 28: 109, 29: 112 };
-const DUR = (n) => (DEB[n + 1] ?? (n === 10 ? 32 : n === 28 ? 113 : DEB[n] + 3)) - DEB[n];
+const DEB = { 1: 0, 2: 3, 3: 6, 4: 9, 5: 11, 6: 14, 7: 16.7, 8: 19.3, 9: 21.9, 10: 27, 11: 32, 12: 34.5, 14: 45, 15: 50, 16: 54.5, 17: 56.5, 18: 61, 19: 65, 20: 69, 21: 73, 22: 76, 23: 81, 24: 86, 25: 91, 26: 97, 27: 103, 28: 109, 29: 112 };
+const DUR = (n) => (DEB[n + 1] ?? (n === 12 ? 45 : n === 28 ? 113 : DEB[n] + 3)) - DEB[n];
 let T = 0;
 const PEND = { porteH: 0, lumPorte: 0 };
 const ouvrePorte = (o) => { porteH.position.x = o * 5.3; dehors.visible = o > .01 && !P.get("porte"); lumPorte.intensity = 110 * o * (SHOT <= 4 ? 1 : 0); };
@@ -686,6 +737,7 @@ const IMG = P.get("img"); const SOUV = IMG ? await TL.loadAsync(IMG) : null; if 
 const MAJ = (u) => {
   T = (DEB[SHOT] ?? 0) + u * DUR(SHOT || 5); if (window.BLOOM) window.BLOOM.strength = BL[SHOT] ?? .5;
   R.visible = true; socle.visible = true; window.haloSol.visible = true; valise.visible = ballon.visible = couronne.visible = buzzer.visible = plaque.visible = false;
+  planche.visible = fente.visible = fenteL.visible = false; window.SAS.visible = true; window.LEDC.visible = true; window.PORTE_F.material.emissiveIntensity = 1.6; window.PORTE_L.intensity = 6;
   tete.rotation.set(0, 0, 0); pose(G, 0, -.25, -.2); pose(D, 0, .25, -.2);
   switch (SHOT) {
     case 1: { lampes(0); ouvrePorte(seg(u, .15, .75)); placeR(0, 15.2, Math.PI, T); VIS("inquiet"); tete.rotation.set(-.05, .2 * Math.sin(T * 2), 0);
@@ -703,58 +755,71 @@ const MAJ = (u) => {
       regle(devant(1.35, -.15 + u * .05, 0), viseR(0, .02), mix(34, 28, ease(u))); break; }
     case 7: { const k = ease(u); placeR(mix(-1.2, -.5, k), mix(5.4, .4, k), Math.PI + .05, T); VIS("surprise"); tete.rotation.set(-.35, 0, 0);
       regle(V(R.position.x - 1.4, 2.5, R.position.z + 3.8), V(FX, 4.2, FZ), 44); break; }
-    case 8: { const a = mix(.35, -.25, ease(u)); placeR(FX + Math.sin(a + .9) * 2.8, FZ + Math.cos(a + .9) * 2.8, a + .9 + Math.PI, T); VIS("surprise"); tete.rotation.set(-.45, 0, 0);
-      const ac = mix(1.0, .45, ease(u)); regle(V(FX + Math.sin(ac) * 10, 2.2, FZ + Math.cos(ac) * 10), V(FX, 3.6, FZ), 44); break; }
+    // plan 8 : trajectoire décalée, plus de croisement avec l'aileron
+    case 8: { const a = mix(.35, -.25, ease(u)); placeR(FX + Math.sin(a + .3) * 2.8, FZ + Math.cos(a + .3) * 2.8, a + .3 + Math.PI, T); VIS("surprise"); tete.rotation.set(-.45, 0, 0);
+      const ac = mix(.4, -.15, ease(u)); regle(V(FX + Math.sin(ac) * 10, 2.2, FZ + Math.cos(ac) * 10), V(FX, 3.6, FZ), 44); break; }
     case 9: { scene.fog.density = .018; placeR(FX + 1.75, FZ + .95, .25, T, 0); const k = seg(u, 0, .12); VIS(u < .1 ? "surprise" : "coeurs");
       tete.rotation.set(-.35, -.4, .06); pose(G, -.25 * k, mix(-.4, -1.35, k), -.2, -.2 * k); pose(D, 0, .3, -.45, .2);
       embM.material.emissiveIntensity = mix(.6, 2.8, seg(u, .04, .3));
       regle(V(FX + 3.9 + u * .3, mix(.55, 2.6, ease(u)), FZ + 4.6 + u * .4), V(FX + 1.1, mix(2.0, 2.9, ease(u)), FZ + .9), 40); break; }
-    case 10: { placeR(1.6, -2.2, mix(1.2, .15, seg(u, 0, .25)), T); VIS(u < .5 ? "coeurs" : "rire"); tete.rotation.set(mix(0, -.06, seg(u, .3, .6)), 0, .06);
-      const k = seg(u, .45, 1); const oeil = devant(.27, .04, .11);
-      regle(mixV(V(1.6, 1.75, 1.6), oeil.clone().add(V(0, 0, .25)), k * k), mixV(viseR(0, -.2), oeil, k), mix(34, 22, k)); break; }
-    case 14: { placeR(1.6, -2.2, .15, T); const e = u < .5 ? "rire" : u < .58 ? "clin" : "accueil"; VIS(e); if (u < .22 && window._souv) SOUV_ECRAN();
-      tete.rotation.set(-.05, 0, u < .22 ? 0 : .08 * Math.sin(T * 6));                 // on ressort du souvenir : la caméra recule depuis l'écran
-      const k = ease(seg(u, 0, .3)); regle(mixV(devant(.5, 0, 0), devant(1.6 - u * .15, -.05, -.05), k), mixV(viseR(0, 0), viseR(0, -.05), k), mix(30, 30, k)); break; }
-    case 15: { const k = (SHOT === 15 ? 0 : .5) + u * .5, a = .4 + 2 * Math.PI * ease(k), r = mix(4.1, 5.2, k);      // tour de joie en volant autour de la fusée
+    case 10: { placeR(1.6, -2.2, mix(1.2, .15, seg(u, 0, .25)), T); VIS(u < .5 ? "coeurs" : "rire"); tete.rotation.set(mix(0, -.06, seg(u, .3, .6)), 0, .06);   // « Et quelle fête… » : plan moyen fixe, juste une légère avancée (pas de zoom)
+      regle(mixV(V(1.6, 1.75, 1.6), V(1.55, 1.8, 1.15), ease(u)), viseR(0, -.2), 34); break; }
+    case 14: { placeR(1.6, -2.2, .15, T); const e = u < .5 ? "rire" : u < .58 ? "clin" : "accueil"; VIS(e);           // « Qu'est-ce qu'on a ri » : plan rapproché, pas de sortie d'écran
+      tete.rotation.set(-.05, 0, .08 * Math.sin(T * 6)); regle(devant(1.75 - u * .15, -.08, -.1), viseR(0, -.08), 30); break; }
+    case 15: { const k = u, a = .4 + 2 * Math.PI * ease(k), r = mix(4.1, 5.0, k);      // un vrai tour de joie en volant autour de la fusée
       placeR(FX + Math.sin(a) * r, FZ + Math.cos(a) * r, a + Math.PI / 2, T, 1.3 * Math.sin(Math.PI * k)); VIS(k < .45 ? "rire" : k < .55 ? "clin" : "victoire");
       pose(G, -2.4, -.5, -.3); pose(D, -2.4, .5, -.3); tete.rotation.set(-.1, 0, .12 * Math.sin(T * 5));
-      regle(V(7.5, 3.4, 5.0), V(FX, 1.8, FZ + .5), 44); break; }
-    case 16: { const k = (SHOT === 15 ? 0 : .5) + u * .5, a = .4 + 2 * Math.PI * ease(k), r = mix(4.1, 5.2, k);      // tour de joie en volant autour de la fusée
-      placeR(FX + Math.sin(a) * r, FZ + Math.cos(a) * r, a + Math.PI / 2, T, 1.3 * Math.sin(Math.PI * k)); VIS(k < .45 ? "rire" : k < .55 ? "clin" : "victoire");
-      pose(G, -2.4, -.5, -.3); pose(D, -2.4, .5, -.3); tete.rotation.set(-.1, 0, .12 * Math.sin(T * 5));
-      regle(V(-6.8, 1.3, 2.0), mixV(V(FX, 2.2, FZ), R.position.clone().add(V(0, 1.4, 0)), .5), 42); break; }
-    case 17: { placeR(2.4, -1.4, .3, T); VIS(u < .3 ? "accueil" : "coeurs"); plaque.visible = true; plaque.position.copy(devant(.5, -.72)); plaque.rotation.y = .3; plaque.scale.setScalar(1.5); plaque.material.emissiveIntensity = mix(0, 1.2, seg(u, .2, .5));
-      pose(G, -.9, -.9, -1.6); pose(D, -.9, .9, -1.6); tete.rotation.set(.25, 0, 0);
-      regle(devant(2.3, -.4, .15), viseR(0, -.5), 32); break; }
+      regle(V(8.2, 3.6, 5.6), V(FX, 1.9, FZ + .5), 46); break; }
+    case 16: { placeR(2.4, -1.4, .3, T); VIS(u < .2 ? "victoire" : u < .72 ? "surprise" : "coeurs"); fente.visible = fenteL.visible = true;   // la planche photo sort du haut de sa tête
+      const k = seg(u, .66, .95); pose(D, mix(0, -2.75, k), mix(.25, .05, k), mix(-.2, -.35, k)); tete.rotation.set(mix(-.05, .12, seg(u, .1, .5)), 0, 0);
+      sortPlanche(seg(u, .08, .7)); regle(devant(2.4, .2, .2), viseR(0, .42), 34); break; }
+    case 17: { placeR(2.4, -1.4, .3, T); VIS(u < .12 ? "accueil" : "coeurs"); fente.visible = fenteL.visible = true;   // il serre la planche contre son cœur : « Comme ça, je vous emmène avec moi »
+      const HG = [[-.95, -.85, -1.55], [-1.2, -.25, -1.3], [-1.4, .15, -1.1], [-1.0, .3, -1.6]][+(P.get("hug") || 3)]; pose(G, HG[0], HG[1], HG[2]); pose(D, HG[0], -HG[1], HG[2]); tete.rotation.set(.18, 0, .06 * Math.sin(T * 2));
+      tientPlanche(.46, -.66, .05, -.08); regle(mixV(devant(2.3, -.35, .2), devant(2.0, -.32, .15), ease(u)), viseR(0, -.45), 32); break; }
     case 18: { placeR(2.2, -1.2, .1, T); VIS(u < .5 ? "accueil" : "victoire"); const k = seg(u, .1, .35); pose(D, -2.2 * k, .3, mix(-.2, -1.4, k)); tete.rotation.set(-.05, 0, -.06);
       regle(V(2.3, 1.7, 2.6 - u * .4), viseR(0, -.35), 34); break; }
-    case 19: { const k = seg(u, .05, .8); placeR(mix(4.5, 1.65, k), mix(-4.25, -5.6, k), mix(-2.0, Math.PI / 2 + .9, seg(u, .8, 1)), T, mix(.05, 2.35, k));
-      VIS("accueil");                                                                 // valise enlevée (choix de cedric)
-      pose(G, 0, -.15, -.3); regle(V(7.6, 2.1, -.4), V(2.6, 2.0, -5.0), 40); break; }
-    case 20: { placeR(1.65, -5.6, Math.PI / 2 + .9, T, 2.35); VIS(u < .45 ? "accueil" : "pleure"); tete.rotation.set(.05, 0, .08);
-      regle(devant(1.9, -.1, .15), viseR(0, -.1), 30); break; }
-    case 21: { const k = seg(u, .1, .55); placeR(mix(1.65, 1.05, k), mix(-5.6, -5.9, k), mix(Math.PI / 2 + .9, -Math.PI / 2 + .3, seg(u, 0, .2)), T, 2.35); R.visible = u < .55;
-      VIS("accueil"); window.PORTE_F.material.emissiveIntensity = mix(1.6, 0, seg(u, .55, .85)); regle(V(5.6, 3.1, -1.2), V(1.3, 3.0, -5.6), 40); break; }
+    case 19: { const s0 = mix(6.2, 2.0, seg(u, 0, .62)); RPOS(s0); const fc = Math.atan2(-PD.x, -PD.z), cam19 = V(FX + PD.x * 3 - PD.z * 6.4, 1.8, FZ + PD.z * 3 + PD.x * 6.4);   // il monte la rampe, puis se tourne lentement vers nous
+      const vc = Math.atan2(cam19.x - R.position.x, cam19.z - R.position.z); R.rotation.y = mix(fc, vc, seg(u, .6, 1)); VIS(u < .62 ? "accueil" : "coeurs");
+      pose(G, 0, -.15, -.3); regle(cam19, V(FX + PD.x * 2.6, 1.4, FZ + PD.z * 2.6), 40); break; }
+    case 20: { RPOS(2.0); const cam19 = V(FX + PD.x * 3 - PD.z * 6.4, 1.8, FZ + PD.z * 3 + PD.x * 6.4); R.rotation.y = Math.atan2(cam19.x - R.position.x, cam19.z - R.position.z);
+      VIS(u < .45 ? "accueil" : "pleure"); tete.rotation.set(.05, 0, .08); regle(devant(1.9, -.1, .15), viseR(0, -.1), 30); break; }
+    case 21: { const cam19 = V(FX + PD.x * 3 - PD.z * 6.4, 1.8, FZ + PD.z * 3 + PD.x * 6.4), fc = Math.atan2(-PD.x, -PD.z);   // il se retourne doucement et entre par la porte (seulement par la porte)
+      const s0 = mix(2.0, .25, seg(u, .38, .9)); RPOS(s0); const vc = Math.atan2(cam19.x - R.position.x, cam19.z - R.position.z); R.rotation.y = mix(vc, fc, seg(u, 0, .36)); R.visible = s0 > .3;
+      VIS("accueil"); pose(G, 0, -.15, -.25); pose(D, 0, .15, -.25); window.PORTE_F.material.emissiveIntensity = mix(1.6, .25, seg(u, .88, 1)); window.PORTE_L.intensity = mix(6, 1, seg(u, .88, 1));
+      regle(V(FX + PD.x * 5.6 - PD.z * 2.6, 2.4, FZ + PD.z * 5.6 + PD.x * 2.6), V(FX + PD.x * 1.3, 2.2, FZ + PD.z * 1.3), 40); break; }
     case 22: case 26: { const yF = SHOT === 26 ? 1.7 : .12; fusee.position.y = yF; flammes(SHOT === 26 ? 1 : 0); socle.visible = false; window.haloSol.visible = false;
       R.position.set(FX, hubY - 1.77 + yF - .12, FZ + .55); R.rotation.y = 0; VIS(SHOT === 26 && u > .55 ? "clin" : "accueil");
       const w = Math.sin(T * (SHOT === 26 ? 9 : 6)); pose(D, 0, 2.6 + .35 * w, .8, .3); tete.rotation.set(0, 0, .12 + .05 * w);
       regle(V(FX + .9 - u * .2, hubY + .25 + yF - .12, FZ + 5.2 - u * .6), V(FX, hubY + .05 + yF - .12, FZ + 1.2), SHOT === 26 ? 26 : 24); if (SHOT === 26) secoue(.006); break; }
     case 23: { R.visible = false; trappes(ease(seg(u, .2, .95))); lampes(10); pointe.material.emissiveIntensity = 3 + 4 * Math.abs(Math.sin(T * 4));
       regle(V(5.2, 1.0, 7.4), V(-.2, mix(5.2, 9.5, ease(u)), FZ), 50); break; }
-    case 24: { trappes(1); console_.visible = true; socle.visible = false; window.haloSol.visible = false; R.position.set(FX, hubY - 1.75, FZ + .25); R.rotation.y = Math.PI; VIS("suspense");
-      plaque.visible = true; plaque.material.emissiveIntensity = 1; plaque.position.set(FX - .3, hubY - .28 + .12, FZ - .86); plaque.rotation.set(-.35, 0, 0);
-      const b = Math.sin(T * 5); pose(D, -1.3 + .25 * b, .4, -.6); pose(G, -1.1 - .25 * b, -.4, -.6); tete.rotation.set(.35, .2 * Math.sin(T * 2), 0);
-      console_.levier.rotation.x = u > .7 ? .6 : -.6; regle(V(FX - .6, hubY + .32, FZ - .05), V(FX + .1, hubY - .38, FZ - .8), 60); break; }
+    case 24: { trappes(1); console_.visible = true; window.SAS.visible = false; window.LEDC.visible = false; socle.visible = false; window.haloSol.visible = false; R.position.set(FX, hubY - 1.75, FZ + .25); R.rotation.y = Math.PI; VIS(u < .45 ? "coeurs" : "suspense");
+      const kp = seg(u, .1, .38), b = Math.sin(T * 5) * seg(u, .45, .55);                   // « J'emporte tous mes souvenirs avec moi » : il pose la planche sur le pupitre
+      if (kp < 1) { pose(G, mix(-.95, -1.25, kp), mix(-.85, -.4, kp), mix(-1.55, -.5, kp)); pose(D, mix(-.95, -1.25, kp), mix(.85, .4, kp), mix(-1.55, -.5, kp)); }
+      else { pose(D, -1.3 + .25 * b, .4, -.6); pose(G, -1.1 - .25 * b, -.4, -.6); }
+      fusee.updateMatrixWorld(true); const pl = console_.plateau, depart = devant(.43, -.86, .06), arrivee = new THREE.Vector3(-.47, .034, .1).applyMatrix4(pl.matrixWorld);
+      planche.visible = true; planche.scale.set(.82, .82, 1); plancheT.repeat.set(1, 1); plancheT.offset.set(0, 0); const kk = ease(kp);
+      planche.position.copy(depart.lerp(arrivee, kk)); planche.position.y += .12 * Math.sin(Math.PI * kk);
+      const q0 = new THREE.Quaternion().setFromEuler(new THREE.Euler(-.12, R.rotation.y, 0, "YXZ")), q1 = new THREE.Quaternion(); pl.getWorldQuaternion(q1); q1.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)));
+      planche.quaternion.copy(q0.slerp(q1, kk)); tete.rotation.set(.35, .2 * Math.sin(T * 2) * seg(u, .4, .5), 0);
+      console_.levier.rotation.x = u > .7 ? .6 : -.6; regle(V(FX - .6, hubY + .32, FZ - .05), V(FX - .05, hubY - .45, FZ - .75), 62); break; }
     case 25: { R.visible = false; trappes(1); const k = ease(seg(u, .25, .9)); fusee.position.y = mix(.12, 1.7, k); flammes(seg(u, 0, .3)); FUMEES.forEach((s) => { s.material.opacity = mix(.15, .38, seg(u, 0, .5)); });
       regle(V(5.2, 1.4, 6.8), V(-.2, 5.2, FZ), 48); secoue(.012 * seg(u, .1, .5)); break; }
     case 27: { R.visible = false; trappes(1); fusee.position.y = 1.7; flammes(1.15); const c = Math.min(5, Math.floor(u * 6));
       const P27 = [[V(1.6, .4, FZ + 2.4), V(0, 1.2, FZ), 40], [V(FX + .25, hubY + 1.67, FZ + 2.0), V(FX, hubY + 1.67, FZ + .9), 16], [V(-3, .5, FZ + 4), V(0, .8, FZ), 50], [V(FX + .6, hubY + 1.9, FZ + 3.2), V(FX, hubY + 1.75, FZ + 1.2), 22], [V(7, 1.0, 5), V(0, 4.5, FZ), 44], [V(1.0, .2, FZ + 3), V(0, 2.5, FZ), 60]];
       if (c === 1 || c === 3) { R.visible = true; socle.visible = false; window.haloSol.visible = false; R.position.set(FX, hubY - 1.77 + 1.58, FZ + .55); R.rotation.y = 0; VIS(c === 1 ? "energie" : "accueil"); pose(D, 0, 2.6 + .3 * Math.sin(T * 9), .8, .3); }
       regle(...P27[c]); secoue(.02); break; }
-    case 28: { R.visible = false; trappes(1); const k = seg(u, .02, 1); fusee.position.y = 1.7 + 34 * k * k * k; flammes(1.6 + 4 * k); FLAMMES.forEach((f) => { f.position.y = -1.3 - 1.5 * k; }); FUMEES.forEach((s) => { s.material.opacity = .4; });
+    case 28: { R.visible = false; trappes(1); const k = seg(u, .02, 1); fusee.position.y = 1.7 + 34 * Math.pow(k, 2.2);   // départ plus franc, enchaîné avec le son flammes(1.6 + 4 * k); FLAMMES.forEach((f) => { f.position.y = -1.3 - 1.5 * k; }); FUMEES.forEach((s) => { s.material.opacity = .4; });
       if (window.CIEL) { window.CIEL.position.y = 90; window.CIEL.scale.setScalar(6); } regle(V(6.5, .7, 6.5), V(0, fusee.position.y + 3, FZ), 58); secoue(.03 * (1 - u)); break; }
-    case 11: { placeR(1.6, -2.2, .15, T); if (window._souv) SOUV_ECRAN(); tete.rotation.set(-.04, 0, 0); scene.fog.density = LOOK === "duel" ? .016 : .02;
-      const k = ease(u); regle(devant(mix(1.9, .5, k), mix(-.25, 0, k), mix(.25, 0, k)), viseR(0, mix(-.2, 0, k)), mix(34, 30, k)); break; }
+    case 11: { placeR(1.6, -2.2, .15, T); SOUV_ECRAN(); tete.rotation.set(-.04, 0, 0); scene.fog.density = LOOK === "duel" ? .016 : .02;   // les souvenirs s'allument dans sa tête
+      const k = ease(u); regle(devant(mix(1.9, 1.35, k), mix(-.25, -.08, k), mix(.25, .12, k)), viseR(0, mix(-.2, -.06, k)), mix(34, 32, k)); break; }
+    case 12: { placeR(1.6, -2.2, .15, T); SOUV_ECRAN(); scene.fog.density = LOOK === "duel" ? .016 : .02;      // souvenirs : toujours dans l'ovale de sa tête, un cadrage par battement
+      const c = T < 37.1 ? 0 : T < 39.7 ? 1 : T < 42.3 ? 2 : 3, v = (T - [34.5, 37.1, 39.7, 42.3][c]) / 2.6;
+      if (c === 0) { tete.rotation.set(-.03, .1, .04); regle(devant(mix(1.25, 1.15, v), -.02, -.62), viseR(0, -.02), 30); }
+      else if (c === 1) { tete.rotation.set(.04, 0, -.03); regle(devant(mix(4.6, 4.3, v), -1.15, 1.4), viseR(0, mix(-.75, -.7, v)), 38); }
+      else if (c === 2) { tete.rotation.set(-.02, 0, .05 * Math.sin(T)); regle(devant(mix(1.6, 1.5, v), -.04, .02), viseR(0, -.04), 32); }
+      else { tete.rotation.set(-.02, -.06, mix(0, .1, ease(v))); regle(devant(mix(1.9, 1.75, v), .05, .75), viseR(0, -.06), 32); }
+      break; }
     default: break;
   }
 };
