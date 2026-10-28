@@ -1,7 +1,7 @@
 package com.littlemissparty.quiz.tv
 
-import android.graphics.BitmapFactory
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -29,8 +29,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -40,7 +42,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -56,8 +57,28 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.PoliceGsTitre
+import com.littlemissparty.quiz.tv.habillage.QuestionPanneau3d
+import com.littlemissparty.quiz.tv.habillage.planchesQuiz3d
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
+
+/**
+ * Choix A de cedric (28/10, sur captures) : en Game Show, pas d'enseigne « Qui a disparu ? » au-dessus des cartes, elles
+ * prennent sa hauteur. Éteinte = B, l'écran d'avant : seuls les tests l'éteignent, pour la comparaison.
+ */
+internal object PropositionDisparu {
+    var sansEnseigne by mutableStateOf(true)
+}
+
+/** Choix A de cedric (28/10) : l'enseigne revient en grand au début de chaque grille, avant les cartes, ce temps-là. */
+internal const val DISPARU_ENSEIGNE_DEBUT_MS = 2_000L
+
+/**
+ * Game Show, choix A (28/10) : sans l'enseigne pendant qu'on regarde les cartes, mais elle revient en grand au début de
+ * chaque grille et pendant le tour de magie, quand il n'y a rien à voir (cedric : « elle est vraiment jolie »).
+ */
+internal fun enseigneDisparuVisible(etape: EtapeDisparu, ecouleMs: Long): Boolean =
+    etape == EtapeDisparu.MAGIE || (etape == EtapeDisparu.MEMORISER && ecouleMs < DISPARU_ENSEIGNE_DEBUT_MS)
 
 /** Qui a disparu ? : où en est la question, d'après le chrono. */
 enum class EtapeDisparu { MEMORISER, MAGIE, CHERCHER, REPONSE }
@@ -83,41 +104,61 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
     val etape = etapeDisparu(q, state)
     val anim = rememberInfiniteTransition(label = "magie")
     val tourne by anim.animateFloat(-8f, 8f, infiniteRepeatable(tween(260, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "tourne")
-    Column(
-        modifier.panneauJeu().padding(horizontal = 24.dp, vertical = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // Game Show : plus d'étiquette « QUI A DISPARU ? » au-dessus des objets, le titre le dit déjà (cedric, 25/10 au
-        // soir : « n'a même pas lieu d'être ») ; « MÉMORISEZ ! » et « ABRACADABRA… » restent, ils disent l'étape.
-        val repete = etape == EtapeDisparu.CHERCHER || etape == EtapeDisparu.REPONSE
-        if (!(Look.gs && repete)) {
-            Text(
-                when (etape) {
-                    EtapeDisparu.MEMORISER -> "MÉMORISEZ !"
-                    EtapeDisparu.MAGIE -> "ABRACADABRA…"
-                    EtapeDisparu.CHERCHER -> "QUI A DISPARU ?"
-                    EtapeDisparu.REPONSE -> "QUI A DISPARU ?"
-                },
-                color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp)
-                    .apparition(0, etape),
-            )
-            Spacer(Modifier.height(10.dp))
-        }
-        val colonnes = colonnesDisparu(q.cards.size)
-        Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            q.cards.indices.chunked(colonnes).forEach { ligne ->
-                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    val vide = colonnes - ligne.size
-                    if (vide > 0) Spacer(Modifier.weight(vide / 2f))
-                    ligne.forEach { i ->
-                        val disparu = i == q.missingIndex
-                        ObjetCase(
-                            q.cards[i], q.cards[i].imageId?.let { state.images[it] }, etape, disparu,
-                            Modifier.weight(1f).fillMaxHeight().graphicsLayer { if (etape == EtapeDisparu.MAGIE) rotationZ = if (i % 2 == 0) tourne else -tourne },
-                        )
+    val panneau = if (Look.gs && PropositionDisparu.sansEnseigne) planchesQuiz3d() else null
+    val ecoule = q.durationMs - chronoRestant(q, state)
+    Box(modifier) {
+        Column(
+            Modifier.fillMaxSize().panneauJeu().padding(horizontal = 24.dp, vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // Game Show : plus d'étiquette « QUI A DISPARU ? » au-dessus des objets, le titre le dit déjà (cedric, 25/10 au
+            // soir : « n'a même pas lieu d'être ») ; « MÉMORISEZ ! » et « ABRACADABRA… » restent, ils disent l'étape.
+            val repete = etape == EtapeDisparu.CHERCHER || etape == EtapeDisparu.REPONSE
+            if (!(Look.gs && repete)) {
+                Text(
+                    when (etape) {
+                        EtapeDisparu.MEMORISER -> "MÉMORISEZ !"
+                        EtapeDisparu.MAGIE -> "ABRACADABRA…"
+                        EtapeDisparu.CHERCHER -> "QUI A DISPARU ?"
+                        EtapeDisparu.REPONSE -> "QUI A DISPARU ?"
+                    },
+                    color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp)
+                        .apparition(0, etape),
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+            val colonnes = colonnesDisparu(q.cards.size)
+            Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                q.cards.indices.chunked(colonnes).forEach { ligne ->
+                    Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val vide = colonnes - ligne.size
+                        if (vide > 0) Spacer(Modifier.weight(vide / 2f))
+                        ligne.forEach { i ->
+                            val disparu = i == q.missingIndex
+                            ObjetCase(
+                                q.cards[i], q.cards[i].imageId?.let { state.images[it] }, etape, disparu,
+                                Modifier.weight(1f).fillMaxHeight().graphicsLayer { if (etape == EtapeDisparu.MAGIE) rotationZ = if (i % 2 == 0) tourne else -tourne },
+                            )
+                        }
+                        if (vide > 0) Spacer(Modifier.weight(vide / 2f))
                     }
-                    if (vide > 0) Spacer(Modifier.weight(vide / 2f))
+                }
+            }
+        }
+        // L'enseigne posée par-dessus (les cartes ne bougent pas) : en grand, puis elle s'efface quand les cartes reviennent.
+        if (panneau != null) {
+            val visible = enseigneDisparuVisible(etape, ecoule)
+            val montre by animateFloatAsState(if (visible) 1f else 0f, tween(if (visible) 260 else 420), label = "enseigne")
+            if (montre > 0.01f) {
+                Box(
+                    Modifier.fillMaxSize().graphicsLayer { alpha = montre }.background(Palette.Night.copy(alpha = 0.55f * montre)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    QuestionPanneau3d(
+                        panneau, q.text, festif = true,
+                        modifier = Modifier.fillMaxWidth(0.92f).graphicsLayer { val e = 0.86f + 0.14f * montre; scaleX = e; scaleY = e },
+                    )
                 }
             }
         }
@@ -127,7 +168,7 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
 @Composable
 private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
     if (Look.gs) return CarteGs(carte, octets, etape, disparu, modifier)
-    val photo = photoCarte(octets, 240)
+    val photo = photoCarte(octets, PHOTO_CARTE_DISPARU)
     val trou = disparu && etape == EtapeDisparu.CHERCHER
     val enOr = disparu && etape == EtapeDisparu.REPONSE
     Box(
@@ -155,7 +196,7 @@ private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, 
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = if (enOr) Modifier.apparition(0, "retour") else Modifier) {
                     if (photo != null) {
                         Image(
-                            photo, contentDescription = null, contentScale = ContentScale.Crop,
+                            photo, contentDescription = null, contentScale = ContentScale.Crop, alignment = CadrageHaut,
                             modifier = Modifier.size(cote).clip(RoundedCornerShape(12.dp)).border(2.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
                         )
                         Spacer(Modifier.height(4.dp))
@@ -175,21 +216,18 @@ private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, 
 }
 
 /**
+ * Cadrage des photos coupées pour remplir leur case (Mimes, Quiz illustré, Pictionary…) : vers le haut de l'image,
+ * jamais au milieu, pour garder la tête et le visage d'un personnage (cedric, 27/10 au soir : le flamant des Mimes
+ * avait la tête coupée).
+ */
+internal val CadrageHaut = BiasAlignment(0f, -0.6f)
+
+/**
  * Photo d'une carte (Qui a disparu ?, Mimes) décodée une fois, réduite pour sa case : [cible] pixels de côté au
  * moins (la Mi Box a peu de mémoire). Null tant qu'elle n'est pas arrivée, ou si elle est abîmée.
  */
 @Composable
-internal fun photoCarte(octets: ByteArray?, cible: Int): ImageBitmap? = remember(octets, cible) {
-    octets?.let {
-        runCatching {
-            val bornes = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(it, 0, it.size, bornes)
-            var reduction = 1
-            while (minOf(bornes.outWidth, bornes.outHeight) / (reduction * 2) >= cible) reduction *= 2
-            BitmapFactory.decodeByteArray(it, 0, it.size, BitmapFactory.Options().apply { inSampleSize = reduction })?.asImageBitmap()
-        }.getOrNull()
-    }
-}
+internal fun photoCarte(octets: ByteArray?, cible: Int): ImageBitmap? = rememberPhoto(octets, cible)
 
 /** Carte du Game Show (choix A de la planche du 27/10) : crème, bord doré, tuile blanche, mot en rose comme au Pictionary. */
 private val CarteCreme = Brush.verticalGradient(listOf(Color(0xFFFFFAF0), Color(0xFFFDF1DC)))
@@ -200,13 +238,24 @@ private val MotRose = Color(0xFFFF2D8F)
 private val QuestionDoree = Color(0xFFFFE27A)
 
 /**
+ * Taille de la photo [largeurPhoto] × [hauteurPhoto] posée en entier dans la tuile [largeur] × [hauteur] : la plus
+ * grande possible sans rien couper, ni le haut ni les côtés (test du 27/10 au soir : têtes et visages coupés).
+ */
+internal fun photoDansTuile(largeur: Float, hauteur: Float, largeurPhoto: Float, hauteurPhoto: Float): Pair<Float, Float> {
+    if (largeur <= 0f || hauteur <= 0f || largeurPhoto <= 0f || hauteurPhoto <= 0f) return 0f to 0f
+    val k = minOf(largeur / largeurPhoto, hauteur / hauteurPhoto)
+    return largeurPhoto * k to hauteurPhoto * k
+}
+
+/**
  * Qui a disparu ? en Game Show : une vraie carte opaque, lisible de loin sur le plateau (cedric, planche du 27/10,
  * option A « carte du Pictionary »). La carte disparue devient violette, rayée, avec un « ? » doré ; à la révélation
- * l'objet revient sur sa carte crème, bordée d'or qui brille.
+ * l'objet revient sur sa carte crème, bordée d'or qui brille. La photo tient en entier sur la tuile blanche, sans rien
+ * couper (cedric, 27/10 au soir : « la plupart des visages sont coupés »).
  */
 @Composable
 private fun CarteGs(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
-    val photo = photoCarte(octets, 240)
+    val photo = photoCarte(octets, PHOTO_CARTE_DISPARU)
     val trou = disparu && etape == EtapeDisparu.CHERCHER
     val enOr = disparu && etape == EtapeDisparu.REPONSE
     val forme = RoundedCornerShape(14.dp)
@@ -235,7 +284,11 @@ private fun CarteGs(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, di
                     style = TextStyle(color = QuestionDoree, shadow = Shadow(Color(0xFFFFB347), blurRadius = 18f)),
                     modifier = Modifier.apparition(0, "trou"),
                 )
-                photo != null -> Image(photo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                // La photo entière sur la tuile blanche : jamais de tête ou de visage coupé.
+                photo != null -> {
+                    val (l, h) = photoDansTuile((maxWidth - 6.dp).value, (maxHeight - 6.dp).value, photo.width.toFloat(), photo.height.toFloat())
+                    Image(photo, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.size(l.dp, h.dp))
+                }
                 else -> Text(carte.image ?: "⭐", fontSize = taille, lineHeight = taille * 1.15f)
             }
         }

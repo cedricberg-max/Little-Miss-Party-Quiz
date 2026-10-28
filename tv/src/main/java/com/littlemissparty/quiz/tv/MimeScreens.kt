@@ -18,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -53,6 +54,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
@@ -302,7 +304,7 @@ private fun RelaisFace(color: Color, cle: Any?, modifier: Modifier) {
 @Composable
 private fun MimeCardFace(card: MimeCard, color: Color, octets: ByteArray?, modifier: Modifier) {
     // « 📷 Photos » : la photo du mot à la place de l'émoji (qui revient si la photo n'est pas arrivée).
-    val photo = photoCarte(octets, 320)
+    val photo = photoCarte(octets, PHOTO_CARTE_MIMES)
     Column(
         modifier
             .width(500.dp)
@@ -313,9 +315,12 @@ private fun MimeCardFace(card: MimeCard, color: Color, octets: ByteArray?, modif
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (photo != null) {
+            // La photo entière, plus grande, à ses proportions : rien de coupé (cedric, 27/10 au soir : le flamant
+            // rose avait la tête coupée par le cadrage au milieu).
+            val (l, h) = photoDansTuile(320f, 220f, photo.width.toFloat(), photo.height.toFloat())
             Image(
-                photo, contentDescription = null, contentScale = ContentScale.Crop,
-                modifier = Modifier.padding(top = 4.dp, bottom = 6.dp).size(width = 200.dp, height = 140.dp)
+                photo, contentDescription = null, contentScale = ContentScale.FillBounds,
+                modifier = Modifier.padding(top = 4.dp, bottom = 6.dp).size(width = l.dp, height = h.dp)
                     .clip(RoundedCornerShape(20.dp)).border(2.dp, Neon.Blanc.copy(alpha = 0.7f), RoundedCornerShape(20.dp)),
             )
         } else {
@@ -365,6 +370,12 @@ private fun FoundCounter(found: Int) {
     }
 }
 
+/** Côté du masque des mimes entre deux tours, en dp, pour [hauteur] dp de place : 220 au plus, 132 (l'ancien) au moins. */
+internal fun tailleMasqueMimes(hauteur: Float): Float = (hauteur - TEXTES_ENTRE_TOURS).coerceIn(132f, 220f)
+
+/** Place des textes sous le masque : bravo sur 2 lignes (nom long), points, consigne sur 3 lignes et espaces (dp). */
+private const val TEXTES_ENTRE_TOURS = 250f
+
 /** Entre deux tours : bilan du tour qui vient de finir, puis qui va mimer. */
 @Composable
 private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) {
@@ -372,13 +383,19 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
     val lastTeam = state.teams.find { it.uid == last?.team }
     // Le bilan d'un tour arrive après le tampon « TEMPS ÉCOULÉ ! » ; l'ouverture de la manche, tout de suite.
     val bilan = if (last != null) Tempo.MIME_BILAN else 0L
-    Box(modifier.fillMaxWidth()) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
         if (last != null && last.found > 0) Gerbe(cle = m.turns.size, actif = apres(bilan, m.turns.size))
+        // Le masque des mimes en grand (cedric, 27/10 au soir : Sarah l'aime bien, « juste un peu plus gros »), sans
+        // jamais pousser le bravo, les points ni la consigne hors de l'écran.
+        val masque = tailleMasqueMimes(maxHeight.value).dp
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             // Game Show : le logo néon des mimes (planche du 24/10) à la place de l'émoji.
             val logo = if (Look.gs) logoNeonJeu("mimes") else null
-            if (logo != null) Image(painterResource(logo), contentDescription = null, modifier = Modifier.size(132.dp).apparition(bilan, m.turns.size))
-            else Text("🎭", fontSize = 90.sp, lineHeight = 96.sp, modifier = Modifier.apparition(bilan, m.turns.size))
+            if (logo != null) Image(painterResource(logo), contentDescription = null, modifier = Modifier.size(masque).apparition(bilan, m.turns.size))
+            else {
+                val taille = with(LocalDensity.current) { (masque * 0.62f).toSp() }
+                Text("🎭", fontSize = taille, lineHeight = taille * 1.07f, modifier = Modifier.apparition(bilan, m.turns.size))
+            }
             if (last != null && lastTeam != null) {
                 Text(
                     if (last.found > 0) "Bravo ${lastTeam.name} !" else "Bien essayé ${lastTeam.name} !",

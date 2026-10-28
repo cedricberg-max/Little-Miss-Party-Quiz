@@ -61,6 +61,7 @@ internal fun familleType(kind: QuestionKind?, musique: Boolean = false, images: 
     QuestionKind.GONFLEUR -> "gonfleur"
     QuestionKind.PATATE -> "patate"
     QuestionKind.DUEL -> "duel"
+    QuestionKind.SIMON -> "simon"
     else -> when {
         musique -> "musical"
         images -> "illustre"
@@ -90,6 +91,7 @@ internal fun nomIntroJeu(famille: String): String? = when (famille) {
     "bombe" -> "coffres"
     "gonfleur" -> "gonfleur"
     "duel" -> "duel"
+    "simon" -> "simon"
     else -> null
 }
 
@@ -110,6 +112,7 @@ private fun ressourceIntroJeu(nom: String): Int = when (nom) {
     "patate" -> R.raw.gs_intro_patate
     "coffres" -> R.raw.gs_intro_coffres
     "duel" -> R.raw.gs_intro_duel
+    "simon" -> R.raw.gs_intro_simon
     else -> R.raw.gs_intro_gonfleur
 }
 

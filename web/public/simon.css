@@ -1,0 +1,67 @@
+/* 🔴 Le Simon du Prof sur la tablette (planche du 27/10) : 8 grosses boules de couleur, les chiffres en tuiles blanches,
+   la suite tapée en bas, assez grande pour se relire, « Effacer » et « Valider ».
+   Droit : tout en colonne. Couché : les boules et les chiffres à gauche, la suite et les boutons à droite. */
+#simon-host { width: 100%; }
+.sm [hidden] { display: none !important; }
+.sm { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 4px 10px 12px; text-align: center; color: #fff; }
+.sm-joueur { margin: 0; align-self: flex-end; font: 800 clamp(15px, 3.4vw, 22px)/1.2 system-ui, sans-serif; color: #ffe27a; }
+.sm-titre { margin: 0; font: 900 clamp(26px, 7vw, 48px)/1.1 system-ui, sans-serif; text-transform: uppercase; letter-spacing: .02em;
+  color: #e9fbff; text-shadow: 0 0 10px rgba(0, 240, 255, .8), 0 0 26px rgba(0, 240, 255, .45); overflow-wrap: anywhere; }
+.sm-texte { margin: 0; font: 700 clamp(16px, 3.8vw, 24px)/1.3 system-ui, sans-serif; color: #d9d2f0; }
+.sm-chrono { width: min(100%, 720px); height: 12px; border-radius: 99px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.sm-chrono span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ffb020, #ffe27a); transition: width .25s linear; }
+.sm-chrono.sm-presse span { background: linear-gradient(90deg, #ff3b5c, #ff8a5c); }
+
+.sm-pave { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+.sm-boules { display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(8px, 2.6vw, 18px); width: min(100%, 720px); }
+.sm-chiffres { display: grid; grid-template-columns: repeat(5, 1fr); gap: clamp(6px, 2vw, 14px); width: min(100%, 720px); }
+.sm-sep { margin: 2px 0 0; font: 800 clamp(13px, 3vw, 18px) system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #8ff6ff; }
+.sm-touche { border: 0; padding: 0; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.sm-touche:disabled { cursor: default; }
+.sm-touche.sm-boule { aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, .85) 0 7%, transparent 22%), radial-gradient(circle at 50% 55%, var(--c), color-mix(in srgb, var(--c) 55%, #000) 100%);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--c) 70%, transparent), inset 0 -6px 14px rgba(0, 0, 0, .35); }
+.sm-touche.sm-tuile { aspect-ratio: 1.1; border-radius: 18%; font: 900 clamp(26px, 7vw, 54px)/1 system-ui, sans-serif; color: #0e0a24;
+  background: linear-gradient(#ffffff, #dff3ff); box-shadow: 0 0 14px rgba(0, 240, 255, .55), inset 0 -4px 0 rgba(14, 10, 36, .15); }
+.sm-touche.sm-appui { animation: sm-appui .22s ease-out; }
+@keyframes sm-appui { 40% { transform: scale(.88); filter: brightness(1.5); } }
+.sm-touche:disabled { filter: saturate(.55) brightness(.75); }
+
+.sm-bas { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: min(100%, 720px); padding: 10px 12px 12px;
+  border-radius: 18px; background: rgba(10, 6, 24, .72); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
+.sm-compte { margin: 0; text-align: left; font: 800 clamp(15px, 3.4vw, 22px) system-ui, sans-serif; color: #e6defa; }
+/* La suite tapée : assez grande pour se relire (cedric, 27/10), sur une ou deux lignes. */
+.sm-suite { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: clamp(6px, 1.6vw, 12px); }
+.sm-mini, .sm-vide { width: clamp(38px, 10.5vw, 72px); aspect-ratio: 1; flex: none; }
+.sm-mini.sm-boule { border-radius: 50%; background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, .8) 0 8%, transparent 24%), radial-gradient(circle at 50% 55%, var(--c), color-mix(in srgb, var(--c) 55%, #000));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 60%, transparent); }
+.sm-mini.sm-tuile { display: grid; place-items: center; border-radius: 18%; background: #fff; color: #0e0a24; font: 900 clamp(20px, 5.4vw, 38px)/1 system-ui, sans-serif; }
+.sm-vide { border-radius: 50%; border: 2px dashed rgba(255, 255, 255, .3); }
+.sm-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
+.sm-actions button { min-height: 60px; border-radius: 18px; font: 900 clamp(18px, 4.4vw, 28px) system-ui, sans-serif; text-transform: uppercase; cursor: pointer; touch-action: manipulation; }
+.sm-effacer { border: 2px solid rgba(255, 255, 255, .45); background: rgba(26, 18, 46, .9); color: #fff; }
+.sm-valider { border: 3px solid rgba(255, 255, 255, .6); background: #2f7a3e; color: #0b1a10; }
+.sm-valider.sm-pret { background: linear-gradient(#7dff8f, #2bd94a); box-shadow: 0 0 18px rgba(43, 217, 74, .6); }
+.sm-actions button:disabled { opacity: .45; cursor: default; }
+
+/* Pendant que le robot montre la suite : un grand œil qui regarde la TV. */
+.sm[data-etat="regarde"] .sm-titre, .sm[data-etat="chiffres"] .sm-titre { font-size: clamp(30px, 8.5vw, 60px); margin-top: 8vh; }
+.sm[data-etat="chiffres"] .sm-titre { color: #fff6c8; text-shadow: 0 0 10px #ffb020, 0 0 28px rgba(255, 176, 32, .6); }
+.sm[data-etat="elimine"] .sm-titre { color: #ffd6de; text-shadow: 0 0 10px #ff3b5c, 0 0 26px rgba(255, 59, 92, .5); margin-top: 6vh; }
+.sm[data-etat="gagne"] .sm-titre { color: #fff6c8; text-shadow: 0 0 10px #ffb020, 0 0 28px rgba(255, 176, 32, .6); margin-top: 6vh; }
+.sm[data-etat="envoye"] .sm-titre { color: #dcffe2; text-shadow: 0 0 10px #2bd94a, 0 0 26px rgba(43, 217, 74, .5); }
+
+@media (orientation: landscape) and (min-width: 700px) {
+  .sm.sm-a-moi { display: grid; grid-template-columns: 1.35fr 1fr; grid-template-areas: "joueur joueur" "titre titre" "chrono chrono" "pave bas"; align-items: start; column-gap: 18px; }
+  .sm.sm-a-moi .sm-joueur { grid-area: joueur; }
+  .sm.sm-a-moi .sm-titre { grid-area: titre; font-size: clamp(24px, 4.2vw, 40px); }
+  .sm.sm-a-moi .sm-texte { display: none; }
+  .sm.sm-a-moi .sm-chrono { grid-area: chrono; justify-self: center; }
+  .sm.sm-a-moi .sm-pave { grid-area: pave; }
+  /* Tout le pavé tient dans la hauteur de l'écran couché : boules et chiffres un peu plus petits. */
+  .sm.sm-a-moi .sm-boules, .sm.sm-a-moi .sm-chiffres { width: min(100%, calc((100dvh - 230px) * 1.1)); }
+  .sm.sm-a-moi .sm-bas { grid-area: bas; }
+  .sm.sm-a-moi .sm-touche.sm-tuile { font-size: clamp(22px, 3.6vw, 40px); }
+  .sm.sm-a-moi .sm-mini, .sm.sm-a-moi .sm-vide { width: clamp(34px, 5vw, 56px); }
+  .sm.sm-a-moi .sm-mini.sm-tuile { font-size: clamp(18px, 2.8vw, 30px); }
+}

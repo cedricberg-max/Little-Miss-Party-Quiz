@@ -69,6 +69,12 @@ sealed interface Command {
     /** Duel des robots : « ✋ Arrêter le duel », le face-à-face s'arrête sans points. */
     data class DuelStop(override val id: String, override val expectSeq: Int) : Command
 
+    /** Simon du Prof : « ▶ » de Sarah, la suite suivante (ou la même après « Bah alors »), ou le tour suivant. */
+    data class SimonGo(override val id: String, override val expectSeq: Int) : Command
+
+    /** Simon du Prof : « ✋ Arrêter la suite », elle se relancera telle quelle, sans élimination. */
+    data class SimonStop(override val id: String, override val expectSeq: Int) : Command
+
     /** Blind test : lancer ou relancer la musique du morceau. */
     data class BlindPlay(override val id: String, override val expectSeq: Int) : Command
 
@@ -145,6 +151,8 @@ sealed interface Command {
                 "duel_start" -> DuelStart(id, seq, (m["teams"] as? List<*>)?.map { it as String })
                 "duel_next" -> DuelNext(id, seq)
                 "duel_stop" -> DuelStop(id, seq)
+                "simon_go" -> SimonGo(id, seq)
+                "simon_stop" -> SimonStop(id, seq)
                 "portes_set" -> PortesSet(id, seq, m["qid"] as String, (m["door"] as Number).toInt(), (m["value"] as Number).toInt())
                 else -> null
             }
@@ -184,7 +192,7 @@ fun Game.execute(
         cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut ||
         cmd is Command.PictoShow || cmd is Command.PictoDraw || cmd is Command.ChestRandom || cmd is Command.PotatoRandom ||
         cmd is Command.PotatoStop || cmd is Command.StatuesStop || cmd is Command.StatuesPlay || cmd is Command.StatuesSong ||
-        cmd is Command.DuelStart || cmd is Command.DuelNext || cmd is Command.DuelStop
+        cmd is Command.DuelStart || cmd is Command.DuelNext || cmd is Command.DuelStop || cmd is Command.SimonGo || cmd is Command.SimonStop
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
     // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
@@ -192,6 +200,9 @@ fun Game.execute(
     // Décompte 3, 2, 1 d'une reprise : un « Arrêter le chrono » arrivé maintenant est un appui réflexe
     // (la question n'a pas encore repris) ; il fermerait la question avant qu'elle reparte.
     if (cmd is Command.Close && state.phase == Phase.QUESTION && (state.resumeAt ?: Long.MIN_VALUE) > now) return refused("countdown")
+    // Chrono parti il y a moins de 1,5 s : le gros bouton du téléphone venait d'afficher « Question suivante » ; ce second
+    // appui d'un double clic fermait la question dans la même seconde (test du 27/10 : « Temps écoulé ! » sur les tablettes).
+    if (cmd is Command.Close && justStarted(now)) return refused("just_started")
     // Toutes les équipes inscrites ont déjà tenté leur chance : à la relance, tout le monde peut rebuzzer.
     val allTried = state.buzz?.blocked?.let { b -> b.isNotEmpty() && teams.isNotEmpty() && teams.all { it in b } } == true
     val event = when (cmd) {
@@ -246,6 +257,8 @@ fun Game.execute(
         }
         is Command.DuelNext -> if (state.duel?.result == null) null else readyDuel(teams, now, random = random)
         is Command.DuelStop -> stopDuel(now)
+        is Command.SimonGo -> if (teams.isEmpty()) return refused("no_teams") else simonGo(teams, now, random)
+        is Command.SimonStop -> stopSimon(now)
         is Command.PortesSet -> if (question?.id != cmd.qid) return refused("stale_program") else setDoor(cmd.door, cmd.value, now)
         is Command.Factor -> if (cmd.factor !in FACTORS) return refused("bad_factor") else chooseFactor(cmd.factor, now)
         // Le programme a changé depuis l'affichage de la régie : rien n'est fait.

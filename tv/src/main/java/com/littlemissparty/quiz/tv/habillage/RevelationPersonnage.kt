@@ -70,7 +70,7 @@ fun RevelationPersonnage(nom: String, emoji: String?, image: ImageBitmap?, modif
                         contentAlignment = Alignment.Center,
                     ) {
                         if (image != null) {
-                            Image(image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(CircleShape))
+                            Image(image, contentDescription = null, contentScale = ContentScale.Crop, alignment = com.littlemissparty.quiz.tv.CadrageHaut, modifier = Modifier.fillMaxSize().clip(CircleShape))
                         } else {
                             Text(emoji.orEmpty(), fontSize = 110.sp)
                         }

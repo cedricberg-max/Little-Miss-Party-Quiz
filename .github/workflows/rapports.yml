@@ -15,7 +15,7 @@ on:
         description: "Numéro d'un passage « Tests Android (émulateur TV) » dont afficher les captures (vide = les rapports)"
         default: ""
       audit:
-        description: "« packs » : vérifie les images de tous les packs et d'une prestation (champ « prestation ») ; « bombe » : journal de « Ça va exploser ! » de la dernière partie (ou du code donné dans « prestation »). Sans rien modifier"
+        description: "« packs » : vérifie les images de tous les packs et d'une prestation (champ « prestation ») ; « bombe » : journal de « Ça va exploser ! » de la dernière partie (ou du code donné dans « prestation ») ; « partie » : prestation chargée ou démonstration dans la dernière partie (« prestation » : un mot du titre à chercher). Sans rien modifier"
         default: ""
       prestation:
         description: "Avec audit : un mot du nom de la prestation à vérifier (ses questions à réponses en images)"
@@ -46,6 +46,17 @@ jobs:
           run-id: ${{ inputs.captures }}
           github-token: ${{ github.token }}
           path: archive
+      - name: Tests en échec dans ce passage
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          for f in glob.glob("archive/**/TEST-*.xml", recursive=True):
+              for tc in ET.parse(f).getroot().iter("testcase"):
+                  e = tc.find("failure")
+                  if e is not None:
+                      print("---", tc.get("classname").split(".")[-1], tc.get("name"))
+                      print("\n".join((e.text or "").splitlines()[:25]))
+          PY
       - name: Afficher les captures
         run: |
           command -v convert >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick >/dev/null; }
@@ -58,7 +69,7 @@ jobs:
             for png in $(find archive -name "*-[0-9][0-9]-$nom.png" -o -name "$nom.png" | sort | head -3); do
               trouve=1
               fichier=$(basename "$png" .png)
-              convert "$png" -resize '1280x>' -quality 85 "$RUNNER_TEMP/$fichier.jpg"
+              convert "$png" -resize '960x>' -quality 72 "$RUNNER_TEMP/$fichier.jpg"
               echo "=== CAPTURE $fichier $(identify -format '%wx%h' "$png") $(wc -c < "$RUNNER_TEMP/$fichier.jpg")"
               base64 -w 1000 "$RUNNER_TEMP/$fichier.jpg" | sed 's/^/B64 /'
               echo "=== FIN $fichier"
@@ -124,6 +135,22 @@ jobs:
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           npm i --no-save --silent google-auth-library@9 > /dev/null
           node .github/scripts/journal-bombe.mjs
+
+  partie:
+    if: inputs.audit == 'partie'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      MOT: ${{ inputs.prestation }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: État de la dernière partie (sans noms)
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npm i --no-save --silent google-auth-library@9 > /dev/null
+          node .github/scripts/etat-partie.mjs
 
   lire:
     if: inputs.captures == '' && inputs.audit == ''

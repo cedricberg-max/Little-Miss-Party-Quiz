@@ -76,7 +76,8 @@ import kotlin.math.roundToInt
  * - le solo de guitare : flash, la fête du gagnant en plan cinéma, plein écran ([FeteCinema] : le robot bondit,
  *   s'arrête, fait un clin d'œil, la caméra bouge ; cedric, 24 octobre), le nom du gagnant claque lettre par lettre
  *   ([NomNerveux]) et ses vrais points ; jamais les autres équipes (cedric, 26/10) ;
- * - à [Tempo.PODIUM_FIN], quand la chanson s'éteint : l'écran de fin cinéma ([FinCinemaGameShow]).
+ * - à [Tempo.PODIUM_FIN], quand la chanson s'éteint : l'outro du robot en fusée puis l'écran de fin cinéma
+ *   ([OutroPuisFinGameShow]).
  * Égalité en tête : mêmes tubes, puis « ÉGALITÉ ! » et les noms couronnés. Personne n'a marqué : les tubes restent
  * presque vides et « Bravo à toutes les équipes ! » arrive au solo. Les compteurs du suspense ne sont qu'un spectacle
  * plafonné ; tout nombre affiché après le solo est le vrai score ([Classee.points]) : rien ici ne compte de points.
@@ -86,7 +87,7 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
-    if (apres(Tempo.PODIUM_FIN, Unit)) return FinCinemaGameShow(modifier)
+    if (apres(Tempo.PODIUM_FIN, Unit)) return OutroPuisFinGameShow(modifier)
     val meilleur = classement.firstOrNull()?.points ?: 0
     val gagnants = if (meilleur > 0) classement.takeWhile { it.points == meilleur } else emptyList()
     val seul = gagnants.size == 1

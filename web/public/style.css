@@ -144,6 +144,8 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .choice.with-photo .photo { grid-area: photo; justify-self: center; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 22%; background: #fff; }
 .choice.with-photo .letter { grid-area: letter; width: 30px; height: 30px; font-size: 17px; }
 .choice.with-photo .text { grid-area: text; min-width: 0; overflow-wrap: normal; word-break: normal; hyphens: none; line-height: 1.1; }
+.choice.with-photo.photo-seule { grid-template-areas: "photo photo photo photo" ". letter letter ."; }
+.choice.with-photo.photo-seule .text { display: none; }
 
 /* Résultat */
 .result-icon { font-size: 110px; font-weight: 900; line-height: 1; }

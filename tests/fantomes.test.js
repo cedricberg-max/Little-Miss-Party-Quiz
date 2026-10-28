@@ -85,6 +85,13 @@ async function ouvrirFantomes(nombre, auto = null) {
   if (auto) {
     await page.check("#auto");
     await page.fill("#mdp", auto);
+    // Le petit œil montre le mot de passe tapé, puis le masque à nouveau.
+    const oeil = page.locator(".oeil-champ:has(#mdp) .oeil-bouton");
+    assert.equal(await oeil.getAttribute("aria-label"), "Afficher le mot de passe");
+    await oeil.click();
+    assert.equal(await page.getAttribute("#mdp", "type"), "text");
+    await oeil.click();
+    assert.equal(await page.getAttribute("#mdp", "type"), "password");
   }
   await page.click("#lancer");
   return page;
@@ -193,6 +200,41 @@ describe("équipes fantômes", () => {
     const noms = Object.values(await read("teams")).map((t) => t.name).sort();
     assert.deepEqual(noms, ["Fantôme 1", "Fantôme 2"]);
     stop();
+
+    // 🤠 Duel des robots (vu le 27/10 au soir : les fantômes ne tiraient jamais) : avec le mot de passe régie, la page
+    // lit l'heure secrète du PAN dans le journal de la box, et chaque fantôme du duel tire autour du PAN.
+    const ids = Object.keys(await read("teams"));
+    const panAt = Date.now() + 2500;
+    await set(ref(hostDb(), `games/${CODE}/log/7`), { seq: 7, at: Date.now(), type: "duel_start", qid: "d1", n: 1, panAt });
+    await hostState({ phase: "question", kind: "duel", qid: "d1", choices: null, deadline: null,
+      duel: { n: 1, total: 1, teams: ids, players: [1, 1], step: "standoff", key: "d1-1-1" } });
+    const tirs = await waitFor(async () => { const t = await read("duel/d1-1-1"); return t && Object.keys(t).length === 2 && t; }, "les 2 fantômes tirent", 15000);
+    for (const tir of Object.values(tirs)) {
+      assert.ok(Math.abs(tir.t - panAt) < 7000, `tir près du PAN (écart ${tir.t - panAt} ms)`);
+    }
+
+    // 🔴 Simon du Prof : la suite secrète est dans le journal dès le début du tour ; chaque joueur fantôme la tape,
+    // élément par élément, puis valide avant la fin du chrono (une fois sur dix il se trompe d'un élément).
+    await set(ref(hostDb(), `games/${CODE}/log/8`), { seq: 8, at: Date.now(), type: "simon_tour", qid: "s1", tour: 1, sequence: "rouge,vert,bleu,jaune,4", teams: ids });
+    const debut = Date.now();
+    await hostState({ phase: "question", kind: "simon", qid: "s1", choices: null, deadline: null,
+      simon: { tour: 1, tours: 3, suite: 3, step: "play", key: "s1-1-3-1", startAt: debut, montreAt: debut, reponseAt: debut, finAt: debut + 12000,
+        chiffres: false, teams: ids, players: Object.fromEntries(ids.map((id) => [id, 1])) } });
+    const suites = await waitFor(async () => {
+      const r = await read("simon/s1-1-3-1");
+      return r && Object.values(r).filter((x) => x.ok === true).length === 2 && r;
+    }, "les 2 fantômes valident leur suite", 15000);
+    for (const r of Object.values(suites)) {
+      const items = r.items.split(",");
+      assert.equal(items.length, 3, "autant d'éléments que la suite");
+      assert.ok(items.filter((x, k) => x === ["rouge", "vert", "bleu"][k]).length >= 2, `suite ${r.items} presque juste`);
+    }
+
+    // Pendant la pause, aucun tir.
+    await hostState({ phase: "question", kind: "duel", qid: "d1", choices: null, deadline: null, paused: true,
+      duel: { n: 2, total: 2, teams: ids, players: [2, 2], step: "standoff", key: "d1-2-1" } });
+    await new Promise((r) => setTimeout(r, 3000));
+    assert.equal(await read("duel/d1-2-1"), null, "aucun tir pendant la pause");
     await page.context().close();
   });
 });

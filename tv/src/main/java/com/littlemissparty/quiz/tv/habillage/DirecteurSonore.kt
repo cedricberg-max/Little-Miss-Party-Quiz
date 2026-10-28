@@ -129,10 +129,10 @@ class DirecteurSonore {
                 // Présentation d'un jeu : le jingle du rideau, puis une musique douce sous la voix de Sarah.
                 o += Ordre.Jouer(Son.TRANSITION)
                 o += Ordre.Musique(Ambiance.SILENCE)
-                o += Ordre.Musique(Ambiance.PRESENTATION, Tempo.TRANSITION_MUSIQUE)
+                o += Ordre.Musique(ambiance(i), Tempo.TRANSITION_MUSIQUE)
             } else {
                 o += Ordre.Jouer(Son.WHOOSH)
-                o += Ordre.Musique(Ambiance.PRESENTATION)
+                o += Ordre.Musique(ambiance(i))
             }
             Ecran.QUESTION -> {
                 // Le Vrai ou Faux express garde sa musique nerveuse d'un bout à l'autre de la série.
@@ -220,6 +220,8 @@ class DirecteurSonore {
             }
             Ecran.VERROUILLEE -> {
                 o += Ordre.Jouer(Son.VERROU)
+                // Chrono à zéro alors qu'une équipe n'a pas répondu : le signal « temps écoulé » sous le tampon.
+                if (i.tempsEcoule) o += Ordre.Jouer(Son.MIME_FIN)
                 if (!i.express) o += Ordre.Musique(Ambiance.SUSPENSE)
             }
             Ecran.REVELATION -> if (i.nombre) {
@@ -229,8 +231,10 @@ class DirecteurSonore {
                 o += Ordre.Jouer(if (i.pile) Son.CHIFFRE_PILE else Son.BONNE_REPONSE, Tempo.REVELATION_OR)
                 o += Ordre.Jouer(Son.IMPACT, Tempo.REVELATION_OR)
                 o += Ordre.Musique(Ambiance.FETE, Tempo.REVELATION_OR)
-                for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k))
-                if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS)
+                // Game Show : les points attendent la règle des écarts (révélation « A puis B » du 28/10).
+                val retard = if (i.gameShow) Tempo.JUSTE_GS_RETARD else 0L
+                for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k) + retard)
+                if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS + retard)
             } else if (i.blind) {
                 // Blind test : rembobinage et fanfare quand une équipe a trouvé, simple carillon sinon (jamais moqueur).
                 o += Ordre.Musique(Ambiance.SILENCE)
@@ -298,7 +302,8 @@ class DirecteurSonore {
                 // dernier groove d'Aerodynamic. Tout est dans gs_podium : rien d'autre ne joue.
                 o += Ordre.Musique(Ambiance.SILENCE)
                 o += Ordre.Jouer(Son.PODIUM)
-                o += Ordre.Musique(Ambiance.AU_REVOIR, Tempo.PODIUM_FIN, Tempo.FONDU_AU_REVOIR)
+                // Avec l'outro du robot en fusée, le groove d'Aerodynamic attend la fin de la vidéo (l'écran le lance).
+                if (!i.outro) o += Ordre.Musique(Ambiance.AU_REVOIR, Tempo.PODIUM_FIN, Tempo.FONDU_AU_REVOIR)
             } else {
                 o += Ordre.Musique(Ambiance.SILENCE)
                 // Grand gagnant : long roulement qui monte pendant tout le suspense, la montée arrive sur la fin.
@@ -354,6 +359,10 @@ class DirecteurSonore {
             if (i.duel && i.duelEtape != p.duelEtape) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.duelEtape == "standoff") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
+            // Simon du Prof : la musique change net quand une suite démarre (Classique : elle se tait), revient après.
+            if (i.simonSuite != p.simonSuite || i.simonChiffres != p.simonChiffres) {
+                o += Ordre.Musique(ambiance(i), fonduMs = if (i.simonSuite) Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
+            }
             // Statues musicales : « gel ! » quand la musique s'arrête, petit élan quand elle repart.
             if (i.statue && !p.statue) o += Ordre.Jouer(Son.STATUE_GEL)
             if (!i.statue && p.statue && i.statuesAnnonce == 0) o += Ordre.Jouer(Son.STATUE_REPART)
@@ -400,18 +409,21 @@ class DirecteurSonore {
         if (nouveauBuzz || repart) o += Ordre.Couper
         // Jamais moqueur : un petit « pouet » gentil quand une équipe s'est trompée (Game Show : son à lui, cedric 24/10).
         if ((nouveauBuzz || repart) && i.ratees > p.ratees) o += Ordre.Jouer(Son.RATE)
+        // Game Show : la tablette joue le mot de l'équipe dès l'appui ; la TV le joue aussitôt, avec le buzz, sans
+        // attendre (cedric, 27/10 au soir : le mot de la TV arrivait nettement après celui de la tablette).
+        val motEquipe = if (i.gameShow) 0L else Tempo.FLOU_EQUIPE
         if (nouveauBuzz && i.blind) {
             // Blind test : le disque freine, « BWAP » de cuivres, la note de l'équipe, puis un vrai silence pour la laisser
             // répondre (cedric, 24 octobre : plus de musique d'attente).
             o += Ordre.Musique(Ambiance.SILENCE)
             o += Ordre.Jouer(Son.BT_BUZZ)
-            o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
+            o += Ordre.Jouer(Son.equipe(i.buzzEquipe), motEquipe)
         } else if (nouveauBuzz) {
             // Quiz musical : le disque s'arrête net (scratch) au moment du buzz.
             if (i.musical) o += Ordre.Jouer(Son.BT_SCRATCH)
             o += Ordre.Musique(Ambiance.SILENCE)
             o += Ordre.Jouer(Son.BUZZ_GROS)
-            o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
+            o += Ordre.Jouer(Son.equipe(i.buzzEquipe), motEquipe)
             if (!i.chante) o += Ordre.Jouer(Son.SUSPENSE_REPONSE, Tempo.FLOU_SUSPENSE)
         } else if (repart) {
             // L'image (ou la chanson) reprend, avec sa musique ; Image floue : la montée dramatique repart là où le
@@ -427,7 +439,11 @@ class DirecteurSonore {
     private fun ambiance(i: Instant) = when (i.ecran) {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
-        Ecran.PRESENTATION -> if (i.duel) Ambiance.DUEL_PRESENTATION else Ambiance.PRESENTATION
+        Ecran.PRESENTATION -> when {
+            i.duel -> Ambiance.DUEL_PRESENTATION
+            i.simon && i.gameShow -> Ambiance.SIMON_ENTRE
+            else -> Ambiance.PRESENTATION
+        }
         Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
             i.express -> Ambiance.EXPRESS
             // Extrait musical : rien ne doit couvrir la chanson.
@@ -442,6 +458,13 @@ class DirecteurSonore {
                 "standoff" -> Ambiance.SILENCE
                 "ready" -> Ambiance.DUEL_ANNONCE
                 else -> Ambiance.DUEL_ENTRE
+            }
+            // Le Simon du Prof : la boucle douce entre deux suites, celle aux percussions pendant une suite (la note de
+            // chaque boule passe par-dessus), la partie où tout joue quand les chiffres arrivent.
+            i.simon && i.ecran == Ecran.QUESTION -> when {
+                !i.simonSuite -> Ambiance.SIMON_ENTRE
+                i.simonChiffres -> Ambiance.SIMON_FORT
+                else -> Ambiance.SIMON_SUITE
             }
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
@@ -530,6 +553,13 @@ data class Instant(
      */
     val duel: Boolean = false,
     val duelEtape: String = "",
+    /** Le Simon du Prof : sa question est à l'écran ; une suite est en cours (le robot la montre, les équipes la tapent). */
+    val simon: Boolean = false,
+    val simonSuite: Boolean = false,
+    /** Le Simon du Prof : la suite en cours a des chiffres (à partir de [com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES]). */
+    val simonChiffres: Boolean = false,
+    /** Quiz : question fermée par la fin du chrono (une équipe n'a pas répondu), « TEMPS ÉCOULÉ ! » à l'écran. */
+    val tempsEcoule: Boolean = false,
     val flou: Boolean = false,
     val chante: Boolean = false,
     val quiSuis: Boolean = false,
@@ -559,6 +589,8 @@ data class Instant(
     val pictioTrouve: Boolean = false,
     /** Design « The Game Show » : le podium et l'écran de fin ont leur propre musique. */
     val gameShow: Boolean = false,
+    /** Game Show avec la vidéo de l'outro dans l'appli ([Outro]) : après le podium, l'écran lance lui-même la musique de fin. */
+    val outro: Boolean = false,
     /**
      * Game Show : la grosse intro du lancement passe en plein écran avec sa propre musique (Get Lucky) ; l'habillage
      * se tait jusqu'à sa fin, puis l'écran du moment (la présentation du 1er jeu) entre normalement.
@@ -598,6 +630,17 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
     ACCUEIL(null, "gs_accueil"),
     /** Game Show : la boucle western du Duel des robots (36 temps, 21,24 s, sans blanc), sous l'annonce et entre deux duels. */
     DUEL(null, "gs_duel_intro_boucle"),
+    /**
+     * Game Show, le Simon du Prof sur « Prix choc » d'Etienne de Crécy (cedric, 28/10), trois boucles prises entre les
+     * passages chantés (jamais la voix) à 127,87 BPM, coupées sur un début de mesure là où la suite ressemble le plus
+     * au début (raccord fondu sur 60 ms) : la douce, sans batterie (8 mesures, 15 s, de 0:01,9) ; avec les premières
+     * percussions (16 mesures, 30 s, de 0:43,2) ; la partie où tout joue (16 mesures, 30 s, de 2:02,0). Volumes laissés
+     * tels quels (pas de limiteur, qui changerait le niveau au raccord) : la douce et celle aux percussions sont plus
+     * basses dans le fichier, leurs ambiances les remontent.
+     */
+    SIMON_DOUCE(null, "gs_simon_douce"),
+    SIMON_SUITE(null, "gs_simon_suite"),
+    SIMON_FORT(null, "gs_simon_fort"),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -629,6 +672,15 @@ enum class Ambiance(
     DUEL_ANNONCE(legere = 0.45f, gameShow = mapOf(Lit.DUEL to 0.63f)),
     /** Duel des robots : entre deux duels, sous le résultat ; Game Show : la boucle western à −10 dB. */
     DUEL_ENTRE(legere = 0.3f, gameShow = mapOf(Lit.DUEL to 0.32f)),
+    /**
+     * Le Simon du Prof, Game Show (« Prix choc », cedric 28/10) : la boucle douce à la présentation et entre deux suites,
+     * sous la voix de Sarah ; Classique : la musique des questions.
+     */
+    SIMON_ENTRE(legere = 0.7f, gameShow = mapOf(Lit.SIMON_DOUCE to 0.82f)),
+    /** Pendant une suite : la boucle aux percussions, assez bas pour entendre la note de chaque boule ; Classique : silence. */
+    SIMON_SUITE(gameShow = mapOf(Lit.SIMON_SUITE to 0.84f)),
+    /** Pendant une suite avec des chiffres (longue, plus dure) : la partie où tout joue ; Classique : silence. */
+    SIMON_FORT(gameShow = mapOf(Lit.SIMON_FORT to 0.55f)),
     /**
      * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
      * trop éteint (cedric, 24/10).
@@ -667,7 +719,7 @@ enum class Ambiance(
             Lit.PAUSE -> pause
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
-            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL -> 0f
+            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT -> 0f
         }
     }
 }
@@ -857,6 +909,8 @@ object Tempo {
     const val REVELATION_TAMPON = 2_500L
     const val REVELATION_TAMPON_PAS = 200L
     const val REVELATION_POINTS = 3_000L
+    /** Juste Chiffre du Game Show : tampons et points tombent avec le « +100 » de la règle des écarts, pas avant. */
+    const val JUSTE_GS_RETARD = 3_750L
     const val CLASSEMENT_COMPTEUR = 300L
     const val CLASSEMENT_COURONNE = 1_800L
     /** Grand gagnant : 7 s de suspense (lmp_roulement_final), puis l'impact ; jingle et musique de fête ensuite. */

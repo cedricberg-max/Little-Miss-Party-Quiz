@@ -6,7 +6,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,7 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -41,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.CarteIndice
+import com.littlemissparty.quiz.tv.habillage.CarteIndiceGs
 import com.littlemissparty.quiz.tv.habillage.ChanteEnseigne
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
@@ -136,7 +135,8 @@ fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
             // Game Show : le titre est déjà dans l'enseigne, plus de pastille en double (cedric, planche du 27/10).
             if (!Look.gs) Badge("QUI SUIS-JE ?")
             Spacer(Modifier.weight(1f))
-            if (!revealed) Text("?", color = Palette.Gold, fontSize = 44.sp, fontWeight = FontWeight.Black)
+            // Game Show (planche du 28/10) : plus de grand « ? », l'enseigne du haut le dit déjà.
+            if (!revealed && !Look.gs) Text("?", color = Palette.Gold, fontSize = 44.sp, fontWeight = FontWeight.Black)
         }
         // Révélation : le personnage en grand, avec son image (préparée dans l'administration), son émoji ou son nom seul.
         if (revealed) {
@@ -174,9 +174,15 @@ fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
             }
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)) {
                 indices.forEachIndexed { i, clue ->
-                    key(q.id, i) { CarteIndice(i + 1, clue, Modifier.fillMaxWidth(), taille.sp) }
+                    key(q.id, i) {
+                        // Game Show : cartes néon à étoile ; le dernier arrivé entre en rebond avec « NOUVEL INDICE ! »
+                        // (pas le premier, ni ceux déjà là quand l'écran se redessine).
+                        val nouveau = remember { i > 0 && i == shown - 1 && !revealed }
+                        if (Look.gs) CarteIndiceGs(i + 1, clue, Modifier.fillMaxWidth(), taille.sp, nouveau)
+                        else CarteIndice(i + 1, clue, Modifier.fillMaxWidth(), taille.sp)
+                    }
                 }
-                if (aide) {
+                if (aide && !Look.gs) {
                     Text(
                         "Prochain indice dans un instant…",
                         color = Palette.InkSoft, fontSize = 20.sp, modifier = Modifier.padding(start = 56.dp),
@@ -191,7 +197,7 @@ fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
 @Composable
 private fun imagePersonnage(q: Question, state: UiState.Playing): ImageBitmap? {
     val bytes = q.imageId?.let { state.images[it] }
-    return remember(bytes) { bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
+    return rememberPhoto(bytes)
 }
 
 private const val INDICE_TAILLE_MAX = 30f

@@ -195,4 +195,26 @@ class MimesEnFileTest {
             Question("m", "Mimes", emptyList(), correct = -1, durationSec = 301, kind = QuestionKind.MIME, cards = jaunes)
         }
     }
+
+    @Test
+    fun `un jeu ajoute apres la manche des mimes en file pendant un tour est accepte et garde tout`() {
+        // Test du 27/10 au soir : « ＋ Jeu » → Blind test → « Ajouter après la manche actuelle », deux fois rien.
+        val blind = Question("b1", "Quel est ce titre ?", listOf("Titre A", "Titre B"), correct = 0, durationSec = 30, roundTitle = "Blind test")
+        val avecBlind = quiz.copy(questions = quiz.questions.take(3) + blind + quiz.questions.drop(3))
+        val etapes = listOf<(Game) -> Any?>(
+            { it },
+            { it.mimeStart("jaune", t0 + 10_000) },
+            { it.mimeFound(t0 + 12_000) },
+            { it.mimeSkip(t0 + 14_000) },
+            { it.mimePass(t0 + 16_000) },
+            { it.mimeStop(t0 + 20_000) },
+        )
+        val g = aLaPresentation()
+        etapes.forEachIndexed { i, etape ->
+            etape(g)
+            assertNull(g.programProblem(avecBlind), "étape $i : programme refusé")
+            val suite = assertNotNull(g.withProgram(avecBlind), "étape $i : état différent avec le jeu ajouté (${g.state.phase})")
+            assertEquals(g.state.scores(), suite.state.scores())
+        }
+    }
 }

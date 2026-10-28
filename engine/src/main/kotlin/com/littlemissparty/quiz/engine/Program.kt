@@ -67,16 +67,16 @@ fun Game.gameGains(): Map<String, Int> {
 
 /**
  * Où en est la partie dans le jeu en cours, pour la TV, la régie et les tablettes : le nom du jeu et la
- * position dans ce jeu (« Image floue · 3 / 8 », « Quiz · question 5 / 10 »), jamais le rang dans toute
+ * position dans ce jeu (« Image floue 3 / 8 », « Quiz question 5 / 10 », sans « · » : cedric, 27/10), jamais le rang dans toute
  * la prestation. Un jeu d'un seul tenant (mimes, Pictionary, statues, portes) n'affiche que son nom. Des
  * questions sans titre de manche qui se suivent (quiz de démonstration) forment un seul quiz.
  */
 data class GameStep(val title: String, val n: Int, val of: Int, val questions: Boolean) {
     val label: String
         get() = when {
-            questions -> "$title · question $n / $of"
+            questions -> "$title question $n / $of"
             of <= 1 -> title
-            else -> "$title · $n / $of"
+            else -> "$title $n / $of"
         }
 }
 

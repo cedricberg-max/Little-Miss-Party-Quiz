@@ -489,6 +489,39 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `juste chiffre du Game Show, tampons et points attendent la regle des ecarts, le Classique ne change pas`() {
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 2, nombre = true, propositions = 0)
+        val gs = DirecteurSonore().let { d -> d.observer(question.copy(gameShow = true)); d.observer(question.copy(gameShow = true, ecran = Ecran.REVELATION, gagnants = 1)) }
+        // Le son de la bonne réponse reste avec la machine à sous ; les points viennent avec le « +100 ».
+        assertTrue(Ordre.Jouer(Son.BONNE_REPONSE, Tempo.REVELATION_OR) in gs)
+        assertTrue(Ordre.Jouer(Son.TAMPON, Tempo.tampon(0) + Tempo.JUSTE_GS_RETARD) in gs)
+        assertTrue(Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS + Tempo.JUSTE_GS_RETARD) in gs)
+        assertFalse(Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS) in gs)
+        // Personne de proche : aucun point, aucun son de points, même en retard.
+        val rien = DirecteurSonore().let { d -> d.observer(question.copy(gameShow = true)); d.observer(question.copy(gameShow = true, ecran = Ecran.REVELATION, gagnants = 0)) }
+        assertFalse(Son.POINTS in rien.sons())
+        val classique = DirecteurSonore().let { d -> d.observer(question); d.observer(question.copy(ecran = Ecran.REVELATION, gagnants = 1)) }
+        assertTrue(Ordre.Jouer(Son.TAMPON, Tempo.tampon(0)) in classique)
+        assertTrue(Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS) in classique)
+    }
+
+    @Test
+    fun `chrono à zéro sans toutes les réponses, le signal temps écoulé sous le verrou, jamais quand Sarah arrête le chrono`() {
+        val d = DirecteurSonore()
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 3, reponses = 2)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 2, equipes = 3))
+        d.observer(question)
+        val temps = d.observer(question.copy(ecran = Ecran.VERROUILLEE, tempsEcoule = true))
+        assertTrue(Son.VERROU in temps.sons())
+        assertTrue(Son.MIME_FIN in temps.sons())
+        d.observer(question.copy(index = 4, ecran = Ecran.CLASSEMENT))
+        d.observer(question.copy(index = 5))
+        val main = d.observer(question.copy(index = 5, ecran = Ecran.VERROUILLEE))
+        assertTrue(Son.VERROU in main.sons())
+        assertFalse(Son.MIME_FIN in main.sons())
+    }
+
+    @Test
     fun `vrai ou faux express, musique continue, verdict ding ou pouet, ni roulement ni tension`() {
         val d = DirecteurSonore()
         val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 6, equipes = 2, propositions = 2, express = true, reponseVraie = true)
@@ -876,6 +909,22 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show avec l'outro, le podium puis le silence jusqu'a la fin de la video`() {
+        val d = DirecteurSonore()
+        d.observer(q2.copy(gameShow = true, outro = true))
+        val fin = Instant(Ecran.FIN, partie = "ABCD", index = 1, gameShow = true, outro = true)
+        val o = d.observer(fin)
+        // La chanson du podium, puis rien : le son de l'outro est dans la vidéo, l'écran lance le groove de fin après.
+        assertEquals(listOf(Son.PODIUM), o.sons())
+        assertTrue(o.none { it is Ordre.Musique && it.ambiance == Ambiance.AU_REVOIR })
+        assertTrue(d.observer(fin).isEmpty())
+        // Une box qui revient sur le podium le rejoue de la même façon.
+        val retour = DirecteurSonore().observer(fin)
+        assertEquals(listOf(Son.PODIUM), retour.sons())
+        assertTrue(retour.none { it is Ordre.Musique && it.ambiance == Ambiance.AU_REVOIR })
+    }
+
+    @Test
     fun `chaque son a un fichier distinct`() {
         assertEquals(Son.entries.size, Son.entries.map { it.fichier to it.gs }.toSet().size)
     }
@@ -956,6 +1005,61 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `simon du prof - silence pendant une suite pour entendre les notes, musique entre deux suites`() {
+        val d = DirecteurSonore()
+        d.observer(salon)
+        val entre = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(entre).musique())
+        assertEquals(Ambiance.SIMON_SUITE, d.observer(entre.copy(simonSuite = true)).musique())
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(entre).musique())
+    }
+
+    @Test
+    fun `simon du prof - trois boucles de Prix choc en Game Show, la musique des questions ou le silence en Classique`() {
+        val d = DirecteurSonore()
+        d.observer(salon)
+        val gs = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true, gameShow = true)
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(gs).musique())
+        assertEquals(Ambiance.SIMON_SUITE, d.observer(gs.copy(simonSuite = true)).musique())
+        // Les chiffres débarquent pendant la suite suivante : la partie où tout joue.
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(gs).musique())
+        assertEquals(Ambiance.SIMON_FORT, d.observer(gs.copy(simonSuite = true, simonChiffres = true)).musique())
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(gs).musique())
+        // Chaque ambiance ne fait jouer que sa boucle ; aucune autre ambiance ne joue celles du Simon.
+        val boucles = mapOf(Ambiance.SIMON_ENTRE to Lit.SIMON_DOUCE, Ambiance.SIMON_SUITE to Lit.SIMON_SUITE, Ambiance.SIMON_FORT to Lit.SIMON_FORT)
+        for ((a, l) in boucles) {
+            assertTrue("$a", a.volume(l, gs = true) in 0.3f..1f)
+            Lit.entries.filter { it != l }.forEach { assertEquals("$a / $it", 0f, a.volume(it, gs = true), 0f) }
+        }
+        Ambiance.entries.filter { it !in boucles }.forEach { a -> boucles.values.forEach { assertEquals("$a", 0f, a.volume(it, gs = true), 0f) } }
+        // Classique : la douce devient la musique des questions, les suites restent silencieuses (comme avant).
+        assertEquals(Ambiance.QUESTION.volume(Lit.LEGER), Ambiance.SIMON_ENTRE.volume(Lit.LEGER), 0f)
+        Lit.entries.forEach { assertEquals(0f, Ambiance.SIMON_SUITE.volume(it), 0f); assertEquals(0f, Ambiance.SIMON_FORT.volume(it), 0f) }
+        // Les fichiers : WAV 44,1 kHz stéréo, 8 ou 16 mesures à 127,87 BPM (à quelques échantillons près, raccord calé).
+        for ((nom, mesures) in listOf("gs_simon_douce" to 8, "gs_simon_suite" to 16, "gs_simon_fort" to 16)) {
+            assertEquals(nom, Lit.entries.single { it.fichierPour(true) == nom }.fichierPour(true))
+            assertNull(Lit.entries.single { it.fichierPour(true) == nom }.fichierPour(false))
+            val wav = java.io.File("src/main/res/raw/$nom.wav")
+            assertEquals("$nom : 4 octets par image stéréo 16 bits", 0L, (wav.length() - 44) % 4)
+            assertEquals(nom, mesures * 4 * 60 / 127.87, (wav.length() - 44) / (44_100.0 * 4), 0.01)
+        }
+        // Hors du Simon, rien ne change.
+        assertEquals(Ambiance.QUESTION, DirecteurSonore().let { it.observer(salon); it.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 4)).musique() })
+    }
+
+    @Test
+    fun `simon du prof - la presentation joue la douce en Game Show, la presentation habituelle en Classique`() {
+        // Un quiz, puis le Simon : nouveau jeu, jingle du rideau puis la musique de présentation (sous la vidéo d'intro).
+        val quiz = Instant(Ecran.QUESTION, partie = "ABCD", index = 2, equipes = 4, epreuve = "quiz|")
+        val simon = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)
+        val gs = DirecteurSonore().let { it.observer(salon); it.observer(quiz.copy(gameShow = true)); it.observer(simon.copy(gameShow = true)) }
+        assertTrue(Son.TRANSITION in gs.sons())
+        assertTrue(Ordre.Musique(Ambiance.SIMON_ENTRE, Tempo.TRANSITION_MUSIQUE) in gs)
+        val cl = DirecteurSonore().let { it.observer(salon); it.observer(quiz); it.observer(simon) }
+        assertTrue(Ordre.Musique(Ambiance.PRESENTATION, Tempo.TRANSITION_MUSIQUE) in cl)
+    }
+
+    @Test
     fun `duel des robots, Classique - presentation habituelle, sans l'air western`() {
         val d = DirecteurSonore()
         d.observer(salon)
@@ -973,6 +1077,21 @@ class DirecteurSonoreTest {
         // Chaque son long propre au Game Show existe bien dans l'appli.
         Son.entries.filter { it.long }.map { it.fichierLong(true) }.filter { it.startsWith("gs_") }.forEach { n ->
             assertTrue("$n manquant", java.io.File("src/main/res/raw").listFiles().orEmpty().any { it.nameWithoutExtension == n })
+        }
+    }
+
+    @Test
+    fun `Game Show, au buzz le mot de l equipe part tout de suite comme sur la tablette, le Classique garde son petit temps`() {
+        for (gs in listOf(true, false)) {
+            for (blind in listOf(false, true)) {
+                val d = DirecteurSonore()
+                val q = Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, jeuBuzz = true,
+                    flou = !blind, blind = blind, musical = blind, gameShow = gs)
+                d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 8, equipes = 3, gameShow = gs))
+                d.observer(q)
+                val mot = d.observer(q.copy(buzzEquipe = 2)).filterIsInstance<Ordre.Jouer>().single { it.son == Son.EQUIPE_3 }
+                assertEquals("Game Show $gs, blind $blind", if (gs) 0L else Tempo.FLOU_EQUIPE, mot.dansMs)
+            }
         }
     }
 }

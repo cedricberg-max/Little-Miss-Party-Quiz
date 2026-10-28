@@ -420,9 +420,9 @@ describe("programme modifié pendant la partie", () => {
 
 describe("prestation de test (cedric, 24/10)", async () => {
   const S = await import("../web/public/show.js");
-  test("les 17 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
-    assert.equal(JEUX_DU_TEST.length, 17);
-    assert.equal(new Set(JEUX_DU_TEST).size, 17);
+  test("les 18 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
+    assert.equal(JEUX_DU_TEST.length, 18);
+    assert.equal(new Set(JEUX_DU_TEST).size, 18);
     assert.deepEqual([...JEUX_DU_TEST].sort(), Object.keys(S.ROUND_TYPES).filter((k) => !["finale", "portes"].includes(k)).sort());
     assert.equal(JEUX_DU_TEST.at(-1), "coffres");
   });
@@ -521,8 +521,8 @@ describe("Vrai ou Faux express", () => {
     assert.deepEqual(problems, []);
     const express = snapshot.quiz.questions.filter((q) => q.kind === "express");
     assert.deepEqual(express.map((q) => [q.text, q.duration, q.round]), [
-      ["Le Soleil est une étoile", 12, "Vrai ou Faux express"],
-      ["Les poissons volent", 12, "Vrai ou Faux express"],
+      ["Le Soleil est une étoile", 20, "Vrai ou Faux express"],
+      ["Les poissons volent", 20, "Vrai ou Faux express"],
     ]);
     // Le même quiz en manche normale garde ses chronos et son type.
     assert.equal(snapshot.quiz.questions[2].kind, "true_false");
@@ -925,6 +925,26 @@ describe("Ça va exploser !", () => {
     assert.equal(DUREE_ESTIMEE.apresDuel, 20);
     // 3 équipes × 5 joueurs : 8 duels × (40 s + 20 s) = 8 min.
     assert.equal(estimateMinutes(snapshot, 3), 8);
+  });
+  test("🔴 Le Simon du Prof (cedric, 27/10) : tours, secondes pour taper une suite, joueurs par équipe ; passé à la TV ; 3 min par tour", async () => {
+    const { cleanRound, mancheSummary } = await import("../web/public/manches.js");
+    const { reglagesSimon, ROUND_TYPES, alerteEquipes } = await import("../web/public/show.js");
+    assert.equal(ROUND_TYPES.simon, "Le Simon du Prof");
+    assert.equal(roundFilled({ type: "simon" }), true, "rien à préparer");
+    assert.deepEqual(reglagesSimon({}), { tours: 3, reponse: 10, joueurs: 4 });
+    assert.deepEqual(reglagesSimon({ tours: 11, reponse: 12, joueurs: 0 }), { tours: 3, reponse: 10, joueurs: 4 }, "dans ses limites");
+    assert.deepEqual(cleanRound({ type: "simon", tours: 5, reponse: 30, joueurs: 12, autre: 1 }), { type: "simon", tours: 5, reponse: 30, joueurs: 12 });
+    assert.equal(mancheSummary({ type: "simon" }, {}), "3 tours · 10 s pour taper une suite · environ 4 joueurs par équipe");
+    assert.equal(alerteEquipes({ type: "simon" }, 1), null, "se joue dès 1 équipe");
+    // Sur la TV (contrat du 27/10, section 2) : un seul élément, la box enchaîne les tours et les suites.
+    const { snapshot, problems } = buildSnapshot("s", { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "q" }, { type: "simon", tours: 4, reponse: 8, joueurs: 3 }] },
+      { q: { title: "Quiz", questions: [{ text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }] } });
+    assert.deepEqual(problems, []);
+    const s = snapshot.quiz.questions.at(-1);
+    assert.deepEqual(s, { id: "r2s", kind: "simon", text: "Le Simon du Prof", round: "Le Simon du Prof", choices: [], correct: -1, double: false, tours: 4, reponse: 8, joueurs: 3 });
+    // Environ 3 minutes par tour.
+    assert.equal(DUREE_ESTIMEE.simonParTour, 180);
+    assert.equal(estimateMinutes({ quiz: { questions: [s] } }), 12);
   });
 });
 

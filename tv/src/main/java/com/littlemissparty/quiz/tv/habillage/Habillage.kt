@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.QuestionKind
@@ -203,6 +204,10 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         patate = s.question?.isPatate == true,
         duel = s.question?.isDuel == true,
         duelEtape = if (s.question?.isDuel == true) s.duel?.step.orEmpty() else "",
+        simon = s.question?.isSimon == true,
+        simonSuite = s.question?.isSimon == true && s.simon?.enCours == true,
+        simonChiffres = s.question?.isSimon == true && s.simon?.enCours == true && (s.simon?.suite ?: 0) >= SIMON_CHIFFRES_DES,
+        tempsEcoule = s.phase == Phase.CLOSED && s.tempsEcoule,
         disparu = if (s.question?.isDisparu == true) disparu else 0,
         // Blind test : présentation du 1er morceau, chanson qui joue, points doublés, révélation raccourcie, bilan.
         blind = blind != null,
@@ -215,6 +220,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         pile = s.phase == Phase.REVEAL && s.question?.isNumber == true && s.awards.values.any { it.choice == s.question?.correct },
         epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
         gameShow = Look.gs,
+        outro = Look.gs && Outro.disponible,
         lancement = lancement,
     )
 }

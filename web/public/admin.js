@@ -20,7 +20,7 @@ import {
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
   questionsDuQuiz, ordreAvecCasesVides, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
-  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie, DUEL_JOUEURS, DUEL_DUREES, reglagesDuel,
+  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie, DUEL_JOUEURS, DUEL_DUREES, reglagesDuel, SIMON_TOURS, SIMON_REPONSES, reglagesSimon,
   DISPARU_CARTES, famillesPourLAge,
   pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX, leurresDeChanson, parolesDuHook,
 } from "./show.js";
@@ -3364,11 +3364,30 @@ function reglagesDuDuel(r) {
     h("span", { class: "hint small", text: "Rien d'autre à préparer : l'appli compte assez de duels pour que chaque joueur passe une fois. Pendant la partie, Sarah peut lancer un duel de plus entre deux équipes." }));
 }
 
+/**
+ * « 🔴 Le Simon du Prof » dans une prestation (cedric, 27/10) : rien à piocher ; le nombre de tours, les secondes pour
+ * taper une suite et le nombre approximatif de joueurs par équipe.
+ */
+function reglagesDuSimon(r) {
+  const s = reglagesSimon(r);
+  Object.assign(r, s);
+  const choix = (classe, label, cle, valeurs, texte) => h("select", { class: `simon-reglage ${classe}`, "aria-label": label, onchange: (e) => {
+    r[cle] = Number(e.target.value);
+    roundCtx.summary();
+    noterEcran();
+  } }, ...valeurs.map((n) => h("option", { value: n, selected: s[cle] === n, text: texte(n) })));
+  return h("div", { class: "grow picto-round simon-reglages" },
+    choix("simon-tours", "Nombre de tours", "tours", SIMON_TOURS, (n) => `${n} tour${n > 1 ? "s" : ""} (un gagnant par tour)`),
+    choix("simon-reponse", "Secondes pour taper une suite", "reponse", SIMON_REPONSES, (n) => `${n} s pour taper une suite`),
+    choix("simon-joueurs", "Joueurs par équipe, environ", "joueurs", DUEL_JOUEURS, (n) => `Environ ${n} joueur${n > 1 ? "s" : ""} par équipe`),
+    h("span", { class: "hint small", text: "Rien d'autre à préparer : la suite s'allonge d'une boule à chaque fois (une seconde de plus pour taper au-delà de 4), un autre joueur de chaque équipe à chaque suite." }));
+}
+
 /** Jeux que « ＋ Ajouter un jeu » propose, par famille, dans l'ordre des tuiles de l'Accueil. */
 const jeuxProposes = () => GAME_GROUPS.map((g) => ({ title: g.title, games: g.games.filter((x) => ROUND_TYPES[x.type]) }));
 // Le « ? » de la tuile du Quiz devient ❓ hors de sa tuile (comme l'écran d'ouverture de la TV).
 const iconeJeu = (type) => (type === "quiz" ? "❓" : GAME_GROUPS.flatMap((g) => g.games).find((x) => x.type === type)?.icon ?? "");
-const SANS_CONTENU = ["coffres", "patate", "gonfleur", "duel"];
+const SANS_CONTENU = ["coffres", "patate", "gonfleur", "duel", "simon"];
 
 /**
  * Prestation (cedric, 21/10) : on ajoute un JEU, puis ses manches. Un bloc = les manches qui se suivent du même jeu,
@@ -3998,7 +4017,7 @@ const miniature = (q) => (q.banque ? h("img", { class: "tirage-mini", src: chemi
  * Les réponses d'une question du Quiz illustré, chacune avec sa petite image, la bonne marquée (cedric, 23/10 : vérifier
  * d'un coup d'œil) : photo de la banque, sinon émoji (tirée au 🎲), ou image de la bibliothèque.
  */
-function reponsesIllustrees(q) {
+function reponsesIllustrees(q, recadrer = (img) => img) {
   const photos = choiceImageList(q);
   const libres = Array.isArray(q.choiceBanque) ? q.choiceBanque : [];
   return h("span", { class: "tirage-reponses" }, ...(q.choices ?? []).map((c, k) => {
@@ -4006,7 +4025,7 @@ function reponsesIllustrees(q) {
     const image = photos[k] ? photoBibliotheque(photos[k], { class: "tirage-rep-img", loading: "lazy" })
       : libre?.cle ? h("img", { class: "tirage-rep-img", src: cheminPhotoBanque(libre.cle), alt: "", loading: "lazy" })
       : libre?.emoji ? h("span", { class: "tirage-rep-img emoji", text: libre.emoji }) : null;
-    return h("span", { class: `tirage-rep${k === q.correct ? " bonne" : ""}`, title: k === q.correct ? `${c} (la bonne réponse)` : c }, image, h("span", { class: "tirage-rep-mot", text: c }));
+    return h("span", { class: `tirage-rep${k === q.correct ? " bonne" : ""}`, title: k === q.correct ? `${c} (la bonne réponse)` : c }, image && recadrer(image, k), h("span", { class: "tirage-rep-mot", text: c }));
   }));
 }
 
@@ -4033,8 +4052,7 @@ const reponsePhoto = (q) => `${q.choices?.[q.correct] ?? q.text ?? ""}`.replace(
  */
 function nomDePhoto(r, x, changer) {
   const texte = h("span", { class: "tirage-texte", text: reponsePhoto(x.q), title: x.q.text });
-  const serie = x.serie;
-  const gardee = serie?.origine === "quiz" ? null : (serie?.questions ?? []).find((q) => q && cleQuestion(serie, q, r.type) === x.cle);
+  const gardee = questionGardee(r, x);
   if (!gardee) return texte;
   const ouvrir = () => {
     const champ = h("input", { type: "text", class: "photo-nom", maxlength: 60, value: reponsePhoto(gardee), "aria-label": "Nouveau nom de la photo (la réponse à trouver)" });
@@ -4065,6 +4083,62 @@ function nomDePhoto(r, x, changer) {
   };
   const bouton = h("button", { type: "button", class: "icon photo-renommer", text: "✎", title: "Renommer la photo (la réponse à trouver)", "aria-label": `Renommer « ${reponsePhoto(x.q)} »`, onclick: ouvrir });
   return h("span", { class: "photo-nom-bloc" }, texte, bouton);
+}
+
+/**
+ * La question gardée dans la série de la prestation (tirée au 🎲, piochée dans les packs, écrite à la main), qu'on peut
+ * changer pour cette prestation seulement. Celle d'un quiz rappelé en entier reste dans la Bibliothèque : null.
+ */
+const questionGardee = (r, x) => (x.serie?.origine === "quiz" ? null
+  : (x.serie?.questions ?? []).find((q) => q && cleQuestion(x.serie, q, r.type) === x.cle) ?? null);
+
+/** Une image de la bibliothèque, pour le cadrage : celle déjà chargée, sinon lue dans la base. */
+async function imageDeLaBibliotheque(id) {
+  if (!imageCache[id]) {
+    const data = (await get(ref(db, `library/images/${id}`))).val();
+    if (typeof data === "string") imageCache[id] = data;
+  }
+  return imageCache[id] ?? null;
+}
+
+/**
+ * Miniature d'un « … complet » recadrable (cedric, 28/10 : « que les images soient affichées telles qu'elles sont dans
+ * la télé et que je puisse dans les petites miniatures réajuster ») : elle a déjà la forme de la TV (4:3 pour la photo
+ * de la révélation, du Zoom mystère et de l'Image floue, carré pour une réponse en image) ; un clic ouvre le cadrage
+ * (glisser + zoom). L'image recadrée ne vaut que pour cette prestation : le pack et la Bibliothèque restent tels quels.
+ * [k] : la réponse en image recadrée (sinon la photo de la question). Une photo de la banque se recadre dans
+ * « 🧸 Photos de la banque », une question d'un quiz rappelé en entier dans la Bibliothèque : rien à cliquer ici.
+ */
+function recadrable(img, r, x, changer, k = null) {
+  const gardee = img?.tagName === "IMG" ? questionGardee(r, x) : null;
+  if (!gardee) return img;
+  const reponse = k !== null;
+  const choices = Array.isArray(gardee.choices) ? gardee.choices : Object.values(gardee.choices ?? {});
+  const ids = () => choiceImageList({ choices, choiceImages: gardee.choiceImages });
+  if (reponse ? !IMAGE_ID.test(ids()[k] ?? "") : !(IMAGE_ID.test(gardee.imageId ?? "") || gardee.banque)) return img;
+  img.classList.add("recadrable");
+  img.title = "Cliquer pour recadrer l'image comme sur la TV (pour cette prestation seulement)";
+  img.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const source = reponse ? await imageDeLaBibliotheque(ids()[k])
+      : IMAGE_ID.test(gardee.imageId ?? "") ? await imageDeLaBibliotheque(gardee.imageId) : cheminPhotoBanque(gardee.banque);
+    await cadrer(source, reponse ? "vignette" : "revelation", async (blob) => {
+      if (reponse) {
+        const nouvelles = ids();
+        nouvelles[k] = await storeChoiceImage(blob);
+        gardee.choiceImages = nouvelles;
+      } else {
+        // Au Zoom mystère et à l'Image floue, la clé d'une photo sans identifiant vient de son image : elle la garde
+        // (sa place dans l'ordre de passage).
+        if (!(typeof gardee.id === "string" && gardee.id) && estJeuDePhotos(r.type)) gardee.id = x.cle.slice(`${x.serie.id ?? ""}|`.length);
+        gardee.imageId = await storeIllustration(blob);
+        delete gardee.banque;
+        delete gardee.emoji;
+      }
+      changer();
+    });
+  });
+  return img;
 }
 
 /** La bonne réponse de [q] devient [nom] ; une autre proposition qui s'écrivait déjà ainsi prend l'ancien nom. */
@@ -4751,10 +4825,11 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
   const lignes = vue.map((x, k) => (x.vide ? caseVideQuiz(x, k) : h("li", { class: `tirage-q quiz-complet-q${x.bougies ? " quiz-complet-bougies" : ""}${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
-      photos ? apercuPhoto(x.q) : null,
+      photos ? recadrable(apercuPhoto(x.q), r, x, changer) : null,
       photos ? nomDePhoto(r, x, changer) : h("span", { class: "tirage-texte", text: `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
       themeDePack(x.cle),
-      photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q) : r.type === "express" ? reponseVF(x.q) : miniature(x.q),
+      photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q, (img, k) => recadrable(img, r, x, changer, k))
+        : r.type === "express" ? reponseVF(x.q) : recadrable(miniature(x.q), r, x, changer),
       r.type === "illustre" && sansSesImages(x.q) ? alerteSansImages() : null,
       clesFinale.has(x.cle) ? etiquetteFinale(r) : null,
       h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer cette ${unite} plus tôt`, "aria-label": `Monter cette ${unite}`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
@@ -4838,6 +4913,8 @@ function roundFields(r) {
     ? h("span", { class: "grow hint small", text: "Rien à préparer : chaque équipe tapote sa tablette, le premier ballon qui éclate gagne." })
     : r.type === "duel"
     ? reglagesDuDuel(r)
+    : r.type === "simon"
+    ? reglagesDuSimon(r)
     : MUSIC_GAMES[r.type]
     // Blind test, quiz musical : une playlist entière, ou des titres choisis un par un dans toutes les playlists.
     ? h("div", { class: "grow picto-round" },
@@ -4898,7 +4975,7 @@ function roundFields(r) {
         ...DISPARU_CARTES.map((n) => h("option", { value: n, selected: r.objects === n, text: `${n} cartes par tour` })))
       : null,
     // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
-    !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "duel" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
+    !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "duel" && r.type !== "simon" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
       && !quiz
       ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Toutes les questions" }),
@@ -5057,7 +5134,7 @@ $("round-add-top").onclick = () => ouvrirChoixJeu("haut");
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
-  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate" || r.type === "duel") return "";
+  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate" || r.type === "duel" || r.type === "simon") return "";
   if (r.type === "mimes") return mimeEquipes(r).some((l) => l.length) ? mancheSummary(r, { mimes }) : r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
   if (roundTirees(r).length || roundSeriesQuiz(r).length) return mancheSummary(r, { quizzes });
@@ -10471,6 +10548,7 @@ const GAME_GROUPS = [
     { type: "coffres", icon: "🗝️", rule: "Une chance de se refaire… ou de dégringoler ! Chaque équipe à son tour ouvre un coffre sur sa tablette : bonus ou malus, tirés au sort à l'ouverture (l'équipe la plus en retard commence). Après quelques tours sans danger, une bombe se cache dans un des coffres, et un coffre en or qui rapporte 500 points : l'équipe qui ouvre la bombe perd 300 points (jamais sous 0) et le jeu s'arrête sur le bilan. Le classement s'affiche après chaque coffre. Personne ne connaît le contenu des coffres, régie comprise. Idéal en dernier jeu." },
     { type: "patate", icon: "💣", rule: "La bombe peut exploser à tout moment ! Elle passe d'équipe en équipe : sur sa tablette, l'équipe qui la tient choisit à qui l'envoyer (jamais tout de suite à l'équipe qui vient de l'envoyer, sauf à 2 équipes ; on ne peut la renvoyer que 2 secondes après l'avoir reçue). La mèche, tirée au sort, reste secrète : à chaque explosion, l'équipe qui tient la bombe perd 100 points (jamais sous 0), toutes les autres en gagnent 100. Trois bombes par partie d'office, de 1 à 6 à régler dans la prestation : après chaque explosion, une nouvelle mèche s'allume." },
     { type: "duel", icon: "🤠", rule: "Face-à-face entre un joueur de deux équipes, chacun sur sa tablette : la tension monte, les robots feintent… puis PAN ! Le premier qui tire après le PAN gagne 100 points ; celui qui tire trop tôt perd. L'appli fait passer chaque joueur une fois ; Sarah peut lancer un duel de plus depuis son téléphone." },
+    { type: "simon", icon: "🔴", rule: "Le robot prof montre au tableau une suite de boules de couleur qui s'allument une à une, chacune avec sa note. À chaque suite, il en ajoute une. Dès 4 éléments, les chiffres débarquent (rouge vert bleu 4 jaune…). Sur sa tablette, un joueur de chaque équipe (un autre à chaque suite) tape la suite puis « Valider ». La TV montre en direct ce que chaque équipe tape, en « ? ». Une erreur élimine l'équipe du tour, la dernière en jeu gagne le tour (300 points). Si toutes se trompent sur la même suite, la plus avancée gagne, à égalité la plus rapide." },
     { type: "gonfleur", icon: "🎈", rule: "Chaque équipe tapote sa tablette le plus vite possible pour gonfler son ballon sur la TV ; on peut se relayer. Le premier ballon qui éclate gagne 300 points, les autres équipes 150. Depuis la régie, « Arrêter la course » donne la victoire au plus gros ballon." },
   ] },
 ];

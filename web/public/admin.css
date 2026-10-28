@@ -919,6 +919,12 @@ button.media-tile:hover { border-color: var(--violet); }
 .tirage-rep.bonne { border-color: var(--good); background: var(--good-pale); font-weight: 800; }
 .tirage-rep-img { width: 52px; height: 40px; object-fit: cover; border-radius: 6px; background: #fff; }
 .tirage-rep-img.emoji { display: grid; place-items: center; font-size: 28px; line-height: 1; }
+/* « … complet » : les miniatures à la forme de la TV (cedric, 28/10), 4:3 pour les photos, carré pour les réponses. */
+.quiz-complet-q .tirage-mini:not(.emoji) { width: 76px; height: 57px; border-radius: 9%; }
+.quiz-complet-q .tirage-photo { width: 88px; height: 66px; border-radius: 9%; }
+.quiz-complet-q .tirage-rep-img:not(.emoji) { width: 44px; height: 44px; border-radius: 18%; }
+img.recadrable { cursor: zoom-in; }
+img.recadrable:hover { outline: 3px solid var(--violet); outline-offset: 1px; }
 .tirage-rep-mot { max-width: 100%; }
 .tirage-q-ligne .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
 .tirage-q-ligne .tirage-de.petit, .tirage-q-ligne .packs-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }

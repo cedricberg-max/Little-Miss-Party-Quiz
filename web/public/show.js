@@ -62,6 +62,22 @@ export function reglagesDuel(round) {
 }
 /** Duels prévus : assez pour que chaque joueur passe une fois (arrondi supérieur de équipes × joueurs / 2). */
 export const duelsPrevus = (equipes, joueurs) => Math.ceil((equipes * joueurs) / 2);
+/**
+ * « 🔴 Le Simon du Prof » (cedric, 27/10 ; contrat : /mnt/project-files/regie-pc/simon-contrat-27-octobre.md) : des
+ * suites de boules qui s'allument, à retaper sur la tablette. Réglages de la prestation : le nombre de tours (chacun a
+ * son gagnant), les secondes pour taper une suite (la box ajoute une seconde par élément au-delà de 4) et le nombre
+ * approximatif de joueurs par équipe (le joueur appelé change à chaque suite).
+ */
+export const SIMON_TOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+export const SIMON_TOURS_DEFAUT = 3;
+export const SIMON_REPONSES = [5, 8, 10, 15, 20, 30];
+export const SIMON_REPONSE_DEFAUT = 10;
+/** Réglages d'une manche du Simon du Prof, ramenés dans leurs limites. */
+export const reglagesSimon = (round) => ({
+  tours: dansLaListe(round?.tours, SIMON_TOURS, SIMON_TOURS_DEFAUT),
+  reponse: dansLaListe(round?.reponse, SIMON_REPONSES, SIMON_REPONSE_DEFAUT),
+  joueurs: dansLaListe(round?.joueurs, DUEL_JOUEURS, DUEL_JOUEURS_DEFAUT),
+});
 const EN_LETTRES = ["Une", "Deux", "Trois", "Quatre", "Cinq", "Six"];
 /** « Trois bombes par partie », « Une bombe par partie »… */
 export const bombesParPartie = (n = PATATE_BOMBES_DEFAUT) => `${EN_LETTRES[n - 1] ?? n} bombe${n > 1 ? "s" : ""} par partie`;
@@ -74,7 +90,7 @@ export const roundType = (type) => (type === "portes" ? "coffres" : type);
 // Super Finale : au Quiz, au Quiz illustré et au Vrai ou Faux express (cedric, 23/10 : « à l'image du quiz »).
 export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre" || type === "express";
 
-export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots" };
+export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots", simon: "Le Simon du Prof" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -534,7 +550,7 @@ export const pictoRoundSeries = (round) => {
   return list.length ? list : null;
 };
 
-export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" || round.type === "duel" ? true
+export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" || round.type === "duel" || round.type === "simon" ? true
   : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length || mimeEquipes(round).some((l) => l.length)
   : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length || chansonsDe(round).length
   : (round.type === "zoom" || round.type === "flou") && roundPicks(round).length ? true
@@ -1401,6 +1417,12 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         joueurs: d.joueurs, faceMin: d.dureeMin, faceMax: d.dureeMax, longs: d.longs });
       return;
     }
+    if (round.type === "simon") {
+      // Un seul élément : la box enchaîne les tours et les suites (contrat du 27/10, section 2).
+      rounds.push({ title: ROUND_TYPES.simon, count: 1 });
+      questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.simon, kind: "simon", choices: [], correct: -1, double: false, round: ROUND_TYPES.simon, ...reglagesSimon(round) });
+      return;
+    }
     if (round.type === "pictionary" && pictoEnSeries(round)) {
       // Préparé par équipe (cedric, 24/10) : les mots dans l'ordre des passages, équipe après équipe dans l'ordre des
       // couleurs (1er passage de chaque équipe, puis le 2e…) ; une TV qui ne lit pas encore `offres` les propose ainsi
@@ -1695,6 +1717,8 @@ export const DUREE_ESTIMEE = {
   apresDessin: 30, apresStatues: 30, coffreParEquipe: 60, coffres: 60, gonfleur: 90, bombe: 50,
   // Duel des robots : par duel, le face-à-face (entre le minimum et le maximum), puis le résultat.
   apresDuel: 20,
+  // Simon du Prof : environ 3 minutes par tour (les suites qui s'allongent, les vérifications, le gagnant).
+  simonParTour: 180,
   presentation: 60, accueil: 180, podium: 120, pauses: 0.1,
 };
 
@@ -1707,6 +1731,7 @@ function secondesDeJeu(q, equipes, parEquipe = 0) {
   if (q.kind === "statues") return q.duration + D.apresStatues;
   if (q.kind === "coffres" || q.kind === "portes") return equipes * D.coffreParEquipe + D.coffres;
   if (q.kind === "gonfleur") return D.gonfleur;
+  if (q.kind === "simon") return (q.tours ?? SIMON_TOURS_DEFAUT) * D.simonParTour;
   if (q.kind === "duel") return duelsPrevus(equipes, q.joueurs ?? DUEL_JOUEURS_DEFAUT) * (((q.faceMin ?? DUEL_DUREE_MIN) + (q.faceMax ?? DUEL_DUREE_MAX)) / 2 + D.apresDuel);
   // Environ 50 s par bombe (mèche, passes, explosion, scores).
   if (q.kind === "patate") return D.bombe * bombesDe(q);

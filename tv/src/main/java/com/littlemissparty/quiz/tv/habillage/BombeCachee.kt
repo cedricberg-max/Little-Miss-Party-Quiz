@@ -56,6 +56,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,7 +70,9 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /*
@@ -116,6 +122,13 @@ const val CLASSEMENT_COFFRE_MS = 2_900L
 
 private const val T_ENTREE = 450f
 private const val T_OUVRE = 1_300f
+/** Le numéro du coffre s'éteint en ~75 ms quand le couvercle s'ouvre (planche du 28/10). */
+private const val NUMERO_EXTINCTION_MS = 75f
+/** Atlas gs_piece_or : 4 × 4 cases de 128 px, case k = la pièce tournée de k/16 de tour. */
+internal const val CASE_PIECE = 128
+
+/** La case de l'atlas des pièces pour un angle (radians) : 16 cases par tour, dans les deux sens. */
+internal fun casePiece(angle: Float): Int = Math.floorMod(floor(angle / (2f * PI.toFloat()) * 16f).toInt(), 16)
 private const val T_TEXTE = 1_550f
 /** Bombe : elle a jailli du coffre et commence à foncer vers l'écran. */
 private const val T_POSE = 1_750f
@@ -627,6 +640,9 @@ fun OuvertureCoffre(
     val modele = modeleCoffre(index)
     ChargerOuvertureGs(modele)
     val m = MODELES[modele]
+    // Game Show : les pièces d'or en 3D (atlas d'un tour complet) et le numéro du coffre allumé jusqu'à l'ouverture.
+    val atlasPieces = if (Look.gs) imageAppli("gs_piece_or") else null
+    val mesure = rememberTextMeasurer()
     // Coffre agrandi : assez grand pour le spectacle, assez bas pour laisser le verdict lisible au-dessus.
     val e = min(240f / m.largeur, 170f / m.hauteur)
     val cw = m.largeur * e
@@ -704,6 +720,19 @@ fun OuvertureCoffre(
                 inset(0f, 0f, size.width - cw * d, size.height - ch * d) {
                     dessineCoffre(modele, ouv, if (ouv > 0f) lueur else null, brule)
                 }
+                // Le numéro reste allumé dans la fenêtre, comme sur les gradins, et s'éteint quand le couvercle s'ouvre.
+                val allume = 1f - ((ms - T_OUVRE) / NUMERO_EXTINCTION_MS).coerceIn(0f, 1f)
+                if (Look.gs && allume > 0f) {
+                    val p = plaque(m)
+                    val texte = mesure.measure(
+                        "${index + 1}",
+                        styleCentre((p.height * ch * 0.66f).sp, Neon.Blanc).copy(fontFamily = PoliceGsChiffres, shadow = Shadow(GS.Cyan, Offset.Zero, 10f)),
+                    )
+                    drawText(
+                        texte, alpha = allume,
+                        topLeft = Offset(p.center.x * cw * d - texte.size.width / 2f, p.center.y * ch * d - texte.size.height / 2f),
+                    )
+                }
             }
             val bouche = Offset(cx, solPx - ch * d * (1f - (if (modele == 4) 0.3f else m.couvercle)) - ch * d * m.couvercle * 0.2f)
             // Le coffre en or : une couronne de rayons dorés qui tourne derrière la pluie d'or.
@@ -734,6 +763,17 @@ fun OuvertureCoffre(
                         val y = bouche.y + (p.vy * tt + 0.5f * 1300f * tt * tt) * d
                         if (y > size.height + 20f * d) return@forEachIndexed
                         val r = 9f * p.taille * d
+                        if (atlasPieces != null) {
+                            // La pièce 3D qui tourne sur elle-même : même trajectoire, même angle que l'ovale du Classique.
+                            val c = casePiece(p.tourne + tt * 9f)
+                            val cote = (2f * r * 1.45f * 256f / 197f).roundToInt()
+                            drawImage(
+                                atlasPieces,
+                                srcOffset = IntOffset((c % 4) * CASE_PIECE, (c / 4) * CASE_PIECE), srcSize = IntSize(CASE_PIECE, CASE_PIECE),
+                                dstOffset = IntOffset((x - cote / 2f).roundToInt(), (y - cote / 2f).roundToInt()), dstSize = IntSize(cote, cote),
+                            )
+                            return@forEachIndexed
+                        }
                         val lg = abs(cos(p.tourne + tt * 9f))
                         drawOval(Brush.verticalGradient(listOf(OR_CLAIR, OR_MOYEN, OR_FONCE), y - r, y + r), Offset(x - r * (0.25f + 0.75f * lg), y - r), Size(2 * r * (0.25f + 0.75f * lg), 2 * r))
                         drawOval(OR_FONCE.copy(alpha = 0.7f), Offset(x - r * (0.25f + 0.75f * lg), y - r), Size(2 * r * (0.25f + 0.75f * lg), 2 * r), style = Stroke(1.2f * d))
