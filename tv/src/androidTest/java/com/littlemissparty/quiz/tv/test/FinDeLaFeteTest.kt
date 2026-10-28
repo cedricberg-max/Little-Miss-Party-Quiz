@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv.test
 
+import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.littlemissparty.quiz.tv.habillage.Look
 import org.junit.After
@@ -77,5 +78,8 @@ class FinDeLaFeteTest : TestTv() {
         val ecart = bientot.haut - enseigne.bas
         val minimum = if ("★" in bientot.texte) bientot.hauteurFenetre * 20f / 540f else 0f
         assertTrue("« À bientôt » trop près de « Merci » : $ecart px (au moins $minimum)", ecart >= minimum)
+        // Les textes sont dans l'arbre dès le début de l'écran de fin, encore transparents : l'enseigne s'allume à 5 s,
+        // « À bientôt » apparaît à 6 s (en 1,2 s). La capture attend qu'ils soient à l'image.
+        SystemClock.sleep(8_000)
     }
 }
