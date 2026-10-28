@@ -56,6 +56,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -245,6 +246,16 @@ internal fun SceneParoles(
  * L'équipe qui a trouvé et ses points, dans un bandeau compact ; sans gagnant, une ligne plus discrète. Quiz musical
  * ([gagnants] non nul) : toutes les équipes qui ont trouvé, chacune dans sa couleur (leurs points sont sous la scène).
  */
+/** Points de l'équipe qui a trouvé : 36 sp au plus, dans un rond de 88 dp, 104 dp à partir de « +100 ». */
+internal const val TAILLE_PASTILLE_SP = 36f
+internal fun diametrePastille(texte: String) = if (texte.length > 3) 104 else 88
+/** Part du diamètre que les chiffres peuvent prendre : le rond a un néon de 4 dp et ses bords sont courbes. */
+internal const val PART_PASTILLE = 0.7f
+
+/** Taille (sp) des points pour tenir dans [PART_PASTILLE] du rond, à partir de leur largeur (dp) mesurée à 36 sp. */
+internal fun tailleDansPastille(largeurA36: Float, diametre: Int): Float =
+    if (largeurA36 <= 0f) TAILLE_PASTILLE_SP else TAILLE_PASTILLE_SP * minOf(1f, PART_PASTILLE * diametre / largeurA36)
+
 @Composable
 private fun Gagnant(cle: Any?, gagnant: Pair<String, Color>?, points: Int, double: Boolean, gagnants: List<Pair<String, Color>>? = null) {
     if (!gagnants.isNullOrEmpty()) {
@@ -254,16 +265,24 @@ private fun Gagnant(cle: Any?, gagnant: Pair<String, Color>?, points: Int, doubl
             // Game Show : pastille sombre cernée d'un néon à la couleur de l'équipe, chiffres néon (proposition A, 24/10).
             val pastille = if (Look.gs) Modifier.clip(CircleShape).background(GS.Noir.copy(alpha = 0.9f)).border(4.dp, gagnant.second, CircleShape)
             else Modifier.clip(CircleShape).background(gagnant.second)
-            Box(Modifier.size(88.dp).rebond(apres(500, cle), 0.08f).then(pastille), contentAlignment = Alignment.Center) {
-                val chiffres = "+$points".length
-                val taille = if (chiffres > 4) 24.sp else if (chiffres > 3) 30.sp else 36.sp
+            val texte = "+$points"
+            val diametre = diametrePastille(texte)
+            Box(Modifier.size(diametre.dp).rebond(apres(500, cle), 0.08f).then(pastille), contentAlignment = Alignment.Center) {
+                // Taille mesurée dans la vraie police : « +200 » en Orbitron débordait du rond (cedric, 28/10, TCL).
+                val police = if (Look.gs) PoliceGsChiffres else null
+                val mesure = rememberTextMeasurer()
+                val densite = LocalDensity.current
+                val taille = remember(texte, police) {
+                    val largeur = mesure.measure(texte, TextStyle(fontSize = TAILLE_PASTILLE_SP.sp, fontWeight = FontWeight.Black, fontFamily = police)).size.width
+                    tailleDansPastille(largeur / densite.density, diametre).sp
+                }
                 // Centré au pixel dans la pastille, sans la marge de police ni l'espace sous la ligne (cedric, 24/10).
                 Text(
-                    "+$points", color = if (Look.gs) gagnant.second else Neon.Nuit, maxLines = 1, softWrap = false,
+                    texte, color = if (Look.gs) gagnant.second else Neon.Nuit, maxLines = 1, softWrap = false,
                     style = LocalTextStyle.current.merge(
                         TextStyle(
                             fontSize = taille, lineHeight = taille, fontWeight = FontWeight.Black,
-                            fontFamily = if (Look.gs) PoliceGsChiffres else null,
+                            fontFamily = police,
                             shadow = if (Look.gs) Shadow(gagnant.second.copy(alpha = 0.9f), Offset.Zero, 18f) else null,
                             platformStyle = PlatformTextStyle(includeFontPadding = false),
                             lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
