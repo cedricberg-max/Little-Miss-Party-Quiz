@@ -10,7 +10,11 @@ import { cleanRound } from "../../web/public/manches.js";
 // QUOI=complete (cedric, 27/10 au soir : « il manquait les trois quarts des jeux ») : tous les jeux que la TV 0.1.701
 // connaît (pas encore le Simon), les jeux à packs remplis avec les packs, les chansons tirées dans la bibliothèque.
 const COMPLETE = process.env.QUOI === "complete";
-const ID = COMPLETE ? "prestation-test-complete" : "prestation-test-touki-touki";
+// QUOI=courte (cedric, 28/10 : « des séries un peu plus courtes, de manière à mener le jeu de A à Z ») : tous les jeux,
+// 2 à 4 éléments chacun, avec la Super Finale ; des drapeaux au Quiz si le pack est importé. Le Simon s'ajoute avec
+// MODE=simon une fois la version qui le connaît publiée (la Régie PC d'avant l'enlèverait).
+const COURTE = process.env.QUOI === "courte";
+const ID = COURTE ? "prestation-test-courte" : COMPLETE ? "prestation-test-complete" : "prestation-test-touki-touki";
 const base = JSON.parse(readFileSync("firebase-config.json", "utf8")).databaseURL.replace(/\/$/, "");
 // LIBRAIRIE=<fichier JSON { quizzes, contents }> : essai local, sans rien lire ni écrire en ligne.
 const locale = process.env.LIBRAIRIE ? JSON.parse(readFileSync(process.env.LIBRAIRIE, "utf8")) : null;
@@ -60,27 +64,35 @@ const serie = (type, liste, f, n) => liste.length && { type, seriesQuiz: [{ id: 
 // Chansons de la bibliothèque des sons, mélangées, jamais deux fois : Blind test, Quiz musical, Statues.
 const chansons = melange(Object.entries(songs ?? {}).filter(([, x]) => chansonJouable(x)).map(([id]) => id));
 const prendre = (n) => chansons.splice(0, n);
+// Les packs de drapeaux (cedric, 28/10), s'ils sont importés : la moitié du Quiz de la prestation courte.
+const drapeaux = packs.filter(([, q]) => /drapeau/i.test(`${q.title ?? ""} ${q.theme ?? ""}`) && quizKind(q) !== "images");
+const N = (long, court) => (COURTE ? court : long);
+const quizCourt = () => {
+  const avec = pioche(drapeaux, playable, 2);
+  return { type: "quiz", finale: 1, seriesQuiz: [{ id: "de", origine: "de", questions: [...avec, ...pioche(quiz, playable, 4 - avec.length)] }] };
+};
+const court = (r) => (COURTE && r ? { ...r, ...(["quiz", "illustre"].includes(r.type) ? { finale: 1 } : {}) } : r);
 const parJeuType = {
-  quiz: serie("quiz", quiz, playable, 20),
-  illustre: serie("illustre", illustres, playable, 20),
-  zoom: serie("zoom", photos.slice(0, moitie), zoomQuestions, 10),
-  flou: photos.length > 1 && serie("flou", photos.slice(moitie), zoomQuestions, 10),
-  express: serie("express", vraiFaux, expressQuestions, 12),
-  quisuis: qui.length && { type: "quisuis", picks: qui.map((x) => CONTENT_GAMES.quisuis.key(x)) },
-  disparu: tours.length && { type: "disparu", objects: 6, seriesMots: [{ id: "de", origine: "de", mots: tours }] },
-  duel: { type: "duel" },
+  quiz: COURTE ? quizCourt() : serie("quiz", quiz, playable, 20),
+  illustre: court(serie("illustre", illustres, playable, N(20, 3))),
+  zoom: serie("zoom", photos.slice(0, moitie), zoomQuestions, N(10, 3)),
+  flou: photos.length > 1 && serie("flou", photos.slice(moitie), zoomQuestions, N(10, 3)),
+  express: serie("express", vraiFaux, expressQuestions, N(12, 4)),
+  quisuis: qui.length && { type: "quisuis", picks: qui.slice(0, N(10, 3)).map((x) => CONTENT_GAMES.quisuis.key(x)) },
+  disparu: tours.length && { type: "disparu", objects: 6, seriesMots: [{ id: "de", origine: "de", mots: tours.slice(0, N(5, 2)) }] },
+  duel: COURTE ? { type: "duel", joueurs: 1, dureeMin: 15, dureeMax: 25, longs: false } : { type: "duel" },
   coffres: { type: "coffres" },
-  mimes: { type: "mimes" },
-  blind: chansons.length && { type: "blind", chansons: prendre(10) },
-  musical: chansons.length && { type: "musical", chansons: prendre(8) },
-  statues: { type: "statues", ...(chansons.length ? { chansons: prendre(4) } : {}) },
-  chante: { type: "chante" },
-  pictionary: { type: "pictionary" },
+  mimes: COURTE ? { type: "mimes", perTeam: 1 } : { type: "mimes" },
+  blind: chansons.length && { type: "blind", chansons: prendre(N(10, 3)) },
+  musical: chansons.length && { type: "musical", chansons: prendre(N(8, 3)) },
+  statues: { type: "statues", ...(chansons.length ? { chansons: prendre(N(4, 2)) } : {}) },
+  chante: COURTE ? { type: "chante", count: 3 } : { type: "chante" },
+  pictionary: COURTE ? { type: "pictionary", passages: 1 } : { type: "pictionary" },
   gonfleur: { type: "gonfleur" },
-  patate: { type: "patate" },
+  patate: COURTE ? { type: "patate", bombs: 1 } : { type: "patate" },
 };
 // L'ordre d'une vraie fête (celui de la prestation de test de la Régie PC), les Coffres pour finir.
-const ORDRE = COMPLETE
+const ORDRE = COMPLETE || COURTE
   ? ["quiz", "mimes", "blind", "zoom", "chante", "express", "illustre", "quisuis", "flou", "disparu", "musical", "statues", "pictionary", "gonfleur", "duel", "patate", "coffres"]
   : ["quiz", "illustre", "zoom", "flou", "express", "quisuis", "disparu", "duel", "coffres"];
 const rounds = [
@@ -88,7 +100,10 @@ const rounds = [
 ].filter(Boolean).map((r) => cleanRound(r));
 
 const demain = new Date(Date.now() + 864e5).toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" });
-const show = COMPLETE
+const show = COURTE
+  ? { childName: "Touki touki", age: 9, teams: 4, date: isoDay(), status: "publiee", title: "Prestation test courte", rounds,
+    notes: "Prestation de test courte : tous les jeux, 2 à 4 éléments chacun, pour les jouer de A à Z (28/10)." }
+  : COMPLETE
   ? { childName: "Touki touki", age: 9, teams: 4, date: demain, status: "publiee", title: "Prestation test complète", rounds,
     notes: "Prestation de test : tous les jeux, remplis avec les packs et la bibliothèque des sons (27/10)." }
   : { childName: "Touki touki", age: 9, teams: 4, date: isoDay(), status: "publiee", title: "Prestation test touki touki", rounds, notes: "Prestation de test : le plus possible d'images et de questions des packs (27/10)." };
@@ -102,6 +117,25 @@ for (const q of snapshot?.quiz?.questions ?? []) parJeu[q.round] = (parJeu[q.rou
 console.log(`Programme : ${snapshot?.quiz?.questions?.length ?? 0} éléments ; ${Object.entries(parJeu).map(([t, n]) => `${t} ${n}`).join(" · ")}`);
 console.log(`Problèmes : ${problems.length ? problems.join(" | ") : "aucun"}`);
 console.log(`Déjà en ligne : ${deja ? "oui" : "non"}`);
+console.log(`Drapeaux : ${drapeaux.length} pack(s)`);
+// MODE=simon : ajoute le Simon du Prof (2 tours, 1 joueur par équipe) avant les Coffres de la prestation courte déjà
+// écrite, s'il n'y est pas encore. Rien d'autre ne change.
+if (process.env.MODE === "simon" && COURTE && !locale) {
+  const tours = deja?.rounds ? (Array.isArray(deja.rounds) ? deja.rounds : Object.values(deja.rounds)) : null;
+  if (!tours) { console.log("La prestation courte n'existe pas encore : rien n'est écrit."); process.exit(1); }
+  if (tours.some((r) => r?.type === "simon")) { console.log("Le Simon y est déjà."); process.exit(0); }
+  const k = tours.findIndex((r) => r?.type === "coffres");
+  const avecSimon = [...tours];
+  avecSimon.splice(k < 0 ? avecSimon.length : k, 0, cleanRound({ type: "simon", tours: 2, joueurs: 1 }));
+  const essai = buildSnapshot(ID, { ...deja, rounds: avecSimon }, quizzes, {}, Math.random, {}, contents ?? {}, {}, songs ?? {});
+  console.log(`Avec le Simon : ${avecSimon.length} jeux ; problèmes : ${essai.problems.length ? essai.problems.join(" | ") : "aucun"}`);
+  if (essai.problems.length) process.exit(1);
+  const res = await fetch(`${base}/library/shows/${ID}.json?access_token=${token}`, {
+    method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ rounds: avecSimon, updatedAt: { ".sv": "timestamp" } }),
+  });
+  console.log(res.ok ? "Simon ajouté." : `Écriture refusée : ${res.status}`);
+  process.exit(res.ok ? 0 : 1);
+}
 if (process.env.MODE !== "ecrire" || locale) process.exit(0);
 if (deja) { console.log("Une prestation porte déjà ce nom : rien n'est écrit."); process.exit(1); }
 if (problems.length || !rounds.length) { console.log("Programme incomplet : rien n'est écrit."); process.exit(1); }
