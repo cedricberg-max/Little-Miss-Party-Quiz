@@ -145,7 +145,10 @@ class DuelDesRobotsTest {
         h.duelBuzz(e, pan3 + 100, pan3 + 150)
         h.timeUp(pan3 + 100 + DUEL_LATENCE_MAX_MS)
         assertEquals(mapOf(e to 1), h.duelsGagnes())
+        // Fin du duel : le tableau des scores (test du 28/10), puis le jeu suivant.
         assertEquals(CommandStatus.APPLIED, h.run("next", pan3 + 5_000).status)
+        assertEquals(Phase.SCORES, h.state.phase)
+        assertEquals(CommandStatus.APPLIED, h.run("next", pan3 + 6_000).status)
         assertEquals(emptyMap(), h.duelsGagnes())
     }
 

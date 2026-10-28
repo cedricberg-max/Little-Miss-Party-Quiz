@@ -248,6 +248,8 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
                 blindEnCours -> Command.BlindReveal("v$appuis", copie.state.lastSeq)
                 else -> Command.Next("n$appuis", copie.state.lastSeq)
             }
+            // Tableau des scores d'un Vrai ou Faux express : il reste quelques secondes à l'écran (test du 28/10).
+            if (c is Command.Next && copie.scoresJustShown(t)) t += EXPRESS_SCORES_GUARD_MS
             val r = copie.execute(c, t, teams)
             assertEquals(CommandStatus.APPLIED, r.status, "« Suivant » bloqué en ${copie.state} : ${r.reason}")
             assertTrue(++appuis < 10 * quiz.questions.size + 10, "« Suivant » n'atteint jamais la fin")
@@ -287,7 +289,11 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
         return r.event!!
     }
 
-    fun next() = ok { i, s -> Command.Next(i, s) }
+    fun next(): GameEvent {
+        // Tableau des scores d'un Vrai ou Faux express : il reste quelques secondes à l'écran (test du 28/10).
+        if (game.scoresJustShown(now)) attend(EXPRESS_SCORES_GUARD_MS)
+        return ok { i, s -> Command.Next(i, s) }
+    }
     fun pause() = ok { i, s -> Command.Pause(i, s) }
     fun resume() = ok { i, s -> Command.Resume(i, s) }
     fun end() = ok { i, s -> Command.End(i, s) }
@@ -685,11 +691,14 @@ class PrestationsCompletesTest {
         assertEquals(scores(220, 270, 50), b.scores())
         b.next(); b.next()
 
-        // Statues musicales : la musique joue sans chrono, puis Vert désignée gagnante ; le récap mène au jeu suivant.
+        // Statues musicales : la musique joue sans chrono, puis Vert désignée gagnante ; le récap mène au tableau des
+        // scores (test du 28/10), puis au jeu suivant.
         b.verifieOuverture(4)
         b.attend(90_000)
         b.statuesWin(VERT)
         assertEquals(scores(370, 420, 350), b.scores())
+        b.next()
+        assertEquals(Phase.SCORES, b.state.phase)
         b.next()
 
         // Super Finale : question doublée, puis Vrai ou Faux express doublé qui s'enchaîne seul.
@@ -1032,11 +1041,14 @@ class PrestationsCompletesTest {
         assertEquals(Phase.SCORES, b.state.phase)
         b.next()
 
-        // Statues : pas de chrono, rien ne se referme seul ; la gagnante désignée, le récap mène au jeu suivant.
+        // Statues : pas de chrono, rien ne se referme seul ; la gagnante désignée, le récap mène au tableau des scores,
+        // puis au jeu suivant.
         assertNull(b.game.deadline())
         b.attend(60_000)
         b.statuesWin(VERT)
         assertEquals(scores(250, 200, 420), b.scores())
+        b.next()
+        assertEquals(Phase.SCORES, b.state.phase)
         b.next()
 
         // Qui a disparu ? : la pause arrive juste avant l'ouverture du buzzer, qui attend la reprise.

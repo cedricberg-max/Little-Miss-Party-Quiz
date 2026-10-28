@@ -265,7 +265,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     /** Fin d'une série express : les scores sont à l'écran depuis moins de [EXPRESS_SCORES_GUARD_MS]. */
     fun scoresJustShown(now: Long): Boolean {
         if (state.phase != Phase.SCORES || question?.isExpress != true) return false
-        val shown = log.lastOrNull { it is ScoresShown } ?: return false
+        // Seulement le tableau arrivé seul à la fin de la série, pas le bilan d'un jeu quitté par la régie.
+        val shown = log.lastOrNull { it is ScoresShown || it is GameLeft } as? ScoresShown ?: return false
         return now - shown.at < EXPRESS_SCORES_GUARD_MS
     }
 
@@ -536,7 +537,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 (e.gold && (e.bomb || !r.danger || r.goldFound || e.delta != GOLD_POINTS))) null
             else {
                 val next = r.copy(opened = r.opened + ChestOpen(e.team, e.chest, e.delta, e.bomb, e.at, e.gold))
-                // La bombe arrête le jeu : bilan des coffres, puis classement.
+                // La bombe arrête le jeu : bilan des coffres, puis le jeu suivant (ou les résultats finaux).
                 s.copy(chests = s.chests + (e.qid to next), phase = if (next.team == null) Phase.REVEAL else s.phase)
             }
         }
@@ -997,6 +998,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             question?.isPortes == true && state.doorsOpened < question!!.choices.size -> openDoor(now)
             // Blind test : « Titre suivant » annonce le morceau suivant de la playlist, sans le lancer.
             nextTrack() != null -> openQuestion(state.index + 1, now)
+            // Coffres mystères : chaque coffre a déjà montré le classement, pas de tableau des scores en plus (cedric,
+            // 28/10) : le jeu suivant, ou directement les résultats finaux s'ils étaient le dernier jeu.
+            question?.isCoffres == true -> if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
             else -> scoresOuFin(now)
         }
         Phase.SCORES -> leaveTarget?.let { goto(it, now) } ?: if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
