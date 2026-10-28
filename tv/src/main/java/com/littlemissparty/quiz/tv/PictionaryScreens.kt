@@ -186,7 +186,7 @@ private fun Presentation(state: UiState.Playing, m: MimeUi) {
         MotPictionary(64.sp, Modifier.apparition(0, "picto"))
         Spacer(Modifier.height(10.dp))
         Text("✏️", fontSize = 90.sp, lineHeight = 96.sp, modifier = Modifier.rebond(true))
-        Text("Pictionary !", color = Neon.Or, fontSize = 44.sp, fontWeight = FontWeight.Black)
+        // Le nom est déjà en grand au-dessus du crayon : plus de « Pictionary ! » en double (cedric, 28/10).
         Text(
             "Un enfant dessine sur la tablette de son équipe, le dessin apparaît ici en direct.\n" +
                 "Son équipe a ${(state.question?.durationSec ?: 90)} secondes pour trouver le mot : ${m.points} points !",
