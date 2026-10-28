@@ -6,7 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.imageResource
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.platform.LocalContext
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
