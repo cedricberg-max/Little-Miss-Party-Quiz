@@ -44,6 +44,7 @@ import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.AppelBuzzQuiSuis
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.RevelationNeon
+import com.littlemissparty.quiz.tv.habillage.revelationAvecMot
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import kotlinx.coroutines.delay
@@ -186,6 +187,7 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 teinte = gagnant?.color?.toColor() ?: GS.Rose,
                 cle = state.question?.id,
                 modifier = Modifier.fillMaxSize(),
+                avecMot = revelationAvecMot(q.isChante),
             )
             state.phase == Phase.REVEAL || state.phase == Phase.SCORES -> {
                 Text(if (q.isChante) "Le mot :" else "C'était :", color = Palette.InkSoft, fontSize = 26.sp, fontWeight = FontWeight.Bold)

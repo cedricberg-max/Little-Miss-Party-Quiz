@@ -623,6 +623,9 @@ class RegieTest : TestTv() {
         ecran.capture("chante-le-mot-buzz", attente = 700)
         assertEquals("applied", regie.commande(code, "buzz_ok"))
         ecran.voit("Bravo Licornes, quelle voix !")
+        // Le mot reste sur l'enseigne à gauche ; à droite, seulement les félicitations, sans « Le mot : » répété (28/10).
+        if (Look.gs) assertFalse("le mot n'est pas répété à droite", ecran.affiche("Le mot :"))
+        ecran.capture("chante-le-mot-bravo", attente = 900)
         assertEquals("applied", regie.commande(code, "next"))
         assertEquals("applied", regie.commande(code, "next"))
 
