@@ -42,10 +42,10 @@ internal object ImagesAppli {
     }
 }
 
-/** Les images décodées d'avance : décor, Quiz 3D, jauge des scores, portes des transitions, platine du blind test. */
+/** Les images décodées d'avance : décor, Quiz 3D, jauge des scores, portes des transitions, platine du blind test, pièces d'or des coffres. */
 internal val GRANDES_IMAGES: List<String> = listOf("gs_accueil_poster", "gs_fond_poster") + NOMS_QUIZ3D +
     listOf("gs_jauge_haut", "gs_jauge_corps", "gs_jauge_bas", "gs_jauge_liquide", "gs_portes_gauche", "gs_portes_droite",
-        "gs_bt_bras", "gs_bt_disque_poster")
+        "gs_bt_bras", "gs_bt_disque_poster", "gs_piece_or")
 
 /** L'image [nom] pour un écran : prête si elle a été décodée d'avance, sinon décodée une fois pour toutes. */
 @Composable

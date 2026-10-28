@@ -136,12 +136,12 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
             val (bas, haut) = niveauxAffiches(niveau, revealed)
             val t = (niveau - bas).coerceIn(0f, 1f)
             Image(
-                pile[bas], contentDescription = "Image floue", contentScale = ContentScale.Crop,
+                pile[bas], contentDescription = "Image floue", contentScale = ContentScale.Crop, alignment = CadrageHaut,
                 filterQuality = FilterQuality.Low, modifier = Modifier.fillMaxSize(),
             )
             if (haut != bas && t > 0.01f) {
                 Image(
-                    pile[haut], contentDescription = null, contentScale = ContentScale.Crop,
+                    pile[haut], contentDescription = null, contentScale = ContentScale.Crop, alignment = CadrageHaut,
                     filterQuality = FilterQuality.Low, alpha = t, modifier = Modifier.fillMaxSize(),
                 )
             }

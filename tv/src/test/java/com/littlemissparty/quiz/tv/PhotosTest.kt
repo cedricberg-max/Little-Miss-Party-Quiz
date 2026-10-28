@@ -29,4 +29,21 @@ class PhotosTest {
         val fautifs = sources.filter { f -> f.readText().let { "BitmapFactory.decodeByteArray" in it || "BitmapFactory.decodeStream" in it } }
         assertEquals("Décodage de photo hors de Photos.kt : ${fautifs.map { it.name }}", emptyList<File>(), fautifs)
     }
+
+    /**
+     * Test du 27/10 au soir (images coupées « à l'arrache », têtes coupées) : une photo de partie qui doit remplir sa
+     * case est cadrée vers le haut, jamais au milieu. Seuls le Zoom mystère (il zoome exprès), les pochettes carrées du
+     * blind test et les portraits dessinés du Duel restent centrés.
+     */
+    @Test
+    fun `une photo coupee pour remplir sa case garde le haut, la ou sont les tetes`() {
+        val centresPermis = setOf("ZoomMystere.kt", "Karaoke.kt", "BlindTestScenes.kt", "DuelWestern.kt")
+        val fautifs = File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" && it.name !in centresPermis }
+            .flatMap { f ->
+                val lignes = f.readLines()
+                lignes.indices.filter { "ContentScale.Crop" in lignes[it] && "CadrageHaut" !in lignes[it] && "CadrageHaut" !in lignes.getOrElse(it + 1) { "" } }
+                    .map { "${f.name}:${it + 1}" }
+            }.toList()
+        assertEquals("Photo coupée au milieu : $fautifs", emptyList<String>(), fautifs)
+    }
 }
