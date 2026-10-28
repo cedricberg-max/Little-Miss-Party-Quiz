@@ -165,6 +165,8 @@ function tryJson(text) {
         duration: num(q.duration ?? q.duree ?? q.durée), double: q.double === true, marks: 0,
         ...(files.some(Boolean) ? { imageFiles: files } : {}),
         ...(revealFile(q) ? { revealFile: revealFile(q) } : {}),
+        // Image montrée dès la question, pas seulement à la réponse (« À quel pays est ce drapeau ? », cedric 28/10).
+        ...(q.imageVisible === true ? { imageVisible: true } : {}),
       });
     }),
   };
@@ -335,7 +337,7 @@ function finish(q) {
   const target = !q.choices.length ? numberAnswer(q.answer) : null;
   // Sa photo de révélation (cedric, 26/10) est gardée avec elle, comme pour une question à propositions.
   if (target != null) return { text, choices: [], correct: target, kind: "number", duration: q.duration ?? null, double, marks: 0, ...(q.revealFile ? { revealFile: q.revealFile } : {}) };
-  return { text, choices: q.choices, correct, duration: q.duration ?? null, double, marks, ...(q.imageFiles ? { imageFiles: q.imageFiles } : {}), ...(q.revealFile ? { revealFile: q.revealFile } : {}) };
+  return { text, choices: q.choices, correct, duration: q.duration ?? null, double, marks, ...(q.imageFiles ? { imageFiles: q.imageFiles } : {}), ...(q.revealFile ? { revealFile: q.revealFile } : {}), ...(q.imageVisible === true ? { imageVisible: true } : {}) };
 }
 
 /** « 206 », « 1 000 », « -5 » → nombre entier ; sinon null. */

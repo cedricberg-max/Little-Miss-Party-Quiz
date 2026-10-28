@@ -149,6 +149,8 @@ export function versQuestionDePack(x, hasard = Math.random, jeu = "quiz") {
   return {
     id: `pk-${x.id}`, text: q.text, choices, correct: choices.indexOf(q.choices[q.correct]),
     ...(IMAGE_ID.test(q.imageId ?? "") ? { imageId: q.imageId } : typeof q.image === "string" && q.image ? { emoji: q.image } : {}),
+    // Drapeau montré dès la question (cedric, 28/10) : suit sa photo.
+    ...(IMAGE_ID.test(q.imageId ?? "") && q.imageVisible === true ? { imageVisible: true } : {}),
   };
 }
 

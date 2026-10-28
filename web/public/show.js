@@ -680,6 +680,7 @@ function itemsDeLaSerie(serie, quizzes = {}, type = "quiz") {
     ? { text: q.text, kind: "number", correct: q.correct, status: "validee" }
     : { text: q.text, choices: q.choices, correct: q.correct, status: "validee",
       ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.emoji ? { image: q.emoji } : {}),
+      ...(!q.banque && q.imageId && q.imageVisible === true ? { imageVisible: true } : {}),
       // Quiz illustré : réponses en photos de la banque (tirées au 🎲) ou en images déjà copiées (série reprise).
       ...(Array.isArray(q.choiceBanque) ? { choiceBanque: q.choiceBanque } : {}),
       ...(q.choiceImages && typeof q.choiceImages === "object" ? { choiceImages: q.choiceImages } : {}) } }));
@@ -1639,6 +1640,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).
         ...(q.image ? { image: q.image } : {}),
         ...(q.imageId && !sansMesImages ? { imageId: q.imageId } : {}),
+        // Photo montrée dès la question (« À quel pays est ce drapeau ? », cedric 28/10) : QCM à propositions seulement.
+        ...(q.imageVisible === true && q.imageId && !sansMesImages && !number && !express && !zoom && !flou && !yesNo ? { imageVisible: true } : {}),
         ...(q.banque ? { banque: q.banque } : {}),
         // Réponses en images (QCM et Vrai / Faux) : une photo par proposition, "" pour une proposition en texte.
         ...(!number && !express && !zoom && !flou && !sansMesImages && choiceImageList(q).length ? { choiceImages: choiceImageList(q) } : {}),

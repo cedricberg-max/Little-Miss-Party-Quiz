@@ -5487,6 +5487,7 @@ function review(id, quiz) {
       text: q.text ?? "", choices: [...(q.choices ?? [])], correct: q.correct ?? -1,
       duration: q.duration ?? null, double: q.double === true, status: q.status ?? "brouillon", marks: q.marks ?? 0,
       image: q.image ?? "", imageId: q.imageId ?? null, kind: q.kind === "number" ? "number" : null, niveau: lireNiveau(q.niveau),
+      imageVisible: q.imageVisible === true,
       // Réponses en images : une photo par case A à D (les propositions sont rangées dans l'ordre des cases).
       slotImages: [0, 1, 2, 3].map((k) => (IMAGE_ID.test(q.choiceImages?.[k] ?? "") ? q.choiceImages[k] : null)),
       missingImages: q.missingImages ?? [],
@@ -5610,8 +5611,13 @@ function illustrationRow(q, i) {
   const missing = h("span", { class: "tag missing", text: IMAGE_MANQUANTE });
   const facultative = () => q.kind === "number" || (draft.kind === "photo" && enImages(q)) || (q.choices?.length === 2 && q.choices.join("/").toLowerCase() === "vrai/faux");
   const refreshMissing = () => { missing.hidden = !!(q.imageId || q.image) || facultative(); };
+  // « Montrer la photo dès la question » (cedric, 28/10) : sinon elle n'arrive qu'avec la bonne réponse.
+  const desLaQuestion = h("label", { class: "inline q-des-la-question", title: "Sur la TV, la photo s'affiche en entier dès la question, à gauche des réponses" },
+    h("input", { type: "checkbox", checked: q.imageVisible === true, onchange: (e) => { q.imageVisible = e.target.checked; noterEcran(); } }),
+    " Montrer la photo dès la question");
   const showPreview = () => {
     refreshMissing();
+    desLaQuestion.hidden = !desLaQuestionPossible(q);
     preview.hidden = !q.imageId;
     if (!q.imageId) return;
     if (imageCache[q.imageId]) { preview.src = imageCache[q.imageId]; return; }
@@ -5670,7 +5676,7 @@ function illustrationRow(q, i) {
       type: "button", class: "btn small secondary q-coller", text: `📋 Coller « ${nomCopie(imageCopiee)} »`, title: "L'image copiée dans la Bibliothèque",
       onclick: () => poser(imageCopiee),
     }) : null,
-    file, preview, remove, info);
+    file, preview, desLaQuestion, remove, info);
   return row;
 
   /** Pose une image de la Bibliothèque (choisie ou copiée) : l'émoji dans sa case, une photo comme illustration. */
@@ -5704,6 +5710,12 @@ function illustrationRow(q, i) {
  */
 /** Question aux réponses en images (au moins une image posée) : au Quiz illustré, chaque réponse attend la sienne. */
 const enImages = (q) => (q.slotImages ?? q.choiceImages ?? []).some((id) => IMAGE_ID.test(id ?? ""));
+/**
+ * La photo de la question peut se montrer dès la question (« À quel pays est ce drapeau ? », cedric 28/10) : une question
+ * à propositions écrites qui a sa photo ; jamais au Juste Chiffre, au Vrai ou Faux, ni avec des réponses en photos.
+ */
+const desLaQuestionPossible = (q) => !!q.imageId && q.kind !== "number" && !enImages(q)
+  && !(q.choices?.length === 2 && q.choices.join("/").toLowerCase() === "vrai/faux");
 
 function choicePhoto(q, slots, k) {
   // Vignette comme sur la TV (carré arrondi, image qui le remplit) : un clic ouvre le cadrage.
@@ -6269,6 +6281,7 @@ $("rv-save").onclick = async () => {
         correct: q.kind === "number" ? (Number.isInteger(q.correct) ? q.correct : 0) : q.correct,
         kind: q.kind === "number" ? "number" : null, duration: q.duration, double: q.double, status: q.status,
         image: cleanEmoji(q.image) || null, imageId: q.imageId || null,
+        imageVisible: desLaQuestionPossible(q) && q.imageVisible === true ? true : null,
         choiceImages: q.kind === "number" ? null : savedChoiceImages(q),
         // Le niveau changé à la main dans la Bibliothèque (cedric, 25/10) reste.
         niveau: lireNiveau(q.niveau),
@@ -9796,6 +9809,7 @@ function quizDuPack(p) {
         text: q.text.slice(0, 300), choices, correct: nombre ? (Number.isInteger(q.correct) ? q.correct : 0) : Number.isInteger(q.correct) ? q.correct : -1,
         kind: nombre ? "number" : null, duration: dureeQuestion(q.duration), double: q.double === true,
         status: aCorriger.has(i) ? "brouillon" : "validee", image: cleanEmoji(q.image) || null, imageId: q.imageId || null,
+        imageVisible: !nombre && q.imageVisible === true && !!q.imageId ? true : null,
         choiceImages: nombre ? null : savedChoiceImages({ ...q, choices }),
       };
     }),

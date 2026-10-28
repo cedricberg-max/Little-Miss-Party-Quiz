@@ -132,3 +132,15 @@ describe("Le champ du 🎲 unique du Quiz (cedric, 26/10)", () => {
     assert.equal(sourceDuDe("Libre-service", LIBRES).sorte, "theme");
   });
 });
+
+describe("Drapeau montré dès la question (cedric, 28/10)", () => {
+  test("une question piochée garde l'option avec sa photo, jamais sans photo", () => {
+    const avec = versQuestionDePack({ id: "d:0", q: { text: "Ce drapeau ?", choices: ["Japon", "Chine", "Italie", "Canada"], correct: 0, imageId: "0123456789abcdef", imageVisible: true } });
+    assert.equal(avec.imageVisible, true);
+    assert.equal(avec.choices[avec.correct], "Japon");
+    const sans = versQuestionDePack({ id: "d:1", q: { text: "Ce drapeau ?", choices: ["Japon", "Chine"], correct: 0, image: "🇯🇵", imageVisible: true } });
+    assert.equal(sans.imageVisible, undefined);
+    const avant = versQuestionDePack({ id: "d:2", q: { text: "Capitale ?", choices: ["Paris", "Rome"], correct: 0, imageId: "0123456789abcdef" } });
+    assert.equal(avant.imageVisible, undefined, "comme avant : la photo à la révélation");
+  });
+});
