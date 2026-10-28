@@ -68,9 +68,12 @@ class BombeCacheeTest {
         assertEquals(0, casePiece(tour + 0.001f))
         assertEquals(15, casePiece(-0.001f))
         for (k in -200..200) assertTrue(casePiece(k * 0.37f) in 0..15)
-        val atlas = javax.imageio.ImageIO.read(java.io.File("src/main/res/drawable-nodpi/gs_piece_or.webp"))
-        if (atlas != null) assertEquals(4 * CASE_PIECE, atlas.width)
-        assertTrue(java.io.File("src/main/res/drawable-nodpi/gs_piece_or.webp").isFile)
+        // L'atlas fait 4 × 4 cases : largeur et hauteur lues dans l'en-tête WebP étendu (VP8X, 24 bits chacune).
+        val entete = java.io.File("src/main/res/drawable-nodpi/gs_piece_or.webp").readBytes()
+        assertEquals("VP8X", String(entete, 12, 4, Charsets.US_ASCII))
+        fun l24(i: Int) = 1 + ((entete[i].toInt() and 0xFF) or ((entete[i + 1].toInt() and 0xFF) shl 8) or ((entete[i + 2].toInt() and 0xFF) shl 16))
+        assertEquals(4 * CASE_PIECE, l24(24))
+        assertEquals(4 * CASE_PIECE, l24(27))
         assertTrue("préchargée avec les grandes images", "gs_piece_or" in GRANDES_IMAGES)
     }
 
