@@ -633,6 +633,8 @@ class RegieTest : TestTv() {
         // Game Show (planche du 28/10, version A) : l'appel au buzz en néon, sans buzzer dessiné.
         if (Look.gs) {
             ecran.voit("BUZZEZ !")
+            // Test du 28/10 : « qui je suis » était coupé en bas de son cadre.
+            ecran.entierementVisible("qui je suis")
             ecran.capture("qui-suis-je-indices", attente = 600)
         }
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "p1" && it.child("buzzOpen").value == true } }
@@ -950,9 +952,9 @@ class RegieTest : TestTv() {
                 attendreQue("tour de $n cartes ouvert", 30_000) {
                     if (licornes.etat(code).child("qid").value == "p$n") true else { regie.commande(code, "next"); android.os.SystemClock.sleep(1_500); null }
                 }
+                // A (choisi le 28/10) : l'enseigne en grand au début de la grille (2 s), puis les cartes en grand.
+                ecran.capture("disparu-$n-cartes-A-enseigne")
                 ecran.voit("MÉMORISEZ !")
-                // A (choisi le 28/10) : l'enseigne en grand au début de la grille, puis les cartes en grand.
-                ecran.capture("disparu-$n-cartes-A-enseigne", attente = 500)
                 ecran.capture("disparu-$n-cartes-A", attente = 2_500)
                 PropositionDisparu.sansEnseigne = false
                 ecran.capture("disparu-$n-cartes-B", attente = 1_500)

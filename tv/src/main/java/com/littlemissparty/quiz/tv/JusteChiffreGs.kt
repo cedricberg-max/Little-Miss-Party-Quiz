@@ -293,13 +293,20 @@ private fun DrawScope.dessineRevelation(t: Float, m: MinutageJuste, x: TextesJus
     // Le rayon vert descend de la machine jusqu'au bon nombre sur la règle.
     val ur = tb - (m.rayon - m.regle)
     if (ur > 0f) {
-        val yb = cy + hautFinal / 2f
-        val yf = lerp(yb, y, lisse(ur / 0.35f))
+        // Du bas de la machine (au centre) jusqu'au nombre sur la règle, en biais si le nombre n'est pas au milieu.
+        val depart = Offset(cx, cy + hautFinal / 2f)
+        val u = lisse(ur / 0.35f)
+        val tete = Offset(lerp(depart.x, arr, u), lerp(depart.y, y, u))
         val lar = (5f + 13f * exp(-max(0f, ur - 0.35f) * 4f)) * dp
-        drawRect(
-            Brush.horizontalGradient(listOf(Color.Transparent, Color(0xE6D2FFC8), Color.Transparent), arr - lar, arr + lar),
-            Offset(arr - lar, yb), Size(2 * lar, max(0f, yf - yb)), blendMode = BlendMode.Plus,
-        )
+        val faisceau = Path().apply {
+            moveTo(depart.x - lar * 1.6f, depart.y)
+            lineTo(depart.x + lar * 1.6f, depart.y)
+            lineTo(tete.x + lar * 0.6f, tete.y)
+            lineTo(tete.x - lar * 0.6f, tete.y)
+            close()
+        }
+        drawPath(faisceau, Brush.linearGradient(listOf(Vert.copy(alpha = 0.25f), Color(0xE6D2FFC8)), depart, tete), blendMode = BlendMode.Plus)
+        drawLine(Color.White.copy(alpha = 0.85f), depart, tete, 1.5f * dp, blendMode = BlendMode.Plus)
         if (ur > 0.35f) {
             onde(Offset(arr, y), ur - 0.35f, Vert, 210f * dp)
             etincelles(Offset(arr, y), ur - 0.35f, 50, Vert, 0.9f, 21)
@@ -349,7 +356,11 @@ private fun DrawScope.dessineRevelation(t: Float, m: MinutageJuste, x: TextesJus
         if (p > 0f) {
             val xg = xs[0]
             val py = y - 30f * dp - etages[0] * 50f * dp
-            val cxb = if (xg + 40f * dp + b.size.width <= W) xg + 30f * dp + b.size.width / 2f else xg - 30f * dp - b.size.width / 2f
+            // Du côté opposé au bon nombre (le rayon vert arrive de l'autre côté), sauf s'il n'y a pas la place.
+            val aGauche = xg - 40f * dp - b.size.width >= 0f
+            val aDroite = xg + 40f * dp + b.size.width <= W
+            val gauche = if (xg <= arr) aGauche || !aDroite else !aDroite && aGauche
+            val cxb = if (gauche) xg - 30f * dp - b.size.width / 2f else xg + 30f * dp + b.size.width / 2f
             texte(b, Offset(cxb, py), echelle = p)
             etincelles(Offset(xg, py), t - m.bonus, 34, Or, 0.5f, 9)
         }

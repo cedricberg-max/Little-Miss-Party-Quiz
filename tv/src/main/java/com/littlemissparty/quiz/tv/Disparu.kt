@@ -71,7 +71,7 @@ internal object PropositionDisparu {
 }
 
 /** Choix A de cedric (28/10) : l'enseigne revient en grand au début de chaque grille, avant les cartes, ce temps-là. */
-internal const val DISPARU_ENSEIGNE_DEBUT_MS = 1_800L
+internal const val DISPARU_ENSEIGNE_DEBUT_MS = 2_000L
 
 /**
  * Game Show, choix A (28/10) : sans l'enseigne pendant qu'on regarde les cartes, mais elle revient en grand au début de

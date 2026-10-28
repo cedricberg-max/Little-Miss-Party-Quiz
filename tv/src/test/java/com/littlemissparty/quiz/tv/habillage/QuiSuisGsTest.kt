@@ -32,6 +32,17 @@ class QuiSuisGsTest {
         assertTrue(NOUVEL_INDICE_MS in 1_500..2_500)
     }
 
+    /** Test du 28/10 : « qui je suis » coupé en bas du cadre ; plus il y a d'équipes déjà essayées, plus il faut de place. */
+    @Test
+    fun `l appel au buzz demande plus de place avec les equipes deja essayees, jamais moins que son texte`() {
+        assertTrue(besoinAppelBuzz(0) >= 168f)
+        assertTrue(besoinAppelBuzz(1) > besoinAppelBuzz(0))
+        assertTrue(besoinAppelBuzz(3) > besoinAppelBuzz(2))
+        assertEquals(besoinAppelBuzz(1), besoinAppelBuzz(2), 0.01f)
+        val source = File("src/main/java/com/littlemissparty/quiz/tv/habillage/QuiSuisGs.kt").readText()
+        assertTrue("réduit selon la hauteur du cadre", source.contains("maxHeight.value / besoinAppelBuzz("))
+    }
+
     /** cedric 28/10 : plus de buzzer rouge dessiné, ni de grand « ? » ; le texte des indices n'est jamais coupé. */
     @Test
     fun `pas de buzzer dessine, pas de grand point d interrogation, indices jamais coupes`() {

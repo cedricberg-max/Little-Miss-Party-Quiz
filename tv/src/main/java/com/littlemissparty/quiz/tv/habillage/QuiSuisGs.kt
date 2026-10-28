@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -238,37 +239,51 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.etincelles(centre: 
 @Composable
 internal fun AppelBuzzQuiSuis(dejaEssaye: List<String>, modifier: Modifier = Modifier) {
     val pulse by rememberInfiniteTransition(label = "buzzez").animateFloat(0.5f, 1f, infiniteRepeatable(tween(780), RepeatMode.Reverse), label = "p")
-    Column(
-        modifier.clip(RoundedCornerShape(20.dp)).background(Color(0x990E0622)).padding(horizontal = 18.dp, vertical = 22.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            "BUZZEZ !", maxLines = 1, softWrap = false,
-            style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 46.sp, color = Color.White, shadow = Shadow(GS.Rose, Offset.Zero, 22f + 22f * pulse)),
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            "dès que vous savez\nqui je suis", textAlign = TextAlign.Center,
-            style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 23.sp, lineHeight = 26.sp, color = GS.Encre),
-        )
-        if (dejaEssaye.isNotEmpty()) {
-            Spacer(Modifier.height(22.dp))
-            Text("Déjà essayé :", style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color(0xFFC9C0F0)))
-            Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                dejaEssaye.forEach { nom ->
-                    Text(
-                        nom, maxLines = 1, softWrap = false,
-                        style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 16.sp, color = GS.Encre, textDecoration = TextDecoration.LineThrough),
-                        modifier = Modifier.graphicsLayer { rotationZ = -2.8f }
-                            .clip(RoundedCornerShape(6.dp)).background(GS.Rose.copy(alpha = 0.18f)).border(1.5.dp, GS.Rose, RoundedCornerShape(6.dp))
-                            .padding(horizontal = 10.dp, vertical = 3.dp),
-                    )
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        // Tout réduit d'un même facteur quand le cadre est bas (Mi Box, 8 équipes) : jamais « qui je suis » coupé (test du 28/10).
+        val e = if (constraints.hasBoundedHeight) (maxHeight.value / besoinAppelBuzz(dejaEssaye.size)).coerceIn(0.5f, 1f) else 1f
+        Column(
+            Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0x990E0622)).padding(horizontal = 18.dp * e, vertical = 22.dp * e),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                "BUZZEZ !", maxLines = 1, softWrap = false,
+                style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 46.sp * e, color = Color.White, shadow = Shadow(GS.Rose, Offset.Zero, 22f + 22f * pulse)),
+            )
+            Spacer(Modifier.height(10.dp * e))
+            Text(
+                "dès que vous savez\nqui je suis", textAlign = TextAlign.Center,
+                style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 23.sp * e, lineHeight = 26.sp * e, color = GS.Encre),
+            )
+            if (dejaEssaye.isNotEmpty()) {
+                Spacer(Modifier.height(22.dp * e))
+                Text("Déjà essayé :", style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 17.sp * e, color = Color(0xFFC9C0F0)))
+                Spacer(Modifier.height(8.dp * e))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp * e, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp * e)) {
+                    dejaEssaye.forEach { nom ->
+                        Text(
+                            nom, maxLines = 1, softWrap = false,
+                            style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 16.sp * e, color = GS.Encre, textDecoration = TextDecoration.LineThrough),
+                            modifier = Modifier.graphicsLayer { rotationZ = -2.8f }
+                                .clip(RoundedCornerShape(6.dp)).background(GS.Rose.copy(alpha = 0.18f)).border(1.5.dp, GS.Rose, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 10.dp * e, vertical = 3.dp * e),
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+/**
+ * Hauteur (dp) qu'il faut à « BUZZEZ ! » en taille normale, avec [essais] équipes déjà essayées (deux par ligne au pire),
+ * plus 10 % de marge : la police néon est plus haute que sa taille.
+ */
+internal fun besoinAppelBuzz(essais: Int): Float {
+    val base = 44f + 62f + 10f + 52f
+    val liste = if (essais > 0) 22f + 22f + 8f + ((essais + 1) / 2) * 34f else 0f
+    return (base + liste) * 1.1f
 }
 
 /** Confettis légers qui tombent doucement derrière le jeu (une trentaine de petits rectangles, rien de lourd). */
