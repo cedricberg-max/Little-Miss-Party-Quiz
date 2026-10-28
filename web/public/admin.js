@@ -4,7 +4,7 @@ import {
   getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator, query, orderByKey, limitToLast,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
-import { TEST_PRESTATION, TEST_TITRE, TEST_FICHE, TEST_NOTES, JEUX_DU_TEST, demosAEffacer, nbDemos } from "./test-show.js";
+import { TEST_PRESTATION, TEST_TITRE, TEST_FICHE, TEST_NOTES, JEUX_DU_TEST, THEME_DRAPEAUX, JEUX_DRAPEAUX, demosAEffacer, nbDemos } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
@@ -19,7 +19,7 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
-  questionsDuQuiz, ordreAvecCasesVides, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
+  questionsDuQuiz, ordreAvecCasesVides, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, texteDeQuestion, zoomRoundQuestions,
   estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie, DUEL_JOUEURS, DUEL_DUREES, reglagesDuel, SIMON_TOURS, SIMON_REPONSES, reglagesSimon,
   DISPARU_CARTES, famillesPourLAge,
   pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX, leurresDeChanson, parolesDuHook,
@@ -3610,6 +3610,7 @@ const versQuestionEnLigne = (q) => (q.kind === "number"
   : { text: q.text, choices: [...(q.choices ?? [])], correct: q.correct,
     ...(q.banque ? { banque: q.banque } : /^[0-9a-f]{16}$/.test(q.imageId ?? "") ? { imageId: q.imageId }
       : typeof q.image === "string" && q.image && q.image.length <= 16 ? { emoji: q.image } : {}),
+    ...(!q.banque && /^[0-9a-f]{16}$/.test(q.imageId ?? "") && q.imageVisible === true ? { imageVisible: true } : {}),
     ...(Array.isArray(q.choiceBanque) ? { choiceBanque: q.choiceBanque.map((x) => ({ ...x })) } : {}),
     ...(choiceImageList(q).length ? { choiceImages: choiceImageList(q) } : {}) });
 
@@ -3742,8 +3743,8 @@ function piocherQuiz(r, { qcm = 0, chiffres = 0, profil, theme = null }) {
 function textesPris(r) {
   const manches = roundCtx === prestationCtx && editing ? editing.rounds.filter(Boolean) : [r];
   const textes = [...new Set([r, ...manches])].flatMap((m) => [...questionsDesSeries(m, quizzes), ...roundTirees(m),
-    ...(roundSeriesQuiz(m).length ? [] : roundQuizIds(m).flatMap((id) => playable(quizzes[id])))].map((q) => q?.text));
-  return new Set([...textes, ...casesDuTirage(r).filter((q) => !caseVide(q)).map((q) => q.text), ...(r.ecartees ?? [])].filter(Boolean));
+    ...(roundSeriesQuiz(m).length ? [] : roundQuizIds(m).flatMap((id) => playable(quizzes[id])))].map((q) => (q ? texteDeQuestion(q) : null)));
+  return new Set([...textes, ...casesDuTirage(r).filter((q) => !caseVide(q)).map(texteDeQuestion), ...(r.ecartees ?? [])].filter(Boolean));
 }
 
 /** Thème du 🎲 d'un Quiz illustré (null : tous les thèmes). */
@@ -4687,7 +4688,7 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
   if (vides.length) quizCompletsDeplies.add(r);
   const photos = estJeuDePhotos(r.type);
   const unite = photos ? "photo" : r.type === "express" ? "affirmation" : "question";
-  const sig = (q) => (photos ? signatureQuestion(q, r.type) : q.text);
+  const sig = (q) => (photos ? signatureQuestion(q, r.type) : texteDeQuestion(q));
   const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
     && !assemblage.some((x) => x.q.kind === "number" && /bougie/i.test(x.q.text ?? ""))
     ? questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r) : null;
@@ -5543,6 +5544,7 @@ function review(id, quiz) {
       text: q.text ?? "", choices: [...(q.choices ?? [])], correct: q.correct ?? -1,
       duration: q.duration ?? null, double: q.double === true, status: q.status ?? "brouillon", marks: q.marks ?? 0,
       image: q.image ?? "", imageId: q.imageId ?? null, kind: q.kind === "number" ? "number" : null, niveau: lireNiveau(q.niveau),
+      imageVisible: q.imageVisible === true,
       // Réponses en images : une photo par case A à D (les propositions sont rangées dans l'ordre des cases).
       slotImages: [0, 1, 2, 3].map((k) => (IMAGE_ID.test(q.choiceImages?.[k] ?? "") ? q.choiceImages[k] : null)),
       missingImages: q.missingImages ?? [],
@@ -5666,8 +5668,13 @@ function illustrationRow(q, i) {
   const missing = h("span", { class: "tag missing", text: IMAGE_MANQUANTE });
   const facultative = () => q.kind === "number" || (draft.kind === "photo" && enImages(q)) || (q.choices?.length === 2 && q.choices.join("/").toLowerCase() === "vrai/faux");
   const refreshMissing = () => { missing.hidden = !!(q.imageId || q.image) || facultative(); };
+  // « Montrer la photo dès la question » (cedric, 28/10) : sinon elle n'arrive qu'avec la bonne réponse.
+  const desLaQuestion = h("label", { class: "inline q-des-la-question", title: "Sur la TV, la photo s'affiche en entier dès la question, à gauche des réponses" },
+    h("input", { type: "checkbox", checked: q.imageVisible === true, onchange: (e) => { q.imageVisible = e.target.checked; noterEcran(); } }),
+    " Montrer la photo dès la question");
   const showPreview = () => {
     refreshMissing();
+    desLaQuestion.hidden = !desLaQuestionPossible(q);
     preview.hidden = !q.imageId;
     if (!q.imageId) return;
     if (imageCache[q.imageId]) { preview.src = imageCache[q.imageId]; return; }
@@ -5726,7 +5733,7 @@ function illustrationRow(q, i) {
       type: "button", class: "btn small secondary q-coller", text: `📋 Coller « ${nomCopie(imageCopiee)} »`, title: "L'image copiée dans la Bibliothèque",
       onclick: () => poser(imageCopiee),
     }) : null,
-    file, preview, remove, info);
+    file, preview, desLaQuestion, remove, info);
   return row;
 
   /** Pose une image de la Bibliothèque (choisie ou copiée) : l'émoji dans sa case, une photo comme illustration. */
@@ -5760,6 +5767,12 @@ function illustrationRow(q, i) {
  */
 /** Question aux réponses en images (au moins une image posée) : au Quiz illustré, chaque réponse attend la sienne. */
 const enImages = (q) => (q.slotImages ?? q.choiceImages ?? []).some((id) => IMAGE_ID.test(id ?? ""));
+/**
+ * La photo de la question peut se montrer dès la question (« À quel pays est ce drapeau ? », cedric 28/10) : une question
+ * à propositions écrites qui a sa photo ; jamais au Juste Chiffre, au Vrai ou Faux, ni avec des réponses en photos.
+ */
+const desLaQuestionPossible = (q) => !!q.imageId && q.kind !== "number" && !enImages(q)
+  && !(q.choices?.length === 2 && q.choices.join("/").toLowerCase() === "vrai/faux");
 
 function choicePhoto(q, slots, k) {
   // Vignette comme sur la TV (carré arrondi, image qui le remplit) : un clic ouvre le cadrage.
@@ -6325,6 +6338,7 @@ $("rv-save").onclick = async () => {
         correct: q.kind === "number" ? (Number.isInteger(q.correct) ? q.correct : 0) : q.correct,
         kind: q.kind === "number" ? "number" : null, duration: q.duration, double: q.double, status: q.status,
         image: cleanEmoji(q.image) || null, imageId: q.imageId || null,
+        imageVisible: desLaQuestionPossible(q) && q.imageVisible === true ? true : null,
         choiceImages: q.kind === "number" ? null : savedChoiceImages(q),
         // Le niveau changé à la main dans la Bibliothèque (cedric, 25/10) reste.
         niveau: lireNiveau(q.niveau),
@@ -6711,6 +6725,25 @@ function lignesDemos(plan) {
 const tic = () => new Promise((fin) => setTimeout(fin, 0));
 
 /**
+ * Un thème de packs en plus dans la prestation ouverte (les drapeaux, cedric 28/10) : dans chaque jeu de [jeux], son 🎲
+ * touché une fois de plus avec ce thème tapé, ses questions à la suite des autres. Thème pas importé : rien ne change.
+ */
+async function ajouterLeTheme(theme, jeux) {
+  const cle = cleTheme(theme);
+  if (!themesExistants().some((t) => cleTheme(t) === cle)) return;
+  for (const jeu of jeux) {
+    const bloc = $("show-rounds").querySelector(`.jeu-bloc[data-jeu="${jeu}"]`);
+    const champ = bloc?.querySelector(".de-unique-champ");
+    const de = bloc?.querySelector(".de-unique");
+    if (!champ || !de) continue;
+    champ.value = theme;
+    champ.dispatchEvent(new Event("input"));
+    de.click();
+    await tic();
+  }
+}
+
+/**
  * Touche une fois le 🎲 de chaque jeu de la prestation ouverte, comme Sarah (celui de chaque équipe aux Mimes) : chaque
  * jeu se remplit avec son propre tirage (âge, équipes, « jamais deux fois » avec les jeux d'avant).
  */
@@ -6793,6 +6826,7 @@ $("test-prestation").onclick = async () => {
     editing.rounds = JEUX_DU_TEST.map((type) => ({ type, [JEU_OUVERT]: true }));
     refreshRounds();
     await toucherLesDes();
+    await ajouterLeTheme(THEME_DRAPEAUX, JEUX_DRAPEAUX);
     // Tout replié, comme une prestation qu'on ouvre : une ligne par jeu.
     editing.rounds.forEach((r) => { if (r) r[JEU_OUVERT] = false; });
     refreshRounds();
@@ -9852,6 +9886,7 @@ function quizDuPack(p) {
         text: q.text.slice(0, 300), choices, correct: nombre ? (Number.isInteger(q.correct) ? q.correct : 0) : Number.isInteger(q.correct) ? q.correct : -1,
         kind: nombre ? "number" : null, duration: dureeQuestion(q.duration), double: q.double === true,
         status: aCorriger.has(i) ? "brouillon" : "validee", image: cleanEmoji(q.image) || null, imageId: q.imageId || null,
+        imageVisible: !nombre && q.imageVisible === true && !!q.imageId ? true : null,
         choiceImages: nombre ? null : savedChoiceImages({ ...q, choices }),
       };
     }),

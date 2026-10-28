@@ -636,11 +636,16 @@ export const estEnSeries = (type) => JEUX_EN_SERIES.includes(type ?? "quiz");
 export const JEUX_DE_PHOTOS = ["zoom", "flou"];
 export const estJeuDePhotos = (type) => JEUX_DE_PHOTOS.includes(type);
 /**
+ * Le texte qui distingue une question de quiz : son texte ; avec sa photo montrée dès la question, son texte et sa photo
+ * (« À quel pays est ce drapeau ? » se pose pour chaque drapeau, cedric 28/10 : jamais pris pour la même question).
+ */
+export const texteDeQuestion = (q) => (q?.imageVisible === true && /^[0-9a-f]{16}$/.test(q?.imageId ?? "") ? `${q?.text ?? ""} #${q.imageId}` : `${q?.text ?? ""}`);
+/**
  * Ce qui reconnaît une question dans sa série : son texte ; au Zoom mystère et à l'Image floue, sa photo (leurs
  * questions disent toutes « Qu'est-ce que c'est ? »).
  */
 export const signatureQuestion = (q, type) => (estJeuDePhotos(type) && (IMAGE_ID.test(q?.imageId ?? "") || q?.banque)
-  ? (IMAGE_ID.test(q?.imageId ?? "") ? `i:${q.imageId}` : `b:${q.banque}`) : `${q?.text ?? ""}`.trim().toLowerCase());
+  ? (IMAGE_ID.test(q?.imageId ?? "") ? `i:${q.imageId}` : `b:${q.banque}`) : texteDeQuestion(q).trim().toLowerCase());
 /**
  * Questions d'un quiz de la bibliothèque jouables dans un jeu en séries : ses photos au Zoom et à l'Image floue, ses
  * Vrai / Faux au Vrai ou Faux express.
@@ -680,6 +685,7 @@ function itemsDeLaSerie(serie, quizzes = {}, type = "quiz") {
     ? { text: q.text, kind: "number", correct: q.correct, status: "validee" }
     : { text: q.text, choices: q.choices, correct: q.correct, status: "validee",
       ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.emoji ? { image: q.emoji } : {}),
+      ...(!q.banque && q.imageId && q.imageVisible === true ? { imageVisible: true } : {}),
       // Quiz illustré : réponses en photos de la banque (tirées au 🎲) ou en images déjà copiées (série reprise).
       ...(Array.isArray(q.choiceBanque) ? { choiceBanque: q.choiceBanque } : {}),
       ...(q.choiceImages && typeof q.choiceImages === "object" ? { choiceImages: q.choiceImages } : {}) } }));
@@ -1639,6 +1645,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).
         ...(q.image ? { image: q.image } : {}),
         ...(q.imageId && !sansMesImages ? { imageId: q.imageId } : {}),
+        // Photo montrée dès la question (« À quel pays est ce drapeau ? », cedric 28/10) : QCM à propositions seulement.
+        ...(q.imageVisible === true && q.imageId && !sansMesImages && !number && !express && !zoom && !flou && !yesNo ? { imageVisible: true } : {}),
         ...(q.banque ? { banque: q.banque } : {}),
         // Réponses en images (QCM et Vrai / Faux) : une photo par proposition, "" pour une proposition en texte.
         ...(!number && !express && !zoom && !flou && !sansMesImages && choiceImageList(q).length ? { choiceImages: choiceImageList(q) } : {}),

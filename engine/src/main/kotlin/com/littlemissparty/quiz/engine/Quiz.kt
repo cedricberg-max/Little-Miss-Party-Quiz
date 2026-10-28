@@ -145,6 +145,11 @@ data class Question(
     val emoji: String? = null,
     val imageId: String? = null,
     /**
+     * Quiz classique : la photo ([imageId]) se montre en entier dès la question, pas seulement à la révélation
+     * (« À quel pays est ce drapeau ? », cedric, 28/10). Faux sans photo ou hors QCM.
+     */
+    val imageVisible: Boolean = false,
+    /**
      * Réponses en images (quiz des petits) : une photo par proposition, dans l'ordre des propositions, lue dans
      * games/<code>/choiceImages. Vide : propositions en texte. Une proposition sans photo reste en texte.
      */

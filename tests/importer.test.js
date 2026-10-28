@@ -3554,3 +3554,54 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
     assert.deepEqual(M.cleanRound(deux.rounds[0]).leurres, { a: ["A", "B", "C"], d: ["D", "E", "F"] });
   });
 });
+
+describe("Photo montrée dès la question (drapeaux, cedric 28/10)", () => {
+  const DRAPEAU = "0123456789abcdef";
+  test("le JSON d'un pack garde l'option, seulement quand elle vaut vrai", () => {
+    const lu = parseQuiz(JSON.stringify({ title: "Drapeaux", questions: [
+      { text: "À quel pays est ce drapeau ?", choices: ["Japon", "Chine", "Italie", "Canada"], correct: 0, illustration: "drapeau-jp.jpg", imageVisible: true },
+      { text: "Capitale de la France ?", choices: ["Paris", "Lyon"], correct: 0, illustration: "drapeau-fr.jpg" },
+      { text: "Mal écrite ?", choices: ["Oui", "Non"], correct: 0, imageVisible: "oui" },
+    ] }));
+    assert.deepEqual(lu.questions.map((q) => q.imageVisible), [true, undefined, undefined]);
+    assert.equal(lu.questions[0].revealFile, "drapeau-jp.jpg");
+  });
+  test("la TV la reçoit au QCM avec sa photo ; jamais sans photo, au Vrai / Faux, au Juste Chiffre, ni au hasard", () => {
+    const quiz = { title: "Drapeaux", questions: [
+      { text: "À quel pays est ce drapeau ?", choices: ["Japon", "Chine"], correct: 0, status: "validee", imageId: DRAPEAU, imageVisible: true },
+      { text: "Capitale ?", choices: ["Paris", "Rome"], correct: 0, status: "validee", imageId: DRAPEAU },
+      { text: "Sans photo ?", choices: ["Oui", "Non"], correct: 0, status: "validee", imageVisible: true },
+      { text: "Le Japon a un rond rouge.", choices: ["Vrai", "Faux"], correct: 0, status: "validee", imageId: DRAPEAU, imageVisible: true },
+      { text: "Combien d'étoiles ?", choices: [], kind: "number", correct: 50, status: "validee", imageId: DRAPEAU, imageVisible: true },
+    ] };
+    const { snapshot, problems } = buildSnapshot("s", { rounds: [{ type: "quiz", quizId: "d" }] }, { d: quiz });
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => q.imageVisible === true), [true, false, false, false, false]);
+    assert.equal(snapshot.quiz.questions[0].imageId, DRAPEAU);
+    const hasard = buildSnapshot("s", { rounds: [{ type: "quiz", quizId: "d", hasard: true }] }, { d: quiz }).snapshot;
+    assert.ok(hasard.quiz.questions.every((q) => q.imageVisible !== true), "au hasard, jamais mes images, donc jamais l'option");
+  });
+  test("une série gardée dans la manche garde l'option avec sa photo", () => {
+    const show = { rounds: [{ type: "quiz", seriesQuiz: [{ id: "a", origine: "de", questions: [
+      { text: "Ce drapeau ?", choices: ["Japon", "Chine", "Italie", "Canada"], correct: 0, imageId: DRAPEAU, imageVisible: true },
+      { text: "Capitale ?", choices: ["Paris", "Rome", "Lyon", "Nice"], correct: 0, imageId: DRAPEAU },
+    ] }] }] };
+    const { snapshot } = buildSnapshot("s", show, {});
+    const [a, b] = snapshot.quiz.questions.filter((q) => q.kind === "classic");
+    assert.deepEqual([a.imageVisible, b.imageVisible], [true, undefined]);
+  });
+  test("enregistrée dans la prestation, la série garde l'option ; jamais sans photo ni sur une photo de la banque", async () => {
+    const { cleanRound } = await import("../web/public/manches.js");
+    const round = { type: "quiz", seriesQuiz: [{ id: "pk1", origine: "reprise", questions: [
+      { id: "pk-a", text: "Ce drapeau ?", choices: ["Japon", "Chine", "Italie", "Canada"], correct: 0, imageId: DRAPEAU, imageVisible: true },
+      { id: "pk-b", text: "Ce drapeau ?", choices: ["Japon", "Chine", "Italie", "Canada"], correct: 1, imageId: "fedcba9876543210" },
+      { id: "pk-c", text: "Sans photo ?", choices: ["Oui", "Non"], correct: 0, imageVisible: true },
+      { id: "pk-d", text: "Banque ?", choices: ["Oui", "Non"], correct: 0, banque: "qc-x", imageId: DRAPEAU, imageVisible: true },
+    ] }] };
+    const gardees = cleanRound(round).seriesQuiz[0].questions;
+    assert.deepEqual(gardees.map((q) => q.imageVisible), [true, undefined, undefined, undefined]);
+    // Relue pour la TV : toujours là.
+    const { snapshot } = buildSnapshot("s", { rounds: [cleanRound(round)] }, {});
+    assert.deepEqual(snapshot.quiz.questions.filter((q) => q.kind === "classic").map((q) => q.imageVisible === true), [true, false, false, false]);
+  });
+});

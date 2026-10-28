@@ -30,7 +30,7 @@ import com.littlemissparty.quiz.tv.habillage.apres
 import com.littlemissparty.quiz.tv.habillage.cadreQuiz3d
 import com.littlemissparty.quiz.tv.habillage.planchesQuiz3d
 
-/** Illustration de la question révélée : la photo si elle est chargée, sinon l'émoji, sinon rien. */
+/** Illustration de la question révélée (ou dès la question, [Question.imageVisible]) : la photo si elle est chargée, sinon l'émoji, sinon rien. */
 fun hasIllustration(q: Question, state: UiState.Playing): Boolean =
     (q.imageId != null && state.images[q.imageId] != null) || q.emoji != null
 
@@ -38,9 +38,14 @@ fun hasIllustration(q: Question, state: UiState.Playing): Boolean =
 fun Illustration(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
     val bytes = q.imageId?.let { state.images[it] }
     val photo: ImageBitmap? = rememberPhoto(bytes)
-    if (photo == null && q.emoji == null) return
-    // La carte arrive en rebondissant, une fois, au moment où la bonne réponse passe à l'or.
-    val visible = apres(Tempo.revelationOr(q.isExpress), q.id)
+    if (photo == null && q.emoji == null) {
+        // Montrée dès la question mais pas encore chargée : sa place reste gardée.
+        if (q.imageVisible) Box(modifier)
+        return
+    }
+    // La carte arrive en rebondissant, une fois, au moment où la bonne réponse passe à l'or ; montrée dès la question,
+    // avec la première proposition, puis elle reste en place à la révélation.
+    val visible = apres(if (q.imageVisible) Tempo.propositionApparait(0) else Tempo.revelationOr(q.isExpress), q.id)
     val pop = remember(q.id) { Animatable(0.6f) }
     LaunchedEffect(q.id, visible) {
         if (visible) pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
@@ -59,7 +64,7 @@ fun Illustration(q: Question, state: UiState.Playing, modifier: Modifier = Modif
         contentAlignment = Alignment.Center,
     ) {
         if (photo != null) {
-            Image(photo, contentDescription = "Illustration de la réponse", contentScale = ContentScale.Crop, alignment = CadrageHaut, modifier = Modifier.fillMaxSize())
+            Image(photo, contentDescription = if (q.imageVisible) "Image de la question" else "Illustration de la réponse", contentScale = ContentScale.Crop, alignment = CadrageHaut, modifier = Modifier.fillMaxSize())
         } else {
             Text(q.emoji!!, style = TextStyle(fontSize = 140.sp, lineHeight = 160.sp), maxLines = 1, softWrap = false)
         }

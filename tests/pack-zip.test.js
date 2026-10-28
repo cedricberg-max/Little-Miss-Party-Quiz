@@ -412,3 +412,16 @@ describe("thèmes des packs (cedric, 25/10 : la rubrique est le thème)", () => 
     assert.deepEqual(rangees.map(([t, c]) => [t, c.map((x) => x.title)]), [["K-pop", ["b", "a", "c"]], ["Mario", ["Mario – Facile"]]]);
   });
 });
+
+describe("Pack de drapeaux (cedric, 28/10)", () => {
+  test("l'option « image dès la question » passe l'analyse du ZIP avec son image", () => {
+    const pack = { title: "Drapeaux et pays 1", theme: "Drapeaux et pays", niveau: "Facile", questions: [
+      { text: "À quel pays est ce drapeau ?", choices: ["Japon", "Chine", "Italie", "Canada"], correct: 0, illustration: "drapeau-jp.jpg", imageVisible: true },
+      { text: "Quelle est la capitale de la France ?", choices: ["Paris", "Lyon", "Nice", "Lille"], correct: 0, illustration: "drapeau-fr.jpg" },
+    ] };
+    const { packs, erreurs } = analyserPack([fichier("drapeaux/packs.json", JSON.stringify({ theme: "Drapeaux et pays", packs: [pack] })), fichier("drapeaux/images/drapeau-jp.jpg"), fichier("drapeaux/images/drapeau-fr.jpg")]);
+    assert.deepEqual(erreurs, []);
+    assert.deepEqual(packs[0].questions.map((q) => [q.imageVisible, q.revealFile]), [[true, "drapeau-jp.jpg"], [undefined, "drapeau-fr.jpg"]]);
+    assert.deepEqual(packs[0].manquantes, []);
+  });
+});

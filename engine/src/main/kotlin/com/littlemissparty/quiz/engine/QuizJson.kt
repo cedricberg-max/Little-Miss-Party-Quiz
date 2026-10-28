@@ -8,7 +8,8 @@ import org.json.JSONObject
  * `{"id", "title", "questions": [{"id", "text", "choices": [...], "correct", "duration", "kind", "double", "round"}]}`,
  * plus `"cards": [{"word", "image"}]` pour une manche de mimes ou de Pictionary (`"kind": "mime"` ou
  * `"pictionary"`, sans propositions ; `"points"` : valeur d'un dessin trouvé ; `"couleur"` : équipe seule d'une manche de mimes),
- * l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo), des réponses en images
+ * l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo, montrée dès la question avec
+ * `"imageVisible": true`, sinon à la révélation), des réponses en images
  * (`"choiceImages"`, une photo par proposition), les valeurs des Portes mystères (`"doors"`), et pour la
  * musique `"audioId"` (extrait), `"artist"`, `"refrainId"` et `"lyrics"` (blind test et quiz musical).
  * Toute erreur est signalée avec la question concernée, pour pouvoir la corriger.
@@ -105,6 +106,8 @@ object QuizJson {
             // Une illustration mal formée est ignorée : elle ne doit jamais empêcher de jouer.
             emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && !turns },
             imageId = imageId?.takeIf { !turns },
+            // Photo montrée dès la question : seulement au QCM, et seulement s'il a une photo valable.
+            imageVisible = q.optBoolean("imageVisible", false) && kind == QuestionKind.CLASSIC && imageId != null && choices.length() > 0 && !chanson,
             choiceImages = choiceImages(q.optJSONArray("choiceImages"), choices.length(), kind),
             doors = if (kind == QuestionKind.PORTES) (0 until doors.length()).map { doors.getInt(it) } else emptyList(),
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && chanson }?.take(MAX_ARTIST),

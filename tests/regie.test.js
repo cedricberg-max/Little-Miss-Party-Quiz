@@ -10689,6 +10689,35 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Prestation de test + pack « Drapeaux et pays » (cedric, 28/10) : ses questions en plus au Quiz, au Zoom et à l'Image floue, drapeau dès la question", async () => {
+    const id = (k) => `${k}`.padStart(2, "0").repeat(8);
+    const drapeaux = { title: "Drapeaux et pays 1", theme: "Drapeaux et pays", niveau: "Moyen", pack: true, kind: "classique", source: "json", updatedAt: 1,
+      questions: Array.from({ length: 12 }, (_, k) => ({ text: "À quel pays est ce drapeau ?", choices: ["Japon", "Chine", "Italie", "Canada"], correct: k % 4,
+        status: "validee", imageId: id(k + 10), imageVisible: true })) };
+    const photos = { title: "Drapeaux et pays photos 1", theme: "Drapeaux et pays", niveau: "Moyen", pack: true, kind: "images", source: "photos", updatedAt: 1,
+      questions: ["Japon", "Chine", "Italie", "Canada", "Suisse", "Brésil", "Grèce", "Inde", "Maroc", "Mexique", "Suède", "Irlande", "Pérou", "Kenya", "Cuba", "Chili"].map((rep, k) => ({ text: "Qu'est-ce que c'est ?", choices: [rep, "Pays A", "Pays B", "Pays C"], correct: 0, status: "validee", imageId: id(k + 40) })) };
+    await seedLibrary("quizzes", { animaux: ANIMAUX, drapeaux, "drapeaux-photos": photos });
+    const page = await admin();
+    await page.click("#nav button[data-screen=settings]");
+    await page.click("#test-prestation");
+    await repondreFenetre(page);
+    await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor({ timeout: 30000 });
+    const fete = (await library("shows"))["test-prestation"];
+    const jeu = Object.fromEntries(fete.rounds.map((r) => [r.type, r]));
+    const serieDrapeaux = (r) => r.seriesQuiz.find((x) => x.pioche?.terme === "Drapeaux et pays");
+    // Le Quiz garde ses questions habituelles, et les drapeaux arrivent à la suite, avec leur option.
+    assert.ok(jeu.quiz.seriesQuiz.length >= 2, "les questions habituelles d'abord, puis les drapeaux");
+    const qd = serieDrapeaux(jeu.quiz).questions;
+    assert.ok(qd.length >= 3);
+    assert.ok(qd.every((q) => q.imageVisible === true && /^[0-9a-f]{16}$/.test(q.imageId)), "drapeau montré dès la question");
+    assert.equal(new Set(qd.map((q) => q.imageId)).size, qd.length, "même texte, chaque drapeau une seule fois");
+    for (const t of ["zoom", "flou"]) assert.ok(serieDrapeaux(jeu[t])?.questions.length >= 1, `${t} : des drapeaux`);
+    // Jamais deux fois le même drapeau entre le Zoom mystère et l'Image floue.
+    const vus = [...serieDrapeaux(jeu.zoom).questions, ...serieDrapeaux(jeu.flou).questions].map((q) => q.imageId);
+    assert.equal(new Set(vus).size, vus.length);
+    await page.context().close();
+  });
+
   test("Import : les images nommées par l'IA (cedric, 25/10 : « Yoshi, Toad… ») arrivent sous leur nom dans le thème, citées ou non, et se retrouvent en tapant", async () => {
     const page = await admin();
     await page.click("#nav button[data-screen=library]");
