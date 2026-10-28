@@ -992,10 +992,30 @@ class DirecteurSonoreTest {
     fun `simon du prof - silence pendant une suite pour entendre les notes, musique entre deux suites`() {
         val d = DirecteurSonore()
         d.observer(salon)
-        val entre = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|")
-        assertEquals(Ambiance.QUESTION, d.observer(entre).musique())
+        val entre = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)
+        assertEquals(Ambiance.SIMON, d.observer(entre).musique())
         assertEquals(Ambiance.SILENCE, d.observer(entre.copy(simonSuite = true)).musique())
-        assertEquals(Ambiance.QUESTION, d.observer(entre).musique())
+        assertEquals(Ambiance.SIMON, d.observer(entre).musique())
+    }
+
+    @Test
+    fun `simon du prof - Prix choc entre deux suites en Game Show, la musique des questions en Classique, rien ailleurs`() {
+        assertEquals("gs_simon_boucle", Lit.SIMON.fichierPour(true))
+        assertNull(Lit.SIMON.fichierPour(false))
+        assertTrue(Ambiance.SIMON.volume(Lit.SIMON, gs = true) in 0.3f..0.8f)
+        assertEquals(0f, Ambiance.SIMON.volume(Lit.LEGER, gs = true), 0f)
+        assertEquals(Ambiance.QUESTION.volume(Lit.LEGER), Ambiance.SIMON.volume(Lit.LEGER), 0f)
+        // Aucune autre ambiance ne joue la boucle du Simon.
+        Ambiance.entries.filter { it != Ambiance.SIMON }.forEach { assertEquals("$it", 0f, it.volume(Lit.SIMON, gs = true), 0f) }
+        // Le fichier est bien là, en WAV 44,1 kHz stéréo comme les autres boucles, et d'une longueur de 64 temps.
+        val wav = java.io.File("src/main/res/raw/gs_simon_boucle.wav")
+        assertTrue(wav.isFile)
+        val octets = wav.length() - 44
+        assertEquals(30.03, octets / (44_100.0 * 4), 0.01)
+        // Hors du Simon (même écran de question), rien ne change.
+        val d = DirecteurSonore()
+        d.observer(salon)
+        assertEquals(Ambiance.QUESTION, d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 4)).musique())
     }
 
     @Test

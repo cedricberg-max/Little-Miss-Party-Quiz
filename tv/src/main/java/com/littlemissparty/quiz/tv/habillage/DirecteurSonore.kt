@@ -454,8 +454,8 @@ class DirecteurSonore {
                 "ready" -> Ambiance.DUEL_ANNONCE
                 else -> Ambiance.DUEL_ENTRE
             }
-            // Le Simon du Prof : silence pendant une suite, qu'on entende la note de chaque boule (musique à choisir, 28/10).
-            i.simonSuite && i.ecran == Ecran.QUESTION -> Ambiance.SILENCE
+            // Le Simon du Prof : silence pendant une suite, qu'on entende la note de chaque boule ; « Prix choc » entre deux.
+            i.simon && i.ecran == Ecran.QUESTION -> if (i.simonSuite) Ambiance.SILENCE else Ambiance.SIMON
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             // Game Show : Qui suis-je ? est un jeu qui bouge, sur la musique des mimes (cedric, 23/10), en retrait sous les indices.
@@ -543,7 +543,8 @@ data class Instant(
      */
     val duel: Boolean = false,
     val duelEtape: String = "",
-    /** Le Simon du Prof : une suite est en cours (le robot la montre, les équipes la tapent). */
+    /** Le Simon du Prof : sa question est à l'écran ; une suite est en cours (le robot la montre, les équipes la tapent). */
+    val simon: Boolean = false,
     val simonSuite: Boolean = false,
     /** Quiz : question fermée par la fin du chrono (une équipe n'a pas répondu), « TEMPS ÉCOULÉ ! » à l'écran. */
     val tempsEcoule: Boolean = false,
@@ -615,6 +616,11 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
     ACCUEIL(null, "gs_accueil"),
     /** Game Show : la boucle western du Duel des robots (36 temps, 21,24 s, sans blanc), sous l'annonce et entre deux duels. */
     DUEL(null, "gs_duel_intro_boucle"),
+    /**
+     * Game Show : la boucle du Simon du Prof, « Prix choc » d'Etienne de Crécy (choix de cedric, 28/10) : 64 temps à
+     * 127,87 BPM (30,03 s), pris en plein morceau, raccord fondu sur 30 ms.
+     */
+    SIMON(null, "gs_simon_boucle"),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -646,6 +652,11 @@ enum class Ambiance(
     DUEL_ANNONCE(legere = 0.45f, gameShow = mapOf(Lit.DUEL to 0.63f)),
     /** Duel des robots : entre deux duels, sous le résultat ; Game Show : la boucle western à −10 dB. */
     DUEL_ENTRE(legere = 0.3f, gameShow = mapOf(Lit.DUEL to 0.32f)),
+    /**
+     * Le Simon du Prof entre deux suites ; Game Show : « Prix choc » (cedric, 28/10), assez bas pour que Sarah parle
+     * par-dessus ; Classique : la musique des questions.
+     */
+    SIMON(legere = 0.7f, gameShow = mapOf(Lit.SIMON to 0.55f)),
     /**
      * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
      * trop éteint (cedric, 24/10).
@@ -684,7 +695,7 @@ enum class Ambiance(
             Lit.PAUSE -> pause
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
-            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL -> 0f
+            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON -> 0f
         }
     }
 }
