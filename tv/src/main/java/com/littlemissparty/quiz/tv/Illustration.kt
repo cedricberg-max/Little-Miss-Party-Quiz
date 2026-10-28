@@ -1,6 +1,5 @@
 package com.littlemissparty.quiz.tv
 
-import android.graphics.BitmapFactory
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -20,7 +19,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
@@ -39,9 +37,7 @@ fun hasIllustration(q: Question, state: UiState.Playing): Boolean =
 @Composable
 fun Illustration(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
     val bytes = q.imageId?.let { state.images[it] }
-    val photo: ImageBitmap? = remember(bytes) {
-        bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() }
-    }
+    val photo: ImageBitmap? = rememberPhoto(bytes)
     if (photo == null && q.emoji == null) return
     // La carte arrive en rebondissant, une fois, au moment où la bonne réponse passe à l'or.
     val visible = apres(Tempo.revelationOr(q.isExpress), q.id)

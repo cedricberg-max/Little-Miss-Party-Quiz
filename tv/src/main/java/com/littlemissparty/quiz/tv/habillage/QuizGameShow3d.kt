@@ -109,9 +109,9 @@ internal fun planchesQuiz3d(): PlanchesQuiz3d? {
         if (!planchesQuiz3dEssayees) {
             planchesQuiz3dEssayees = true
             planchesQuiz3dLues = runCatching {
-                val res = context.resources
-                val ids = NOMS_QUIZ3D.map { res.getIdentifier(it, "drawable", context.packageName) }
-                if (ids.any { it == 0 }) null else planchesDepuis(ids.map { ImageBitmap.imageResource(res, it) })
+                // Décodées d'avance dès l'ouverture ([ImagesAppli]) : la première question ne les attend plus.
+                val images = NOMS_QUIZ3D.map { ImagesAppli.lire(context, it) }
+                if (images.any { it == null }) null else planchesDepuis(images.filterNotNull())
             }.getOrNull()
         }
         planchesQuiz3dLues

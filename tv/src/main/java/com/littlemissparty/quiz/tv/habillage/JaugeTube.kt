@@ -32,11 +32,9 @@ internal fun planchesJauge(): PlanchesJauge? {
     val context = LocalContext.current
     return remember {
         runCatching {
-            val res = context.resources
-            val ids = listOf("gs_jauge_haut", "gs_jauge_corps", "gs_jauge_bas", "gs_jauge_liquide")
-                .map { res.getIdentifier(it, "drawable", context.packageName) }
-            if (ids.any { it == 0 }) null
-            else ids.map { ImageBitmap.imageResource(res, it) }.let { (h, c, b, l) -> PlanchesJauge(h, c, b, l) }
+            val images = listOf("gs_jauge_haut", "gs_jauge_corps", "gs_jauge_bas", "gs_jauge_liquide").map { ImagesAppli.lire(context, it) }
+            if (images.any { it == null }) null
+            else images.filterNotNull().let { (h, c, b, l) -> PlanchesJauge(h, c, b, l) }
         }.getOrNull()
     }
 }

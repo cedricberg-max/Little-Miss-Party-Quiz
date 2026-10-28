@@ -1396,7 +1396,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // question en cours et de la suivante.
         val cartesMime = s.mime?.deck.orEmpty().take(3).mapNotNull { q?.cards?.getOrNull(it) }
         val grilles = listOfNotNull(q, suivante).filter { it.isDisparu }.flatMap { it.cards }
-        (cartesMime + grilles).mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages") }
+        cartesMime.mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages", PHOTO_CARTE_MIMES) }
+        grilles.mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages", PHOTO_CARTE_DISPARU) }
         // Photos : toutes celles du programme gardées sur la box, pour une fête qui continue sans Internet.
         savePhotos(g)
         // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
@@ -1559,13 +1560,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * Lit une photo d'illustration : d'abord sur la box (gardée dès le chargement du programme), sinon dans la
      * partie. Absente, abîmée ou hors connexion sans copie : la question reste sans photo.
      */
-    private fun prefetchImage(id: String, dir: String = "images") {
-        if (id in imageBytes || !imagesLoading.add(id)) return
+    private fun prefetchImage(id: String, dir: String = "images", cible: Int = PHOTO_PLEINE) {
+        // Décodée d'avance en fond, à la taille de son écran : la question s'affiche sans attendre la photo.
+        imageBytes[id]?.let { return Photos.prechauffer(it, cible) }
+        if (!imagesLoading.add(id)) return
         val ref = gameRef ?: return run { imagesLoading -= id }
         viewModelScope.launch {
             val bytes = photoOnBox(id) ?: downloadPhoto(ref, dir, id)
             imagesLoading -= id
             if (bytes == null) return@launch
+            Photos.prechauffer(bytes, cible)
             imageBytes[id] = bytes
             updatePlaying { it.copy(images = imageBytes.toMap()) }
         }

@@ -304,7 +304,7 @@ private fun RelaisFace(color: Color, cle: Any?, modifier: Modifier) {
 @Composable
 private fun MimeCardFace(card: MimeCard, color: Color, octets: ByteArray?, modifier: Modifier) {
     // « 📷 Photos » : la photo du mot à la place de l'émoji (qui revient si la photo n'est pas arrivée).
-    val photo = photoCarte(octets, 480)
+    val photo = photoCarte(octets, PHOTO_CARTE_MIMES)
     Column(
         modifier
             .width(500.dp)

@@ -1,6 +1,5 @@
 package com.littlemissparty.quiz.tv
 
-import android.graphics.BitmapFactory
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -29,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -41,7 +39,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -128,7 +125,7 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
 @Composable
 private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
     if (Look.gs) return CarteGs(carte, octets, etape, disparu, modifier)
-    val photo = photoCarte(octets, 240)
+    val photo = photoCarte(octets, PHOTO_CARTE_DISPARU)
     val trou = disparu && etape == EtapeDisparu.CHERCHER
     val enOr = disparu && etape == EtapeDisparu.REPONSE
     Box(
@@ -187,17 +184,7 @@ internal val CadrageHaut = BiasAlignment(0f, -0.6f)
  * moins (la Mi Box a peu de mémoire). Null tant qu'elle n'est pas arrivée, ou si elle est abîmée.
  */
 @Composable
-internal fun photoCarte(octets: ByteArray?, cible: Int): ImageBitmap? = remember(octets, cible) {
-    octets?.let {
-        runCatching {
-            val bornes = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(it, 0, it.size, bornes)
-            var reduction = 1
-            while (minOf(bornes.outWidth, bornes.outHeight) / (reduction * 2) >= cible) reduction *= 2
-            BitmapFactory.decodeByteArray(it, 0, it.size, BitmapFactory.Options().apply { inSampleSize = reduction })?.asImageBitmap()
-        }.getOrNull()
-    }
-}
+internal fun photoCarte(octets: ByteArray?, cible: Int): ImageBitmap? = rememberPhoto(octets, cible)
 
 /** Carte du Game Show (choix A de la planche du 27/10) : crème, bord doré, tuile blanche, mot en rose comme au Pictionary. */
 private val CarteCreme = Brush.verticalGradient(listOf(Color(0xFFFFFAF0), Color(0xFFFDF1DC)))
@@ -225,7 +212,7 @@ internal fun photoDansTuile(largeur: Float, hauteur: Float, largeurPhoto: Float,
  */
 @Composable
 private fun CarteGs(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
-    val photo = photoCarte(octets, 240)
+    val photo = photoCarte(octets, PHOTO_CARTE_DISPARU)
     val trou = disparu && etape == EtapeDisparu.CHERCHER
     val enOr = disparu && etape == EtapeDisparu.REPONSE
     val forme = RoundedCornerShape(14.dp)

@@ -41,6 +41,8 @@ class MainActivity : ComponentActivity() {
         Look.design = Design.depuis(reglages.getString(CLE_DESIGN, null))
         // Plateau 3D en fond seulement si la box sait lire deux vidéos à la fois (le fond et le robot par-dessus).
         Look.deuxVideos = com.littlemissparty.quiz.tv.habillage.videosSimultanees() >= 2
+        // Grandes images du décor décodées d'avance, en fond : aucun écran ne les attend (test du 27/10 au soir).
+        com.littlemissparty.quiz.tv.habillage.ImagesAppli.prechauffer(this)
         setContent {
             val state by viewModel.state.collectAsState()
             val updateUi by updates.ui.collectAsState()

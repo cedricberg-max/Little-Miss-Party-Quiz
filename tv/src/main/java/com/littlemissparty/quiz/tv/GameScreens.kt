@@ -4,7 +4,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,7 +40,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.ContentScale
@@ -427,7 +425,7 @@ private fun ChoiceCard(
     val forme = RoundedCornerShape(24.dp)
     // Palette A (audit du 19 octobre) : vert plein = juste, corail = faux ; ✓ et ✗ disent la même chose sans la couleur.
     // Une photo pas encore chargée ou illisible : la proposition s'affiche en texte, la partie ne l'attend pas.
-    val image = photo?.let { remember(it) { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
+    val image = rememberPhoto(photo)
     val cadre = modifier
         .rebond(juste)
         // Fond plein sous la carte image : en s'éteignant, l'image fond dans la nuit, jamais dans les néons du décor

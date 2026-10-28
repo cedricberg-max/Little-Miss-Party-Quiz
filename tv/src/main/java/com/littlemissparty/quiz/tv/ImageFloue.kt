@@ -1,7 +1,6 @@
 package com.littlemissparty.quiz.tv
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Animatable
@@ -22,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +46,7 @@ import com.littlemissparty.quiz.tv.habillage.RevelationNeon
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /**
  * Largeurs successives de la photo, de la plus floue à la plus nette. Le flou vient de l'agrandissement
@@ -89,6 +91,13 @@ fun chronoRestant(q: Question, state: UiState.Playing): Long {
     return remaining
 }
 
+/** Les photos de plus en plus nettes de l'Image floue ([NIVEAUX] pixels de large), calculées hors de l'écran. */
+private fun niveauxDeFlou(p: Bitmap): List<ImageBitmap> = NIVEAUX.map { w ->
+    val largeur = w.coerceAtMost(p.width)
+    val hauteur = (p.height * largeur / p.width.toFloat()).toInt().coerceAtLeast(1)
+    Bitmap.createScaledBitmap(p, largeur, hauteur, true).asImageBitmap()
+}
+
 /**
  * Image floue : la photo devient de plus en plus nette au fil du chrono ; elle se fige quand une équipe
  * buzze (le chrono attend le verdict de l'animatrice) et apparaît enfin nette à la révélation.
@@ -96,18 +105,14 @@ fun chronoRestant(q: Question, state: UiState.Playing): Long {
 @Composable
 fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
     val bytes = q.imageId?.let { state.images[it] }
-    val photo: Bitmap? = remember(bytes) {
-        bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size) }.getOrNull() }
+    // Photo et niveaux de flou préparés en fond (test du 27/10 au soir : petits blocages au début des questions) ;
+    // la photo nette, décodée d'avance par la box, sert de base.
+    val nette = rememberPhoto(bytes)
+    val pile by produceState<Pair<ImageBitmap?, List<ImageBitmap>>>(null to emptyList(), nette) {
+        val p = nette ?: return@produceState
+        value = p to withContext(Photos.fil) { niveauxDeFlou(p.asAndroidBitmap()) }
     }
-    val niveaux: List<ImageBitmap> = remember(photo) {
-        val p = photo ?: return@remember emptyList()
-        NIVEAUX.map { w ->
-            val largeur = w.coerceAtMost(p.width)
-            val hauteur = (p.height * largeur / p.width.toFloat()).toInt().coerceAtLeast(1)
-            Bitmap.createScaledBitmap(p, largeur, hauteur, true).asImageBitmap()
-        }
-    }
-    val nette = remember(photo) { photo?.asImageBitmap() }
+    val niveaux = pile.second.takeIf { pile.first === nette && nette != null }.orEmpty()
     val total = q.durationMs.coerceAtLeast(1)
     val remaining = chronoRestant(q, state)
     val revealed = state.phase == Phase.REVEAL || state.phase == Phase.SCORES

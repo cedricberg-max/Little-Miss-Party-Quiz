@@ -6,7 +6,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,7 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -191,7 +189,7 @@ fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
 @Composable
 private fun imagePersonnage(q: Question, state: UiState.Playing): ImageBitmap? {
     val bytes = q.imageId?.let { state.images[it] }
-    return remember(bytes) { bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
+    return rememberPhoto(bytes)
 }
 
 private const val INDICE_TAILLE_MAX = 30f

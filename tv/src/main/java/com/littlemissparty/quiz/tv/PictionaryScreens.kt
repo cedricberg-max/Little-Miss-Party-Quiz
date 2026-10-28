@@ -1,6 +1,5 @@
 package com.littlemissparty.quiz.tv
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,7 +26,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
@@ -131,7 +129,7 @@ fun PictionaryScreen(state: UiState.Playing, actions: TvActions) {
                         val emoji = card.image
                         // Photo du mot (préparée dans l'administration), sinon son émoji.
                         val bytes = card.imageId?.let { state.images[it] }
-                        val photo = remember(bytes) { bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
+                        val photo = rememberPhoto(bytes)
                         RevelationPictionary(
                             mot = card.word,
                             trouve = last.found > 0,
