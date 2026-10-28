@@ -3,6 +3,8 @@ package com.littlemissparty.quiz.tv.test
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.Outro
+import com.littlemissparty.quiz.tv.habillage.Tempo
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -69,8 +71,13 @@ class FinDeLaFeteTest : TestTv() {
      * de fin ne se lit pas (écran de secours dessiné), la ligne reste au moins sous « Merci d'avoir participé ! ».
      */
     private fun bientotSousLEnseigne() {
-        // Le podium joue d'abord sa chanson (Tempo.PODIUM_FIN, 102,5 s), puis l'écran de fin écrit « À bientôt » 6 s après.
-        ecran.voit("À BIENTÔT SUR THE GAME SHOW", 130_000)
+        // Le podium joue d'abord sa chanson (Tempo.PODIUM_FIN, 102,5 s), puis l'outro du robot en fusée (115,5 s, si elle est
+        // dans l'appli), puis l'écran de fin écrit « À bientôt » 6 s après.
+        if (Outro.disponible) {
+            SystemClock.sleep(Tempo.PODIUM_FIN + 20_000)
+            ecran.capture("outro-robot")
+        }
+        ecran.voit("À BIENTÔT SUR THE GAME SHOW", if (Outro.disponible) 160_000 else 130_000)
         val elements = ecran.elements()
         val enseigne = elements.first { "Merci d'avoir participé" in it.texte && it.visible }
         val bientot = elements.first { "À BIENTÔT SUR THE GAME SHOW" in it.texte && it.visible }

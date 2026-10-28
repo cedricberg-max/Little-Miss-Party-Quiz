@@ -19,7 +19,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.littlemissparty.quiz.tv.R
 
 /** La vidéo de l'outro (le robot rentre chez lui en fusée), si elle est dans l'appli : res/raw/gs_outro_robot.mp4. */
-internal object Outro {
+object Outro {
     const val FICHIER = "gs_outro_robot"
     val resId: Int by lazy { runCatching { R.raw::class.java.getField(FICHIER).getInt(null) }.getOrDefault(0) }
     val disponible: Boolean get() = resId != 0
