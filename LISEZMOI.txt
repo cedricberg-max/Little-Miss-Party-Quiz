@@ -1,0 +1,2 @@
+Sources du rendu de l'outro du robot (images 3D). Branche jamais fusionnée.
+Lue par .github/workflows/rendu-outro.yml : python3 decoupe.py PART 20 sur 20 machines.
