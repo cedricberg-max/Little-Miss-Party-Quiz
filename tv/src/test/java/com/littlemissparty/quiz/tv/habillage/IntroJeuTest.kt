@@ -1,8 +1,10 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.QuestionKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -69,5 +71,16 @@ class IntroJeuTest {
             // au plus 12 Mbit/s en moyenne, ce que le décodeur de la Mi Box lit sans peine (16 s × 12 Mbit/s = 24 Mo).
             assertTrue("gs_intro_$nom.mp4 trop lourd pour la box : ${f.length()} octets", f.length() < 24_000_000)
         }
+    }
+    @Test
+    fun `le decor reste noir des que l'intro d'un jeu va passer, jamais l'image fixe entre deux videos`() {
+        assertTrue(introJeuEnVue(gameShow = true, phase = Phase.QUESTION, presentation = true, enPause = false, famille = "quiz"))
+        // En pause, l'intro s'arrête : le plateau reprend son fond.
+        assertFalse(introJeuEnVue(gameShow = true, phase = Phase.QUESTION, presentation = true, enPause = true, famille = "quiz"))
+        // Après « Lancer l'épreuve », en Classique, ou pour un jeu sans intro vidéo : rien ne change.
+        assertFalse(introJeuEnVue(gameShow = true, phase = Phase.QUESTION, presentation = false, enPause = false, famille = "quiz"))
+        assertFalse(introJeuEnVue(gameShow = false, phase = Phase.QUESTION, presentation = true, enPause = false, famille = "quiz"))
+        assertFalse(introJeuEnVue(gameShow = true, phase = Phase.QUESTION, presentation = true, enPause = false, famille = "inconnu"))
+        assertFalse(introJeuEnVue(gameShow = true, phase = Phase.SCORES, presentation = true, enPause = false, famille = "quiz"))
     }
 }

@@ -121,7 +121,9 @@ fun HabillageTv(state: UiState) {
     val dore = (state as? UiState.Playing)?.let { it.question?.double == true && it.phase in listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL) } == true
     // Accueil du Game Show : le robot qui dort, sous Get Lucky ; pendant la grande intro, aucune autre vidéo.
     val salon = (state as? UiState.Playing)?.phase == Phase.LOBBY
-    DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || Habillage.introJeu.value || Habillage.finVideo.value || Habillage.videoDuel.value)
+    val introJeu = Habillage.introJeu.value ||
+        (state as? UiState.Playing)?.let { s -> introJeuEnVue(Look.gs, s.phase, s.intro, s.paused, familleJeu(s.question)) } == true
+    DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || introJeu || Habillage.finVideo.value || Habillage.videoDuel.value)
 }
 
 /** « question zoom », « presentation gonfleur », « scores », « accueil »… : l'écran, tel que le compte la fluidité. */
@@ -141,6 +143,14 @@ internal fun etiquetteFluidite(state: UiState): String {
 /** Voir [Habillage.lancementEnVue] : la présentation du premier jeu, lancée depuis l'accueil de cette box, en Game Show. */
 internal fun lancementEnVue(gameShow: Boolean, phase: Phase, presentation: Boolean, enPause: Boolean, introAttendue: Boolean) =
     gameShow && introAttendue && phase == Phase.QUESTION && presentation && !enPause
+
+/**
+ * L'écran de présentation va montrer l'intro vidéo de son jeu ([IntroJeuGameShow]) : dès la même image, le décor ne
+ * relance pas son propre fond (test du 28/10 au soir : entre la fin de l'éveil du robot et l'intro du Quiz, l'image
+ * fixe du plateau passait une image, puis du noir, avant l'intro). Le passage reste noir jusqu'au fondu de l'intro.
+ */
+internal fun introJeuEnVue(gameShow: Boolean, phase: Phase, presentation: Boolean, enPause: Boolean, famille: String) =
+    gameShow && phase == Phase.QUESTION && presentation && !enPause && nomIntroJeu(famille) != null
 
 /**
  * [presentation] : la TV montre l'écran de présentation du jeu (avant sa première question, en attendant que
