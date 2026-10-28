@@ -388,6 +388,8 @@ function questionNettoyee(q, brouillon) {
     ...base, choices, ...(Number.isInteger(q.correct) && q.correct >= 0 && q.correct < choices.length ? { correct: q.correct } : {}),
     ...(typeof q.banque === "string" && q.banque ? { banque: q.banque.slice(0, 120) } : typeof q.imageId === "string" && /^[0-9a-f]{16}$/.test(q.imageId) ? { imageId: q.imageId }
       : typeof q.emoji === "string" && q.emoji ? { emoji: q.emoji.slice(0, 16) } : {}),
+    // Drapeau montré dès la question (cedric, 28/10) : suit sa photo.
+    ...(!q.banque && typeof q.imageId === "string" && /^[0-9a-f]{16}$/.test(q.imageId) && q.imageVisible === true ? { imageVisible: true } : {}),
     // Toutes les réponses ont leur image (une case vide ne se garderait pas dans la base) : sinon, rien.
     ...(banques.length === choices.length && banques.every(Boolean) ? { choiceBanque: banques } : {}),
     ...(images.some(Boolean) ? { choiceImages: images } : {}),

@@ -3590,4 +3590,18 @@ describe("Photo montrée dès la question (drapeaux, cedric 28/10)", () => {
     const [a, b] = snapshot.quiz.questions.filter((q) => q.kind === "classic");
     assert.deepEqual([a.imageVisible, b.imageVisible], [true, undefined]);
   });
+  test("enregistrée dans la prestation, la série garde l'option ; jamais sans photo ni sur une photo de la banque", async () => {
+    const { cleanRound } = await import("../web/public/manches.js");
+    const round = { type: "quiz", seriesQuiz: [{ id: "pk1", origine: "reprise", questions: [
+      { id: "pk-a", text: "Ce drapeau ?", choices: ["Japon", "Chine", "Italie", "Canada"], correct: 0, imageId: DRAPEAU, imageVisible: true },
+      { id: "pk-b", text: "Ce drapeau ?", choices: ["Japon", "Chine", "Italie", "Canada"], correct: 1, imageId: "fedcba9876543210" },
+      { id: "pk-c", text: "Sans photo ?", choices: ["Oui", "Non"], correct: 0, imageVisible: true },
+      { id: "pk-d", text: "Banque ?", choices: ["Oui", "Non"], correct: 0, banque: "qc-x", imageId: DRAPEAU, imageVisible: true },
+    ] }] };
+    const gardees = cleanRound(round).seriesQuiz[0].questions;
+    assert.deepEqual(gardees.map((q) => q.imageVisible), [true, undefined, undefined, undefined]);
+    // Relue pour la TV : toujours là.
+    const { snapshot } = buildSnapshot("s", { rounds: [cleanRound(round)] }, {});
+    assert.deepEqual(snapshot.quiz.questions.filter((q) => q.kind === "classic").map((q) => q.imageVisible === true), [true, false, false, false]);
+  });
 });

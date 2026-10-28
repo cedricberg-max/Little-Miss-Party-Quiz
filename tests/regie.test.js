@@ -10654,7 +10654,7 @@ describe("bibliothèque de quiz et prestations", () => {
       questions: Array.from({ length: 12 }, (_, k) => ({ text: "À quel pays est ce drapeau ?", choices: ["Japon", "Chine", "Italie", "Canada"], correct: k % 4,
         status: "validee", imageId: id(k + 10), imageVisible: true })) };
     const photos = { title: "Drapeaux et pays photos 1", theme: "Drapeaux et pays", niveau: "Moyen", pack: true, kind: "images", source: "photos", updatedAt: 1,
-      questions: ["Japon", "Chine", "Italie", "Canada", "Suisse", "Brésil"].map((rep, k) => ({ text: "Qu'est-ce que c'est ?", choices: [rep, "Grèce", "Inde", "Maroc"], correct: 0, status: "validee", imageId: id(k + 40) })) };
+      questions: ["Japon", "Chine", "Italie", "Canada", "Suisse", "Brésil", "Grèce", "Inde", "Maroc", "Mexique", "Suède", "Irlande", "Pérou", "Kenya", "Cuba", "Chili"].map((rep, k) => ({ text: "Qu'est-ce que c'est ?", choices: [rep, "Pays A", "Pays B", "Pays C"], correct: 0, status: "validee", imageId: id(k + 40) })) };
     await seedLibrary("quizzes", { animaux: ANIMAUX, drapeaux, "drapeaux-photos": photos });
     const page = await admin();
     await page.click("#nav button[data-screen=settings]");

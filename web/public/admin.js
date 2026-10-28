@@ -3610,6 +3610,7 @@ const versQuestionEnLigne = (q) => (q.kind === "number"
   : { text: q.text, choices: [...(q.choices ?? [])], correct: q.correct,
     ...(q.banque ? { banque: q.banque } : /^[0-9a-f]{16}$/.test(q.imageId ?? "") ? { imageId: q.imageId }
       : typeof q.image === "string" && q.image && q.image.length <= 16 ? { emoji: q.image } : {}),
+    ...(!q.banque && /^[0-9a-f]{16}$/.test(q.imageId ?? "") && q.imageVisible === true ? { imageVisible: true } : {}),
     ...(Array.isArray(q.choiceBanque) ? { choiceBanque: q.choiceBanque.map((x) => ({ ...x })) } : {}),
     ...(choiceImageList(q).length ? { choiceImages: choiceImageList(q) } : {}) });
 
