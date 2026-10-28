@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -636,6 +637,12 @@ fun OuvertureCoffre(
         }
         jusqua(total)
         fini()
+    }
+    // Rapport de fluidité : le couvercle qui s'ouvre et les pièces qui jaillissent comptés à part (test du 28/10 au soir).
+    LaunchedEffect(index) {
+        delay(T_OUVRE.toLong())
+        com.littlemissparty.quiz.tv.Fluidite.moment = "ouverture"
+        try { delay(600) } finally { com.littlemissparty.quiz.tv.Fluidite.moment = null }
     }
     val modele = modeleCoffre(index)
     ChargerOuvertureGs(modele)

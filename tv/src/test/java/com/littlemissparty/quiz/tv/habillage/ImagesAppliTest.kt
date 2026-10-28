@@ -27,4 +27,18 @@ class ImagesAppliTest {
         val fautifs = sources.filter { f -> f.name != "ImagesAppli.kt" && f.name != "CoffresGs.kt" && "ImageBitmap.imageResource(" in f.readText() }
         assertEquals("Décodage d'image hors d'ImagesAppli : ${fautifs.map { it.name }}", emptyList<File>(), fautifs)
     }
+
+    /**
+     * Test du 28/10 au soir : petit gel quand un coffre s'ouvre et que les pièces jaillissent. La planche d'ouverture
+     * (≈ 16 Mo) est décodée en fond directement pour la carte graphique, jamais envoyée pendant le dessin, et ce moment
+     * a sa propre ligne dans le rapport de fluidité de la box.
+     */
+    @Test
+    fun `la planche d ouverture des coffres est prete pour la carte graphique`() {
+        val coffres = File("src/main/java/com/littlemissparty/quiz/tv/habillage/CoffresGs.kt").readText()
+        assertTrue("décodage Bitmap.Config.HARDWARE", "inPreferredConfig = Bitmap.Config.HARDWARE" in coffres)
+        assertTrue("secours préparé d'avance", "prepareToDraw()" in coffres.substringAfter("private fun lire("))
+        val bombe = File("src/main/java/com/littlemissparty/quiz/tv/habillage/BombeCachee.kt").readText()
+        assertTrue("moment « ouverture » dans le rapport de fluidité", "Fluidite.moment = \"ouverture\"" in bombe)
+    }
 }
