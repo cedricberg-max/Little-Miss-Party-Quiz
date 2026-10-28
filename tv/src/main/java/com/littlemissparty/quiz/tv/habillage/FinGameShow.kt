@@ -72,7 +72,7 @@ private const val APPARITION_TEXTE_MS = 1_200
  * l'écran de fin dessiné d'avant revient ([AuRevoirGameShow]). Rien ici ne touche à la partie.
  */
 @Composable
-fun FinCinemaGameShow(modifier: Modifier = Modifier) {
+fun FinCinemaGameShow(modifier: Modifier = Modifier, fonduMs: Int = FONDU_FIN_MS) {
     var echec by remember { mutableStateOf(false) }
     if (echec) return AuRevoirGameShow(modifier)
     DisposableEffect(Unit) {
@@ -82,7 +82,7 @@ fun FinCinemaGameShow(modifier: Modifier = Modifier) {
     var prete by remember { mutableStateOf(false) }
     var lecteur by remember { mutableStateOf<LecteurFond?>(null) }
     val opacite = remember { Animatable(0f) }
-    LaunchedEffect(prete) { if (prete) opacite.animateTo(1f, tween(FONDU_FIN_MS)) }
+    LaunchedEffect(prete) { if (prete) opacite.animateTo(1f, tween(fonduMs)) }
     Box(modifier.fillMaxSize()) {
         AndroidView(
             factory = {

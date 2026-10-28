@@ -909,6 +909,22 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show avec l'outro, le podium puis le silence jusqu'a la fin de la video`() {
+        val d = DirecteurSonore()
+        d.observer(q2.copy(gameShow = true, outro = true))
+        val fin = Instant(Ecran.FIN, partie = "ABCD", index = 1, gameShow = true, outro = true)
+        val o = d.observer(fin)
+        // La chanson du podium, puis rien : le son de l'outro est dans la vidéo, l'écran lance le groove de fin après.
+        assertEquals(listOf(Son.PODIUM), o.sons())
+        assertTrue(o.none { it is Ordre.Musique && it.ambiance == Ambiance.AU_REVOIR })
+        assertTrue(d.observer(fin).isEmpty())
+        // Une box qui revient sur le podium le rejoue de la même façon.
+        val retour = DirecteurSonore().observer(fin)
+        assertEquals(listOf(Son.PODIUM), retour.sons())
+        assertTrue(retour.none { it is Ordre.Musique && it.ambiance == Ambiance.AU_REVOIR })
+    }
+
+    @Test
     fun `chaque son a un fichier distinct`() {
         assertEquals(Son.entries.size, Son.entries.map { it.fichier to it.gs }.toSet().size)
     }

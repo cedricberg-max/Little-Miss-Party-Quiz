@@ -302,7 +302,8 @@ class DirecteurSonore {
                 // dernier groove d'Aerodynamic. Tout est dans gs_podium : rien d'autre ne joue.
                 o += Ordre.Musique(Ambiance.SILENCE)
                 o += Ordre.Jouer(Son.PODIUM)
-                o += Ordre.Musique(Ambiance.AU_REVOIR, Tempo.PODIUM_FIN, Tempo.FONDU_AU_REVOIR)
+                // Avec l'outro du robot en fusée, le groove d'Aerodynamic attend la fin de la vidéo (l'écran le lance).
+                if (!i.outro) o += Ordre.Musique(Ambiance.AU_REVOIR, Tempo.PODIUM_FIN, Tempo.FONDU_AU_REVOIR)
             } else {
                 o += Ordre.Musique(Ambiance.SILENCE)
                 // Grand gagnant : long roulement qui monte pendant tout le suspense, la montée arrive sur la fin.
@@ -588,6 +589,8 @@ data class Instant(
     val pictioTrouve: Boolean = false,
     /** Design « The Game Show » : le podium et l'écran de fin ont leur propre musique. */
     val gameShow: Boolean = false,
+    /** Game Show avec la vidéo de l'outro dans l'appli ([Outro]) : après le podium, l'écran lance lui-même la musique de fin. */
+    val outro: Boolean = false,
     /**
      * Game Show : la grosse intro du lancement passe en plein écran avec sa propre musique (Get Lucky) ; l'habillage
      * se tait jusqu'à sa fin, puis l'écran du moment (la présentation du 1er jeu) entre normalement.

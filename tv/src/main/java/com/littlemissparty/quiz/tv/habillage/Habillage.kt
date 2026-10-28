@@ -220,6 +220,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         pile = s.phase == Phase.REVEAL && s.question?.isNumber == true && s.awards.values.any { it.choice == s.question?.correct },
         epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
         gameShow = Look.gs,
+        outro = Look.gs && Outro.disponible,
         lancement = lancement,
     )
 }
