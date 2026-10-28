@@ -912,8 +912,8 @@ class RegieTest : TestTv() {
     }
 
     /**
-     * Planche du 28/10 pour cedric : Qui a disparu ? en photos, 4, 6 puis 8 cartes, capturé en B (l'écran d'aujourd'hui,
-     * enseigne au-dessus) puis en A (sans l'enseigne, les cartes prennent sa place). Photos dessinées, en portrait,
+     * Planche du 28/10 pour cedric : Qui a disparu ? en photos, 4, 6 puis 8 cartes, capturé en A (choisi par cedric : sans
+     * l'enseigne, les cartes prennent sa place) puis en B (l'ancien écran, enseigne au-dessus). Photos dessinées, en portrait,
      * paysage et carré, comme les affiches et les photos de la Régie PC.
      */
     @Test
@@ -944,10 +944,12 @@ class RegieTest : TestTv() {
                     if (licornes.etat(code).child("qid").value == "p$n") true else { regie.commande(code, "next"); android.os.SystemClock.sleep(1_500); null }
                 }
                 ecran.voit("MÉMORISEZ !")
-                ecran.capture("disparu-$n-cartes-B", attente = 2_500)
-                PropositionDisparu.sansEnseigne = true
-                ecran.capture("disparu-$n-cartes-A", attente = 1_500)
+                // A (choisi le 28/10) : l'enseigne en grand au début de la grille, puis les cartes en grand.
+                ecran.capture("disparu-$n-cartes-A-enseigne", attente = 500)
+                ecran.capture("disparu-$n-cartes-A", attente = 2_500)
                 PropositionDisparu.sansEnseigne = false
+                ecran.capture("disparu-$n-cartes-B", attente = 1_500)
+                PropositionDisparu.sansEnseigne = true
                 attendreQue("buzzer ouvert ($n cartes)", 40_000) { licornes.etat(code).takeIf { it.child("buzzOpen").value == true } }
                 assertEquals("applied", regie.commande(code, "next"))
                 ecran.voit("Temps écoulé !")
@@ -955,7 +957,7 @@ class RegieTest : TestTv() {
                 ecran.voit("Personne n'a trouvé, ce n'est pas grave !")
             }
         } finally {
-            PropositionDisparu.sansEnseigne = false
+            PropositionDisparu.sansEnseigne = true
         }
     }
 

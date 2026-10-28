@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,5 +30,20 @@ class DisparuRangeesTest {
             }
         }
         assertEquals("photo abîmée : rien", 0f to 0f, photoDansTuile(100f, 100f, 0f, 0f))
+    }
+
+    /** Choix A de cedric (28/10) : cartes en grand sans l'enseigne, mais elle revient quand il n'y a rien à voir. */
+    @Test
+    fun `l enseigne revient au debut de chaque grille et au tour de magie, jamais quand on regarde les cartes`() {
+        assertTrue("A par défaut", PropositionDisparu.sansEnseigne)
+        assertTrue(enseigneDisparuVisible(EtapeDisparu.MEMORISER, 0))
+        assertTrue(enseigneDisparuVisible(EtapeDisparu.MEMORISER, DISPARU_ENSEIGNE_DEBUT_MS - 1))
+        assertTrue(enseigneDisparuVisible(EtapeDisparu.MAGIE, 12_000))
+        assertFalse("les cartes à mémoriser", enseigneDisparuVisible(EtapeDisparu.MEMORISER, DISPARU_ENSEIGNE_DEBUT_MS))
+        assertFalse("on cherche", enseigneDisparuVisible(EtapeDisparu.CHERCHER, 0))
+        assertFalse("on cherche", enseigneDisparuVisible(EtapeDisparu.CHERCHER, 20_000))
+        assertFalse("la réponse", enseigneDisparuVisible(EtapeDisparu.REPONSE, 0))
+        // Au plus 2 s volées aux cartes à mémoriser (10 s pour 4 objets).
+        assertTrue(DISPARU_ENSEIGNE_DEBUT_MS <= 2_000)
     }
 }
