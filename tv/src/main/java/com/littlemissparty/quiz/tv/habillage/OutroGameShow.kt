@@ -25,8 +25,8 @@ internal object Outro {
     val disponible: Boolean get() = resId != 0
 }
 
-/** Son de l'outro, tout mixé dans la vidéo, ramené au niveau de la musique du podium (comme la grande intro). */
-internal const val VOLUME_OUTRO = 0.85f
+/** Son de l'outro, tout mixé dans la vidéo (−15,6 LUFS) : déjà au niveau de la musique du podium (−15,8 LUFS, à plein volume). */
+internal const val VOLUME_OUTRO = 1f
 /** L'outro arrive sur la fin du podium comme l'écran de fin d'avant : en fondu sur le plateau. */
 private const val FONDU_OUTRO_MS = 500
 /** Après les 3 s de noir de l'outro, l'écran « Merci » sort du noir en fondu (cedric, 28/10 : pas de coupe). */
