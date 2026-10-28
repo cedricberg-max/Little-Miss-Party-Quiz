@@ -1033,9 +1033,13 @@ class DirecteurSonoreTest {
 
     @Test
     fun `simon du prof - la presentation joue la douce en Game Show, la presentation habituelle en Classique`() {
-        val gs = DirecteurSonore().let { it.observer(salon); it.observer(Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true, gameShow = true)) }
+        // Un quiz, puis le Simon : nouveau jeu, jingle du rideau puis la musique de présentation (sous la vidéo d'intro).
+        val quiz = Instant(Ecran.QUESTION, partie = "ABCD", index = 2, equipes = 4, epreuve = "quiz|")
+        val simon = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)
+        val gs = DirecteurSonore().let { it.observer(salon); it.observer(quiz.copy(gameShow = true)); it.observer(simon.copy(gameShow = true)) }
+        assertTrue(Son.TRANSITION in gs.sons())
         assertTrue(Ordre.Musique(Ambiance.SIMON_ENTRE, Tempo.TRANSITION_MUSIQUE) in gs)
-        val cl = DirecteurSonore().let { it.observer(salon); it.observer(Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)) }
+        val cl = DirecteurSonore().let { it.observer(salon); it.observer(quiz); it.observer(simon) }
         assertTrue(Ordre.Musique(Ambiance.PRESENTATION, Tempo.TRANSITION_MUSIQUE) in cl)
     }
 
