@@ -925,7 +925,8 @@ class RegieTest : TestTv() {
         val noms = listOf("Robot", "Fusée", "Licorne", "Dragon", "Pirate", "Sirène", "Château", "Dino")
         val formats = listOf(600 to 900, 900 to 600, 700 to 700, 600 to 900, 900 to 600, 600 to 900, 700 to 700, 900 to 600)
         val ids = noms.indices.map { i -> "%016x".format(0xd15a0000L + i) }
-        ids.forEachIndexed { i, id -> regie.copierPhoto(code, id, photoDessinee(i, formats[i].first, formats[i].second)) }
+        // Comme la Régie PC : les photos des cartes vont avec les réponses en image (choiceImages).
+        ids.forEachIndexed { i, id -> regie.copierPhotoReponse(code, id, photoDessinee(i, formats[i].first, formats[i].second)) }
         @Suppress("UNCHECKED_CAST")
         val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
         val tours = listOf(4, 6, 8).map { n ->
@@ -938,8 +939,10 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, tours + avant))
         try {
             for (n in listOf(4, 6, 8)) {
-                assertEquals("applied", regie.commande(code, "next"))
-                attendreQue("tour de $n cartes ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "p$n" } }
+                // Après la révélation du tour d'avant, la régie avance (scores éventuels compris) jusqu'au tour suivant.
+                attendreQue("tour de $n cartes ouvert", 30_000) {
+                    if (licornes.etat(code).child("qid").value == "p$n") true else { regie.commande(code, "next"); android.os.SystemClock.sleep(1_500); null }
+                }
                 ecran.voit("MÉMORISEZ !")
                 ecran.capture("disparu-$n-cartes-B", attente = 2_500)
                 PropositionDisparu.sansEnseigne = true
