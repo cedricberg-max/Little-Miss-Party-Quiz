@@ -1199,7 +1199,7 @@ class DirecteurSonoreTest {
     fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
         val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
         // La boucle « fête » de Digital Love sous les intros, sauf le Duel, le Simon et le Blind test (cedric, 29/10).
-        listOf("quiz", "mimes", "disparu", "musical", "").forEach {
+        listOf("quiz", "mimes", "statues", "musical", "").forEach {
             assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
         }
         assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
@@ -1269,6 +1269,27 @@ class DirecteurSonoreTest {
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
         assertEquals(16.67, e.images / 44_100.0, 0.01)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation de Qui a disparu - Mission Impossible, son debut une fois puis la boucle`() {
+        val disparu = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "disparu|", gameShow = true, famille = "disparu")
+        assertEquals("disparu", familleType(com.littlemissparty.quiz.engine.QuestionKind.DISPARU))
+        assertEquals(Ambiance.DISPARU_PRESENTATION, ambiancePresentation(disparu))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(disparu.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.DISPARU_PRESENTATION.volume(Lit.DISPARU_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.DISPARU_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.DISPARU_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.DISPARU_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.DISPARU_PRESENTATION, d.observer(disparu).musique())
+        // Le fichier : 750 341 images, la boucle repart à l'échantillon 162 641 (à un échantillon près, ms entières).
+        val wav = java.io.File("src/main/res/raw/gs_disparu_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(750_341L, e.images.toLong())
+        assertEquals(162_641.0, Lit.DISPARU_INTRO.repriseMs * 44_100 / 1000.0, 1.0)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 }

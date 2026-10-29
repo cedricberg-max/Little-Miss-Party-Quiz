@@ -638,7 +638,11 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "chante" to Ambiance.CHANTE_PRESENTATION,
     "zoom" to Ambiance.ZOOM_PRESENTATION,
     "flou" to Ambiance.ZOOM_PRESENTATION,
+    "disparu" to Ambiance.DISPARU_PRESENTATION,
 )
+
+/** Qui a disparu ? : la boucle de Mission Impossible repart de là, après son début (échantillon 162 641 à 44,1 kHz). */
+internal const val DISPARU_INTRO_REPRISE_MS = 3_688L
 
 /** Musique de l'écran de présentation d'un jeu ([propres] : voir [PRESENTATIONS_PROPRES]). */
 internal fun ambiancePresentation(i: Instant, propres: Map<String, Ambiance> = PRESENTATIONS_PROPRES): Ambiance = when {
@@ -715,6 +719,11 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
      */
     ZOOM_INTRO(null, "gs_zoom_intro"),
     /**
+     * Game Show, Qui a disparu ? : la boucle sous sa vidéo d'intro (cedric, 29/10) : Mission Impossible, un début joué
+     * une fois (3,688 s), puis 13,3 s qui tournent à partir de l'échantillon 162 641 ([repriseMs]), −12 LUFS.
+     */
+    DISPARU_INTRO(null, "gs_disparu_intro", repriseMs = DISPARU_INTRO_REPRISE_MS),
+    /**
      * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
      * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
      * sans guitare (vitesse d'origine, calée sur la mesure) qui entre dessous pendant que le son descend en 2 s jusqu'à
@@ -776,6 +785,8 @@ enum class Ambiance(
     CHANTE_PRESENTATION(gameShow = mapOf(Lit.CHANTE_INTRO to 0.5f)),
     /** Présentation du Zoom mystère et de l'Image floue (Game Show) : La Panthère rose, au volume de la boucle « fête ». */
     ZOOM_PRESENTATION(gameShow = mapOf(Lit.ZOOM_INTRO to 0.5f)),
+    /** Présentation de Qui a disparu ? (Game Show) : Mission Impossible, au volume de la boucle « fête ». */
+    DISPARU_PRESENTATION(gameShow = mapOf(Lit.DISPARU_INTRO to 0.5f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -817,7 +828,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }
