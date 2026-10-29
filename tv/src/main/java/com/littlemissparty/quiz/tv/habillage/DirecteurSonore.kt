@@ -643,6 +643,7 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "bombe" to Ambiance.COFFRES_PRESENTATION,
     "quiz" to Ambiance.QUIZ_PRESENTATION,
     "illustre" to Ambiance.QUIZ_PRESENTATION,
+    "quisuis" to Ambiance.QUISUIS_PRESENTATION,
 )
 
 /** Qui a disparu ? : la boucle de Mission Impossible repart de là, après son début (échantillon 162 641 à 44,1 kHz). */
@@ -738,6 +739,8 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
      * ([repriseMs]), −12 LUFS.
      */
     QUIZ_INTRO(null, "gs_quiz_intro", repriseMs = QUIZ_INTRO_REPRISE_MS),
+    /** Game Show, Qui suis-je ? : la boucle sous sa vidéo d'intro (cedric, 29/10) : Soul Bossa Nova, 18,77 s, raccord fondu, −12 LUFS. */
+    QUISUIS_INTRO(null, "gs_quisuisje_intro"),
     /**
      * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
      * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
@@ -806,6 +809,8 @@ enum class Ambiance(
     COFFRES_PRESENTATION(gameShow = mapOf(Lit.COFFRES_INTRO to 0.5f)),
     /** Présentation du Quiz et du Quiz illustré (Game Show) : Questions pour un champion, au volume de la boucle « fête ». */
     QUIZ_PRESENTATION(gameShow = mapOf(Lit.QUIZ_INTRO to 0.5f)),
+    /** Présentation de Qui suis-je ? (Game Show) : Soul Bossa Nova, au volume de la boucle « fête ». */
+    QUISUIS_PRESENTATION(gameShow = mapOf(Lit.QUISUIS_INTRO to 0.5f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -847,7 +852,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }

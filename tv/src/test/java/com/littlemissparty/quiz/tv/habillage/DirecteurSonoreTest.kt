@@ -1333,4 +1333,24 @@ class DirecteurSonoreTest {
         assertEquals(95_256L, Lit.QUIZ_INTRO.repriseMs * 44_100 / 1000)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
+
+    @Test
+    fun `presentation de Qui suis-je - Soul Bossa Nova`() {
+        val quiSuis = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "quisuis|", gameShow = true, famille = "quisuis")
+        assertEquals("quisuis", familleType(com.littlemissparty.quiz.engine.QuestionKind.QUISUIS))
+        assertEquals(Ambiance.QUISUIS_PRESENTATION, ambiancePresentation(quiSuis))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(quiSuis.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.QUISUIS_PRESENTATION.volume(Lit.QUISUIS_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.QUISUIS_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.QUISUIS_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.QUISUIS_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.QUISUIS_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.QUISUIS_PRESENTATION, d.observer(quiSuis).musique())
+        val wav = java.io.File("src/main/res/raw/gs_quisuisje_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(827_536L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
 }
