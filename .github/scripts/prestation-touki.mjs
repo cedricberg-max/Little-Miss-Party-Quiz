@@ -62,6 +62,26 @@ if (process.env.MODE === "menage2" && !locale) {
   console.log(res.ok ? "Ménage fait." : `Écriture refusée : ${res.status}`);
   process.exit(res.ok ? 0 : 1);
 }
+// MODE=chiffres (cedric, 29/10) : combien de Juste Chiffre dans les packs, par thème. Lecture seule.
+if (process.env.MODE === "chiffres" && !locale) {
+  const qz = (await get("library/quizzes")) ?? {};
+  const parTheme = {};
+  let total = 0, packsAvec = 0, nbPacks = 0;
+  for (const [id, q] of Object.entries(qz)) {
+    if (q?.pack !== true || id.startsWith("test-")) continue;
+    nbPacks++;
+    const n = playable(q).filter((x) => x.kind === "number").length;
+    const t = `${q.theme || q.title || "?"}`.slice(0, 40);
+    parTheme[t] = parTheme[t] ?? { packs: 0, chiffres: 0, questions: 0 };
+    parTheme[t].packs++; parTheme[t].chiffres += n; parTheme[t].questions += playable(q).length;
+    total += n; if (n) packsAvec++;
+  }
+  console.log(`${nbPacks} packs ; ${packsAvec} avec des Juste Chiffre ; ${total} Juste Chiffre en tout`);
+  for (const [t, v] of Object.entries(parTheme).sort((a, b) => b[1].chiffres - a[1].chiffres)) console.log(`${t} : ${v.packs} packs, ${v.chiffres} Juste Chiffre sur ${v.questions} questions`);
+  const ex = Object.values(qz).filter((q) => q?.pack === true).flatMap((q) => playable(q).filter((x) => x.kind === "number").slice(0, 1).map((x) => `[${q.theme ?? ""}] ${x.text}`)).slice(0, 8);
+  for (const e of ex) console.log(`Exemple : ${e.slice(0, 120)}`);
+  process.exit(0);
+}
 const [quizzes, contents, deja, songs] = await Promise.all([get("library/quizzes"), get("library/contents"), get(`library/shows/${ID}`), get("library/songs")]);
 const packs = Object.entries(quizzes ?? {}).filter(([id, q]) => q?.pack === true && !id.startsWith("test-"));
 const parSorte = (k) => packs.filter(([, q]) => quizKind(q) === k);

@@ -158,7 +158,7 @@ jobs:
             "$RUNNER_TEMP/rapports.json"
 
   touki:
-    if: inputs.touki == 'apercu' || inputs.touki == 'ecrire' || inputs.touki == 'simon' || inputs.touki == 'menage' || inputs.touki == 'menage2'
+    if: inputs.touki == 'apercu' || inputs.touki == 'ecrire' || inputs.touki == 'simon' || inputs.touki == 'menage' || inputs.touki == 'menage2' || inputs.touki == 'chiffres'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
