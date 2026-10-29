@@ -67,7 +67,10 @@ import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.planchesQuiz3d
 import com.littlemissparty.quiz.tv.habillage.apres
+import com.littlemissparty.quiz.tv.habillage.OmbreDeJauge
+import com.littlemissparty.quiz.tv.habillage.contourJauge
 import com.littlemissparty.quiz.tv.habillage.dessineJauge
+import com.littlemissparty.quiz.tv.habillage.ombreJauge
 import com.littlemissparty.quiz.tv.habillage.dessineJaugeSimple
 import com.littlemissparty.quiz.tv.habillage.planchesJauge
 import com.littlemissparty.quiz.tv.habillage.rebond
@@ -311,19 +314,13 @@ private fun Jauges(ranking: List<Pair<Team, Int>>, gains: Map<String, Int>, modi
                     Spacer(Modifier.height(4.dp))
                     // La jauge : le tube de verre du podium (cedric, 24/10), liquide néon à la couleur de l'équipe qui monte
                     // avec le compteur. Sans ses planches, le même tube en dessin simple.
-                    Canvas(Modifier.weight(1f).widthIn(max = 86.dp).fillMaxWidth(if (serre) 0.8f else 0.62f)) {
+                    // Le contour néon autour du verre et une ombre bien présente (cedric, 29/10) : le tube un peu plus court pour que rien ne touche les
+                    // chiffres ni le nom.
+                    Canvas(Modifier.weight(1f).padding(vertical = 7.dp).widthIn(max = 86.dp).fillMaxWidth(if (serre) 0.8f else 0.62f)) {
                         val part = (compteur.value / best).coerceIn(0.03f, 1f)
-                        // Lueur néon autour du verre, comme au podium : quatre anneaux de plus en plus pâles.
-                        val pas = size.width * 0.0837f
-                        val r = size.width * 0.39f
-                        for (a in 4 downTo 1) {
-                            val d = pas * a * 2
-                            drawRoundRect(
-                                color.copy(alpha = minOf(1f, 0.09f * 0.45f * (5 - a) / 2f)), Offset(-d / 2, -d / 2), Size(size.width + d, size.height + d),
-                                CornerRadius(r + d / 2), style = Stroke(pas * 2),
-                            )
-                        }
+                        ombreJauge(OmbreDeJauge.PRESENTE)
                         if (planches != null) dessineJauge(planches, part, color) else dessineJaugeSimple(part, color)
+                        contourJauge(color)
                     }
                     Spacer(Modifier.height(6.dp))
                     NomQuiTient(team.name, if (serre) 17.sp else 22.sp, Modifier.fillMaxWidth())
