@@ -1226,4 +1226,26 @@ class DirecteurSonoreTest {
         assertEquals(4 * 4 * 60 / 123.91, e.images / 44_100.0, 0.001)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
+
+    @Test
+    fun `presentation de Chante le mot - sa boucle de La Vie en rose, au volume des autres intros`() {
+        val chante = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "chante|", gameShow = true, famille = "chante")
+        assertEquals("chante", familleType(com.littlemissparty.quiz.engine.QuestionKind.CHANTE))
+        assertEquals(Ambiance.CHANTE_PRESENTATION, ambiancePresentation(chante))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(chante.copy(gameShow = false)))
+        assertEquals(Ambiance.BT_PRESENTATION, ambiancePresentation(chante.copy(famille = "blind")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(chante.copy(famille = "quiz")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.CHANTE_PRESENTATION.volume(Lit.CHANTE_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.CHANTE_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.CHANTE_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.CHANTE_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.CHANTE_PRESENTATION, d.observer(chante).musique())
+        // Le fichier : 11,90 s, 44,1 kHz, données jusqu'au bout du fichier (pas de bloc ajouté après).
+        val wav = java.io.File("src/main/res/raw/gs_chante_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(11.903, e.images / 44_100.0, 0.001)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
 }
