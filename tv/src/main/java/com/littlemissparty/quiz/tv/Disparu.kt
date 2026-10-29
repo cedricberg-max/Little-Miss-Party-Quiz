@@ -67,6 +67,7 @@ import com.littlemissparty.quiz.tv.habillage.QuestionPanneau3d
 import com.littlemissparty.quiz.tv.habillage.planchesQuiz3d
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
+import kotlin.math.roundToInt
 
 /**
  * Choix A de cedric (28/10, sur captures) : en Game Show, pas d'enseigne « Qui a disparu ? » au-dessus des cartes, elles
@@ -266,8 +267,9 @@ internal fun photoDansTuile(largeur: Float, hauteur: Float, largeurPhoto: Float,
 internal fun photoQuiRemplit(largeur: Float, hauteur: Float, largeurPhoto: Int, hauteurPhoto: Int): IntArray {
     if (largeur <= 0f || hauteur <= 0f || largeurPhoto <= 0 || hauteurPhoto <= 0) return intArrayOf(0, 0, largeurPhoto.coerceAtLeast(0), hauteurPhoto.coerceAtLeast(0))
     val k = maxOf(largeur / largeurPhoto, hauteur / hauteurPhoto)
-    val l = (largeur / k).toInt().coerceIn(1, largeurPhoto)
-    val h = (hauteur / k).toInt().coerceIn(1, hauteurPhoto)
+    // Arrondi, pas troncature : 120 / (120 / 400) vaut 399,99997 en Float, il ne faut pas perdre la dernière colonne.
+    val l = (largeur / k).roundToInt().coerceIn(1, largeurPhoto)
+    val h = (hauteur / k).roundToInt().coerceIn(1, hauteurPhoto)
     val x = (largeurPhoto - l) / 2
     // Même cadrage que les autres jeux : vers le haut (CadrageHaut, −0,6).
     val y = ((hauteurPhoto - h) * 0.2f).toInt()
