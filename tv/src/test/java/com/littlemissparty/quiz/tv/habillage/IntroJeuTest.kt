@@ -119,13 +119,15 @@ class IntroJeuTest {
     }
 
     @Test
-    fun `intro du Simon - ses bruitages sortent, les autres intros restent muettes`() {
+    fun `intros du Simon et du Vrai ou Faux - leurs bruitages sortent, les autres intros restent muettes`() {
         assertEquals(1f, volumeIntroJeu("simon"), 0f)
-        listOf("quiz", "illustre", "musical", "blind", "vraifaux", "zoom", "floue", "chante", "quisuisje", "disparu", "statues",
+        assertEquals(1f, volumeIntroJeu("vraifaux"), 0f)
+        listOf("quiz", "illustre", "musical", "blind", "zoom", "floue", "chante", "quisuisje", "disparu", "statues",
             "picto", "mimes", "patate", "coffres", "duel", "gonfleur").forEach { assertEquals(it, 0f, volumeIntroJeu(it), 0f) }
         // Le fichier du Simon a bien une piste son (une piste « soun ») ; une intro muette n'en a pas.
         fun aDuSon(nom: String) = String(File("src/main/res/raw/gs_intro_$nom.mp4").readBytes(), Charsets.ISO_8859_1).contains("soun")
         assertTrue(aDuSon("simon"))
+        assertTrue(aDuSon("vraifaux"))
         assertFalse(aDuSon("quiz"))
     }
 }
