@@ -59,4 +59,29 @@ class JusteChiffreGsTest {
         val huit = etagesEquipes(List(8) { 500f }, List(8) { 30f })
         assertTrue(huit.all { it in 0..2 })
     }
+
+    @Test
+    fun `le cadre sombre de la regle (choix A du 29-10) entoure les noms du plus haut etage et le dernier ecart`() {
+        for (etage in 0..2) for (ecarts in 0..2) {
+            val c = cadreRegle(etage, ecarts)
+            // Le nom d'une équipe est à 30 + 50 × étage + 31 dp au-dessus de la règle : toujours dans le cadre, avec de la marge.
+            assertTrue("étage $etage : ${c.haut}", c.haut >= 30f + 50f * etage + 31f + 15f)
+            // Le dernier écart est à 80 + 30 × (écarts - 1) dp sous la règle ; les graduations à 19 dp.
+            val dernier = if (ecarts == 0) 19f else 80f + 30f * (ecarts - 1)
+            assertTrue("$ecarts écarts : ${c.bas}", c.bas >= dernier + 20f)
+        }
+        // Comme sur la planche (une équipe par étage, deux écarts) : cadre de 83 dp au-dessus, 132 dp en dessous.
+        assertEquals(CadreRegle(83f, 132f), cadreRegle(0, 2))
+        // Plus de 2 écarts ne sont jamais dessinés, un étage négatif n'existe pas.
+        assertEquals(cadreRegle(0, 2), cadreRegle(-1, 5))
+    }
+
+    @Test
+    fun `la revelation dessine le cadre derriere la regle et son contour passe au vert avec le rayon`() {
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/JusteChiffreGs.kt").readText()
+        val cadre = source.indexOf("val cadre = cadreRegle(")
+        val trace = source.indexOf("drawLine(Cyan.copy(alpha = 0.35f), Offset(x0, y), Offset(trace, y)")
+        assertTrue(cadre in 0 until trace)
+        assertTrue(source.contains("melange(Cyan, Vert, bordVert)"))
+    }
 }
