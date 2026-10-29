@@ -457,11 +457,7 @@ class DirecteurSonore {
     private fun ambiance(i: Instant) = when (i.ecran) {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
-        Ecran.PRESENTATION -> when {
-            i.duel -> Ambiance.DUEL_PRESENTATION
-            i.simon && i.gameShow -> Ambiance.SIMON_ENTRE
-            else -> Ambiance.PRESENTATION
-        }
+        Ecran.PRESENTATION -> ambiancePresentation(i)
         Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
             i.express -> Ambiance.EXPRESS
             // Blind test, Game Show : la musique d'attente tant que Sarah n'a pas lancé le morceau.
@@ -627,7 +623,25 @@ data class Instant(
      * se tait jusqu'à sa fin, puis l'écran du moment (la présentation du 1er jeu) entre normalement.
      */
     val lancement: Boolean = false,
+    /** Famille du jeu en cours, comme pour sa vidéo d'intro ([familleJeu] : "blind", "quiz", "duel"…). */
+    val famille: String = "",
 )
+
+/**
+ * Game Show : jeux qui ont leur propre boucle sous l'écran de présentation (la vidéo d'intro, jusqu'à « ▶ Lancer
+ * l'épreuve »), par famille ([familleJeu]). Les autres gardent la boucle « fête » de Digital Love ([Ambiance.PRESENTATION]),
+ * choix de cedric le 29/10 : « la plupart des intros », et une boucle à soi pour certains jeux quand il en donne une.
+ * Le Duel et le Simon ont déjà la leur (ci-dessous). Pour un nouveau jeu : une [Lit], une [Ambiance], une ligne ici.
+ */
+internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = emptyMap()
+
+/** Musique de l'écran de présentation d'un jeu ([propres] : voir [PRESENTATIONS_PROPRES]). */
+internal fun ambiancePresentation(i: Instant, propres: Map<String, Ambiance> = PRESENTATIONS_PROPRES): Ambiance = when {
+    i.duel -> Ambiance.DUEL_PRESENTATION
+    i.simon && i.gameShow -> Ambiance.SIMON_ENTRE
+    i.gameShow -> propres[i.famille] ?: Ambiance.PRESENTATION
+    else -> Ambiance.PRESENTATION
+}
 
 const val DISPARU_MEMORISER = 1
 const val DISPARU_MAGIE = 2

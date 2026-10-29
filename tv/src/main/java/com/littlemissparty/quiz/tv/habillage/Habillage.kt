@@ -235,6 +235,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         outro = Look.gs && Outro.disponible,
         finLancee = s.phase == Phase.ENDED && s.outroAt != null,
         lancement = lancement,
+        famille = familleJeu(s.question),
     )
 }
 

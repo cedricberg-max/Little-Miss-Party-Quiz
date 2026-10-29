@@ -1194,4 +1194,24 @@ class DirecteurSonoreTest {
             }
         }
     }
+
+    @Test
+    fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
+        val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
+        // Aujourd'hui : la boucle « fête » de Digital Love sous toutes les intros, sauf le Duel et le Simon.
+        listOf("quiz", "blind", "mimes", "zoom", "").forEach {
+            assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
+        }
+        assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
+        assertEquals(Ambiance.SIMON_ENTRE, ambiancePresentation(blind.copy(famille = "simon", simon = true)))
+        // Un jeu qui reçoit sa boucle (ex. le Blind test) : seulement lui, seulement en Game Show.
+        val propres = mapOf("blind" to Ambiance.BT_ATTENTE)
+        assertEquals(Ambiance.BT_ATTENTE, ambiancePresentation(blind, propres))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = "quiz"), propres))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(blind.copy(gameShow = false), propres))
+        // Le directeur suit la table : rien de changé tant qu'elle est vide.
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.PRESENTATION, d.observer(blind).musique())
+    }
 }
