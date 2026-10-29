@@ -641,10 +641,15 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "disparu" to Ambiance.DISPARU_PRESENTATION,
     // Coffres mystères : leur famille s'appelle « bombe » ([familleType]).
     "bombe" to Ambiance.COFFRES_PRESENTATION,
+    "quiz" to Ambiance.QUIZ_PRESENTATION,
+    "illustre" to Ambiance.QUIZ_PRESENTATION,
 )
 
 /** Qui a disparu ? : la boucle de Mission Impossible repart de là, après son début (échantillon 162 641 à 44,1 kHz). */
 internal const val DISPARU_INTRO_REPRISE_MS = 3_688L
+
+/** Quiz et Quiz illustré : la boucle de Questions pour un champion repart de là, après les trompettes (échantillon 95 256). */
+internal const val QUIZ_INTRO_REPRISE_MS = 2_160L
 
 /** Musique de l'écran de présentation d'un jeu ([propres] : voir [PRESENTATIONS_PROPRES]). */
 internal fun ambiancePresentation(i: Instant, propres: Map<String, Ambiance> = PRESENTATIONS_PROPRES): Ambiance = when {
@@ -728,6 +733,12 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
     /** Game Show, Coffres mystères : la boucle sous sa vidéo d'intro (cedric, 29/10 : « parfaite ») : Pirates des Caraïbes, 13,62 s, −12 LUFS. */
     COFFRES_INTRO(null, "gs_coffres_intro"),
     /**
+     * Game Show, Quiz et Quiz illustré : la boucle sous leur vidéo d'intro (cedric, 29/10 : « meilleur, je valide ») : le
+     * générique de Questions pour un champion, les trompettes une fois, puis la boucle depuis l'échantillon 95 256
+     * ([repriseMs]), −12 LUFS.
+     */
+    QUIZ_INTRO(null, "gs_quiz_intro", repriseMs = QUIZ_INTRO_REPRISE_MS),
+    /**
      * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
      * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
      * sans guitare (vitesse d'origine, calée sur la mesure) qui entre dessous pendant que le son descend en 2 s jusqu'à
@@ -793,6 +804,8 @@ enum class Ambiance(
     DISPARU_PRESENTATION(gameShow = mapOf(Lit.DISPARU_INTRO to 0.5f)),
     /** Présentation des Coffres mystères (Game Show) : Pirates des Caraïbes, au volume de la boucle « fête ». */
     COFFRES_PRESENTATION(gameShow = mapOf(Lit.COFFRES_INTRO to 0.5f)),
+    /** Présentation du Quiz et du Quiz illustré (Game Show) : Questions pour un champion, au volume de la boucle « fête ». */
+    QUIZ_PRESENTATION(gameShow = mapOf(Lit.QUIZ_INTRO to 0.5f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -834,7 +847,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }

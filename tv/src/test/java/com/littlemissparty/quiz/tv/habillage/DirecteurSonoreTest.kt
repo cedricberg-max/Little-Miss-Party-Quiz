@@ -1199,7 +1199,7 @@ class DirecteurSonoreTest {
     fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
         val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
         // La boucle « fête » de Digital Love sous les intros, sauf le Duel, le Simon et le Blind test (cedric, 29/10).
-        listOf("quiz", "mimes", "statues", "musical", "").forEach {
+        listOf("juste", "mimes", "statues", "musical", "").forEach {
             assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
         }
         assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
@@ -1218,7 +1218,7 @@ class DirecteurSonoreTest {
         val d = DirecteurSonore()
         d.observer(salon.copy(gameShow = true, equipes = 2))
         assertEquals(Ambiance.BT_PRESENTATION, d.observer(blind).musique())
-        assertEquals(Ambiance.PRESENTATION, DirecteurSonore().also { it.observer(salon.copy(gameShow = true, equipes = 2)) }.observer(blind.copy(famille = "quiz")).musique())
+        assertEquals(Ambiance.PRESENTATION, DirecteurSonore().also { it.observer(salon.copy(gameShow = true, equipes = 2)) }.observer(blind.copy(famille = "mimes")).musique())
         // Le fichier : 4 mesures à 123,91 BPM, 44,1 kHz stéréo, données jusqu'au bout du fichier.
         val wav = java.io.File("src/main/res/raw/gs_bt_intro.wav").readBytes()
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
@@ -1234,7 +1234,7 @@ class DirecteurSonoreTest {
         assertEquals(Ambiance.CHANTE_PRESENTATION, ambiancePresentation(chante))
         assertEquals(Ambiance.PRESENTATION, ambiancePresentation(chante.copy(gameShow = false)))
         assertEquals(Ambiance.BT_PRESENTATION, ambiancePresentation(chante.copy(famille = "blind")))
-        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(chante.copy(famille = "quiz")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(chante.copy(famille = "mimes")))
         assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.CHANTE_PRESENTATION.volume(Lit.CHANTE_INTRO, gs = true), 0f)
         Lit.entries.filter { it != Lit.CHANTE_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.CHANTE_PRESENTATION.volume(it, gs = true), 0f) }
         assertNull(Lit.CHANTE_INTRO.fichierPour(false))
@@ -1257,7 +1257,7 @@ class DirecteurSonoreTest {
         assertEquals(Ambiance.ZOOM_PRESENTATION, ambiancePresentation(zoom))
         assertEquals(Ambiance.ZOOM_PRESENTATION, ambiancePresentation(zoom.copy(famille = "flou")))
         assertEquals(Ambiance.PRESENTATION, ambiancePresentation(zoom.copy(gameShow = false)))
-        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(zoom.copy(famille = "quiz")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(zoom.copy(famille = "mimes")))
         assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.ZOOM_PRESENTATION.volume(Lit.ZOOM_INTRO, gs = true), 0f)
         Lit.entries.filter { it != Lit.ZOOM_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.ZOOM_PRESENTATION.volume(it, gs = true), 0f) }
         assertNull(Lit.ZOOM_INTRO.fichierPour(false))
@@ -1310,6 +1310,27 @@ class DirecteurSonoreTest {
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
         assertEquals(13.62, e.images / 44_100.0, 0.01)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Quiz et du Quiz illustre - Questions pour un champion, les trompettes une fois puis la boucle`() {
+        val quiz = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "quiz|Quiz", gameShow = true, famille = "quiz")
+        assertEquals(Ambiance.QUIZ_PRESENTATION, ambiancePresentation(quiz))
+        assertEquals(Ambiance.QUIZ_PRESENTATION, ambiancePresentation(quiz.copy(famille = "illustre")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(quiz.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(quiz.copy(famille = "musical")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.QUIZ_PRESENTATION.volume(Lit.QUIZ_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.QUIZ_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.QUIZ_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.QUIZ_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.QUIZ_PRESENTATION, d.observer(quiz).musique())
+        val wav = java.io.File("src/main/res/raw/gs_quiz_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(562_998L, e.images)
+        assertEquals(95_256L, Lit.QUIZ_INTRO.repriseMs * 44_100 / 1000)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 }
