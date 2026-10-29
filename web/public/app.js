@@ -1350,11 +1350,11 @@ function renderCoffres(st) {
   let titre; let texte;
   if (!pret) { titre = "Les Coffres mystères"; texte = "Les coffres arrivent sur la TV…"; }
   else if (fini) { titre = "BOUM ! Le bilan"; texte = `${equipe(dernier?.team).nom} a trouvé la bombe !`; }
-  else if (suspense) { titre = `Coffre ${dernier.chest + 1}…`; texte = `${dernier.nom} ouvre son coffre : regardez la TV !`; }
+  else if (suspense) { titre = "Le coffre s'ouvre…"; texte = `${dernier.nom} ouvre son coffre : regardez la TV !`; }
   else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
   else if (aMoi) {
     titre = `À vous, ${joue.nom} !`;
-    texte = coffres.envoi != null ? `Coffre ${coffres.envoi + 1} choisi : regardez la TV !`
+    texte = coffres.envoi != null ? "Coffre choisi : regardez la TV !"
       : attente > 0 ? "Préparez-vous, la TV termine…" : "Touchez un coffre pour l'ouvrir !";
   } else if (joue) { titre = `Au tour de l'équipe ${joue.nom}`; texte = "Quel coffre va-t-elle choisir ? Regardez bien !"; }
   else { titre = "Les Coffres mystères"; texte = "Regardez la TV !"; }

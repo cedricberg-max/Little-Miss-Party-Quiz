@@ -2293,7 +2293,7 @@ function renderCoffres(st) {
       + (!c.danger ? `Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`
         : `💣 La bombe est cachée dans un des coffres !${c.goldLeft === true ? " ⭐ Le coffre en or (+500) aussi." : ""}`);
   $("coffres-opened").textContent = opened.length
-    ? opened.slice(-4).map((o) => `${name(o.team)} : coffre ${o.chest + 1} ${o.bomb ? "💣" : `${o.gold === true ? "⭐ " : ""}${o.delta < 0 ? "−" : "+"}${Math.abs(o.delta)}`}`).join(" · ")
+    ? opened.slice(-4).map((o) => `${name(o.team)} : ${o.bomb ? "💣" : `${o.gold === true ? "⭐ " : ""}${o.delta < 0 ? "−" : "+"}${Math.abs(o.delta)}`}`).join(" · ")
     : `${c.count ?? 0} coffres fermés.`;
   const btn = $("coffres-random");
   const wait = (c.readyAt ?? 0) - (Date.now() + serverOffset);

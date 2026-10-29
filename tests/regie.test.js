@@ -2403,13 +2403,13 @@ describe("régie", () => {
     // Coffres ouverts : la régie résume ce qui est sorti.
     const opened = [{ team: "bleu", chest: 4, delta: 150, bomb: false, at: Date.now() }];
     await box.set({ ...box.state, seq: box.state.seq + 1, chests: { ...chests, team: "rose", turn: 1, safeLeft: 5, key: "b1-1-1", opened } });
-    await page.locator("#coffres-opened", { hasText: "Les Bleus : coffre 5 +150" }).waitFor();
+    await page.locator("#coffres-opened", { hasText: "Les Bleus : +150" }).waitFor();
     // La bombe arrive, cachée avec le coffre en or ; puis les Roses trouvent le coffre en or.
     await box.set({ ...box.state, seq: box.state.seq + 1, chests: { ...chests, team: "bleu", turn: 6, safeLeft: 0, danger: true, goldLeft: true, key: "b1-1-6", opened } });
     await page.locator("#coffres-info", { hasText: "La bombe est cachée dans un des coffres ! ⭐ Le coffre en or (+500) aussi." }).waitFor();
     const or = { team: "rose", chest: 8, delta: 500, bomb: false, gold: true, at: Date.now() };
     await box.set({ ...box.state, seq: box.state.seq + 1, chests: { ...chests, team: "bleu", turn: 7, safeLeft: 0, danger: true, goldLeft: false, key: "b1-1-7", opened: [...opened, or] } });
-    await page.locator("#coffres-opened", { hasText: "Les Roses : coffre 9 ⭐ +500" }).waitFor();
+    await page.locator("#coffres-opened", { hasText: "Les Roses : ⭐ +500" }).waitFor();
     assert.equal(await page.locator("#coffres-info", { hasText: "coffre en or" }).count(), 0, "le coffre en or est trouvé");
     // La bombe : jeu fini. Pas de tableau des scores après les coffres (cedric, 28/10) : dernier jeu, les résultats finaux.
     await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", total: 3, chests: { ...chests, team: null, key: null, exploded: true, opened: [...opened, { team: "rose", chest: 1, delta: -300, bomb: true, at: Date.now() }] } });

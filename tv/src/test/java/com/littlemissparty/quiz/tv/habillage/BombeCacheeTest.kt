@@ -9,12 +9,22 @@ import org.junit.Test
 class BombeCacheeTest {
 
     @Test
+    fun `plus de numeros sur les coffres, et un coffre ouvert passe derriere les coffres fermes`() {
+        assertTrue("cedric, 29/10 : plus de numéros", !NUMEROS_COFFRES)
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/BombeCachee.kt").readText()
+        assertTrue(source.contains(".zIndex(if (ouvert) 0f else 1f)"))
+    }
+
+    @Test
     fun `les coffres tiennent sur 1 a 3 rangees, l'avant recoit les coffres en plus`() {
         assertEquals(listOf(5, 5), repartitionCoffres(10))
         assertEquals(listOf(4, 5, 5), repartitionCoffres(14))
         assertEquals(listOf(6, 6, 6), repartitionCoffres(18))
         assertEquals(listOf(4), repartitionCoffres(4))
         assertEquals(emptyList<Int>(), repartitionCoffres(0))
+        // Les mêmes rangées que les tablettes (web/public/coffres.js, testé dans pupitre.test.js) : sans numéros sur les
+        // coffres (cedric, 29/10), c'est la place qui dit quel coffre on ouvre.
+        assertEquals(listOf(listOf(6), listOf(3, 4), listOf(6, 6), listOf(4, 4, 5), listOf(6, 7, 7)), listOf(6, 7, 12, 13, 20).map(::repartitionCoffres))
         for (n in 1..21) {
             val r = repartitionCoffres(n)
             assertEquals(n, r.sum())

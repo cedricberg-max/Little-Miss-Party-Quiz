@@ -353,6 +353,11 @@ describe("pupitre", () => {
     await bleus.locator("#coffres-host .bc-titre", { hasText: "Au tour de l'équipe Les Roses" }).waitFor();
     await bleus.locator(".bc-texte", { hasText: "Encore 6 coffres sans danger" }).waitFor();
     assert.equal(await roses.locator(".bc-case").count(), 10);
+    // Sans numéros (cedric, 29/10) : les coffres aux mêmes places que sur la TV, 2 rangées de 5 pour 10 coffres.
+    assert.deepEqual(await roses.locator(".bc-rangee").evaluateAll((rs) => rs.map((r) => r.querySelectorAll(".bc-case").length)), [5, 5]);
+    assert.equal((await roses.locator(".bc-plaque").allTextContents()).join(""), "", "aucun numéro sur les coffres");
+    const { repartitionCoffres } = await import("../web/public/coffres.js");
+    assert.deepEqual([6, 7, 12, 13, 20].map(repartitionCoffres), [[6], [3, 4], [6, 6], [4, 4, 5], [6, 7, 7]], "mêmes rangées que la TV");
     assert.equal(await bleus.locator(".bc-case:not([disabled])").count(), 0, "seule l'équipe qui joue ouvre");
     // Plus de bouton « Ouvrir » (cedric, 27/10 au soir) : toucher le coffre 3 l'ouvre tout de suite.
     assert.equal(await roses.locator(".bc-ouvrir").count(), 0);
@@ -360,7 +365,7 @@ describe("pupitre", () => {
     // Double toucher (deux coffres très vite) : un seul coffre part, le premier.
     await roses.evaluate(() => { const c = document.querySelectorAll(".bc-case"); c[2].click(); c[4].click(); });
     await waitFor(async () => (await read("chestChoice/bc-1-0"))?.i === 2, "coffre 3 envoyé à la box");
-    await roses.locator(".bc-texte", { hasText: "Coffre 3 choisi : regardez la TV !" }).waitFor();
+    await roses.locator(".bc-texte", { hasText: "Coffre choisi : regardez la TV !" }).waitFor();
     assert.equal(await roses.locator(".bc-case:not([disabled])").count(), 0, "plus rien à toucher une fois le coffre envoyé");
     await new Promise((res) => setTimeout(res, 500));
     assert.equal((await read("chestChoice/bc-1-0"))?.i, 2, "le deuxième toucher n'a rien changé");
@@ -371,7 +376,7 @@ describe("pupitre", () => {
     await hostState(question({ ...base, chests: chests({ team: b, turn: 1, safeLeft: 0, danger: true, goldLeft: true, key: "bc-1-1", readyAt: at + 4000, opened: [ouvert], gains: { [r]: 150, [b]: 0 } }) }));
     await bleus.locator(".bc-case.bc-attente").waitFor();
     assert.equal(await bleus.locator(".bc-case").nth(2).locator(".bc-contenu").textContent(), "?", "suspense pendant l'animation de la TV");
-    await bleus.locator(".bc-titre", { hasText: "Coffre 3…" }).waitFor();
+    await bleus.locator(".bc-titre", { hasText: "Le coffre s'ouvre…" }).waitFor();
     await bleus.locator(".bc-case.bc-plus .bc-contenu", { hasText: "+150" }).waitFor({ timeout: 5000 });
     // Au tour des Bleus : le bouton attend la fin de l'animation sur la TV.
     await bleus.locator(".bc-titre", { hasText: "À vous, Les Bleus !" }).waitFor();
