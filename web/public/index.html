@@ -334,8 +334,11 @@
         <div class="row">
           <button id="c-pause" class="btn secondary">Pause</button>
           <button id="c-tablette" class="btn secondary" aria-label="Reconnecter une tablette" title="Reconnecter une tablette"><span class="icone" aria-hidden="true">📱</span>Tablette</button>
-          <button id="c-end" class="btn danger hold" title="Appui long pour terminer la partie"><span class="fill"></span><span class="label">Terminer</span></button>
+          <!-- « Terminer » (cedric, 29/10) : appui court = jeu suivant (ou podium au dernier jeu) ; appui long = podium final. -->
+          <button id="c-end" class="btn danger hold" title="Appui court : jeu suivant · appui long : résultats finaux"><span class="fill"></span><span class="label">Terminer</span></button>
         </div>
+        <!-- « Arrêter la partie » (cedric, 29/10) : tout s'arrête, sans podium ; appui long obligatoire. Rangé dans ☰ Plus. -->
+        <button id="c-arret" class="btn danger hold arret" type="button" hidden title="Appui long : arrêter la partie, sans podium"><span class="fill"></span><span class="label">⛔ Arrêter la partie</span></button>
         <button id="c-next" class="btn main"></button>
         <button id="c-fin" class="btn main fin-fete" hidden>🏁 Fin de la fête</button>
       </footer>
@@ -454,6 +457,8 @@
     <!-- Confirmation aux couleurs de la régie (remplace la boîte grise du navigateur). -->
     <div id="ask" class="modal ask" hidden>
       <div class="modal-box ask-box" role="dialog" aria-modal="true" aria-labelledby="ask-title">
+        <!-- Gros encadré rouge « ATTENTION » : seulement pour « Arrêter la partie » (cedric, 29/10). Jamais sur la TV. -->
+        <div id="ask-attention" class="ask-attention" hidden><strong>⚠️ ATTENTION</strong><span></span></div>
         <p id="ask-title" class="modal-title"></p>
         <p id="ask-line" class="ask-line" hidden></p>
         <p id="ask-warn" class="ask-warn" hidden></p>
