@@ -41,6 +41,40 @@ class IntroJeuTest {
         assertNull(repriseIntroJeu("mimes"))
     }
 
+    /** En-têtes MP4 lus à la main : la durée (mvhd) et les images clés (stss, numéros à partir de 1). */
+    private class EnTetesMp4(chemin: String) {
+        private val octets = File(chemin).readBytes()
+        private fun boite(nom: String) = (0 until octets.size - 4).first { String(octets, it, 4, Charsets.ISO_8859_1) == nom }
+        private fun entier(at: Int, n: Int) = (0 until n).fold(0L) { acc, k -> (acc shl 8) or (octets[at + k].toLong() and 0xFF) }
+        val dureeMs: Double get() {
+            val i = boite("mvhd")
+            val v1 = octets[i + 4].toInt() == 1
+            return entier(i + if (v1) 28 else 20, if (v1) 8 else 4) * 1000.0 / entier(i + if (v1) 24 else 16, 4)
+        }
+        val imagesCles: List<Long> get() {
+            val i = boite("stss")
+            return (0 until entier(i + 8, 4).toInt()).map { entier(i + 12 + it * 4, 4) }
+        }
+    }
+
+    @Test
+    fun `l'intro du duel enchaine sur la boucle B de 12 s, qui repart d'une image cle`() {
+        val video = EnTetesMp4("src/main/res/raw/gs_intro_duel.mp4")
+        assertEquals((REPRISE_INTRO_DUEL_MS + BOUCLE_INTRO_DUEL_MS).toDouble(), video.dureeMs, 50.0)
+        // 25 images/s : la reprise tombe sur l'image 543 (numéro 544 dans l'en-tête), qui doit être une image clé
+        // pour que le retour au début de la boucle soit net et immédiat sur la Mi Box.
+        val imageReprise = REPRISE_INTRO_DUEL_MS * 25L / 1000 + 1
+        assertTrue("image clé à la reprise", imageReprise in video.imagesCles)
+    }
+
+    @Test
+    fun `la boucle d'attente ne repart pas sur un mauvais calcul`() {
+        // Pas de reprise trop près du début (l'intro serait coupée) ni de la fin (boucle trop courte, saccades).
+        assertTrue(REPRISE_INTRO_DUEL_MS >= 20_000)
+        assertTrue(BOUCLE_INTRO_DUEL_MS >= 8_000)
+        assertEquals(0, REPRISE_INTRO_DUEL_MS % 40)
+    }
+
     @Test
     fun `juste chiffre et portes gardent leur ecran dessine`() {
         assertNull(nomIntroJeu(familleType(QuestionKind.NUMBER)))

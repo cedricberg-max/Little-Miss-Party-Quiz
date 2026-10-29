@@ -118,10 +118,12 @@ private fun ressourceIntroJeu(nom: String): Int = when (nom) {
 
 /**
  * Intro jouée une seule fois puis tenue sur sa fin (ms où elle reprend en boucle), ou null : en boucle entière.
- * Duel des robots : 21,7 s avec le titre à la fin, les 2 dernières secondes figées tournent sans fin.
+ * Duel des robots : l'intro de 21,72 s puis la boucle d'attente B (12 s, la caméra glisse et revient,
+ * choix de cedric le 29/10), seule à tourner sans fin jusqu'à « ▶ Lancer l'épreuve ».
  */
 internal fun repriseIntroJeu(nom: String): Int? = if (nom == "duel") REPRISE_INTRO_DUEL_MS else null
-internal const val REPRISE_INTRO_DUEL_MS = 19_800
+internal const val REPRISE_INTRO_DUEL_MS = 21_720
+internal const val BOUCLE_INTRO_DUEL_MS = 12_000
 
 /** Le temps de laisser la grande intro du lancement prendre l'écran, si c'est le premier jeu de la fête. */
 internal const val DELAI_INTRO_JEU_MS = 300L
