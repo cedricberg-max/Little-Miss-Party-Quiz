@@ -1286,7 +1286,6 @@ class RegieTest : TestTv() {
         attendreQue("bombe passée") {
             licornes.etat(code).takeIf { it.child("potato/holder").value == autre.uid && it.child("potato/booms").childrenCount == 0L }
         }
-        ecran.capture("patate-passe")
         // Ping-pong : chaque équipe la renvoie aussitôt reçue, sans attendre ; tous les renvois passent, rien n'explose.
         assertTrue("renvoi immédiat", autre.envoyerPatate(code, porteur.uid))
         attendreQue("renvoyée aussitôt") { licornes.etat(code).takeIf { it.child("potato/holder").value == porteur.uid } }
@@ -1296,6 +1295,8 @@ class RegieTest : TestTv() {
         }
         assertEquals("rien n'a explosé pendant le ping-pong", 0L, licornes.etat(code).child("potato/booms").childrenCount)
         ecran.voit("La bombe est chez")
+        // Capture après le ping-pong : sur le plateau 3D elle prend plusieurs secondes, la bombe exploserait avant le renvoi.
+        ecran.capture("patate-passe")
 
         attendreQue("première explosion", 70_000) { licornes.etat(code).takeIf { it.child("potato/booms").childrenCount >= 1 } }
         ecran.capture("patate-boum")
