@@ -636,6 +636,8 @@ data class Instant(
 internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "blind" to Ambiance.BT_PRESENTATION,
     "chante" to Ambiance.CHANTE_PRESENTATION,
+    "zoom" to Ambiance.ZOOM_PRESENTATION,
+    "flou" to Ambiance.ZOOM_PRESENTATION,
 )
 
 /** Musique de l'écran de présentation d'un jeu ([propres] : voir [PRESENTATIONS_PROPRES]). */
@@ -708,6 +710,11 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
      */
     CHANTE_INTRO(null, "gs_chante_intro"),
     /**
+     * Game Show, Zoom mystère et Image floue : la boucle sous leur vidéo d'intro (cedric, 29/10 : « vraiment bien ») :
+     * La Panthère rose, 16,67 s, sans raccord audible, −12 LUFS comme la boucle « fête » des autres intros.
+     */
+    ZOOM_INTRO(null, "gs_zoom_intro"),
+    /**
      * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
      * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
      * sans guitare (vitesse d'origine, calée sur la mesure) qui entre dessous pendant que le son descend en 2 s jusqu'à
@@ -767,6 +774,8 @@ enum class Ambiance(
     BT_PRESENTATION(gameShow = mapOf(Lit.BT_INTRO to 0.5f)),
     /** Présentation de Chante le mot ! (Game Show) : sa boucle de La Vie en rose, au volume de la boucle « fête ». */
     CHANTE_PRESENTATION(gameShow = mapOf(Lit.CHANTE_INTRO to 0.5f)),
+    /** Présentation du Zoom mystère et de l'Image floue (Game Show) : La Panthère rose, au volume de la boucle « fête ». */
+    ZOOM_PRESENTATION(gameShow = mapOf(Lit.ZOOM_INTRO to 0.5f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -808,7 +817,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }

@@ -1199,7 +1199,7 @@ class DirecteurSonoreTest {
     fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
         val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
         // La boucle « fête » de Digital Love sous les intros, sauf le Duel, le Simon et le Blind test (cedric, 29/10).
-        listOf("quiz", "mimes", "zoom", "musical", "").forEach {
+        listOf("quiz", "mimes", "disparu", "musical", "").forEach {
             assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
         }
         assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
@@ -1246,6 +1246,29 @@ class DirecteurSonoreTest {
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
         assertEquals(11.903, e.images / 44_100.0, 0.001)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Zoom mystere et de l'Image floue - la meme boucle de La Panthere rose`() {
+        val zoom = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "zoom|", gameShow = true, famille = "zoom")
+        assertEquals("zoom", familleType(com.littlemissparty.quiz.engine.QuestionKind.ZOOM))
+        assertEquals("flou", familleType(com.littlemissparty.quiz.engine.QuestionKind.FLOU))
+        assertEquals(Ambiance.ZOOM_PRESENTATION, ambiancePresentation(zoom))
+        assertEquals(Ambiance.ZOOM_PRESENTATION, ambiancePresentation(zoom.copy(famille = "flou")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(zoom.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(zoom.copy(famille = "quiz")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.ZOOM_PRESENTATION.volume(Lit.ZOOM_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.ZOOM_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.ZOOM_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.ZOOM_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.ZOOM_PRESENTATION, d.observer(zoom).musique())
+        // Le fichier : 16,67 s, 44,1 kHz, données jusqu'au bout du fichier (pas de bloc ajouté après).
+        val wav = java.io.File("src/main/res/raw/gs_zoom_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(16.67, e.images / 44_100.0, 0.01)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 }
