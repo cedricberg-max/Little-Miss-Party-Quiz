@@ -16,8 +16,9 @@ import com.littlemissparty.quiz.tv.R
 import kotlin.math.abs
 
 /**
- * Plateau 3D « The Game Show » en fond : une vidéo 1080p de 7,3 s (res/raw/gs_fond_plateau.mp4, le studio du décor
- * Gemini n°4 validé par cedric le 28/10, boucle sans raccord visible ; l'ancien plateau est gardé dans
+ * Plateau 3D « The Game Show » en fond : une vidéo 1080p de 13,4 s (res/raw/gs_fond_plateau.mp4, le studio du décor
+ * Gemini n°4 validé par cedric le 28/10, stabilisé, en aller-retour sans raccord et ralenti × 0,6 au choix de cedric
+ * le 29/10 ; l'affiche gs_fond_poster est sa première image ; l'ancien plateau est gardé dans
  * tv/sauvegarde/) qui tourne en boucle derrière l'écran du jeu, sans calage sur la musique. La box ne fait que la lire avec sa
  * puce vidéo : aucune 3D calculée en direct. [surPret] : la première image est à l'écran (le décor dessiné peut
  * s'effacer) ; [surEchec] : vidéo illisible, le décor dessiné reste. Rien ici ne touche à la partie.
