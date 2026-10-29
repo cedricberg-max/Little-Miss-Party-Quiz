@@ -1292,4 +1292,24 @@ class DirecteurSonoreTest {
         assertEquals(162_641.0, Lit.DISPARU_INTRO.repriseMs * 44_100 / 1000.0, 1.0)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
+
+    @Test
+    fun `presentation des Coffres mysteres - Pirates des Caraibes`() {
+        val coffres = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "coffres|", gameShow = true, famille = "bombe")
+        assertEquals("bombe", familleType(com.littlemissparty.quiz.engine.QuestionKind.COFFRES))
+        assertEquals(Ambiance.COFFRES_PRESENTATION, ambiancePresentation(coffres))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(coffres.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(coffres.copy(famille = "gonfleur")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.COFFRES_PRESENTATION.volume(Lit.COFFRES_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.COFFRES_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.COFFRES_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.COFFRES_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.COFFRES_PRESENTATION, d.observer(coffres).musique())
+        val wav = java.io.File("src/main/res/raw/gs_coffres_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(13.62, e.images / 44_100.0, 0.01)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
 }
