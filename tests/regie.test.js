@@ -7631,6 +7631,50 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 29/10) : le cadrage d'une photo est gardé pour ce jeu et cette forme : la même photo dans le Zoom mystère d'une autre prestation le reprend tout seul ; l'Image floue garde l'image d'origine ; l'image d'origine n'est jamais modifiée", async () => {
+    const PNG = `data:image/png;base64,${png([30, 120, 200]).toString("base64")}`;
+    const OURS = "a9a9a9a9a9a9a9a9";
+    await seedLibrary("images", { [OURS]: PNG });
+    await seedLibrary("medias", { [OURS]: { name: "Ours", cat: "Animaux", createdAt: 1, updatedAt: 1 } });
+    const page = await admin();
+    const prendreOurs = async (jeu, k) => {
+      await ajouterJeu(page, jeu);
+      const round = page.locator("#show-rounds .round").nth(k);
+      await round.locator(".vos-images-cherche").fill("ours");
+      await round.locator(`.vos-images-tuile[data-image="${OURS}"]`).click();
+      return round;
+    };
+    const enregistrer = async (prenom) => {
+      await page.click("#show-save");
+      await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+      return Object.values(await library("shows")).find((x) => x.childName === prenom);
+    };
+    const photos = (show, k) => show.rounds[k].seriesQuiz.flatMap((x) => x.questions ?? []).filter((q) => q && !q.vide).map((q) => q.imageId);
+    // Première prestation : la photo recadrée au Zoom mystère.
+    await page.click("#home-new");
+    await page.fill("#show-child", "Paul");
+    const zoom = await prendreOurs("zoom", 0);
+    await zoom.locator(".quiz-complet .tirage-photo.recadrable").click();
+    await page.locator(".cadre-zoom").fill("3");
+    await page.locator(".cadre-boite button", { hasText: "Valider le cadrage" }).click();
+    await page.locator(".cadre-boite").waitFor({ state: "detached" });
+    const paul = await enregistrer("Paul");
+    const [recadree] = photos(paul, 0);
+    assert.notEqual(recadree, OURS);
+    await waitFor(async () => (await library(`cadrages/zoom~revelation~${OURS}`))?.crop === recadree, "cadrage gardé");
+    // Une autre prestation : au Zoom mystère, la même photo arrive déjà recadrée ; à l'Image floue, telle quelle.
+    await page.click('#nav [data-screen="home"]');
+    await page.click("#home-new");
+    await page.fill("#show-child", "Lina");
+    await prendreOurs("zoom", 0);
+    await prendreOurs("flou", 1);
+    const lina = await enregistrer("Lina");
+    assert.deepEqual(photos(lina, 0), [recadree], "le Zoom mystère reprend le cadrage");
+    assert.deepEqual(photos(lina, 1), [OURS], "l'Image floue garde l'image d'origine");
+    assert.equal(await library(`images/${OURS}`), PNG, "l'image d'origine n'est jamais modifiée");
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 24/10) : Chante le mot ! se construit comme le Quiz : 🎲 au nombre de mots choisi, un mot écrit à la main, « Chante le mot ! complet » (↑ ↓ ✕ 🔀) ; jamais de manche ; un mot déjà dans la fête en rouge, mais possible", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const { CHANTE_WORDS } = await import("../web/public/buzz-cards.js");

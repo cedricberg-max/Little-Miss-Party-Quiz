@@ -461,6 +461,8 @@ function enter() {
   // Box : une lecture refusée ne doit pas fermer l'administration (règles pas encore publiées).
   stops.push(onValue(ref(db, "boxes/requests"), (s) => { boxRequests = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   stops.push(onValue(ref(db, "boxes/allowed"), (s) => { boxAllowed = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
+  // Cadrages gardés : même tolérance (règles pas encore publiées) ; une prestation ouverte les reprend.
+  stops.push(onValue(ref(db, "library/cadrages"), (s) => { cadrages = s.val() ?? {}; if (editing && appliquerCadrages(editing.rounds)) refreshRounds(); }, (e) => console.error(e)));
   // Prestations lancées sur une box (en cours, interrompue, terminée) : une lecture refusée (règles pas encore
   // publiées) ne ferme pas l'administration. Relu chaque minute : une box peut se couper sans que rien d'autre change.
   stops.push(onValue(ref(db, "launches"), (s) => { launches = s.val() ?? {}; refreshRuns(); }, (e) => console.error(e)));
@@ -2248,6 +2250,84 @@ const vignetteObjet = (o) => (o.imageId ? photoBibliotheque(o.imageId, { class: 
     : h("span", { class: "grille-vignette emoji", text: o.image ?? "❔", title: o.word }));
 
 /**
+ * Cadrages mémorisés (cedric, 29/10 : « que la régie enregistre ce dernier choix et le repropose de la même manière la
+ * prochaine fois que l'image se représente pour le même jeu avec le même type de cadrage ») : `library/cadrages/{clé}`
+ * = { src, crop, at }, la clé = jeu ~ forme (vignette, revelation) ~ image d'origine (identifiant, ou « b-… » pour une
+ * photo libre de l'appli). L'image d'origine n'est jamais modifiée : le cadrage est une nouvelle image.
+ */
+let cadrages = {};
+const cleCadrage = (type, forme, src) => `${type}~${forme}~${`${src}`.replace(/[^-\w]/g, "_").slice(0, 80)}`;
+/** L'image d'origine d'une image recadrée, sinon null. */
+const origineCadree = (id) => Object.values(cadrages).find((c) => c && c.crop === id)?.src ?? null;
+/** De quoi ouvrir le cadrage sur une image d'origine : la photo libre de l'appli, ou l'image de la bibliothèque. */
+const sourceDuCadrage = (src) => (`${src}`.startsWith("b-") ? Promise.resolve(cheminPhotoBanque(src.slice(2))) : imageDeLaBibliotheque(src));
+function memoriserCadrage(type, forme, src, crop) {
+  if (!IMAGE_ID.test(crop ?? "") || !src) return;
+  const cle = cleCadrage(type, forme, src);
+  cadrages[cle] = { src, crop, at: Date.now() };
+  set(ref(db, `library/cadrages/${cle}`), { src: `${src}`.slice(0, 120), crop, at: serverTimestamp() }).catch((e) => console.error(e));
+}
+/** Le cadrage gardé pour cette image dans ce jeu et cette forme (identifiant de l'image recadrée), sinon null. */
+const cadrageGarde = (type, forme, src) => (src ? cadrages[cleCadrage(type, forme, src)]?.crop ?? null : null);
+
+/**
+ * Repropose les cadrages gardés dans les jeux de la prestation : une image qui revient dans le même jeu, avec la même
+ * forme, prend son dernier cadrage (Quiz, Quiz illustré, Vrai ou Faux, Zoom mystère, Image floue : la photo et les
+ * réponses en images ; Qui a disparu ? : les cartes). Seulement les questions gardées dans la prestation (jamais un quiz
+ * de la Bibliothèque rappelé en entier). Rend true si quelque chose a changé.
+ */
+function appliquerCadrages(rounds) {
+  let change = false;
+  const enListe = (x) => (Array.isArray(x) ? x : Object.values(x ?? {}));
+  for (const r of rounds ?? []) {
+    if (!r) continue;
+    if (estEnSeries(r.type)) {
+      for (const serie of enListe(r.seriesQuiz)) {
+        if (!serie || serie.origine === "quiz") continue;
+        for (const q of enListe(serie.questions)) {
+          if (!q || q.vide === true) continue;
+          const src = IMAGE_ID.test(q.imageId ?? "") ? q.imageId : q.banque ? `b-${q.banque}` : null;
+          const crop = cadrageGarde(r.type, "revelation", src);
+          if (crop && crop !== q.imageId) {
+            // La clé d'une photo sans identifiant vient de son image : elle la garde (sa place dans l'ordre de passage).
+            if (!(typeof q.id === "string" && q.id) && estJeuDePhotos(r.type)) q.id = `t:${signatureQuestion(q, r.type)}`;
+            q.imageId = crop;
+            delete q.banque;
+            delete q.emoji;
+            change = true;
+          }
+          const choices = enListe(q.choices);
+          const ids = choiceImageList({ choices, choiceImages: q.choiceImages });
+          const neuves = ids.map((id) => cadrageGarde(r.type, "vignette", id) ?? id);
+          if (neuves.some((id, k) => id !== ids[k])) { q.choiceImages = neuves; change = true; }
+        }
+      }
+    }
+    if (r.type === "disparu") {
+      for (const serie of enListe(r.seriesMots)) {
+        if (!serie) continue;
+        serie.mots = enListe(serie.mots).map((m) => {
+          if (!m || m.vide === true || !m.objects) return m;
+          let touche = false;
+          const objects = enListe(m.objects).map((o) => {
+            const src = IMAGE_ID.test(o?.imageId ?? "") ? o.imageId : o?.banque ? `b-${o.banque}` : null;
+            const crop = cadrageGarde("disparu", "vignette", src);
+            if (!crop || crop === o.imageId) return o;
+            touche = true;
+            const { banque: _, image: __, ...reste } = o;
+            return { ...reste, imageId: crop };
+          });
+          if (!touche) return m;
+          change = true;
+          return { ...m, objects };
+        });
+      }
+    }
+  }
+  return change;
+}
+
+/**
  * Petite image recadrable d'un objet de Qui a disparu ? (cedric, 29/10 : « réajuster la place précise de la photo dans
  * le carré ») : la carte est carrée sur la TV ; un clic ouvre le même cadrage que les « … complet », et l'image
  * recadrée ne vaut que pour cette prestation. L'objet est remplacé par une copie dans sa série (un objet tiré au 🎲
@@ -2260,9 +2340,11 @@ function objetRecadrable(img, r, m, k, changer) {
   img.title = `${o.word ?? ""} · cliquer pour recadrer l'image comme sur la TV (pour cette prestation seulement)`;
   img.addEventListener("click", async (e) => {
     e.stopPropagation();
-    const source = IMAGE_ID.test(o.imageId ?? "") ? await imageDeLaBibliotheque(o.imageId) : cheminPhotoBanque(o.banque);
-    await cadrer(source, "vignette", async (blob) => {
+    const actuelle = IMAGE_ID.test(o.imageId ?? "") ? o.imageId : `b-${o.banque}`;
+    const origine = origineCadree(actuelle) ?? actuelle;
+    await cadrer(await sourceDuCadrage(origine), "vignette", async (blob) => {
       const id = await storeChoiceImage(blob);
+      memoriserCadrage("disparu", "vignette", origine, id);
       // Le « complet » montre des copies : le tour gardé dans sa série se retrouve par sa clé, l'objet par son mot.
       const enListe = (x) => (Array.isArray(x) ? x : Object.values(x ?? {}));
       const cle = CONTENT_GAMES.disparu.key(m);
@@ -3459,6 +3541,8 @@ function refreshRounds() {
   // Pas de manches dans un blind test (cedric, 24/10) : deux blind tests qui se touchent n'en font plus qu'un.
   const { rounds: blinds, fusions: fusionsBlind } = fusionnerBlind(reunies.map((x) => versSeriesMots(versSeriesBlind(x))));
   editing.rounds = blinds;
+  // Les cadrages gardés pour ces jeux (cedric, 29/10) : une image qui revient prend son dernier cadrage.
+  if (appliquerCadrages(editing.rounds)) noterEcran();
   if (fusions) annonce("Les Quiz qui se suivaient n'en font plus qu'un : leurs questions à la suite, une seule Super Finale à la fin.");
   if (fusionsBlind) annonce("Les blind tests (ou quiz musicaux) qui se suivaient n'en font plus qu'un : leurs chansons à la suite.");
   // Plus de manches (cedric, 24/10 : « on abandonne complètement cette notion de manche ») : chaque jeu de la prestation
@@ -4155,21 +4239,25 @@ function recadrable(img, r, x, changer, k = null) {
   img.title = "Cliquer pour recadrer l'image comme sur la TV (pour cette prestation seulement)";
   img.addEventListener("click", async (e) => {
     e.stopPropagation();
-    const source = reponse ? await imageDeLaBibliotheque(ids()[k])
-      : IMAGE_ID.test(gardee.imageId ?? "") ? await imageDeLaBibliotheque(gardee.imageId) : cheminPhotoBanque(gardee.banque);
-    await cadrer(source, reponse ? "vignette" : "revelation", async (blob) => {
+    const forme = reponse ? "vignette" : "revelation";
+    const actuelle = reponse ? ids()[k] : IMAGE_ID.test(gardee.imageId ?? "") ? gardee.imageId : `b-${gardee.banque}`;
+    // Toujours depuis l'image d'origine : un cadrage se refait sans perdre de qualité, et se défait.
+    const origine = origineCadree(actuelle) ?? actuelle;
+    await cadrer(await sourceDuCadrage(origine), forme, async (blob) => {
+      let neuve;
       if (reponse) {
         const nouvelles = ids();
-        nouvelles[k] = await storeChoiceImage(blob);
+        nouvelles[k] = neuve = await storeChoiceImage(blob);
         gardee.choiceImages = nouvelles;
       } else {
         // Au Zoom mystère et à l'Image floue, la clé d'une photo sans identifiant vient de son image : elle la garde
         // (sa place dans l'ordre de passage).
         if (!(typeof gardee.id === "string" && gardee.id) && estJeuDePhotos(r.type)) gardee.id = x.cle.slice(`${x.serie.id ?? ""}|`.length);
-        gardee.imageId = await storeIllustration(blob);
+        gardee.imageId = neuve = await storeIllustration(blob);
         delete gardee.banque;
         delete gardee.emoji;
       }
+      memoriserCadrage(r.type, forme, origine, neuve);
       changer();
     });
   });
