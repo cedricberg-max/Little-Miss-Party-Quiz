@@ -126,7 +126,7 @@ function questionState(seq, index = 0) {
  * [host] : la box qui pilote (une box de secours après « Changer de box »), qui reprend la partie à l'état
  * [from] ; les commandes [seen], restées sans réponse avant le changement de box, ne sont jamais rejouées.
  */
-function startBox({ silent = false, held = false, host = HOST, from = null, seen = [], suite = null, copieRegie = true, arretPartie = true } = {}) {
+function startBox({ silent = false, held = false, host = HOST, from = null, seen = [], suite = null, copieRegie = true, arretPartie = true, outro = true } = {}) {
   /** Verdict imposé à la prochaine modification du programme (pour vérifier ce qu'affiche la régie). */
   let refuseProgram = null;
   const db = env.authenticatedContext(host).database();
@@ -197,6 +197,8 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
           if (next) state = next; else status = { status: "refused", reason: "not_now" };
         }
         else if (cmd.type === "next" && state.phase === "lobby") state = questionState(seq);
+        // « ▶ Lancer la fin » (cedric, 29/10) : sur le podium, la box lance l'outro et publie outroAt ; une box d'avant ne fait rien.
+        else if (cmd.type === "next" && state.phase === "ended") { if (outro && state.outroAt == null) state = { ...state, seq, outroAt: Date.now() }; }
         else if (cmd.type === "close") state = { ...state, seq, phase: "closed", deadline: null };
         else if (cmd.type === "pause" && state.paused) status = { status: "refused", reason: "not_now" };
         else if (cmd.type === "pause") state = { ...state, seq, paused: true, pauseReason: "regie", deadline: null, remainingMs: 15000 };
@@ -2721,6 +2723,20 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("« ▶ Lancer la fin » avec une box d'avant (pas d'outroAt) : le bouton s'efface après sa réponse, « Fin de la fête » prend sa place", async () => {
+    box = startBox({ outro: false });
+    await addTeam("rose", "Les Roses");
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await box.set({ phase: "ended", index: QUESTIONS.length - 1, seq: (await read("state")).seq + 1 });
+    await page.locator("#c-lancer-fin:not([hidden])").click();
+    await page.locator("#c-fin:not([hidden])").waitFor();
+    assert.equal(await page.locator("#c-lancer-fin").isHidden(), true);
+    assert.equal(await read("state/outroAt"), null);
+    await page.context().close();
+  });
+
   test("Fin de la fête (cedric, 23/10) : sur l'écran de fin, un gros bouton « 🏁 Fin de la fête » ; confirmé, la TV quitte la fête et revient à l'accueil", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");
@@ -2732,6 +2748,17 @@ describe("régie", () => {
     assert.equal(await fin.isHidden(), true);
     // Partie finie après le dernier jeu du programme : l'écran « Merci d'avoir participé ».
     await box.set({ phase: "ended", index: QUESTIONS.length - 1, seq: (await read("state")).seq + 1 });
+    // Podium (cedric, 29/10) : d'abord « ▶ Lancer la fin », un seul gros bouton ; « Fin de la fête » vient après.
+    const lancer = page.locator("#c-lancer-fin:not([hidden])");
+    await lancer.waitFor();
+    assert.equal(await fin.isHidden(), true, "pas de « Fin de la fête » avant la fusée");
+    assert.match(await page.textContent("#c-question"), /Parlez aux enfants, puis « ▶ Lancer la fin »/);
+    assert.ok((await lancer.boundingBox()).height >= 90, "un gros bouton");
+    await lancer.click();
+    await page.locator("#r-toast", { hasText: "▶ Fin lancée : la fusée part sur la TV." }).waitFor();
+    assert.deepEqual((await commands()).map((c) => c.type), ["next"]);
+    assert.ok(await read("state/outroAt"), "la box a lancé la fin");
+    await page.locator("#c-lancer-fin").waitFor({ state: "hidden" });
     await page.locator("#c-fin:not([hidden])").waitFor();
     assert.equal(await page.locator("#c-next").isHidden(), true);
     assert.match(await page.textContent("#c-question"), /Sinon : « 🏁 Fin de la fête »/);
@@ -2739,11 +2766,11 @@ describe("régie", () => {
     // Annulé : rien n'est envoyé.
     await fin.click();
     assert.match(await respond(page, false), /Fin de la fête \? La TV quitte l'écran de fin et revient à l'accueil/);
-    assert.equal((await commands()).length, 0);
+    assert.equal((await commands()).length, 1);
     await fin.click();
     await respond(page);
     await page.locator("#r-toast", { hasText: "🏁 Fête terminée : la TV revient à l'accueil." }).waitFor();
-    assert.deepEqual((await commands()).map((c) => c.type), ["newgame"]);
+    assert.deepEqual((await commands()).map((c) => c.type), ["next", "newgame"]);
     await page.locator("#c-question", { hasText: "🏁 Fête terminée. La TV est revenue à l'accueil, prête pour la prochaine fête. Merci !" }).waitFor();
     assert.equal(await fin.isHidden(), true);
     assert.equal(await page.locator("#c-next").isHidden(), true);
@@ -2757,7 +2784,7 @@ describe("régie", () => {
     const page = await openRegie(await contexteSansChoix({ viewport: { width: 390, height: 844 } }));
     await pair(page);
     await inRegie(page);
-    await box.set({ phase: "ended", index: QUESTIONS.length - 1, seq: (await read("state")).seq + 1 });
+    await box.set({ phase: "ended", index: QUESTIONS.length - 1, outroAt: Date.now(), seq: (await read("state")).seq + 1 });
     await page.click("#c-fin");
     await respond(page);
     // La TV a ouvert SUIT3 : la régie y passe seule, déjà reliée, au salon d'attente.
@@ -2783,7 +2810,7 @@ describe("régie", () => {
     const page = await openRegie();
     await pair(page);
     await inRegie(page);
-    await box.set({ phase: "ended", index: QUESTIONS.length - 1, seq: (await read("state")).seq + 1 });
+    await box.set({ phase: "ended", index: QUESTIONS.length - 1, outroAt: Date.now(), seq: (await read("state")).seq + 1 });
     await page.click("#c-fin");
     await respond(page);
     const suite = page.locator("#c-suite:not([hidden])", { hasText: "La TV a ouvert une nouvelle partie" });

@@ -33,6 +33,8 @@ const BOX_TIMEOUT_MS = 6000;
 
 let db, uid, code, onExit;
 let serverOffset = 0;
+/** Box d'avant (pas d'outroAt après « ▶ Lancer la fin ») : le bouton s'efface, « Fin de la fête » prend sa place. */
+let finSansOutro = false;
 /** Réaffichage à la fin du décompte de reprise (le bouton principal redevient actif). */
 let countdownTimer = null;
 let unsubscribers = [];
@@ -683,6 +685,7 @@ function render() {
   $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? ""
     : st.phase === "ended" ? (st.leftAt ? "🏁 Fête terminée. La TV est revenue à l'accueil, prête pour la prochaine fête. Merci !"
       : gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre."
+      : finAttendue(st) ? "Bravo à toutes les équipes ! Le podium est sur la TV. Parlez aux enfants, puis « ▶ Lancer la fin » : la fusée part, puis l'écran Merci."
       : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu). Sinon : « 🏁 Fin de la fête ».")
     : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
@@ -740,8 +743,14 @@ function render() {
   next.hidden = st.phase === "ended" && (!gamesOf(st).next || !!st.leftAt);
   // Fin de la partie (cedric, 23/10) : sur l'écran « Merci d'avoir participé », un gros bouton pour quitter la fête ;
   // la TV revient à l'accueil. Une fois la TV partie (leftAt), plus rien à piloter ici.
+  // « ▶ Lancer la fin » (cedric, 29/10) : le podium attend Sarah ; la box publie outroAt une fois la fin lancée.
+  // Une box d'avant ne publie rien : après sa réponse, place directement à « Fin de la fête ».
+  if (st.phase !== "ended") finSansOutro = false;
+  const lancer = $("c-lancer-fin");
+  lancer.hidden = !finAttendue(st);
+  lancer.disabled = !!pending?.advance;
   const fin = $("c-fin");
-  fin.hidden = st.phase !== "ended" || !!st.leftAt;
+  fin.hidden = st.phase !== "ended" || !!st.leftAt || !lancer.hidden;
   fin.disabled = !!pending?.advance;
   fin.classList.toggle("secondary", !next.hidden);
   next.textContent = pending?.advance ? "Envoi…" : nextLabel(st, teams.length);
@@ -4308,6 +4317,21 @@ function showUndo(text, seq) {
   };
   undoTimer = setTimeout(() => { $("undo").hidden = true; }, 10000);
 }
+
+/** « ▶ Lancer la fin » à faire : podium sur la TV, fin pas encore lancée (outroAt), TV toujours sur la fête. */
+function finAttendue(st) {
+  return st.phase === "ended" && !st.leftAt && st.outroAt == null && !finSansOutro;
+}
+
+$("c-lancer-fin").onclick = async () => {
+  const st = live.state;
+  if (!st || !finAttendue(st) || pending?.advance) return;
+  const status = await send("next", {}, { advance: true });
+  // La box a répondu sans publier outroAt : box d'avant, « Fin de la fête » prend la place. Sans réponse : réessayer.
+  if (status && live.state?.outroAt == null) finSansOutro = true;
+  if (status?.status === "applied") toast("▶ Fin lancée : la fusée part sur la TV.");
+  render();
+};
 
 $("c-factor").querySelectorAll("[data-factor]").forEach((b) => {
   b.onclick = () => send("factor", { factor: Number(b.dataset.factor) });
