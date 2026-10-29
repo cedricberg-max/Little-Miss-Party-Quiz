@@ -1327,7 +1327,7 @@ function mancheMimes(r) {
           title: "Tirer une autre image", onclick: () => tirerUne(k, i),
         }))
         : h("li", { class: `mime-image${ailleurs(c) ? " deja" : ""}`, title: ailleurs(c) ? `Déjà utilisée dans ${ailleurs(c)}` : c.word },
-          vignette(c),
+          imageRecadrable(vignette(c), r, c, changer),
           h("span", { class: "mime-mot", text: c.word }),
           h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${c.word} »`, title: "Retirer cette image (un 🎲 prend sa place)", onclick: () => retirer(k, i) }))))) : null);
   });
@@ -1538,7 +1538,7 @@ function mancheDessins(r) {
     : h("li", { class: `picto-mot${ailleurs(m) ? " deja" : ""}`, title: ailleurs(m) ? `Déjà utilisé dans ${ailleurs(m)}` : m.word, "data-mot": m.word.toLowerCase() },
       // L'émoji, celui de la tablette ; la vraie photo, celle de la TV quand le dessin est trouvé.
       m.image ? h("span", { class: "picto-emoji", text: m.image }) : null,
-      apercuPhoto(m),
+      imageRecadrable(apercuPhoto(m), r, m, changer),
       h("span", { class: "picto-nom", text: m.word }),
       h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${m.word} »`, title: "Retirer ce mot (un 🎲 prend sa place)", onclick: () => retirerMot(k, p, i) })));
   const lignes = couleurs.map((couleur, k) => {
@@ -2270,6 +2270,50 @@ function memoriserCadrage(type, forme, src, crop) {
 /** Le cadrage gardé pour cette image dans ce jeu et cette forme (identifiant de l'image recadrée), sinon null. */
 const cadrageGarde = (type, forme, src) => (src ? cadrages[cleCadrage(type, forme, src)]?.crop ?? null : null);
 
+/** L'image d'un objet (carte, mot, personnage) : son identifiant, ou « b-… » pour une photo libre de l'appli. */
+const sourceImage = (o) => (IMAGE_ID.test(o?.imageId ?? "") ? o.imageId : typeof o?.banque === "string" && o.banque ? `b-${o.banque}` : null);
+/** Remplace dans [racine] (un jeu de la prestation, à toute profondeur) chaque objet qui [estCelui] par [neuf](objet). */
+function remplacerDans(racine, estCelui, neuf) {
+  let n = 0;
+  const visiter = (x) => {
+    if (!x || typeof x !== "object") return;
+    for (const k of Object.keys(x)) {
+      const v = x[k];
+      if (v && typeof v === "object" && !Array.isArray(v) && estCelui(v)) { x[k] = neuf(v); n++; } else visiter(v);
+    }
+  };
+  visiter(racine);
+  return n;
+}
+/** Jeux à cartes ou à mots avec une image : la forme de son cadre sur la TV, et le nom de l'objet. */
+const CADRES_DES_MOTS = { mimes: ["mime", (v) => v.word], pictionary: ["vignette", (v) => v.word], quisuis: ["rond", (v) => v.answer] };
+/** L'objet avec son image recadrée [id] (la photo libre d'origine ne sert plus ; l'émoji reste). */
+const avecImage = (v, id) => { const { banque: _, ...reste } = v; return { ...reste, imageId: id }; };
+
+/**
+ * Petite image recadrable d'une carte des Mimes, d'un mot du Pictionary ou d'un personnage de Qui suis-je ? (cedric,
+ * 29/10 : « chaque fois qu'un choix de cadrage se présente ») : un clic ouvre le cadrage à la forme de la TV ; l'objet
+ * prend l'image recadrée partout dans ce jeu de la prestation, et le cadrage est gardé pour la prochaine fois.
+ */
+function imageRecadrable(img, r, o, changer) {
+  const [forme, nomDe] = CADRES_DES_MOTS[r?.type] ?? [];
+  if (img?.tagName !== "IMG" || !forme || !sourceImage(o)) return img;
+  img.classList.add("recadrable");
+  img.title = `${nomDe(o) ?? ""} · cliquer pour recadrer l'image comme sur la TV (pour cette prestation)`;
+  img.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const actuelle = sourceImage(o);
+    const origine = origineCadree(actuelle) ?? actuelle;
+    await cadrer(await sourceDuCadrage(origine), forme, async (blob) => {
+      const id = await storeChoiceImage(blob);
+      memoriserCadrage(r.type, forme, origine, id);
+      remplacerDans(r, (v) => nomDe(v) === nomDe(o) && sourceImage(v) === actuelle, (v) => avecImage(v, id));
+      changer();
+    });
+  });
+  return img;
+}
+
 /**
  * Repropose les cadrages gardés dans les jeux de la prestation : une image qui revient dans le même jeu, avec la même
  * forme, prend son dernier cadrage (Quiz, Quiz illustré, Vrai ou Faux, Zoom mystère, Image floue : la photo et les
@@ -2302,6 +2346,11 @@ function appliquerCadrages(rounds) {
           if (neuves.some((id, k) => id !== ids[k])) { q.choiceImages = neuves; change = true; }
         }
       }
+    }
+    if (CADRES_DES_MOTS[r.type]) {
+      const [forme, nomDe] = CADRES_DES_MOTS[r.type];
+      const garde = (v) => (typeof nomDe(v) === "string" ? cadrageGarde(r.type, forme, sourceImage(v)) : null);
+      if (remplacerDans(r, (v) => { const c = garde(v); return !!c && c !== v.imageId; }, (v) => avecImage(v, garde(v)))) change = true;
     }
     if (r.type === "disparu") {
       for (const serie of enListe(r.seriesMots)) {
@@ -2974,7 +3023,7 @@ function mancheMots(r) {
   // Un mot dans une liste : déjà dans un autre jeu de la fête, en rouge. Un personnage : ses indices dessous.
   const texteMot = (m) => {
     const autre = autreJeu(m);
-    return [quisuis ? vignette(m) : null, h("span", { class: "tirage-texte mot-texte" }, nomDe(m),
+    return [quisuis ? imageRecadrable(vignette(m), r, m, changer) : null, h("span", { class: "tirage-texte mot-texte" }, nomDe(m),
       quisuis ? h("small", { class: "mot-indices", text: m.clues.join(" · ") }) : null,
       disparu ? h("span", { class: "grille-vignettes" }, ...(m.objects ?? []).map((o, k) => objetRecadrable(vignetteObjet(o), r, m, k, changer))) : null,
       autre ? h("small", { class: "mot-deja", text: `Déjà dans « ${autre} »` }) : null)];

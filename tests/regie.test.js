@@ -7675,6 +7675,62 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 29/10) : Mimes, Pictionary et Qui suis-je ? : un clic sur la petite image la recadre (forme de la TV) ; le cadrage est gardé et une autre prestation le reprend ; les images d'origine ne changent pas", async () => {
+    const PNG = `data:image/png;base64,${png([220, 60, 160]).toString("base64")}`;
+    const [LION, CHAT, MARIO] = ["c1c1c1c1c1c1c1c1", "c2c2c2c2c2c2c2c2", "c3c3c3c3c3c3c3c3"];
+    await seedLibrary("images", { [LION]: PNG, [CHAT]: PNG, [MARIO]: PNG });
+    const jeux = () => [
+      { type: "mimes", perTeam: 1, equipes: [[{ word: "Lion", image: "🦁", imageId: LION }]] },
+      { type: "pictionary", passages: 1, tours: [[[{ word: "Chat", image: "🐱", imageId: CHAT }]]] },
+      { type: "quisuis", seriesMots: [{ id: "m1", origine: "main", mots: [{ answer: "Mario", emoji: "🍄", clues: ["Plombier", "Moustache"], imageId: MARIO }] }] },
+    ];
+    await seedLibrary("shows/ines", { childName: "Inès", title: "Anniversaire d'Inès", age: 9, teams: 2, date: "2099-12-04", status: "publiee", updatedAt: 1, rounds: jeux() });
+    await seedLibrary("shows/theo", { childName: "Théo", title: "Anniversaire de Théo", age: 9, teams: 2, date: "2099-12-05", status: "publiee", updatedAt: 1, rounds: jeux() });
+    const page = await admin();
+    const ouvrir = async (id) => {
+      await page.click('#nav button[data-screen=home]');
+      await page.click('#screen-home [data-etat="avenir"]');
+      await page.locator(`#show-list [data-show="${id}"]`).getByRole("button", { name: "Ouvrir" }).click();
+      await deplierJeux(page);
+    };
+    const recadrer = async (img, forme) => {
+      await img.click();
+      await page.locator(".cadre-boite", { hasText: forme }).waitFor();
+      await page.locator(".cadre-zoom").fill("2");
+      await page.locator(".cadre-boite button", { hasText: "Valider le cadrage" }).click();
+      await page.locator(".cadre-boite").waitFor({ state: "detached" });
+    };
+    await ouvrir("ines");
+    const blocs = page.locator("#show-rounds .round");
+    await blocs.nth(0).locator(".mime-deplier").first().click();
+    await recadrer(blocs.nth(0).locator(".mime-image img.recadrable"), "Cadrer l'image à mimer");
+    await blocs.nth(1).locator(".mime-deplier").first().click();
+    await recadrer(blocs.nth(1).locator(".picto-mot img.recadrable"), "Cadrer la vignette");
+    const perso = blocs.nth(2).locator(".quiz-complet-q img.tirage-mini.recadrable").first();
+    // L'écran se redessine quand un cadrage est gardé : on mesure l'image affichée.
+    let taille;
+    await waitFor(async () => (taille = await perso.evaluate((el) => [el.getBoundingClientRect().width, el.getBoundingClientRect().height, getComputedStyle(el).borderRadius]))[0] > 0, "personnage affiché");
+    assert.ok(Math.abs(taille[0] - taille[1]) < 1 && taille[2] === "50%", `rond comme sur la TV (${taille})`);
+    await recadrer(perso, "Cadrer le personnage dans son rond");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const ines = await library("shows/ines");
+    const images = (x) => [x.rounds[0].equipes[0][0].imageId, x.rounds[1].tours[0][0][0].imageId, x.rounds[2].seriesMots[0].mots[0].imageId];
+    const recadrees = images(ines);
+    recadrees.forEach((id, k) => { assert.match(id, /^[0-9a-f]{16}$/); assert.notEqual(id, [LION, CHAT, MARIO][k]); });
+    assert.equal(ines.rounds[0].equipes[0][0].image, "🦁", "l'émoji reste");
+    await waitFor(async () => (await library(`cadrages/mimes~mime~${LION}`))?.crop === recadrees[0], "cadrage des mimes gardé");
+    assert.equal((await library(`cadrages/pictionary~vignette~${CHAT}`))?.crop, recadrees[1]);
+    assert.equal((await library(`cadrages/quisuis~rond~${MARIO}`))?.crop, recadrees[2]);
+    // Une autre prestation avec les mêmes images : elles arrivent recadrées.
+    await ouvrir("theo");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    assert.deepEqual(images(await library("shows/theo")), recadrees);
+    for (const id of [LION, CHAT, MARIO]) assert.equal(await library(`images/${id}`), PNG);
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 24/10) : Chante le mot ! se construit comme le Quiz : 🎲 au nombre de mots choisi, un mot écrit à la main, « Chante le mot ! complet » (↑ ↓ ✕ 🔀) ; jamais de manche ; un mot déjà dans la fête en rouge, mais possible", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const { CHANTE_WORDS } = await import("../web/public/buzz-cards.js");
