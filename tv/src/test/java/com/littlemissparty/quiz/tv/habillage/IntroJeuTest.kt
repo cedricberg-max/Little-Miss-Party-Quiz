@@ -130,4 +130,13 @@ class IntroJeuTest {
         assertTrue(aDuSon("vraifaux"))
         assertFalse(aDuSon("quiz"))
     }
+
+    /** Chaque vidéo d'intro a son index (« moov ») en tête : la box la lit tout de suite, sans aller au bout du fichier. */
+    @Test
+    fun `chaque video d'intro a son index en tete`() {
+        File("src/main/res/raw").listFiles { f -> f.name.startsWith("gs_intro_") && f.name.endsWith(".mp4") }!!.forEach { f ->
+            val o = String(f.readBytes(), Charsets.ISO_8859_1)
+            assertTrue(f.name, o.indexOf("moov") in 0 until o.indexOf("mdat"))
+        }
+    }
 }
