@@ -34,7 +34,7 @@ internal fun FondVideo3d(surPret: () -> Unit, surEchec: () -> Unit) {
 }
 
 /**
- * Accueil du Game Show : le robot qui dort sur le plateau (res/raw/gs_accueil_video.mp4, 24,8 s, muette, calculée à
+ * Accueil du Game Show : le robot qui dort sur le plateau (res/raw/gs_accueil_video.mp4, 22 s à 24 i/s, muette, calculée à
  * l'avance). Elle tourne seule en boucle, sans calage sur la boucle de Get Lucky (cedric, 24/10 : à l'accueil, la
  * continuité de la musique compte, pas quelle image tombe sur quel temps ; chaque recalage faisait une micro-saccade).
  * Même contrat que [FondVideo3d].
