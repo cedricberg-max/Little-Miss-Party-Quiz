@@ -562,6 +562,12 @@ describe("régie", () => {
     await assertSucceeds(gagnantes("w1", { teams: ["rose", "bleu"] }));
     await assertSucceeds(gagnantes("w2", { personne: true }));
     await assertFails(gagnantes("w3", { personne: false }));
+    // « ⛔ Arrêter la partie » (cedric, 29/10) : un « newgame » qui arrête tout, même partie en cours ; rien d'autre.
+    const arret = (id, body) => set(ref(db(REGIE), `games/${CODE}/commands/${id}`), { expectSeq: 3, by: REGIE, at: serverTimestamp(), ...body });
+    await assertSucceeds(arret("a1", { type: "newgame", arret: true }));
+    await assertFails(arret("a2", { type: "newgame", arret: false }));
+    await assertFails(arret("a3", { type: "next", arret: true }));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/commands/a4`), { type: "newgame", arret: true, expectSeq: 3, by: "rose", at: serverTimestamp() }));
     await assertFails(gagnantes("w4", { teams: ["x".repeat(129)] }));
     await assertFails(gagnantes("w5", { teams: { a: "rose" } }));
     for (const type of ["statues_stop", "statues_play", "statues_song"]) await assertSucceeds(command(REGIE, { type }));

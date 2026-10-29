@@ -29,6 +29,29 @@ class FinDeLaFeteTest : TestTv() {
     @After
     fun rangerRegies() = regies.forEach { it.close() }
 
+    /**
+     * « ⛔ Arrêter la partie » (cedric, 29/10) : en pleine partie, tout s'arrête tout de suite, sans podium ; la TV revient
+     * à l'accueil avec une nouvelle partie, l'ancienne est marquée terminée et quittée.
+     */
+    @Test
+    fun arreterLaPartieEnCoursRameneLaTvALAccueilSansPodium() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = RegieSimulee().also { regies += it }
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        ecran.voit("Régie reliée")
+        assertNotEquals("ended", licornes.etat(code).child("phase").value)
+
+        val id = regie.envoyer(code, "newgame", extra = mapOf("arret" to true)) ?: throw AssertionError("« arrêt » refusé par le serveur")
+        assertEquals("applied", regie.verdict(code, id))
+        val nouveau = attendreQue("nouvelle partie créée", 30_000) { Boite.codeActif()?.takeIf { it != code } }
+        assertNotEquals(code, nouveau)
+        ecran.voit("Scannez pour jouer", 30_000)
+        attendreQue("ancienne partie marquée quittée") { licornes.etat(code).child("leftAt").value as? Number }
+        assertEquals("ended", licornes.etat(code).child("phase").value)
+        ecran.capture("arret-retour-accueil")
+    }
+
     @Test
     fun laFinDeLaFeteRameneLaTvALAccueil() {
         val code = lancerBoite()

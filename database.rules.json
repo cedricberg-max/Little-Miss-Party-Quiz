@@ -277,6 +277,9 @@
             "personne": {
               ".validate": "newData.val() === true"
             },
+            "arret": {
+              ".validate": "newData.val() === true && newData.parent().child('type').val() === 'newgame'"
+            },
             "$other": {
               ".validate": "$other === 'type' || $other === 'expectSeq' || $other === 'by' || $other === 'at'"
             }
