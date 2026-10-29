@@ -197,7 +197,9 @@ internal val CATALOGUE: List<ClipRobot> = listOf(
     // Suspense : au bord droit seulement, les réponses (texte à gauche des cartes) restent lisibles. Jamais d'air
     // inquiet ni triste ici (cedric, 23 octobre : les expressions négatives sont réservées aux moments négatifs) :
     // il guette, roule du tambour, scrute aux jumelles.
-    ClipRobot("gs_robot_suspense", MomentRobot.SUSPENSE, auBord(0.92f, 3_000, echelle = 0.8f, entreeMs = 500)),
+    // Bouche bée (cedric, 29/10, choix A) : il se fige, se penche vers les enfants, l'antenne clignote de plus en
+    // plus vite, petit sursaut vers 3,5 s. 4 s de clip, sortie comprise il tient dans les 5 dernières secondes.
+    ClipRobot("gs_robot_suspense", MomentRobot.SUSPENSE, auBord(0.92f, 4_000, echelle = 0.8f, entreeMs = 500)),
     ClipRobot("gs_robot_batterie", MomentRobot.SUSPENSE, auBord(0.92f, 3_300, echelle = 0.8f, entreeMs = 500)),
     ClipRobot("gs_robot_groove", MomentRobot.SUSPENSE, auBord(0.92f, 3_500, echelle = 0.8f, entreeMs = 500)),
     ClipRobot("gs_robot_jumelles", MomentRobot.SUSPENSE, auBord(0.92f, 3_300, echelle = 0.8f, entreeMs = 500)),
@@ -418,6 +420,7 @@ private val CLIPS_LARGES = setOf(
     "gs_robot_confettis", "gs_robot_coucou", "gs_robot_danse", "gs_robot_descente", "gs_robot_dort", "gs_robot_energie",
     "gs_robot_ola", "gs_robot_podium", "gs_robot_robotdance", "gs_robot_tete", "gs_robot_tourne", "gs_robot_traverse",
     "gs_robot_vole", "gs_robot_batterie", "gs_robot_bravo", "gs_robot_coeur", "gs_robot_fusee", "gs_robot_guitare", "gs_robot_salto",
+    "gs_robot_suspense",
 )
 
 /** La lueur sous le robot : largeur (part de la hauteur du clip), ellipse aplatie, hauteur du socle dans le clip, force. */
