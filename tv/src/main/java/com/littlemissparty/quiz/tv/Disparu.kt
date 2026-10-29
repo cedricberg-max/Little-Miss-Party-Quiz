@@ -8,6 +8,12 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -137,7 +143,7 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
                         ligne.forEach { i ->
                             val disparu = i == q.missingIndex
                             ObjetCase(
-                                q.cards[i], q.cards[i].imageId?.let { state.images[it] }, etape, disparu,
+                                i, q.cards[i], q.cards[i].imageId?.let { state.images[it] }, etape, disparu,
                                 Modifier.weight(1f).fillMaxHeight().graphicsLayer { if (etape == EtapeDisparu.MAGIE) rotationZ = if (i % 2 == 0) tourne else -tourne },
                             )
                         }
@@ -166,8 +172,8 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
 }
 
 @Composable
-private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
-    if (Look.gs) return CarteGs(carte, octets, etape, disparu, modifier)
+private fun ObjetCase(rang: Int, carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
+    if (Look.gs) return CarteGs(rang, carte, octets, etape, disparu, modifier)
     val photo = photoCarte(octets, PHOTO_CARTE_DISPARU)
     val trou = disparu && etape == EtapeDisparu.CHERCHER
     val enOr = disparu && etape == EtapeDisparu.REPONSE
@@ -229,12 +235,18 @@ internal val CadrageHaut = BiasAlignment(0f, -0.6f)
 @Composable
 internal fun photoCarte(octets: ByteArray?, cible: Int): ImageBitmap? = rememberPhoto(octets, cible)
 
-/** Carte du Game Show (choix A de la planche du 27/10) : crème, bord doré, tuile blanche, mot en rose comme au Pictionary. */
-private val CarteCreme = Brush.verticalGradient(listOf(Color(0xFFFFFAF0), Color(0xFFFDF1DC)))
-private val CarteCachee = Brush.verticalGradient(listOf(Color(0xFF2A1650), Color(0xFF1A0D36)))
+/**
+ * Carte du Game Show, « vitrine de nuit » (choix B de cedric, 29/10) : carte sombre au bord néon, l'image dans une
+ * fenêtre claire qui brille, le nom en néon. Chaque carte a son néon.
+ */
+private val NeonsDisparu = listOf(
+    Color(0xFFFF2D95), Color(0xFF00F0FF), Color(0xFF39FF14), Color(0xFFFFE600),
+    Color(0xFF8B2CFF), Color(0xFFFF6B1A), Color(0xFFFF7AD9), Color(0xFF1E88FF),
+)
+internal fun neonDisparu(rang: Int): Color = NeonsDisparu[rang.mod(NeonsDisparu.size)]
+private val CarteNuit = Brush.verticalGradient(listOf(Color(0xFF24113F), Color(0xFF0E0820)))
+private val Fenetre = Brush.radialGradient(0f to Color.White, 0.6f to Color(0xFFF1EAFF), 1f to Color(0xFFDDD0FF))
 private val BordDore = Color(0xFFE9C48A)
-private val BordTuile = Color(0xFFECE4F6)
-private val MotRose = Color(0xFFFF2D8F)
 private val QuestionDoree = Color(0xFFFFE27A)
 
 /**
@@ -248,32 +260,71 @@ internal fun photoDansTuile(largeur: Float, hauteur: Float, largeurPhoto: Float,
 }
 
 /**
- * Qui a disparu ? en Game Show : une vraie carte opaque, lisible de loin sur le plateau (cedric, planche du 27/10,
- * option A « carte du Pictionary »). La carte disparue devient violette, rayée, avec un « ? » doré ; à la révélation
- * l'objet revient sur sa carte crème, bordée d'or qui brille. La photo tient en entier sur la tuile blanche, sans rien
- * couper (cedric, 27/10 au soir : « la plupart des visages sont coupés »).
+ * Partie de la photo [largeurPhoto] × [hauteurPhoto] qui remplit toute la fenêtre [largeur] × [hauteur] (une photo
+ * complète remplit la carte, cedric 29/10), recadrée vers le haut pour garder les visages : (x, y, l, h) en pixels.
+ */
+internal fun photoQuiRemplit(largeur: Float, hauteur: Float, largeurPhoto: Int, hauteurPhoto: Int): IntArray {
+    if (largeur <= 0f || hauteur <= 0f || largeurPhoto <= 0 || hauteurPhoto <= 0) return intArrayOf(0, 0, largeurPhoto.coerceAtLeast(0), hauteurPhoto.coerceAtLeast(0))
+    val k = maxOf(largeur / largeurPhoto, hauteur / hauteurPhoto)
+    val l = (largeur / k).toInt().coerceIn(1, largeurPhoto)
+    val h = (hauteur / k).toInt().coerceIn(1, hauteurPhoto)
+    val x = (largeurPhoto - l) / 2
+    // Même cadrage que les autres jeux : vers le haut (CadrageHaut, −0,6).
+    val y = ((hauteurPhoto - h) * 0.2f).toInt()
+    return intArrayOf(x, y, l, h)
+}
+
+/**
+ * Image détourée ou dessin sur fond blanc (les quatre coins transparents ou presque blancs) : elle se pose entière,
+ * fondue dans la fenêtre (le blanc prend la couleur de la fenêtre). Sinon c'est une photo : elle remplit la fenêtre.
+ * [coins] : couleurs ARGB des quatre coins.
+ */
+internal fun imageDetouree(coins: IntArray): Boolean = coins.isNotEmpty() && coins.all { c ->
+    val a = c ushr 24 and 0xFF
+    val r = c shr 16 and 0xFF
+    val g = c shr 8 and 0xFF
+    val b = c and 0xFF
+    a < 40 || (r >= 232 && g >= 232 && b >= 232)
+}
+
+private fun coinsDe(photo: ImageBitmap): IntArray = runCatching {
+    val b = photo.asAndroidBitmap()
+    val m = 2.coerceAtMost(minOf(b.width, b.height) - 1)
+    intArrayOf(b.getPixel(m, m), b.getPixel(b.width - 1 - m, m), b.getPixel(m, b.height - 1 - m), b.getPixel(b.width - 1 - m, b.height - 1 - m))
+}.getOrDefault(IntArray(0))
+
+/**
+ * Qui a disparu ? en Game Show, « vitrine de nuit » (choix B de cedric, 29/10) : une carte sombre au bord néon de sa
+ * couleur, l'objet dans une fenêtre claire qui brille, le nom en néon. Une photo remplit la fenêtre (recadrée vers le
+ * haut, la Régie PC permet de la recadrer) ; un émoji ou une image détourée sur fond blanc y est posé entier et fondu
+ * (le blanc disparaît). La carte disparue devient violette, rayée, avec un « ? » doré ; à la révélation l'objet revient
+ * avec un contour blanc qui brille.
  */
 @Composable
-private fun CarteGs(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
+private fun CarteGs(rang: Int, carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
     val photo = photoCarte(octets, PHOTO_CARTE_DISPARU)
+    val detouree = remember(photo) { photo?.let { imageDetouree(coinsDe(it)) } ?: false }
     val trou = disparu && etape == EtapeDisparu.CHERCHER
-    val enOr = disparu && etape == EtapeDisparu.REPONSE
+    val revient = disparu && etape == EtapeDisparu.REPONSE
+    val neon = neonDisparu(rang)
     val forme = RoundedCornerShape(14.dp)
     Column(
         modifier
-            .shadow(if (enOr) 18.dp else 8.dp, forme, ambientColor = if (enOr) Palette.Gold else Color.Black, spotColor = if (enOr) Palette.Gold else Color.Black)
+            .shadow(if (revient) 20.dp else 10.dp, forme, ambientColor = if (revient) Color.White else neon, spotColor = if (revient) Color.White else neon)
             .clip(forme)
-            .background(if (trou) CarteCachee else CarteCreme)
-            .border(if (enOr) 4.dp else 3.dp, if (enOr) Palette.Gold else BordDore, forme)
-            .padding(start = 7.dp, end = 7.dp, top = 7.dp, bottom = 4.dp)
-            .then(if (enOr) Modifier.apparition(0, "retour") else Modifier),
+            .background(CarteNuit)
+            .border(if (revient) 4.dp else 2.5.dp, if (revient) Color.White else neon, forme)
+            .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 4.dp)
+            .then(if (revient) Modifier.apparition(0, "retour") else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         val tuile = RoundedCornerShape(10.dp)
         BoxWithConstraints(
-            Modifier.weight(1f).fillMaxWidth().clip(tuile)
-                .then(if (trou) Modifier.drawBehind { rayures() } else Modifier.background(Color.White))
-                .border(1.5.dp, if (trou) BordDore else BordTuile, tuile),
+            Modifier.weight(1f).fillMaxWidth()
+                .shadow(8.dp, tuile, ambientColor = neon, spotColor = neon)
+                .clip(tuile)
+                .then(if (trou) Modifier.drawBehind { rayures() } else Modifier.background(Fenetre))
+                .border(1.5.dp, if (trou) BordDore else neon.copy(alpha = 0.67f), tuile),
             contentAlignment = Alignment.Center,
         ) {
             val taille = with(LocalDensity.current) { (maxHeight * 0.62f).coerceIn(16.dp, 56.dp).toSp() }
@@ -284,19 +335,26 @@ private fun CarteGs(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, di
                     style = TextStyle(color = QuestionDoree, shadow = Shadow(Color(0xFFFFB347), blurRadius = 18f)),
                     modifier = Modifier.apparition(0, "trou"),
                 )
-                // La photo entière sur la tuile blanche : jamais de tête ou de visage coupé.
-                photo != null -> {
-                    val (l, h) = photoDansTuile((maxWidth - 6.dp).value, (maxHeight - 6.dp).value, photo.width.toFloat(), photo.height.toFloat())
-                    Image(photo, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.size(l.dp, h.dp))
+                // Détourée ou dessin sur fond blanc : entière, fondue dans la fenêtre (le blanc prend sa couleur).
+                photo != null && detouree -> {
+                    val (l, h) = photoDansTuile((maxWidth - 8.dp).value, (maxHeight - 8.dp).value, photo.width.toFloat(), photo.height.toFloat())
+                    Canvas(Modifier.size(l.dp, h.dp)) {
+                        drawImage(photo, dstSize = IntSize(size.width.toInt(), size.height.toInt()), blendMode = BlendMode.Multiply)
+                    }
+                }
+                // Une photo complète remplit la fenêtre.
+                photo != null -> Canvas(Modifier.fillMaxSize()) {
+                    val (x, y, l, h) = photoQuiRemplit(size.width, size.height, photo.width, photo.height).toList()
+                    drawImage(photo, IntOffset(x, y), IntSize(l, h), dstSize = IntSize(size.width.toInt(), size.height.toInt()))
                 }
                 else -> Text(carte.image ?: "⭐", fontSize = taille, lineHeight = taille * 1.15f)
             }
         }
         // Le nom entier sur toute la largeur de la carte, plus petit s'il est long : jamais de « … ».
-        CompositionLocalProvider(LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = PoliceGsTitre)) {
+        CompositionLocalProvider(LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = PoliceGsTitre, shadow = Shadow(neon, blurRadius = 16f))) {
             TexteAjuste(
                 if (trou || etape == EtapeDisparu.MAGIE) "???" else carte.word.uppercase(),
-                color = if (trou) QuestionDoree else MotRose, max = 17.sp, min = 9.sp, lignes = 1,
+                color = if (trou) QuestionDoree else Color.White, max = 17.sp, min = 9.sp, lignes = 1,
                 fontWeight = FontWeight.Normal, modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
             )
         }
