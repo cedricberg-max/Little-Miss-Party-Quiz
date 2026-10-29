@@ -5,6 +5,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.scale
@@ -34,3 +36,28 @@ internal fun Modifier.panneauJeu(alpha: Float = 0.10f): Modifier =
             )
         }
     }
+
+/**
+ * Game Show, titres et règles des jeux (choix C de cedric, 29/10) : une bande sombre sur toute la largeur de l'écran
+ * derrière le titre et la règle, fondue en haut et en bas, pour que le texte ne se perde plus dans le plateau.
+ * Dessinée hors des bords du texte (jusqu'aux bords de l'écran), sans rien changer à la mise en page. Classique : rien.
+ */
+internal fun Modifier.bandeTitre(): Modifier =
+    if (!Look.gs) this
+    else drawBehind {
+        val deborde = 18.dp.toPx()
+        drawRect(
+            Brush.verticalGradient(
+                0f to Color.Transparent, 0.22f to Fumee.copy(alpha = BANDE_TITRE_ALPHA), 0.78f to Fumee.copy(alpha = BANDE_TITRE_ALPHA), 1f to Color.Transparent,
+                startY = -deborde, endY = size.height + deborde,
+            ),
+            topLeft = Offset(-BANDE_TITRE_LARGEUR, -deborde),
+            size = Size(size.width + 2 * BANDE_TITRE_LARGEUR, size.height + 2 * deborde),
+        )
+    }
+
+/** Opacité du cœur de la bande (planche du 29/10 : le décor se devine derrière). */
+internal const val BANDE_TITRE_ALPHA = 0.62f
+
+/** De quoi aller jusqu'aux bords de l'écran quel que soit l'endroit du texte (px, largement au-delà de la 4K). */
+private const val BANDE_TITRE_LARGEUR = 8_000f

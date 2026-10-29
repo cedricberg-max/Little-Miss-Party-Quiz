@@ -73,6 +73,7 @@ import com.littlemissparty.quiz.tv.habillage.Tampon
 import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.apres
+import com.littlemissparty.quiz.tv.habillage.bandeTitre
 import com.littlemissparty.quiz.tv.habillage.rebond
 import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
@@ -396,6 +397,8 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                 val taille = with(LocalDensity.current) { (masque * 0.62f).toSp() }
                 Text("🎭", fontSize = taille, lineHeight = taille * 1.07f, modifier = Modifier.apparition(bilan, m.turns.size))
             }
+            // Game Show : la bande sombre des titres (choix C, 29/10) derrière le bravo ou le titre et la règle.
+            Column(Modifier.fillMaxWidth().bandeTitre(), horizontalAlignment = Alignment.CenterHorizontally) {
             if (last != null && lastTeam != null) {
                 Text(
                     if (last.found > 0) "Bravo ${lastTeam.name} !" else "Bien essayé ${lastTeam.name} !",
@@ -432,6 +435,7 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                 color = Palette.Ink, fontSize = 24.sp, textAlign = TextAlign.Center, lineHeight = 32.sp,
                 maxLines = 3, overflow = TextOverflow.Ellipsis,
             )
+            }
         }
     }
 }
