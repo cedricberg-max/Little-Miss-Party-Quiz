@@ -129,8 +129,8 @@ internal fun repriseIntroJeu(nom: String): Int? = if (nom == "duel") REPRISE_INT
  */
 internal fun volumeIntroJeu(nom: String): Float = if (nom in INTROS_SONORES) 1f else 0f
 
-/** Intros dont les bruitages sortent : le Simon, puis le Vrai ou Faux (cedric, 29/10 : sans aucun rire). */
-private val INTROS_SONORES = setOf("simon", "vraifaux")
+/** Intros dont les bruitages sortent : le Simon, le Vrai ou Faux (cedric, 29/10 : sans aucun rire), Qui a disparu ?. */
+private val INTROS_SONORES = setOf("simon", "vraifaux", "disparu")
 internal const val REPRISE_INTRO_DUEL_MS = 21_720
 internal const val BOUCLE_INTRO_DUEL_MS = 12_000
 
