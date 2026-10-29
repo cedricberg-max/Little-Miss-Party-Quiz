@@ -55,8 +55,8 @@ import kotlin.math.sin
 
 /**
  * Nom du gagnant du podium, version « nerveuse » (cedric, 24/10 : « un tout petit peu plus nerveuse ») : maquette de
- * référence podmock/mock.html, nomNerveux(). Bungee à la couleur de l'équipe, contour sombre, deux lueurs, reflet
- * blanc sur le haut des lettres ; les lettres claquent une à une (×2,4 → 1 avec ressort, flash blanc), le mot complet
+ * référence podmock/mock.html, nomNerveux(). Bungee à la couleur de l'équipe, contour sombre, deux lueurs (le reflet
+ * blanc fixe sur le haut des lettres est retiré, cedric 29/10) ; les lettres claquent une à une (×2,4 → 1 avec ressort, flash blanc), le mot complet
  * fait une onde de choc et un glitch cyan / magenta, puis le nom bat sur les temps de Digital Love (accent sur chaque
  * mesure), un reflet le balaie toutes les 4 battues et des étincelles en jaillissent ; « 900 POINTS » défile puis éclate.
  * Le nombre affiché à la fin est le vrai score ([Classee.points]) : rien ici ne compte de points.
@@ -167,7 +167,8 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                             drawText(l.mise, couleur, Offset(m, m), shadow = Shadow(couleur, Offset.Zero, 34.dp.toPx()))
                         },
                 )
-                // Corps : contour sombre, lettre néon et sa lueur serrée, reflet blanc sur le haut.
+                // Corps : contour sombre, lettre néon et sa lueur serrée (plus de reflet blanc fixe sur le haut des lettres :
+                // il faisait comme un trou de transparence, cedric 29/10).
                 Spacer(
                     Modifier.fillMaxSize().debordement(28.dp)
                         .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
@@ -176,13 +177,6 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                             val o = Offset(m, m)
                             drawText(l.mise, GS.Noir.copy(alpha = 0.68f), o, drawStyle = Stroke(7.dp.toPx(), join = StrokeJoin.Round))
                             drawText(l.mise, couleur, o, shadow = Shadow(couleur.copy(alpha = 0.95f), Offset.Zero, 14.dp.toPx()))
-                            val b = l.mise.firstBaseline
-                            val t = lettres.tailleTexte
-                            drawText(
-                                l.mise,
-                                Brush.verticalGradient(0f to Color.White.copy(alpha = 0.8f), 0.55f to Color.White.copy(alpha = 0.12f), 1f to Color.Transparent, startY = b - 0.805f * t, endY = b - 0.17f * t),
-                                o,
-                            )
                         },
                 )
                 // Flash blanc à l'impact de la lettre et au mot complet.
