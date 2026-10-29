@@ -436,6 +436,15 @@
           }
         }
       },
+      "cadrages": {
+        "$cle": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || ($cle.matches(/^[a-z]{2,12}~(vignette|revelation)~[-\\w]{1,80}$/) && newData.child('src').isString() && newData.child('src').val().length >= 2 && newData.child('src').val().length <= 120 && newData.child('crop').isString() && newData.child('crop').val().matches(/^[0-9a-f]{16}$/) && newData.child('at').val() === now)",
+          "$other": {
+            ".validate": "$other === 'src' || $other === 'crop' || $other === 'at'"
+          }
+        }
+      },
       "sounds": {
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && (!data.exists() || !newData.exists())",
