@@ -1198,20 +1198,32 @@ class DirecteurSonoreTest {
     @Test
     fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
         val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
-        // Aujourd'hui : la boucle « fête » de Digital Love sous toutes les intros, sauf le Duel et le Simon.
-        listOf("quiz", "blind", "mimes", "zoom", "").forEach {
+        // La boucle « fête » de Digital Love sous les intros, sauf le Duel, le Simon et le Blind test (cedric, 29/10).
+        listOf("quiz", "mimes", "zoom", "musical", "").forEach {
             assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
         }
         assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
         assertEquals(Ambiance.SIMON_ENTRE, ambiancePresentation(blind.copy(famille = "simon", simon = true)))
-        // Un jeu qui reçoit sa boucle (ex. le Blind test) : seulement lui, seulement en Game Show.
-        val propres = mapOf("blind" to Ambiance.BT_ATTENTE)
-        assertEquals(Ambiance.BT_ATTENTE, ambiancePresentation(blind, propres))
-        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = "quiz"), propres))
-        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(blind.copy(gameShow = false), propres))
-        // Le directeur suit la table : rien de changé tant qu'elle est vide.
+        // Blind test : sa boucle d'Alan Braxe, en Game Show seulement, au volume des autres intros.
+        assertEquals(Ambiance.BT_PRESENTATION, ambiancePresentation(blind))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(blind.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.BT_PRESENTATION.volume(Lit.BT_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.BT_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.BT_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.BT_INTRO.fichierPour(false))
+        // Une autre table : seul le jeu nommé change.
+        val propres = mapOf("zoom" to Ambiance.BT_ATTENTE)
+        assertEquals(Ambiance.BT_ATTENTE, ambiancePresentation(blind.copy(famille = "zoom"), propres))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(blind, propres))
+        // Le directeur suit la table, à l'arrivée sur l'intro.
         val d = DirecteurSonore()
         d.observer(salon.copy(gameShow = true, equipes = 2))
-        assertEquals(Ambiance.PRESENTATION, d.observer(blind).musique())
+        assertEquals(Ambiance.BT_PRESENTATION, d.observer(blind).musique())
+        assertEquals(Ambiance.PRESENTATION, DirecteurSonore().also { it.observer(salon.copy(gameShow = true, equipes = 2)) }.observer(blind.copy(famille = "quiz")).musique())
+        // Le fichier : 4 mesures à 123,91 BPM, 44,1 kHz stéréo, données jusqu'au bout du fichier.
+        val wav = java.io.File("src/main/res/raw/gs_bt_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(4 * 4 * 60 / 123.91, e.images / 44_100.0, 0.001)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 }

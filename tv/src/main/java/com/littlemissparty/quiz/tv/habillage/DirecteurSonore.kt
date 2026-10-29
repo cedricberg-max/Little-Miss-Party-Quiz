@@ -633,7 +633,7 @@ data class Instant(
  * choix de cedric le 29/10 : « la plupart des intros », et une boucle à soi pour certains jeux quand il en donne une.
  * Le Duel et le Simon ont déjà la leur (ci-dessous). Pour un nouveau jeu : une [Lit], une [Ambiance], une ligne ici.
  */
-internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = emptyMap()
+internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf("blind" to Ambiance.BT_PRESENTATION)
 
 /** Musique de l'écran de présentation d'un jeu ([propres] : voir [PRESENTATIONS_PROPRES]). */
 internal fun ambiancePresentation(i: Instant, propres: Map<String, Ambiance> = PRESENTATIONS_PROPRES): Ambiance = when {
@@ -693,6 +693,12 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
      */
     BT_ATTENTE(null, "gs_bt_attente"),
     /**
+     * Game Show, Blind test : la boucle sous sa vidéo d'intro (cedric, 29/10, boucle C) : « Intro » d'Alan Braxe &
+     * Fred Falke, la ligne de basse entrée à 1:17,65, 4 mesures (la phrase entière) prises à 1:25,4, 7,75 s à
+     * 123,91 BPM, raccord fondu 25 ms sur la suite réelle, −12 LUFS comme la boucle « fête » des autres intros.
+     */
+    BT_INTRO(null, "gs_bt_intro"),
+    /**
      * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
      * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
      * sans guitare (vitesse d'origine, calée sur la mesure) qui entre dessous pendant que le son descend en 2 s jusqu'à
@@ -748,6 +754,8 @@ enum class Ambiance(
      * le morceau (cedric, 29/10) ; Classique : le silence d'avant.
      */
     BT_ATTENTE(gameShow = mapOf(Lit.BT_ATTENTE to 0.49f)),
+    /** Présentation du Blind test (Game Show) : sa boucle d'Alan Braxe, au volume de la boucle « fête » des autres intros. */
+    BT_PRESENTATION(gameShow = mapOf(Lit.BT_INTRO to 0.5f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -789,7 +797,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }
