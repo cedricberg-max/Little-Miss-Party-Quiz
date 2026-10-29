@@ -1,0 +1,30 @@
+# Intros des jeux dans leur décor : télécharge des matières PBR libres (CC0, ambientCG + Poly Haven) et les dépose sur une
+# branche à part « textures-intros-candidats » (jamais fusionnée) que Claude lit avec git. Ne publie rien sur le site ni sur la TV.
+name: Textures intros (candidates)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/project-thread-8djz1a]
+    paths: [scripts/textures-intros.py, .github/workflows/textures-intros.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  textures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Télécharger les matières
+        run: python3 scripts/textures-intros.py "$RUNNER_TEMP/textures"
+      - name: Déposer sur la branche textures-intros-candidats
+        run: |
+          cd "$RUNNER_TEMP/textures"
+          git init -q -b textures-intros-candidats
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Matières CC0 pour les intros des jeux ($GITHUB_SHA)"
+          git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/textures-intros-candidats"
