@@ -11571,6 +11571,60 @@ describe("activation des box", () => {
   });
 });
 
+describe("Régie PC : Mes tablettes (cedric, 29/10)", () => {
+  const lire = async (path) => {
+    let value;
+    await env.withSecurityRulesDisabled(async (ctx) => { value = (await get(ref(ctx.database(), path))).val(); });
+    return value;
+  };
+  // La tablette qui scanne le QR s'enregistre elle-même avec le jeton de l'invitation (contrat, section 1).
+  const scanner = (uid, lien) => {
+    const url = new URL(lien);
+    return set(ref(env.authenticatedContext(uid).database(), `tablettes/${uid}`), { jeton: url.searchParams.get("tablette"), nom: url.searchParams.get("nom"), at: serverTimestamp() });
+  };
+
+  test("liste vide d'abord ; « ＋ Ajouter une tablette » montre le QR de « Tablette 1 » ; la tablette qui le scanne apparaît en direct et le QR passe à « Tablette 2 » ; renommer ; ✕ avec confirmation (Annuler ne change rien) ; Fermer referme l'invitation", async () => {
+    const page = await openAdmin();
+    await page.click('#nav [data-screen="settings"]');
+    await page.locator("#tablettes-liste", { hasText: "Aucune tablette pour l'instant" }).waitFor();
+    await page.click("#tablette-ajouter");
+    await page.locator("#tablette-invitation:not([hidden])", { hasText: "Tablette 1" }).waitFor();
+    await page.locator("#tablette-qr svg").waitFor();
+    await page.locator("#tablette-compte", { hasText: /^Encore (9|10) min/ }).waitFor();
+    const lien1 = await page.locator("#tablette-qr").getAttribute("data-lien");
+    const invitation = await lire("tablettesInvitation");
+    assert.equal(new URL(lien1).searchParams.get("tablette"), invitation.jeton);
+    assert.equal(new URL(lien1).searchParams.get("nom"), "Tablette 1");
+    assert.match(invitation.jeton, /^[A-Za-z0-9_-]{24,}$/);
+    assert.ok(invitation.jusqua > Date.now() + 8 * 60_000 && invitation.jusqua <= Date.now() + 11 * 60_000, "10 minutes");
+    // Un faux jeton : refusé par les règles, rien n'apparaît.
+    await assert.rejects(set(ref(env.authenticatedContext("intrus").database(), "tablettes/intrus"), { jeton: "x".repeat(24), nom: "Intrus", at: serverTimestamp() }));
+    await scanner("tab-a", lien1);
+    await page.locator('#tablettes-liste [data-tablette="tab-a"]', { hasText: "Tablette 1" }).waitFor();
+    await page.locator("#tablettes-status", { hasText: "« Tablette 1 » est enregistrée" }).waitFor();
+    await page.locator("#tablette-invitation-nom", { hasText: "Tablette 2" }).waitFor();
+    const lien2 = await page.locator("#tablette-qr").getAttribute("data-lien");
+    assert.notEqual(new URL(lien2).searchParams.get("tablette"), new URL(lien1).searchParams.get("tablette"), "un jeton neuf");
+    // Renommer.
+    await page.locator('#tablettes-liste [data-tablette="tab-a"]').getByRole("button", { name: "Renommer" }).click();
+    assert.equal(await repondreFenetre(page, { texte: "Tablette rose" }), "Nouveau nom de la tablette :");
+    await waitFor(async () => (await lire("tablettes/tab-a/nom")) === "Tablette rose", "renommée");
+    // ✕ : Annuler ne change rien, puis Effacer.
+    await page.locator('#tablettes-liste [data-tablette="tab-a"] .tablette-effacer').click();
+    assert.match(await repondreFenetre(page, { accepter: false }), /^Effacer « Tablette rose » \?/);
+    assert.equal((await lire("tablettes/tab-a"))?.nom, "Tablette rose");
+    await page.locator('#tablettes-liste [data-tablette="tab-a"] .tablette-effacer').click();
+    await repondreFenetre(page);
+    await waitFor(async () => (await lire("tablettes/tab-a")) === null, "effacée");
+    await page.locator('#tablettes-liste [data-tablette="tab-a"]').waitFor({ state: "detached" });
+    // Fermer : l'invitation n'existe plus, le QR disparaît.
+    await page.click("#tablette-fermer");
+    await page.locator("#tablette-invitation").waitFor({ state: "hidden" });
+    await waitFor(async () => (await lire("tablettesInvitation")) === null, "invitation fermée");
+    await page.context().close();
+  });
+});
+
 describe("Régie PC : nettoyage des copies des fêtes terminées (cedric, 21/10)", () => {
   const H = 3600_000;
   const S1 = "1111111111111111", S2 = "2222222222222222", PERDU = "dddddddddddddddd";
