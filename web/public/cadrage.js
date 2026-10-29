@@ -9,7 +9,11 @@
 export const BULLES = {
   vignette: { ratio: 1, width: 480, height: 480, radius: "22%" },
   revelation: { ratio: 4 / 3, width: 800, height: 600, radius: "9%" },
+  // Qui suis-je ? : le personnage dans son rond ; Mimes : la carte de l'image à mimer (cedric, 29/10).
+  rond: { ratio: 1, width: 480, height: 480, radius: "50%" },
+  mime: { ratio: 10 / 7, width: 700, height: 490, radius: "6%" },
 };
+const TITRES = { vignette: "Cadrer la vignette de la réponse", revelation: "Cadrer la bulle de la révélation", rond: "Cadrer le personnage dans son rond", mime: "Cadrer l'image à mimer" };
 
 /** Zoom maximal par rapport à l'image qui remplit juste la bulle. */
 const ZOOM_MAX = 4;
@@ -84,7 +88,7 @@ export async function ouvrirCadrage(source, forme = "vignette") {
   const annuler = el("button", { type: "button", className: "btn secondary", textContent: "Annuler" });
   const centrer = el("button", { type: "button", className: "btn secondary", textContent: "Recentrer" });
   const boite = el("div", { className: "cadre-boite", role: "dialog" },
-    el("p", { className: "label", textContent: forme === "vignette" ? "Cadrer la vignette de la réponse" : "Cadrer la bulle de la révélation" }),
+    el("p", { className: "label", textContent: TITRES[forme] ?? TITRES.vignette }),
     el("p", { className: "hint small", textContent: "Faites glisser l'image ; la molette ou le curseur zoome. La partie claire est celle montrée sur la TV." }),
     scene,
     el("label", { className: "inline cadre-zoom-label" }, "Zoom", zoom),
