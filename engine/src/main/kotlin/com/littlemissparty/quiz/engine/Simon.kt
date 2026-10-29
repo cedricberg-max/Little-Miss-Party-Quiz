@@ -40,9 +40,18 @@ const val SIMON_REPONSE_SEC = 10
 const val SIMON_REPONSE_MIN_SEC = 5
 const val SIMON_REPONSE_MAX_SEC = 60
 
-/** « Regardez bien… » avant la première boule, puis le temps de chaque boule allumée. */
+/** « Regardez bien… » avant la première boule, puis le temps de chaque boule des premières suites. */
 const val SIMON_REGARDEZ_MS = 2_000L
 const val SIMON_PAS_MS = 1_000L
+
+/**
+ * Le rythme d'un vrai Simon (cedric, 29/10 : « ça manque énormément de rythme ») : la suite se montre de plus en plus
+ * vite à chaque boule ajoutée. 1 s par boule pour la toute première, [SIMON_ACCELERE_MS] de moins par boule en plus,
+ * jamais moins de [SIMON_PAS_MIN_MS] (suite de 10 et plus).
+ */
+const val SIMON_ACCELERE_MS = 65L
+const val SIMON_PAS_MIN_MS = 400L
+fun simonPasMs(suite: Int): Long = (SIMON_PAS_MS - SIMON_ACCELERE_MS * (suite - 1).coerceAtLeast(0)).coerceAtLeast(SIMON_PAS_MIN_MS)
 
 /** Animation « Attention, les chiffres débarquent ! », avant la première suite à chiffres du jeu. */
 const val SIMON_CHIFFRES_MS = 4_500L
@@ -113,7 +122,7 @@ data class SimonRound(
 
     /** Heure de la première boule, de la fin de la suite (le chrono part), et de la fin du chrono. */
     val montreAt: Long? get() = startAt?.let { it + (if (annonceChiffres) SIMON_CHIFFRES_MS else 0L) + SIMON_REGARDEZ_MS }
-    val reponseAt: Long? get() = montreAt?.let { it + suite * SIMON_PAS_MS }
+    val reponseAt: Long? get() = montreAt?.let { it + suite * simonPasMs(suite) }
     fun finAt(reponseSec: Int): Long? = reponseAt?.let { it + reponseMs(suite, reponseSec) }
 
     /** Ce qu'il faut taper à la suite en cours. */

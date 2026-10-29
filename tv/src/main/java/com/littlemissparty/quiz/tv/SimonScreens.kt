@@ -59,7 +59,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.SIMON_CHIFFRES_MS
 import com.littlemissparty.quiz.engine.SIMON_AVEC_CHIFFRES
 import com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES
-import com.littlemissparty.quiz.engine.SIMON_PAS_MS
+import com.littlemissparty.quiz.engine.simonPasMs
 import com.littlemissparty.quiz.engine.SIMON_VERIF_FIN_MS
 import com.littlemissparty.quiz.engine.SIMON_VERIF_PAS_MS
 import com.littlemissparty.quiz.engine.SimonRound
@@ -95,8 +95,8 @@ internal val TEINTES_SIMON = mapOf(
     "bleu" to Color(0xFF1E88FF), "violet" to Color(0xFFA020FF), "rose" to Color(0xFFFF7AD9), "blanc" to Color(0xFFFFFFFF),
 )
 
-/** Temps où une boule reste allumée, sur les [SIMON_PAS_MS] de son tour : un petit noir entre deux boules. */
-internal const val SIMON_ALLUME_MS = 750L
+/** Temps où une boule reste allumée, sur les [pas] ms de son tour (simonPasMs) : un petit noir entre deux boules. */
+internal fun simonAllumeMs(pas: Long): Long = pas * 3 / 4
 
 /** Les étapes du Simon à l'écran. */
 internal enum class EtapeSimon { ATTENTE, PRET, CHIFFRES, REGARDEZ, MONTRE, JOUE, TEMPS, VERIF, BILAN }
@@ -119,7 +119,8 @@ internal fun vueSimon(r: SimonRound?, maintenant: Long, reponseSec: Int): VueSim
             maintenant < montre -> VueSimon(EtapeSimon.REGARDEZ)
             maintenant < reponse -> {
                 val dt = maintenant - montre
-                VueSimon(EtapeSimon.MONTRE, boule = (dt / SIMON_PAS_MS).toInt().coerceIn(0, r.suite - 1), allumee = dt % SIMON_PAS_MS < SIMON_ALLUME_MS)
+                val pas = simonPasMs(r.suite)
+                VueSimon(EtapeSimon.MONTRE, boule = (dt / pas).toInt().coerceIn(0, r.suite - 1), allumee = dt % pas < simonAllumeMs(pas))
             }
             maintenant < fin -> VueSimon(EtapeSimon.JOUE, reste = ((fin - maintenant + 999) / 1000).toInt())
             else -> VueSimon(EtapeSimon.TEMPS)
@@ -174,7 +175,9 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
         val rr = r ?: return@LaunchedEffect
         val montre = rr.montreAt ?: return@LaunchedEffect
         if (vue.etape != EtapeSimon.MONTRE || vue.boule < 0) return@LaunchedEffect
-        if (maintenant() - (montre + vue.boule * SIMON_PAS_MS) < 400) rr.sequence.getOrNull(vue.boule)?.let { NotesSimon.jouer(it) }
+        val pas = simonPasMs(rr.suite)
+        // La note dure le temps où la boule est allumée : les suites rapides restent nettes, sans notes qui se chevauchent.
+        if (maintenant() - (montre + vue.boule * pas) < 400) rr.sequence.getOrNull(vue.boule)?.let { NotesSimon.jouer(it, simonAllumeMs(pas).toInt()) }
     }
     LaunchedEffect(vue.etape == EtapeSimon.JOUE, vue.reste) {
         if (vue.etape == EtapeSimon.JOUE && vue.reste in 1..3) sonSimon(Son.TIC_1)

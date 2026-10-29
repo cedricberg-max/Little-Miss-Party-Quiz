@@ -19,7 +19,9 @@ import kotlin.math.sin
 object NotesSimon {
     private const val TAG = "NotesSimon"
     private const val FREQUENCE = 22_050
-    private const val DUREE_MS = 450
+    internal const val DUREE_MS = 450
+    /** Les suites les plus rapides (une boule toutes les 400 ms) : 300 ms de note. */
+    internal const val DUREE_MIN_MS = 250
     /** Presque à fond (la note culmine à 1,0 × [VOLUME]) : elles passaient sous la musique (cedric, 28/10 au soir). */
     internal const val VOLUME = 0.95f
 
@@ -33,12 +35,13 @@ object NotesSimon {
     private val h = Handler(fil.looper)
     private val sons = HashMap<String, ShortArray>()
 
-    /** Joue la note de [item] (sans attendre ; rien si la sortie son refuse). */
-    fun jouer(item: String) {
+    /** Joue la note de [item], au plus [dureeMs] (sans attendre ; rien si la sortie son refuse). */
+    fun jouer(item: String, dureeMs: Int = DUREE_MS) {
         val f = NOTES[item] ?: return
+        val duree = dureeMs.coerceIn(DUREE_MIN_MS, DUREE_MS)
         h.post {
             runCatching {
-                val pcm = sons.getOrPut(item) { note(f) }
+                val pcm = sons.getOrPut("$item/$duree") { note(f, duree) }
                 val piste = AudioTrack.Builder()
                     .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
                     .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(FREQUENCE).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
@@ -48,7 +51,7 @@ object NotesSimon {
                 if (piste.state == AudioTrack.STATE_UNINITIALIZED) { piste.release(); return@runCatching }
                 piste.write(pcm, 0, pcm.size)
                 piste.play()
-                h.postDelayed({ runCatching { piste.stop() }; piste.release() }, DUREE_MS + 200L)
+                h.postDelayed({ runCatching { piste.stop() }; piste.release() }, duree + 200L)
             }.onFailure { Log.w(TAG, "Note du Simon : ${it.message}") }
         }
     }

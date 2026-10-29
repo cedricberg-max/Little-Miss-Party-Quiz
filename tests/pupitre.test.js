@@ -750,6 +750,22 @@ describe("pupitre", () => {
     const t2 = Date.now();
     await hostState(simon({ step: "play", suite: 1, key: "s1-1-1-200", startAt: t2 - 4_000, montreAt: t2 - 2_000, reponseAt: t2 - 1_000, finAt: t2 + 60_000 }));
     await roses.locator(".sm-compte", { hasText: "Ta suite (0/1)" }).waitFor();
+    // Que des couleurs (cedric, 29/10) : pas de chiffres, les 8 boules prennent la place, entières, droit comme couché.
+    assert.equal(await roses.locator(".sm-chiffres").isVisible(), false, "plus de chiffres");
+    const FORMATS = { "téléphone droit": [390, 844, 70], "téléphone couché": [844, 390, 60], "tablette posée": [1280, 800, 150], "tablette droite": [800, 1280, 150] };
+    for (const [format, [width, height, mini]] of Object.entries(FORMATS)) {
+      await roses.setViewportSize({ width, height });
+      await roses.waitForTimeout(300);
+      if (process.env.LMP_SHOTS) await roses.screenshot({ path: `${process.env.LMP_SHOTS}/simon-couleurs-${width}x${height}.png` });
+      const cadres = await roses.evaluate(() => [...document.querySelectorAll(".sm-boules .sm-boule, .sm-effacer, .sm-valider")].map((el) => {
+        const r = el.getBoundingClientRect();
+        return { c: el.className, l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width };
+      }));
+      assert.equal(cadres.length, 10, format);
+      for (const k of cadres) assert.ok(k.l >= -1 && k.t >= -1 && k.r <= width + 1 && k.b <= height + 1, `${format} : ${JSON.stringify(k)} dépasse`);
+      const boule = Math.min(...cadres.filter((k) => k.c.includes("sm-boule")).map((k) => k.w));
+      assert.ok(boule >= mini, `${format} : boules de ${Math.round(boule)} px (au moins ${mini})`);
+    }
     for (const p of [roses, bleus, verts]) await p.context().close();
   });
 

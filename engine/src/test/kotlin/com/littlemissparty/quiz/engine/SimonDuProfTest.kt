@@ -91,6 +91,21 @@ class SimonDuProfTest {
     }
 
     @Test
+    fun `plus la suite grandit, plus elle defile vite, jamais trop vite`() {
+        // cedric, 29/10 : les toutes premières faciles à retenir, puis de plus en plus rapide.
+        assertEquals(1_000L, simonPasMs(1))
+        assertEquals(935L, simonPasMs(2))
+        assertEquals(415L, simonPasMs(10))
+        assertEquals(400L, simonPasMs(11))
+        assertEquals(400L, simonPasMs(30))
+        assertEquals(1_000L, simonPasMs(0), "jamais plus lent que la première")
+        for (n in 1..29) assertTrue(simonPasMs(n + 1) <= simonPasMs(n), "suite de ${n + 1}")
+        // Le chrono part quand la dernière boule a fini, au nouveau rythme.
+        val r = SimonRound(1, List(12) { "rouge" }, listOf("A"), suite = 8, startAt = t0)
+        assertEquals(t0 + SIMON_REGARDEZ_MS + 8 * simonPasMs(8), r.reponseAt)
+    }
+
+    @Test
     fun `la suite se montre boule par boule puis le chrono part, jamais de jugement avant`() {
         val g = pret()
         val chrono = g.lance(t0 + 5_000)
