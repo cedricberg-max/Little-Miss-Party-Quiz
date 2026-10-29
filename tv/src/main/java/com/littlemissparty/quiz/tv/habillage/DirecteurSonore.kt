@@ -148,6 +148,8 @@ class DirecteurSonore {
                     o += Ordre.Musique(Ambiance.SILENCE)
                     // Blind test : son générique court à la présentation, un éclat de cuivres au passage en points doublés.
                     if (i.blindPresentation) o += Ordre.Jouer(Son.BT_GENERIQUE)
+                    // Game Show : la musique d'attente sous « Lancer le morceau », après le générique s'il passe.
+                    if (musique == Ambiance.BT_ATTENTE) o += Ordre.Musique(musique, if (i.blindPresentation) Tempo.BT_ATTENTE_APRES_GENERIQUE else 0L)
                     if (i.blind && i.blindDouble && !p.blindDouble) o += Ordre.Jouer(Son.BT_DOUBLE)
                 } else if (nouvelleEpreuve) {
                     o += Ordre.Jouer(Son.TRANSITION)
@@ -343,6 +345,12 @@ class DirecteurSonore {
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
             if (i.jeuBuzz || i.blind) o += buzzJeu(p, i)
+            // Blind test, Game Show : la musique d'attente se coupe net quand Sarah lance le morceau (même si elle
+            // n'était pas encore entrée après le générique : rien de prévu ne doit repartir sous la chanson).
+            if (i.blind && i.gameShow && p.ecran == Ecran.QUESTION && p.blindAttente && !i.blindAttente) {
+                o += Ordre.Couper
+                o += Ordre.Musique(ambiance(i), fonduMs = Tempo.FONDU_RELAIS)
+            }
             // Blind test : le diamant se pose chaque fois que Sarah lance (ou relance) la chanson.
             if (i.blind && i.blindLecture && !p.blindLecture && i.buzzEquipe < 0) o += Ordre.Jouer(Son.BT_DIAMANT)
             // Qui a disparu ? : « abracadabra » au début du tour de magie, « pouf ! » quand l'objet a disparu.
@@ -446,6 +454,8 @@ class DirecteurSonore {
         }
         Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
             i.express -> Ambiance.EXPRESS
+            // Blind test, Game Show : la musique d'attente tant que Sarah n'a pas lancé le morceau.
+            i.blindAttente && i.gameShow && i.ecran == Ecran.QUESTION -> Ambiance.BT_ATTENTE
             // Extrait musical : rien ne doit couvrir la chanson.
             i.musical && i.ecran != Ecran.VERROUILLEE -> Ambiance.SILENCE
             // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
@@ -572,6 +582,8 @@ data class Instant(
      */
     val blind: Boolean = false,
     val blindPresentation: Boolean = false,
+    /** Blind test : l'écran « Lancer le morceau » (morceau pas encore écouté, personne n'a buzzé). */
+    val blindAttente: Boolean = false,
     val blindLecture: Boolean = false,
     val blindDouble: Boolean = false,
     val blindCoupe: Boolean = false,
@@ -641,6 +653,12 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
     SIMON_DOUCE(null, "gs_simon_douce"),
     SIMON_SUITE(null, "gs_simon_suite"),
     SIMON_FORT(null, "gs_simon_fort"),
+    /**
+     * Game Show, Blind test : la musique d'attente de l'écran « Lancer le morceau » (cedric, 29/10, boucle A) : l'intro
+     * seule de « Music Sounds Better With You » (Stardust), mesures 1 à 7, 13,52 s à 124,2 BPM, sans blanc, −12 LUFS
+     * comme l'accueil.
+     */
+    BT_ATTENTE(null, "gs_bt_attente"),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -684,6 +702,11 @@ enum class Ambiance(
     SIMON_SUITE(gameShow = mapOf(Lit.SIMON_SUITE to SIMON_MUSIQUE_SUITE)),
     /** Pendant une suite avec des chiffres (longue, plus dure) : la partie où tout joue, baissée de même ; Classique : silence. */
     SIMON_FORT(gameShow = mapOf(Lit.SIMON_FORT to SIMON_MUSIQUE_FORT)),
+    /**
+     * Blind test, Game Show : sous l'écran « Lancer le morceau », au niveau de l'accueil, coupée net quand Sarah lance
+     * le morceau (cedric, 29/10) ; Classique : le silence d'avant.
+     */
+    BT_ATTENTE(gameShow = mapOf(Lit.BT_ATTENTE to 0.49f)),
     /**
      * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
      * trop éteint (cedric, 24/10).
@@ -894,6 +917,8 @@ object Tempo {
     /** Temps fort qui suit la dernière note du générique (16 temps) : la musique du salon prend le relais. */
     const val GENERIQUE_RELAIS = 8_000L
     const val FONDU_RELAIS = 120L
+    /** Blind test : la musique d'attente entre à la fin du générique court (4,8 s). */
+    const val BT_ATTENTE_APRES_GENERIQUE = 4_500L
     /** Duel des robots : la boucle western prend le relais à la fin de son début (gs_duel_intro_debut, 2,95 s). */
     const val DUEL_INTRO_BOUCLE = 2_946L
     /** Après deux mesures au niveau du générique, la musique du salon redescend doucement à son volume de fond. */

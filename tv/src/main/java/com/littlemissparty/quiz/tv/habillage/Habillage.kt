@@ -223,6 +223,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         // Blind test : présentation du 1er morceau, chanson qui joue, points doublés, révélation raccourcie, bilan.
         blind = blind != null,
         blindPresentation = blind != null && s.phase == Phase.QUESTION && blind.numero == 1 && !blind.played && blind.waiting && s.buzzTeam == null,
+        blindAttente = blind != null && s.phase == Phase.QUESTION && !blind.played && blind.waiting && s.buzzTeam == null,
         blindLecture = blind != null && s.phase == Phase.QUESTION && !blind.waiting && s.buzzTeam == null,
         blindDouble = blind?.doubled == true,
         blindCoupe = blind?.cut == true,

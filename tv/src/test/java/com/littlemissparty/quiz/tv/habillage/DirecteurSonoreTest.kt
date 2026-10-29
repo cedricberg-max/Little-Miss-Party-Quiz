@@ -753,6 +753,55 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `blind test Game Show, musique d'attente sous Lancer le morceau, coupee net au lancement, Classique inchange`() {
+        val bt = Instant(Ecran.QUESTION, partie = "ABCD", index = 12, equipes = 2, propositions = 0, jeuBuzz = true, musical = true,
+            blind = true, epreuve = "manche|Blind test", gameShow = true)
+        val d = DirecteurSonore()
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 11, equipes = 2, gameShow = true))
+        // Premier morceau : le générique, puis la musique d'attente à sa fin.
+        val presentation = d.observer(bt.copy(blindPresentation = true, blindAttente = true))
+        assertEquals(listOf(Son.BT_GENERIQUE), presentation.sons())
+        assertEquals(Ordre.Musique(Ambiance.BT_ATTENTE, Tempo.BT_ATTENTE_APRES_GENERIQUE), presentation.filterIsInstance<Ordre.Musique>().last())
+        assertTrue(Tempo.BT_ATTENTE_APRES_GENERIQUE in 4_000L..4_800L)
+        // Sarah lance le morceau : tout ce qui était prévu est annulé, la musique se coupe net, le diamant se pose.
+        val lance = d.observer(bt.copy(blindLecture = true))
+        assertEquals(Ordre.Couper, lance.first())
+        assertEquals(Ordre.Musique(Ambiance.SILENCE, fonduMs = Tempo.FONDU_RELAIS), lance.filterIsInstance<Ordre.Musique>().single())
+        assertEquals(listOf(Son.BT_DIAMANT), lance.sons())
+        // Buzz puis mauvaise réponse : « Relancer la musique » garde le silence (pas de musique d'attente).
+        d.observer(bt.copy(buzzEquipe = 1))
+        assertEquals(Ambiance.SILENCE, d.observer(bt.copy(ratees = 1)).musique())
+        // Morceau suivant : directement la musique d'attente, sans générique.
+        d.observer(bt.copy(ecran = Ecran.REVELATION, ratees = 1))
+        val suivant = d.observer(bt.copy(index = 13, blindAttente = true))
+        assertFalse(Son.BT_GENERIQUE in suivant.sons())
+        assertEquals(Ordre.Musique(Ambiance.BT_ATTENTE), suivant.filterIsInstance<Ordre.Musique>().last())
+        // Une box qui redémarre sur cet écran retrouve la musique d'attente.
+        assertEquals(listOf(Ordre.Musique(Ambiance.BT_ATTENTE)), DirecteurSonore().observer(bt.copy(index = 13, blindAttente = true)))
+        // Le volume : celui de l'accueil ; la boucle n'existe qu'en Game Show.
+        assertEquals(Ambiance.SALON.volume(Lit.ACCUEIL, gs = true), Ambiance.BT_ATTENTE.volume(Lit.BT_ATTENTE, gs = true))
+        assertEquals("gs_bt_attente", Lit.BT_ATTENTE.fichierPour(true))
+        assertNull(Lit.BT_ATTENTE.fichierPour(false))
+        // Classique : le silence d'avant.
+        val c = DirecteurSonore()
+        c.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 11, equipes = 2))
+        val classique = c.observer(bt.copy(gameShow = false, blindPresentation = true, blindAttente = true))
+        assertFalse(classique.any { it is Ordre.Musique && it.ambiance == Ambiance.BT_ATTENTE })
+        assertFalse(Ordre.Couper in c.observer(bt.copy(gameShow = false, blindLecture = true)))
+    }
+
+    @Test
+    fun `la musique d'attente du blind test boucle sans blanc, 13,5 s en WAV 44,1 kHz stereo`() {
+        val f = java.io.File("src/main/res/raw/gs_bt_attente.wav")
+        val octets = f.readBytes()
+        val e = lireEnteteWav(octets.copyOf(512), octets.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(2, e.canaux)
+        val secondes = e.octetsDonnees / (44_100.0 * 2 * 2)
+        assertEquals(13.52, secondes, 0.02)
+    }
+
+    @Test
     fun `blind test, une box qui se reconnecte ne rejoue ni le generique ni les points doubles`() {
         val d = DirecteurSonore()
         val o = d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 14, equipes = 2, jeuBuzz = true, musical = true,
