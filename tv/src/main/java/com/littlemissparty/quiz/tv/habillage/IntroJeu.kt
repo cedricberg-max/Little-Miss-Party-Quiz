@@ -122,6 +122,12 @@ private fun ressourceIntroJeu(nom: String): Int = when (nom) {
  * choix de cedric le 29/10), seule à tourner sans fin jusqu'à « ▶ Lancer l'épreuve ».
  */
 internal fun repriseIntroJeu(nom: String): Int? = if (nom == "duel") REPRISE_INTRO_DUEL_MS else null
+
+/**
+ * Volume de la piste son d'une vidéo d'intro (0 : muette, la plupart). Le Simon du Prof (cedric, 29/10) : des bruitages
+ * discrets (−29 LUFS) mixés pour passer par-dessus sa musique, qui continue ; ils tournent avec la vidéo.
+ */
+internal fun volumeIntroJeu(nom: String): Float = if (nom == "simon") 1f else 0f
 internal const val REPRISE_INTRO_DUEL_MS = 21_720
 internal const val BOUCLE_INTRO_DUEL_MS = 12_000
 
@@ -133,11 +139,11 @@ private val LARGEUR_TITRE_INTRO = 520.dp
 
 /**
  * Intro d'un jeu, design « The Game Show » (cedric, 24 octobre : l'intro fait office d'emblème) : la vidéo du jeu,
- * rendue à l'avance en 3D (16 s en boucle, muette : le robot y joue au jeu), en plein écran, et « PROCHAIN JEU » et le
+ * rendue à l'avance en 3D (16 s en boucle, muette sauf [volumeIntroJeu] : le robot y joue au jeu), en plein écran, et « PROCHAIN JEU » et le
  * nom du jeu écrits en direct en bas à gauche, sur le sol du plateau, sous le robot et à gauche du bouton de
  * l'animatrice. [video] faux (pause) : la vidéo s'arrête. Elle attend [DELAI_INTRO_JEU_MS] puis apparaît en fondu ;
  * pendant ce temps le décor du dessous ne lit pas son propre fond vidéo ([Habillage.introJeu] : une vidéo à la fois).
- * Si elle ne se lit pas, l'écran dessiné d'avant revient. Aucun son, rien de focalisable.
+ * Si elle ne se lit pas, l'écran dessiné d'avant revient. Pas de son de l'habillage (la piste de la vidéo seulement, voir [volumeIntroJeu]), rien de focalisable.
  */
 @Composable
 internal fun IntroJeuGameShow(titre: String, famille: String, nom: String, video: Boolean, modifier: Modifier = Modifier) {
@@ -177,7 +183,7 @@ internal fun IntroJeuGameShow(titre: String, famille: String, nom: String, video
             AndroidView(
                 factory = {
                     LecteurFond(
-                        it, ressourceIntroJeu(nom), surPret = { prete = true }, repriseMs = repriseIntroJeu(nom),
+                        it, ressourceIntroJeu(nom), surPret = { prete = true }, repriseMs = repriseIntroJeu(nom), volume = volumeIntroJeu(nom),
                         surEchec = {
                             Sons.incident("Intro du jeu « $nom » : la vidéo a lâché (${GelFond.fondsOuverts} vidéos ouvertes), essai ${essai + 1}")
                             echec = true
