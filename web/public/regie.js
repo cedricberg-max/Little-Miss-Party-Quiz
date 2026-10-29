@@ -601,6 +601,16 @@ function versClassement(st, libelle) {
   return derniere(st) ? "Résultats finaux 🏆" : libelle;
 }
 
+/**
+ * Fin des coffres mystères : pas de tableau des scores, chaque coffre a déjà montré le classement (cedric, 28/10) ;
+ * le bouton annonce le jeu suivant, ou les résultats finaux si c'était le dernier jeu.
+ */
+function finCoffresLabel(st) {
+  if (derniere(st)) return "Résultats finaux 🏆";
+  const { next, questions } = gamesOf(st);
+  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Question suivante";
+}
+
 function nextLabel(st, teamCount) {
   if (blindMode(st)) {
     const b = st.blind;
@@ -621,7 +631,7 @@ function nextLabel(st, teamCount) {
     case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : versClassement(st, "Voir le classement")) : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
-    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : expressSuivante(st) ? "Affirmation suivante ▶" : versClassement(st, "Voir les scores");
+    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : expressSuivante(st) ? "Affirmation suivante ▶" : st.kind === "coffres" ? finCoffresLabel(st) : versClassement(st, "Voir les scores");
     case "scores": {
       const { next, questions } = gamesOf(st);
       // Bilan d'un jeu quitté en cours de route (cedric, 24/10) : « suivant » ouvre le jeu choisi.

@@ -1,6 +1,5 @@
 package com.littlemissparty.quiz.tv
 
-import com.littlemissparty.quiz.engine.SIMON_CHIFFRES_MS
 import com.littlemissparty.quiz.engine.SIMON_PAS_MS
 import com.littlemissparty.quiz.engine.SIMON_REGARDEZ_MS
 import com.littlemissparty.quiz.engine.SIMON_VERIF_FIN_MS
@@ -45,9 +44,10 @@ class SimonEcranTest {
     }
 
     @Test
-    fun `premiere suite a chiffres - l'annonce d'abord, une seule fois dans le jeu`() {
-        assertEquals(EtapeSimon.CHIFFRES, vueSimon(tour(4), t0 + 100, 10).etape)
-        assertEquals(EtapeSimon.REGARDEZ, vueSimon(tour(4), t0 + SIMON_CHIFFRES_MS, 10).etape)
+    fun `plus de chiffres - la suite de 4 commence directement par regardez bien`() {
+        // cedric, 29/10 : seulement des boules de couleur, plus d'annonce « Les chiffres débarquent ».
+        assertEquals(EtapeSimon.REGARDEZ, vueSimon(tour(4), t0 + 100, 10).etape)
+        assertEquals(EtapeSimon.REGARDEZ, vueSimon(tour(8), t0 + 100, 10).etape)
         assertEquals(EtapeSimon.REGARDEZ, vueSimon(tour(4, chiffresVus = true), t0 + 100, 10).etape)
     }
 

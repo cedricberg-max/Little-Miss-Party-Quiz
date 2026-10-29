@@ -379,7 +379,7 @@ object Codec {
             "reponseAt" to r?.takeIf { it.enCours }?.reponseAt,
             "finAt" to r?.takeIf { it.enCours }?.finAt(q?.simonSec ?: SIMON_REPONSE_SEC),
             // Le pavé des chiffres des tablettes : dès la première suite à chiffres, une fois annoncés.
-            "chiffres" to (r != null && (r.chiffresVus || (r.enCours && r.suite >= SIMON_CHIFFRES_DES))),
+            "chiffres" to (SIMON_AVEC_CHIFFRES && r != null && (r.chiffresVus || (r.enCours && r.suite >= SIMON_CHIFFRES_DES))),
             "teams" to r?.teams,
             "out" to r?.out?.ifEmpty { null },
             "players" to r?.let { rr -> rr.teams.associateWith { rr.joueur(it, joueurs) } },

@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.SIMON_CHIFFRES_MS
+import com.littlemissparty.quiz.engine.SIMON_AVEC_CHIFFRES
 import com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES
 import com.littlemissparty.quiz.engine.SIMON_PAS_MS
 import com.littlemissparty.quiz.engine.SIMON_VERIF_FIN_MS
@@ -183,7 +184,7 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
         if (vue.etape != EtapeSimon.VERIF || v == null || r == null || vue.colonne !in 0 until v.suite) return@LaunchedEffect
         if (maintenant() - (v.at + vue.colonne * SIMON_VERIF_PAS_MS) > 400) return@LaunchedEffect
         val solution = r.sequence.take(v.suite)
-        if (v.answers.values.any { erreurSimon(it.items, solution) == vue.colonne }) sonSimon(Son.MALUS)
+        if (v.answers.values.any { erreurSimon(it.items, solution) == vue.colonne }) sonSimon(Son.RATE)
         else NotesSimon.jouer(solution[vue.colonne])
     }
     LaunchedEffect(vue.etape == EtapeSimon.BILAN, v?.at) {
@@ -344,7 +345,7 @@ private fun BoxScope.Montre(r: SimonRound, vue: VueSimon, cle: Any?) {
     Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(top = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         TexteNeon("REGARDEZ BIEN…", Color(0xFFB8FFE0), 84f, PoliceGsTitre, largeurMax = (l - 100f).dp, force = 0.6f)
         Text(
-            if (r.suite >= SIMON_CHIFFRES_DES) "Couleurs et chiffres mélangés" else "Le robot montre la suite", maxLines = 1,
+            if (SIMON_AVEC_CHIFFRES && r.suite >= SIMON_CHIFFRES_DES) "Couleurs et chiffres mélangés" else "Le robot montre la suite", maxLines = 1,
             style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = 30.sp, letterSpacing = 0.08.em, color = Color(0xFF8FF6D0)),
             modifier = Modifier.padding(top = 10.dp),
         )
