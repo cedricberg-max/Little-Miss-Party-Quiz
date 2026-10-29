@@ -44,6 +44,24 @@ if (process.env.MODE === "menage" && !locale) {
   console.log(res.ok ? "Ménage fait." : `Écriture refusée : ${res.status}`);
   process.exit(res.ok ? 0 : 1);
 }
+// MODE=menage2 (cedric, 29/10 : « Oui, tu peux faire le ménage dans la régie ») : efface les prestations restantes,
+// sauf « Anniversaire Marco Mouly » et toute fête datée du 1er décembre 2026 ou après (les vraies fêtes commencent le
+// 2/12 : celles-là sont gardées et signalées). Le journal ne montre ni titre ni prénom.
+if (process.env.MODE === "menage2" && !locale) {
+  const shows = (await get("library/shows")) ?? {};
+  const manches = (await get("library/manches")) ?? {};
+  const autres = Object.entries(shows).filter(([id, x]) => x && id !== "anniversaire-marco-mouly");
+  const vraie = ([, x]) => `${x.date ?? ""}` >= "2026-12-01";
+  for (const [id, x] of autres) console.log(`${vraie([id, x]) ? "Gardée (date de vraie fête)" : "Effacée"} : ${id} · date ${x.date ?? "?"} · ${x.status ?? "?"} · ${(Array.isArray(x.rounds) ? x.rounds : Object.values(x.rounds ?? {})).length} jeux · origine ${x.origin ?? "-"}`);
+  const effacees = autres.filter((e) => !vraie(e)).map(([id]) => id);
+  const manchesEffacees = Object.entries(manches).filter(([, m]) => effacees.includes(m?.showId)).map(([id]) => id);
+  console.log(`${effacees.length} prestations et ${manchesEffacees.length} manches à effacer`);
+  if (!effacees.length) process.exit(0);
+  const chemins = Object.fromEntries([...effacees.map((id) => [`library/shows/${id}`, null]), ...manchesEffacees.map((id) => [`library/manches/${id}`, null])]);
+  const res = await fetch(`${base}/.json?access_token=${token}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(chemins) });
+  console.log(res.ok ? "Ménage fait." : `Écriture refusée : ${res.status}`);
+  process.exit(res.ok ? 0 : 1);
+}
 const [quizzes, contents, deja, songs] = await Promise.all([get("library/quizzes"), get("library/contents"), get(`library/shows/${ID}`), get("library/songs")]);
 const packs = Object.entries(quizzes ?? {}).filter(([id, q]) => q?.pack === true && !id.startsWith("test-"));
 const parSorte = (k) => packs.filter(([, q]) => quizKind(q) === k);
