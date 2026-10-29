@@ -2248,6 +2248,41 @@ const vignetteObjet = (o) => (o.imageId ? photoBibliotheque(o.imageId, { class: 
     : h("span", { class: "grille-vignette emoji", text: o.image ?? "❔", title: o.word }));
 
 /**
+ * Petite image recadrable d'un objet de Qui a disparu ? (cedric, 29/10 : « réajuster la place précise de la photo dans
+ * le carré ») : la carte est carrée sur la TV ; un clic ouvre le même cadrage que les « … complet », et l'image
+ * recadrée ne vaut que pour cette prestation. L'objet est remplacé par une copie dans sa série (un objet tiré au 🎲
+ * peut venir du catalogue de l'appli, jamais modifié). Un émoji n'a rien à recadrer.
+ */
+function objetRecadrable(img, r, m, k, changer) {
+  const o = m.objects?.[k];
+  if (img?.tagName !== "IMG" || !o || !(IMAGE_ID.test(o.imageId ?? "") || o.banque)) return img;
+  img.classList.add("recadrable");
+  img.title = `${o.word ?? ""} · cliquer pour recadrer l'image comme sur la TV (pour cette prestation seulement)`;
+  img.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const source = IMAGE_ID.test(o.imageId ?? "") ? await imageDeLaBibliotheque(o.imageId) : cheminPhotoBanque(o.banque);
+    await cadrer(source, "vignette", async (blob) => {
+      const id = await storeChoiceImage(blob);
+      // Le « complet » montre des copies : le tour gardé dans sa série se retrouve par sa clé, l'objet par son mot.
+      const enListe = (x) => (Array.isArray(x) ? x : Object.values(x ?? {}));
+      const cle = CONTENT_GAMES.disparu.key(m);
+      const serie = (r.seriesMots ?? []).find((x) => enListe(x?.mots).some((y) => y && y.vide !== true && CONTENT_GAMES.disparu.key(y) === cle));
+      if (!serie) return;
+      serie.mots = enListe(serie.mots);
+      const i = serie.mots.findIndex((y) => y && y.vide !== true && CONTENT_GAMES.disparu.key(y) === cle);
+      const tour = serie.mots[i];
+      const objets = enListe(tour.objects);
+      const j = objets.findIndex((x) => x?.word === o.word);
+      if (j < 0) return;
+      const { banque: _, image: __, ...reste } = objets[j];
+      serie.mots[i] = { ...tour, objects: objets.map((x, n) => (n === j ? { ...reste, imageId: id } : x)) };
+      changer();
+    });
+  });
+  return img;
+}
+
+/**
  * « ⭐ Composer une grille avec vos images » (Qui a disparu ?, cedric 24/10) : de 5 à 12 de vos images (« Mes images »),
  * cherchées par nom, catégorie ou mot-clé ; le nom de chaque image est le mot à trouver. [ajouterGrille] reçoit les objets.
  */
@@ -2859,7 +2894,7 @@ function mancheMots(r) {
     const autre = autreJeu(m);
     return [quisuis ? vignette(m) : null, h("span", { class: "tirage-texte mot-texte" }, nomDe(m),
       quisuis ? h("small", { class: "mot-indices", text: m.clues.join(" · ") }) : null,
-      disparu ? h("span", { class: "grille-vignettes" }, ...(m.objects ?? []).map(vignetteObjet)) : null,
+      disparu ? h("span", { class: "grille-vignettes" }, ...(m.objects ?? []).map((o, k) => objetRecadrable(vignetteObjet(o), r, m, k, changer))) : null,
       autre ? h("small", { class: "mot-deja", text: `Déjà dans « ${autre} »` }) : null)];
   };
   // ✕ : au 🎲, un 🎲 prend sa place ; écrit à la main, il part.

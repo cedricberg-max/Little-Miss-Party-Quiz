@@ -8097,6 +8097,46 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 29/10) : Qui a disparu ?, un clic sur la petite image d'une carte la recadre (carré, comme sur la TV) pour cette prestation seulement ; Annuler ne change rien ; un émoji ne se recadre pas", async () => {
+    const PNG = `data:image/png;base64,${png([200, 80, 40]).toString("base64")}`;
+    const VELO = "b1b1b1b1b1b1b1b1";
+    await seedLibrary("images", { [VELO]: PNG });
+    const objets = [{ word: "Vélo", imageId: VELO }, { word: "Chat", image: "🐱" }, { word: "Pomme", image: "🍎" }, { word: "Ballon", image: "⚽" }];
+    await seedLibrary("shows/remi", { childName: "Rémi", title: "Anniversaire de Rémi", age: 9, date: "2099-12-03", status: "publiee", updatedAt: 1,
+      rounds: [{ type: "disparu", objects: 4, seriesMots: [{ id: "i1", origine: "images", mots: [{ theme: "Vos images 1", objects: objets }] }] }] });
+    const page = await admin();
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.locator('#show-list [data-show="remi"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
+    const round = page.locator('#show-rounds .jeu-bloc[data-jeu="disparu"] .round');
+    const vignette = round.locator(".quiz-complet .grille-vignette").first();
+    await vignette.waitFor();
+    assert.equal(await round.locator(".quiz-complet img.grille-vignette.recadrable").count(), 1, "seule l'image se recadre");
+    const taille = await vignette.evaluate((el) => [el.getBoundingClientRect().width, el.getBoundingClientRect().height]);
+    assert.ok(Math.abs(taille[0] - taille[1]) < 1, `carrée comme sur la TV (${taille})`);
+    await vignette.click();
+    await page.locator(".cadre-boite").waitFor();
+    await page.locator(".cadre-boite button", { hasText: "Annuler" }).click();
+    await page.locator(".cadre-boite").waitFor({ state: "detached" });
+    await vignette.click();
+    const avant = await vignette.getAttribute("src");
+    await page.locator(".cadre-zoom").fill("2");
+    await page.locator(".cadre-boite button", { hasText: "Valider le cadrage" }).click();
+    await page.locator(".cadre-boite").waitFor({ state: "detached" });
+    await waitFor(async () => (await round.locator(".quiz-complet .grille-vignette").first().getAttribute("src")) !== avant, "la vignette montre l'image recadrée");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const remi = await library("shows/remi");
+    const apres = remi.rounds[0].seriesMots[0].mots[0].objects;
+    assert.equal(apres[0].word, "Vélo");
+    assert.match(apres[0].imageId, /^[0-9a-f]{16}$/);
+    assert.notEqual(apres[0].imageId, VELO, "l'image recadrée");
+    assert.equal(typeof (await library(`images/${apres[0].imageId}`)), "string", "rangée dans la bibliothèque");
+    assert.equal(await library(`images/${VELO}`), PNG, "l'image d'origine reste");
+    assert.deepEqual(apres.slice(1), objets.slice(1));
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 27/10) : Qui a disparu ? en émojis, en images réelles ou mixte ; aux images réelles, seulement les images carrées bien cadrées des packs, jamais leurs paysages", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const PNG = (k) => `data:image/png;base64,${png([20 * k, 200 - 15 * k, 90]).toString("base64")}`;
