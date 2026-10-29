@@ -33,7 +33,7 @@ private const val FONDU_OUTRO_MS = 500
 internal const val FONDU_APRES_OUTRO_MS = 1_500
 
 /**
- * Fin du Game Show quand le podium s'éteint ([Tempo.PODIUM_FIN]) : l'outro du robot qui rentre chez lui en fusée
+ * Fin du Game Show quand Sarah la lance après le podium (« ▶ Lancer la fin ») : l'outro du robot qui rentre chez lui en fusée
  * (116,8 s, son et textes dans la vidéo, fondu au noir puis environ 3 s de noir sans son), puis l'écran de fin cinéma
  * ([FinCinemaGameShow]) qui sort de ce noir en fondu, avec le dernier groove d'Aerodynamic qui démarre seulement
  * là (pendant l'outro, le directeur sonore se tait : [Instant.outro]). Sans le fichier, ou si la vidéo ne se lit pas,

@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.habillage
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
+import android.media.AudioTimestamp
 import android.media.AudioTrack
 import android.media.MediaPlayer
 import android.os.Handler
@@ -44,6 +45,8 @@ internal class BouclePcm private constructor(
     private val fermer: () -> Unit,
     private val format: FormatWav,
     override val periodeMs: Long?,
+    /** Image où la boucle repart à chaque tour (0 : du début ; au-delà, ce qui précède est une intro jouée une fois). */
+    private val reprise: Long,
     private val surTour: ((Long) -> Unit)?,
     private val signaler: (String) -> Unit,
 ) : LitSonore {
@@ -64,6 +67,10 @@ internal class BouclePcm private constructor(
     /** Images écrites dans la sortie depuis le dernier départ, et où chaque tour commence parmi elles. */
     private var ecrites = 0L
     private val debutsDeTour = ArrayDeque<Long>()
+    /** Départ sur une sortie toute neuve (ses images comptent depuis 0) : sa latence se mesure ([latenceMs]). */
+    @Volatile private var departNs = 0L
+    @Volatile private var aMesurer = false
+    private val horodatage = AudioTimestamp()
     private val fil: Thread
 
     private val canal = if (format.canaux == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
@@ -114,6 +121,7 @@ internal class BouclePcm private constructor(
         synchronized(verrou) {
             if (libere) return
             epoque++
+            val neuve = piste == null
             val p = try {
                 piste ?: ouvrirPiste().also { piste = it }
             } catch (e: Exception) {
@@ -127,6 +135,8 @@ internal class BouclePcm private constructor(
             debutsDeTour.clear()
             surTour?.invoke(SystemClock.elapsedRealtime() - ms)
             runCatching { p.setVolume(volume) }
+            departNs = System.nanoTime()
+            aMesurer = neuve
             try {
                 p.play()
             } catch (e: IllegalStateException) {
@@ -187,9 +197,9 @@ internal class BouclePcm private constructor(
                 // Tours qui commencent dans ce bloc (sauf le tout premier départ, déjà annoncé par demarrer).
                 val tours = mutableListOf<Long>()
                 var rempli = 0
-                for ((debut, n) in morceauxBoucle(depuis, bloc.toLong(), format.images)) {
+                for ((debut, n) in morceauxBoucle(depuis, bloc.toLong(), format.images, reprise)) {
                     val ici = base + rempli / format.octetsParImage
-                    if (debut == 0L && ici > 0) tours += ici
+                    if (debut == reprise && ici > 0) tours += ici
                     val bb = ByteBuffer.wrap(octets, rempli, (n * format.octetsParImage).toInt())
                     var pos = format.debutDonnees + debut * format.octetsParImage
                     while (bb.hasRemaining()) {
@@ -210,10 +220,11 @@ internal class BouclePcm private constructor(
                     }
                     if (r == 0) Thread.sleep(PAUSE_ECRITURE_MS) else ecrit += r
                     annoncerTours(piste)
+                    mesurerLatence(piste)
                 }
                 synchronized(verrou) {
                     if (epoque != ep || ecrit < rempli) return@synchronized
-                    lecture = (depuis + bloc) % format.images
+                    lecture = imageApres(depuis, bloc.toLong(), format.images, reprise)
                     ecrites = base + bloc
                     debutsDeTour.addAll(tours)
                 }
@@ -225,6 +236,19 @@ internal class BouclePcm private constructor(
             enPanne = true
             synchronized(verrou) { joue = false }
         }
+    }
+
+    /**
+     * Sortie toute neuve : quand sa première image s'est entendue, d'après l'horodatage de la sortie (image n à
+     * l'instant t, donc l'image 0 à t − n / fréquence), le temps qu'il a fallu depuis le départ ([latenceMs]).
+     */
+    private fun mesurerLatence(piste: AudioTrack) {
+        if (!aMesurer) return
+        val ok = runCatching { piste.getTimestamp(horodatage) }.getOrDefault(false)
+        if (!ok || horodatage.framePosition <= 0) return
+        aMesurer = false
+        val premiere = horodatage.nanoTime - horodatage.framePosition * 1_000_000_000L / format.frequence
+        noterLatence((premiere - departNs) / 1_000_000L)
     }
 
     /** Le début d'un tour vient de s'entendre (la tête de lecture de la sortie l'a passé) : la vidéo s'y recale. */
@@ -243,11 +267,32 @@ internal class BouclePcm private constructor(
         private const val PAUSE_ECRITURE_MS = 8L
 
         /**
+         * Temps (ms) entre le départ d'une boucle sur une sortie neuve et sa première image entendue, mesuré sur cette box
+         * à chaque nouvelle sortie (moyenne glissante) ; -1 tant qu'aucune mesure. Sert à faire partir une boucle un
+         * peu en avance pour qu'elle s'entende pile au bon moment ([Ordre.Enchainer]).
+         */
+        @Volatile var latenceMs: Long = -1L
+            private set
+
+        internal fun noterLatence(ms: Long) {
+            latenceMs = moyenneLatence(latenceMs, ms)
+        }
+
+        /** Nouvelle moyenne : une mesure hors de 0..[LATENCE_MAX_MS] (horloge bousculée) ne compte pas. */
+        internal fun moyenneLatence(avant: Long, mesure: Long): Long = when {
+            mesure !in 0..LATENCE_MAX_MS -> avant
+            avant < 0 -> mesure
+            else -> (avant * 3 + mesure) / 4
+        }
+
+        internal const val LATENCE_MAX_MS = 400L
+
+        /**
          * La boucle du fichier [res] s'il est en WAV PCM 16 bits ; null sinon (le fichier est alors lu par deux
          * lecteurs, comme avant).
          */
         fun ouvrir(
-            context: Context, res: Int, surTour: ((Long) -> Unit)?, tempoMs: Long, signaler: (String) -> Unit,
+            context: Context, res: Int, surTour: ((Long) -> Unit)?, tempoMs: Long, signaler: (String) -> Unit, repriseMs: Long = 0,
         ): BouclePcm? {
             val afd = context.resources.openRawResourceFd(res) ?: return null
             val flux = try { afd.createInputStream() } catch (e: Exception) { afd.close(); return null }
@@ -257,7 +302,8 @@ internal class BouclePcm private constructor(
                 val f = lireEnteteWav(tete.copyOf(maxOf(lu, 0)), afd.length) ?: run { flux.close(); afd.close(); return null }
                 val decale = f.copy(debutDonnees = afd.startOffset + f.debutDonnees)
                 val periode = f.dureeMs.takeIf { kotlin.math.abs(it - tempoMs) > 250 }
-                return BouclePcm(flux, { flux.close(); afd.close() }, decale, periode, surTour, signaler)
+                val reprise = (repriseMs * f.frequence / 1000).takeIf { it in 0 until f.images } ?: 0L
+                return BouclePcm(flux, { flux.close(); afd.close() }, decale, periode, reprise, surTour, signaler)
             } catch (e: Exception) {
                 runCatching { flux.close() }
                 runCatching { afd.close() }

@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -38,10 +39,12 @@ class GameTest {
         assertEquals(Phase.ENDED, g.state.phase)
         assertEquals(
             // Après la toute dernière révélation, plus de classement : les résultats finaux (cedric, 27/10).
-            listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL, Phase.SCORES).let { it + it } + listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL, Phase.ENDED),
+            // Puis, sur le podium, « ▶ Lancer la fin » (cedric, 29/10) : la partie reste terminée.
+            listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL, Phase.SCORES).let { it + it } + listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL, Phase.ENDED, Phase.ENDED),
             phases,
         )
-        assertNull(g.next(t), "Après la fin, suivant ne fait plus rien")
+        assertNotNull(g.state.outroAt)
+        assertNull(g.next(t), "Après la fin lancée, suivant ne fait plus rien")
     }
 
     @Test

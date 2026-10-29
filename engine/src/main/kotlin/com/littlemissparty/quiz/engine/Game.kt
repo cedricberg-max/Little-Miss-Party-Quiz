@@ -132,6 +132,11 @@ data class GameState(
      */
     val endedAt: Long? = null,
     /**
+     * Heure du serveur où l'animatrice a lancé la fin après le podium ([OutroLaunched]), seulement tant que la partie
+     * est terminée : la TV quitte alors la boucle d'attente du podium pour l'outro et l'écran de fin.
+     */
+    val outroAt: Long? = null,
+    /**
      * Un point a déjà été donné ou retiré depuis le début de la partie (question, mime, coffre, ballon, statue, bombe,
      * correction de la régie…), même annulé ensuite : la prestation ne peut plus être remplacée ([Game.mayReplaceProgram]).
      */
@@ -336,7 +341,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         // Un score qui bouge, quel que soit le jeu : la prestation ne pourra plus être remplacée.
         val scored = next.scored || next.scores().filterValues { it != 0 } != state.scores().filterValues { it != 0 }
         // Heure de fin gardée seulement tant que la partie reste terminée (reprise après la fin : plus de fin).
-        state = next.copy(lastSeq = event.seq, endedAt = next.endedAt.takeIf { next.phase == Phase.ENDED }, scored = scored)
+        state = next.copy(
+            lastSeq = event.seq, endedAt = next.endedAt.takeIf { next.phase == Phase.ENDED },
+            outroAt = next.outroAt.takeIf { next.phase == Phase.ENDED }, scored = scored,
+        )
         // Remise à zéro : le journal de la partie repart d'elle (un jeu de l'ancien programme n'est jamais « rejoué »).
         if (event is ProgramReset) log.clear()
         log += event
@@ -548,7 +556,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (e.target !in s.adjustments) null
             else s.copy(adjustments = s.adjustments - e.target)
         is GameEnded ->
-            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null, intro = false, endedAt = e.at, statues = null, duel = null, simon = null)
+            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null, intro = false, endedAt = e.at, outroAt = null, statues = null, duel = null, simon = null)
+        // Une seule fois, et seulement la partie terminée.
+        is OutroLaunched -> if (s.phase != Phase.ENDED || s.outroAt != null) null else s.copy(outroAt = e.at)
         // Mauvaise prestation : retour au salon d'attente, comme une partie neuve (jamais après un point, ni après la fin).
         is ProgramReset -> if (!replaceable(s)) null else GameState()
         is PictoShown -> {
@@ -1004,7 +1014,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             else -> scoresOuFin(now)
         }
         Phase.SCORES -> leaveTarget?.let { goto(it, now) } ?: if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
-        Phase.ENDED -> null
+        // Après le podium (la musique attend en boucle) : « ▶ Lancer la fin », une seule fois.
+        Phase.ENDED -> if (state.outroAt == null) emit(OutroLaunched(nextSeq, now)) else null
     }
 
     /**

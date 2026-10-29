@@ -301,11 +301,13 @@ class DirecteurSonore {
                 // Game Show : le podium sur Digital Love (cedric, 23 octobre). La chanson part sur « why don't you
                 // play the game » pendant que les jauges montent, roulement de tambour par-dessus ; le solo de guitare
                 // tombe sur le nom du gagnant (Tempo.PODIUM_REVELATION) ; à la fin de la chanson, l'écran de fin et le
-                // dernier groove d'Aerodynamic. Tout est dans gs_podium : rien d'autre ne joue.
+                // dernier groove d'Aerodynamic. Juste avant la note grave de 4:07, gs_podium s'arrête et la boucle d'attente
+                // enchaîne pile à sa coupe (écho, boucle sans guitare) jusqu'à « ▶ Lancer la fin » (cedric, 29/10).
+                // Box qui revient alors que la fin est déjà lancée : la musique de la fin, sans rejouer le podium.
+                if (i.finLancee) return listOf(Ordre.Couper, Ordre.Musique(if (i.outro) Ambiance.SILENCE else Ambiance.AU_REVOIR))
                 o += Ordre.Musique(Ambiance.SILENCE)
                 o += Ordre.Jouer(Son.PODIUM)
-                // Avec l'outro du robot en fusée, le groove d'Aerodynamic attend la fin de la vidéo (l'écran le lance).
-                if (!i.outro) o += Ordre.Musique(Ambiance.AU_REVOIR, Tempo.PODIUM_FIN, Tempo.FONDU_AU_REVOIR)
+                o += Ordre.Enchainer(Son.PODIUM, Tempo.PODIUM_COUPE, Ambiance.PODIUM_ATTENTE)
             } else {
                 o += Ordre.Musique(Ambiance.SILENCE)
                 // Grand gagnant : long roulement qui monte pendant tout le suspense, la montée arrive sur la fin.
@@ -324,6 +326,14 @@ class DirecteurSonore {
 
     private fun memeEcran(p: Instant, i: Instant): List<Ordre> {
         val o = mutableListOf<Ordre>()
+        // « ▶ Lancer la fin » sur le podium du Game Show : le podium (ou sa boucle d'attente) s'éteint en fondu sous
+        // l'arrivée de l'outro ; sans la vidéo de l'outro, l'écran de fin et le groove d'Aerodynamic.
+        if (i.ecran == Ecran.FIN && i.gameShow && i.finLancee && !p.finLancee) {
+            o += Ordre.Couper
+            o += Ordre.Musique(Ambiance.SILENCE, fonduMs = Tempo.FONDU_LANCER_FIN)
+            if (!i.outro) o += Ordre.Musique(Ambiance.AU_REVOIR, fonduMs = Tempo.FONDU_AU_REVOIR)
+            return o
+        }
         if (i.equipes > p.equipes) o += Ordre.Jouer(Son.equipe(i.equipes - 1))
         // Buzzer de l'accueil, pour s'amuser : chaque appui fait le bruit rigolo de l'équipe, autant de fois qu'elle veut.
         // Game Show : le mot robot de l'équipe, celui de son arrivée et de ses buzz en jeu (cedric, 23 octobre : il
@@ -487,7 +497,14 @@ class DirecteurSonore {
             i.superFinale && i.ecran == Ecran.QUESTION -> Ambiance.DECISIVE
             else -> ambianceParDefaut(i.ecran)
         }
-        Ecran.FIN -> if (i.gameShow) Ambiance.AU_REVOIR else ambianceParDefaut(i.ecran)
+        // Game Show : la boucle d'attente du podium tant que Sarah n'a pas lancé la fin ; pendant l'outro (sa vidéo a son
+        // propre son), rien ; l'écran lance le groove d'Aerodynamic après elle.
+        Ecran.FIN -> when {
+            !i.gameShow -> ambianceParDefaut(i.ecran)
+            !i.finLancee -> Ambiance.PODIUM_ATTENTE
+            i.outro -> Ambiance.SILENCE
+            else -> Ambiance.AU_REVOIR
+        }
         else -> ambianceParDefaut(i.ecran)
     }
 
@@ -603,6 +620,8 @@ data class Instant(
     val gameShow: Boolean = false,
     /** Game Show avec la vidéo de l'outro dans l'appli ([Outro]) : après le podium, l'écran lance lui-même la musique de fin. */
     val outro: Boolean = false,
+    /** Game Show, après le podium : Sarah a lancé la fin (« ▶ Lancer la fin ») ; avant, la musique attend en boucle. */
+    val finLancee: Boolean = false,
     /**
      * Game Show : la grosse intro du lancement passe en plein écran avec sa propre musique (Get Lucky) ; l'habillage
      * se tait jusqu'à sa fin, puis l'écran du moment (la présentation du 1er jeu) entre normalement.
@@ -622,7 +641,7 @@ enum class Ecran { HORS_PARTIE, SALON, PRESENTATION, QUESTION, MIMES, MIMES_TOUR
  * Les boucles musicales de 16 s (8 mesures à 120 BPM), toujours calées sur le même tempo. [gs] : boucle propre au
  * Game Show, sans équivalent classique ([fichier] null : le Classique ne la charge pas).
  */
-enum class Lit(val fichier: String?, val gs: String? = null) {
+enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long = 0) {
     COMPLET("lmp_bed_full"),
     LEGER("lmp_bed_light"),
     MIMES("lmp_bed_mimes"),
@@ -659,6 +678,14 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
      * comme l'accueil.
      */
     BT_ATTENTE(null, "gs_bt_attente"),
+    /**
+     * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
+     * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
+     * sans guitare (vitesse d'origine, calée sur la mesure) qui entre dessous pendant que le son descend en 2 s jusqu'à
+     * -6 dB ; puis, à [repriseMs], 8 mesures de boucle pure qui tournent jusqu'à « ▶ Lancer la fin ». Niveau déjà réglé
+     * dans le fichier (le même que le podium) : son ambiance le joue à plein volume.
+     */
+    PODIUM_ATTENTE(null, "gs_podium_attente", repriseMs = PODIUM_ATTENTE_REPRISE_MS),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -707,6 +734,8 @@ enum class Ambiance(
      * le morceau (cedric, 29/10) ; Classique : le silence d'avant.
      */
     BT_ATTENTE(gameShow = mapOf(Lit.BT_ATTENTE to 0.49f)),
+    /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
+    PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
      * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
      * trop éteint (cedric, 24/10).
@@ -896,12 +925,19 @@ sealed interface Ordre {
     data class Reprendre(val son: Son, val dansMs: Long = 0) : Ordre
     /** Annule les sons prévus et fait taire les sons longs en cours (changement d'écran, pause). */
     data object Couper : Ordre
+    /**
+     * Quand le son long [son] (lancé juste avant) arrive à [aMs] de sa lecture, passe sans fondu à l'[ambiance] : son
+     * fichier enchaîne pile sur la fin du son. Calé sur la position réelle du son peu avant ([Tempo.ENCHAINER_AVANT]),
+     * pas seulement sur l'horloge : la box met plus ou moins de temps à démarrer un son. Annulé par [Couper].
+     */
+    data class Enchainer(val son: Son, val aMs: Long, val ambiance: Ambiance) : Ordre
 
     fun decale(ms: Long): Ordre = when (this) {
         is Jouer -> copy(dansMs = dansMs + ms)
         is Musique -> copy(dansMs = dansMs + ms)
         is Caler -> copy(dansMs = dansMs + ms)
         is Reprendre -> copy(dansMs = dansMs + ms)
+        is Enchainer -> copy(aMs = aMs + ms)
         else -> this
     }
 }
@@ -947,11 +983,15 @@ object Tempo {
     const val FIN_MUSIQUE = 17_000L
     /**
      * Podium du Game Show (gs_podium) : les jauges montent sur « why don't you play the game », le solo de guitare
-     * de Digital Love tombe à [PODIUM_REVELATION] sur le nom du gagnant ; l'écran de fin arrive quand la chanson
-     * s'éteint, à [PODIUM_FIN], sur le dernier groove d'Aerodynamic.
+     * de Digital Love tombe à [PODIUM_REVELATION] sur le nom du gagnant ; gs_podium s'arrête à [PODIUM_COUPE] (4:07 de
+     * la chanson, juste avant la note grave de trop) et [Lit.PODIUM_ATTENTE] enchaîne pile là (cedric, 29/10).
      */
     const val PODIUM_REVELATION = 15_444L
-    const val PODIUM_FIN = 102_500L
+    const val PODIUM_COUPE = 50_089L
+    /** « ▶ Lancer la fin » : la boucle d'attente du podium s'éteint doucement sous le fondu de l'outro. */
+    const val FONDU_LANCER_FIN = 1_500L
+    /** [Ordre.Enchainer] relit la position du son ce temps-là avant l'enchaînement. */
+    const val ENCHAINER_AVANT = 1_500L
     const val FONDU_AU_REVOIR = 2_000L
     /** Coup de cuivres du « Top départ » des mimes, après les deux coups de sifflet. */
     const val MIME_TOP_IMPACT = 500L
@@ -997,6 +1037,8 @@ internal fun vitesseEtiree(dureeFichierMs: Int, etireSurMs: Long): Float =
 
 /** Un son étiré ne descend pas sous cette vitesse : au-delà, il deviendrait pâteux. */
 internal const val VITESSE_MIN = 0.6f
+/** gs_podium_attente : l'écho et la descente durent 11,54 s, puis la boucle pure (8 mesures) tourne depuis là. */
+internal const val PODIUM_ATTENTE_REPRISE_MS = 11_540L
 
 /** Simon : musique sous les notes des boules (avant le 28/10 au soir : 0,84 et 0,55, les notes s'y perdaient). */
 internal const val SIMON_MUSIQUE_SUITE = 0.6f

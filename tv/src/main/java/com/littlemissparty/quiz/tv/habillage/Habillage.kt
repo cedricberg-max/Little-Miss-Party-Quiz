@@ -233,6 +233,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
         gameShow = Look.gs,
         outro = Look.gs && Outro.disponible,
+        finLancee = s.phase == Phase.ENDED && s.outroAt != null,
         lancement = lancement,
     )
 }

@@ -137,6 +137,12 @@ data class Undone(override val seq: Int, override val at: Long, val target: Int)
 data class GameEnded(override val seq: Int, override val at: Long) : GameEvent
 
 /**
+ * Game Show : après le podium, la musique attend en boucle pendant que l'animatrice parle aux enfants ; son « ▶ Lancer
+ * la fin » (le bouton « suivant » de la fin de partie) lance l'outro du robot en fusée puis l'écran de fin (cedric, 29/10).
+ */
+data class OutroLaunched(override val seq: Int, override val at: Long) : GameEvent
+
+/**
  * Mauvaise prestation lancée (cedric, 21/10) : la régie en a choisi une autre alors que la partie avait commencé, mais
  * qu'aucun point n'avait encore été donné ([Game.mayReplaceProgram]). La partie repart du salon d'attente avec le
  * nouveau programme ; tout ce qui précède dans le journal est ignoré (progression, réglages), la numérotation continue.

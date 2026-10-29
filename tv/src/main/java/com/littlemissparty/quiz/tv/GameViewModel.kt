@@ -120,6 +120,11 @@ sealed interface UiState {
         /** Heure du serveur où le chrono atteint zéro (null en pause ou hors question). */
         val deadline: Long? = null,
         val remainingMs: Long = 0,
+        /**
+         * Game Show : heure du serveur où Sarah a lancé la fin après le podium (« ▶ Lancer la fin »), null tant que la
+         * musique du podium attend en boucle (et hors fin de partie).
+         */
+        val outroAt: Long? = null,
         val answered: Set<String> = emptySet(),
         val awards: Map<String, Award> = emptyMap(),
         val scores: Map<String, Int> = emptyMap(),
@@ -1303,6 +1308,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 paused = s.paused,
                 pauseReason = s.hold?.reason,
                 resumeAt = s.resumeAt,
+                outroAt = s.outroAt,
                 deadline = g.deadline(),
                 tempsEcoule = g.tempsEcoule(),
                 // « Ça va exploser ! » : la mèche tirée au sort remplace la durée de la question.

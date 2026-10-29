@@ -37,6 +37,7 @@ object Codec {
             is ScoreAdjusted -> mapOf("type" to "adjust", "team" to e.team, "delta" to e.delta, "reason" to e.reason)
             is Undone -> mapOf("type" to "undo", "target" to e.target)
             is GameEnded -> mapOf("type" to "end")
+            is OutroLaunched -> mapOf("type" to "outro")
             is MimeTurnStarted -> mapOf("type" to "mime_start", "team" to e.team)
             is PictoShown -> mapOf("type" to "picto_show", "team" to e.team)
             is PictoChosen -> mapOf("type" to "picto_choose", "choice" to e.choice)
@@ -120,6 +121,7 @@ object Codec {
             "adjust" -> ScoreAdjusted(seq, at, m["team"] as String, m.num("delta").toInt(), m["reason"] as? String ?: "")
             "undo" -> Undone(seq, at, m.num("target").toInt())
             "end" -> GameEnded(seq, at)
+            "outro" -> OutroLaunched(seq, at)
             "mime_start" -> MimeTurnStarted(seq, at, m["team"] as String)
             "picto_show" -> PictoShown(seq, at, m["team"] as String)
             "picto_choose" -> PictoChosen(seq, at, m.num("choice").toInt())
@@ -258,6 +260,7 @@ object Codec {
         )
         // Partie terminée : son heure de fin (serveur), pour le ménage des copies des médias par la Régie PC.
         if (s.phase == Phase.ENDED) s.endedAt?.let { out["endedAt"] = it }
+        if (s.phase == Phase.ENDED) s.outroAt?.let { out["outroAt"] = it }
         // Un point a déjà été donné : la régie ne propose plus « Mauvaise prestation ? » (la box la refuserait).
         if (s.scored) out["scored"] = true
         // Bilan d'un jeu quitté en cours de route : la régie annonce le jeu choisi (première question).

@@ -936,20 +936,32 @@ class DirecteurSonoreTest {
         val classique = DirecteurSonore().apply { observer(q2) }.observer(Instant(Ecran.FIN, partie = "ABCD", index = 1))
         assertTrue(Son.FANFARE in classique.sons())
         assertFalse(Son.PODIUM in classique.sons())
-        // Game Show : la chanson du podium seule, puis le dernier groove d'Aerodynamic quand elle s'éteint.
+        // Game Show : la chanson du podium seule ; à sa coupe, la boucle d'attente enchaîne (cedric, 29/10), sans fin.
         val d = DirecteurSonore()
         d.observer(q2.copy(gameShow = true))
         val fin = Instant(Ecran.FIN, partie = "ABCD", index = 1, gameShow = true)
         val o = d.observer(fin)
         assertEquals(listOf(Son.PODIUM), o.sons())
-        assertTrue(Ordre.Musique(Ambiance.AU_REVOIR, Tempo.PODIUM_FIN, Tempo.FONDU_AU_REVOIR) in o)
+        assertTrue(Ordre.Enchainer(Son.PODIUM, Tempo.PODIUM_COUPE, Ambiance.PODIUM_ATTENTE) in o)
+        assertTrue("plus de fin toute seule", o.none { it is Ordre.Musique && it.ambiance == Ambiance.AU_REVOIR })
         assertTrue(d.observer(fin).isEmpty())
-        assertTrue(Tempo.PODIUM_REVELATION < Tempo.PODIUM_FIN)
+        assertTrue(Tempo.PODIUM_REVELATION < Tempo.PODIUM_COUPE)
         // Une box qui revient sur le podium le rejoue, comme l'écran.
         assertEquals(listOf(Son.PODIUM), DirecteurSonore().observer(fin).sons())
-        // Après une pause sur le podium : l'écran de fin.
+        // Après une pause sur le podium : la boucle d'attente.
         d.observer(fin.copy(enPause = true))
-        assertEquals(Ambiance.AU_REVOIR, d.observer(fin).musique())
+        assertEquals(Ambiance.PODIUM_ATTENTE, d.observer(fin).musique())
+        // « ▶ Lancer la fin » (sans la vidéo de l'outro) : le podium s'éteint en fondu, l'écran de fin et son groove.
+        val lancee = d.observer(fin.copy(finLancee = true))
+        assertTrue(Ordre.Couper in lancee)
+        assertTrue(Ordre.Musique(Ambiance.SILENCE, fonduMs = Tempo.FONDU_LANCER_FIN) in lancee)
+        assertEquals(Ambiance.AU_REVOIR, lancee.musique())
+        assertTrue(lancee.sons().isEmpty())
+        assertTrue("un second appui ne relance rien", d.observer(fin.copy(finLancee = true)).isEmpty())
+        // Une box qui revient après le lancement : l'écran de fin et son groove, sans rejouer le podium.
+        val retour = DirecteurSonore().observer(fin.copy(finLancee = true))
+        assertTrue(retour.sons().isEmpty())
+        assertEquals(Ambiance.AU_REVOIR, retour.musique())
         // La boucle de fin n'existe qu'en Game Show ; en Classique, cette ambiance est la musique de fête.
         assertEquals(0.75f, Ambiance.AU_REVOIR.volume(Lit.FIN, gs = true), 0f)
         assertEquals(0f, Ambiance.AU_REVOIR.volume(Lit.COMPLET, gs = true), 0f)
@@ -971,6 +983,40 @@ class DirecteurSonoreTest {
         val retour = DirecteurSonore().observer(fin)
         assertEquals(listOf(Son.PODIUM), retour.sons())
         assertTrue(retour.none { it is Ordre.Musique && it.ambiance == Ambiance.AU_REVOIR })
+        assertTrue(Ordre.Enchainer(Son.PODIUM, Tempo.PODIUM_COUPE, Ambiance.PODIUM_ATTENTE) in o)
+        // « ▶ Lancer la fin » : le podium (ou sa boucle d'attente) s'éteint sous l'outro, qui a son propre son.
+        val lancee = d.observer(fin.copy(finLancee = true))
+        assertEquals(listOf(Ordre.Couper, Ordre.Musique(Ambiance.SILENCE, fonduMs = Tempo.FONDU_LANCER_FIN)), lancee)
+        // Box qui revient pendant l'outro : rien ne rejoue le podium.
+        assertEquals(listOf(Ordre.Couper, Ordre.Musique(Ambiance.SILENCE)), DirecteurSonore().observer(fin.copy(finLancee = true)))
+    }
+
+    @Test
+    fun `fin du podium - la boucle d'attente suit pile la coupe de gs_podium et reboucle sans son intro`() {
+        // Seule sa boucle, à plein volume (le niveau est réglé dans le fichier), et aucune autre ambiance ne la joue.
+        assertEquals(1f, Ambiance.PODIUM_ATTENTE.volume(Lit.PODIUM_ATTENTE, gs = true), 0f)
+        Lit.entries.filter { it != Lit.PODIUM_ATTENTE }.forEach { assertEquals("$it", 0f, Ambiance.PODIUM_ATTENTE.volume(it, gs = true), 0f) }
+        Ambiance.entries.filter { it != Ambiance.PODIUM_ATTENTE }.forEach { assertEquals("$it", 0f, it.volume(Lit.PODIUM_ATTENTE, gs = true), 0f) }
+        assertNull(Lit.PODIUM_ATTENTE.fichierPour(false))
+        // Le fichier : 44,1 kHz stéréo 16 bits ; l'écho et la descente (11,54 s, un nombre rond d'images), puis
+        // 8 mesures de Digital Love à son tempo d'origine (124,73 BPM), qui tournent sans fin.
+        val wav = java.io.File("src/main/res/raw/gs_podium_attente.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(2, e.canaux)
+        val reprise = Lit.PODIUM_ATTENTE.repriseMs * 44_100 / 1000
+        assertEquals("reprise à l'image près", 0L, Lit.PODIUM_ATTENTE.repriseMs * 44_100 % 1000)
+        assertEquals(8 * 4 * 0.481050, (e.images - reprise) / 44_100.0, 0.001)
+        // Raccord de la boucle : la dernière image enchaîne sur celle de la reprise sans saut.
+        fun image(i: Long) = java.nio.ByteBuffer.wrap(wav, (e.debutDonnees + i * 4).toInt(), 4).order(java.nio.ByteOrder.LITTLE_ENDIAN).let { it.short.toInt() to it.short.toInt() }
+        val (g1, d1) = image(e.images - 1)
+        val (g2, d2) = image(reprise)
+        assertTrue("raccord $g1/$d1 → $g2/$d2", kotlin.math.abs(g1 - g2) < 600 && kotlin.math.abs(d1 - d2) < 600)
+        // gs_podium s'arrête à la coupe (fin de la dernière page Ogg = nombre d'images décodées).
+        val ogg = java.io.File("src/main/res/raw/gs_podium.ogg").readBytes()
+        val derniere = (ogg.size - 4 downTo 0).first { ogg[it] == 'O'.code.toByte() && ogg[it + 1] == 'g'.code.toByte() && ogg[it + 2] == 'g'.code.toByte() && ogg[it + 3] == 'S'.code.toByte() }
+        val images = java.nio.ByteBuffer.wrap(ogg, derniere + 6, 8).order(java.nio.ByteOrder.LITTLE_ENDIAN).long
+        assertEquals(Tempo.PODIUM_COUPE.toDouble(), images * 1000.0 / 44_100, 2.0)
     }
 
     @Test
