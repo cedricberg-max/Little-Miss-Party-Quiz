@@ -71,7 +71,7 @@ class FinDeLaFeteTest : TestTv() {
      * de fin ne se lit pas (écran de secours dessiné), la ligne reste au moins sous « Merci d'avoir participé ! ».
      */
     private fun bientotSousLEnseigne() {
-        // Le podium joue d'abord sa chanson (Tempo.PODIUM_FIN, 102,5 s), puis l'outro du robot en fusée (115,5 s, si elle est
+        // Le podium joue d'abord sa chanson (Tempo.PODIUM_FIN, 102,5 s), puis l'outro du robot en fusée (116,8 s, si elle est
         // dans l'appli), puis l'écran de fin écrit « À bientôt » 6 s après.
         if (Outro.disponible) {
             SystemClock.sleep(Tempo.PODIUM_FIN + 20_000)

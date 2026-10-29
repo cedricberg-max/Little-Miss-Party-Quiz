@@ -97,5 +97,5 @@ fun IntroLancement(s: UiState.Playing) {
  */
 internal const val FIN_INTRO_MS = 30_600
 internal const val FONDU_INTRO_MS = 1_000
-/** Son de la vidéo (−14,3 LUFS) ramené au niveau de la musique du podium (−15,8 LUFS, jouée à plein volume). */
+/** Son de la vidéo (−14,3 LUFS), un peu baissé. Pour comparer : la musique du podium est à −10,6 LUFS (jouée à plein volume). */
 internal const val VOLUME_INTRO = 0.85f

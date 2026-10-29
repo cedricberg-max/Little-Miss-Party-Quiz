@@ -25,7 +25,7 @@ object Outro {
     val disponible: Boolean get() = resId != 0
 }
 
-/** Son de l'outro, tout mixé dans la vidéo (−15,6 LUFS) : déjà au niveau de la musique du podium (−15,8 LUFS, à plein volume). */
+/** Son de l'outro, tout mixé dans la vidéo (−11,0 LUFS) : déjà au niveau de la musique du podium (−10,6 LUFS, à plein volume). */
 internal const val VOLUME_OUTRO = 1f
 /** L'outro arrive sur la fin du podium comme l'écran de fin d'avant : en fondu sur le plateau. */
 private const val FONDU_OUTRO_MS = 500
@@ -34,7 +34,7 @@ internal const val FONDU_APRES_OUTRO_MS = 1_500
 
 /**
  * Fin du Game Show quand le podium s'éteint ([Tempo.PODIUM_FIN]) : l'outro du robot qui rentre chez lui en fusée
- * (115,5 s, son et textes dans la vidéo, fondu au noir puis environ 3 s de noir sans son), puis l'écran de fin cinéma
+ * (116,8 s, son et textes dans la vidéo, fondu au noir puis environ 3 s de noir sans son), puis l'écran de fin cinéma
  * ([FinCinemaGameShow]) qui sort de ce noir en fondu, avec le dernier groove d'Aerodynamic qui démarre seulement
  * là (pendant l'outro, le directeur sonore se tait : [Instant.outro]). Sans le fichier, ou si la vidéo ne se lit pas,
  * l'écran de fin arrive directement, comme avant. Une seule vidéo à la fois ([Habillage.finVideo]).
