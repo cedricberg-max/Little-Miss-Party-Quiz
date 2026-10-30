@@ -1,0 +1,114 @@
+TOUR|5|BILAN|coupés=8|bloqués=1
+TOUR|5|blind-test-buzz|coupés=0|chevauchements=0|plus petit=21 px « Les Comètes Filantes »|
+TOUR|5|blind-test-ecoute|coupés=0|chevauchements=0|plus petit=21 px « 100 points »|
+TOUR|5|blind-test-presentation|coupés=0|chevauchements=0|plus petit=20 px « Morceau 1 / 1 · 100 points »|
+TOUR|5|blind-test-revelation|coupés=0|chevauchements=0|plus petit=18 px « 100 points »|
+TOUR|5|ca-va-exploser-bombe|coupés=0|chevauchements=0|plus petit=17 px « Les Licornes Roses »|
+TOUR|5|chante-le-mot-buzz|coupés=0|chevauchements=0|plus petit=21 px « Les Comètes Filantes »|
+TOUR|5|chante-le-mot-question|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|5|chante-le-mot-revelation|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|5|coffres-choix|coupés=0|chevauchements=0|plus petit=25 px « Les Comètes Filantes »|
+TOUR|5|coffres-ouverture|coupés=2|chevauchements=3|plus petit=21 px « Score »|« Bonus ! » rogné ou à cheval sur le bord ; « +300 POINTS » rogné ou à cheval sur le bord ; « BONUS ! » et « Bonus ! » se chevauchent ; « Les Comètes Filantes » et « Bonus ! » se chevauchent ; « Les Comètes Filantes » et « +300 POINTS » se chevauchent
+TOUR|5|coffres|BLOQUÉ|« Le classement » n'apparaît pas à l'écran
+TOUR|5|duel-face-a-face|coupés=0|chevauchements=0|plus petit=17 px « JOUEUR N° 1 »|
+TOUR|5|duel-pret|coupés=0|chevauchements=0|plus petit=19 px « 🤠 LE DUEL DES ROBOTS 1 / 3 »|
+TOUR|5|gonfleur-course|coupés=0|chevauchements=0|plus petit=18 px « Les Licornes Roses »|
+TOUR|5|gonfleur-depart|coupés=0|chevauchements=0|plus petit=18 px « Les Licornes Roses »|
+TOUR|5|image-floue-buzz|coupés=0|chevauchements=0|plus petit=21 px « Les Comètes Filantes »|
+TOUR|5|image-floue-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|5|image-floue-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|5|juste-chiffre-question|coupés=3|chevauchements=0|plus petit=21 px « Le Juste Chiffre question 1 / 1 »|« 0 » rogné ou à cheval sur le bord ; « 2 » rogné ou à cheval sur le bord ; « 9 » rogné ou à cheval sur le bord
+TOUR|5|juste-chiffre-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|5|mimes-bravo|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|5|mimes-changement|coupés=6|chevauchements=0|plus petit=21 px « Les Licornes Roses »|« Au tour de Les Panthères Noires ! » rogné ou à cheval sur le bord ; « 🔄 » rogné ou à cheval sur le bord ; « Au mimeur suivant ! » rogné ou à cheval sur le bord ; « Le mimeur face à l'écran ! » rogné ou à cheval sur le bord ; « 1 » rogné ou à cheval sur le bord ; « trouvé » rogné ou à cheval sur le bord
+TOUR|5|mimes-presentation|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|5|mimes-tour|coupés=9|chevauchements=0|plus petit=21 px « Les Licornes Roses »|« Au tour de Les Panthères Noires ! » rogné ou à cheval sur le bord ; « 🦛 » rogné ou à cheval sur le bord ; « Hippopotame » rogné ou à cheval sur le bord ; « 0 » rogné ou à cheval sur le bord ; « trouvé » rogné ou à cheval sur le bord ; « … » ligne 1 de « Les Comètes Filantes » ; mot coupé : « Les Comètes Filan | tes » ; « … » ligne 1 de « Les Panthères Noires » ; mot coupé : « Les Panthères Noi | res »
+TOUR|5|pictionary-au-tour-de|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|5|pictionary-choix|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|5|pictionary-dessin|coupés=0|chevauchements=0|plus petit=20 px «  dessine ! »|
+TOUR|5|pictionary-presentation|coupés=0|chevauchements=1|plus petit=21 px « Les Licornes Roses »|« PICTIONARY » et « Un enfant dessine sur la tablette de son équipe, le dessin apparaît ici en direct. Son équipe a 90 secondes pour trouver le mot : 100 points ! » se chevauchent
+TOUR|5|pictionary-trouve|coupés=0|chevauchements=0|plus petit=20 px « Le mot »|
+TOUR|5|podium|coupés=2|chevauchements=0|plus petit=13 px « by »|« Bravo à toutes les équipes ! » rogné ou à cheval sur le bord ; « Victoire de Les Panthères Noires » rogné ou à cheval sur le bord
+TOUR|5|qui-a-disparu-buzz|coupés=0|chevauchements=0|plus petit=21 px « Les Comètes Filantes »|
+TOUR|5|qui-a-disparu-chercher|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|5|qui-a-disparu-memoriser|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|5|qui-a-disparu-revelation|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|5|qui-suis-je-buzz|coupés=0|chevauchements=0|plus petit=21 px « Les Comètes Filantes »|
+TOUR|5|qui-suis-je-question|coupés=0|chevauchements=0|plus petit=19 px « dès que vous savez qui je suis »|
+TOUR|5|qui-suis-je-revelation|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Panthères Noires ! »|
+TOUR|5|quiz-illustre-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|5|quiz-illustre-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|5|quiz-musical-paroles|coupés=4|chevauchements=0|plus petit=21 px « Comptine »|« Pour » rogné ou à cheval sur le bord ; « écrire » rogné ou à cheval sur le bord ; « un » rogné ou à cheval sur le bord ; « mot » rogné ou à cheval sur le bord
+TOUR|5|quiz-musical-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|5|quiz-musical-revelation|coupés=5|chevauchements=0|plus petit=21 px « Comptine »|« Au clair de la lune » rogné ou à cheval sur le bord ; « Comptine » rogné ou à cheval sur le bord ; « Bravo Les Dragons Dorés ! » rogné ou à cheval sur le bord ; « TOUT LE MONDE CHANTE ! » rogné ou à cheval sur le bord ; « clair » rogné ou à cheval sur le bord
+TOUR|5|quiz-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|5|quiz-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|5|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|5|scores|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|5|simon-a-vous|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|5|simon-pret|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|5|simon-regardez|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|5|statues-danse|coupés=0|chevauchements=1|plus petit=18 px « BOUGEZ TANT QUE LA MUSIQUE JOUE »|« N » et « S » se chevauchent
+TOUR|5|statues-gagnante|coupés=4|chevauchements=0|plus petit=22 px « Les Comètes Filantes »|« Les Dragons Dorés » rogné ou à cheval sur le bord ; « +150 » rogné ou à cheval sur le bord ; « Les Comètes Filantes » rogné ou à cheval sur le bord ; « Les Pirates du Lac » rogné ou à cheval sur le bord
+TOUR|5|statues-statue|coupés=0|chevauchements=0|plus petit=24 px « Statues musicales »|
+TOUR|5|vrai-faux-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|5|vrai-faux-revelation|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|5|zoom-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|5|zoom-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|6|BILAN|coupés=7|bloqués=1
+TOUR|6|blind-test-buzz|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|6|blind-test-ecoute|coupés=0|chevauchements=0|plus petit=21 px « 100 points »|
+TOUR|6|blind-test-presentation|coupés=0|chevauchements=0|plus petit=20 px « Morceau 1 / 1 · 100 points »|
+TOUR|6|blind-test-revelation|coupés=0|chevauchements=0|plus petit=18 px « 100 points »|
+TOUR|6|ca-va-exploser-bombe|coupés=0|chevauchements=0|plus petit=13 px « Les Licornes Roses »|
+TOUR|6|chante-le-mot-buzz|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|6|chante-le-mot-question|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|6|chante-le-mot-revelation|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|6|coffres-choix|coupés=0|chevauchements=0|plus petit=25 px « Les Comètes Filantes »|
+TOUR|6|coffres-ouverture|coupés=2|chevauchements=1|plus petit=21 px « Oups ! »|« Oups ! » rogné ou à cheval sur le bord ; « −100 POINTS » rogné ou à cheval sur le bord ; « Les Comètes Filantes » et « −100 POINTS » se chevauchent
+TOUR|6|coffres|BLOQUÉ|« Le classement » n'apparaît pas à l'écran
+TOUR|6|duel-face-a-face|coupés=0|chevauchements=0|plus petit=17 px « JOUEUR N° 1 »|
+TOUR|6|duel-pret|coupés=0|chevauchements=0|plus petit=19 px « 🤠 LE DUEL DES ROBOTS 1 / 3 »|
+TOUR|6|gonfleur-course|coupés=0|chevauchements=0|plus petit=13 px « Les Licornes Roses »|
+TOUR|6|gonfleur-depart|coupés=0|chevauchements=0|plus petit=13 px « Les Licornes Roses »|
+TOUR|6|image-floue-buzz|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|6|image-floue-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|6|image-floue-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|6|juste-chiffre-question|coupés=4|chevauchements=0|plus petit=21 px « Le Juste Chiffre question 1 / 1 »|« 9 » rogné ou à cheval sur le bord ; « 1 » rogné ou à cheval sur le bord ; « 0 » rogné ou à cheval sur le bord ; « 7 » rogné ou à cheval sur le bord
+TOUR|6|juste-chiffre-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|6|mimes-bravo|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|6|mimes-changement|coupés=6|chevauchements=0|plus petit=21 px « Les Licornes Roses »|« Au tour de Les Fusées Rouges ! » rogné ou à cheval sur le bord ; « 🔄 » rogné ou à cheval sur le bord ; « Au mimeur suivant ! » rogné ou à cheval sur le bord ; « Le mimeur face à l'écran ! » rogné ou à cheval sur le bord ; « 1 » rogné ou à cheval sur le bord ; « trouvé » rogné ou à cheval sur le bord
+TOUR|6|mimes-presentation|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|6|mimes-tour|coupés=5|chevauchements=0|plus petit=21 px « Les Licornes Roses »|« Au tour de Les Fusées Rouges ! » rogné ou à cheval sur le bord ; « 🦛 » rogné ou à cheval sur le bord ; « Hippopotame » rogné ou à cheval sur le bord ; « 0 » rogné ou à cheval sur le bord ; « trouvé » rogné ou à cheval sur le bord
+TOUR|6|pictionary-au-tour-de|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|6|pictionary-choix|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|6|pictionary-dessin|coupés=0|chevauchements=0|plus petit=20 px «  dessine ! »|
+TOUR|6|pictionary-presentation|coupés=0|chevauchements=1|plus petit=21 px « Les Licornes Roses »|« PICTIONARY » et « Un enfant dessine sur la tablette de son équipe, le dessin apparaît ici en direct. Son équipe a 90 secondes pour trouver le mot : 100 points ! » se chevauchent
+TOUR|6|pictionary-trouve|coupés=0|chevauchements=0|plus petit=20 px « Le mot »|
+TOUR|6|podium|coupés=1|chevauchements=0|plus petit=13 px « by »|« Bravo à toutes les équipes ! » rogné ou à cheval sur le bord
+TOUR|6|qui-a-disparu-buzz|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|6|qui-a-disparu-chercher|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|6|qui-a-disparu-memoriser|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|6|qui-a-disparu-revelation|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|6|qui-suis-je-buzz|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|6|qui-suis-je-question|coupés=0|chevauchements=0|plus petit=19 px « dès que vous savez qui je suis »|
+TOUR|6|qui-suis-je-revelation|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Fusées Rouges ! »|
+TOUR|6|quiz-illustre-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|6|quiz-illustre-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|6|quiz-musical-paroles|coupés=0|chevauchements=0|plus petit=21 px « Comptine »|
+TOUR|6|quiz-musical-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|6|quiz-musical-revelation|coupés=7|chevauchements=0|plus petit=21 px « Comptine »|« Au clair de la lune » rogné ou à cheval sur le bord ; « Comptine » rogné ou à cheval sur le bord ; « Bravo Les Dragons Dorés et Les Fusées Rouges ! » rogné ou à cheval sur le bord ; « TOUT LE MONDE CHANTE ! » rogné ou à cheval sur le bord ; « Au » rogné ou à cheval sur le bord ; « Les Dragons Dorés » rogné ou à cheval sur le bord ; « +117 » rogné ou à cheval sur le bord
+TOUR|6|quiz-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|6|quiz-revelation|coupés=0|chevauchements=0|plus petit=21 px « Les Comètes Filantes »|
+TOUR|6|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|6|scores|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|6|simon-a-vous|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|6|simon-pret|coupés=0|chevauchements=0|plus petit=13 px « Les Comètes Filantes »|
+TOUR|6|simon-regardez|coupés=0|chevauchements=0|plus petit=13 px « Les Comètes Filantes »|
+TOUR|6|statues-danse|coupés=0|chevauchements=1|plus petit=18 px « BOUGEZ TANT QUE LA MUSIQUE JOUE »|« N » et « S » se chevauchent
+TOUR|6|statues-gagnante|coupés=5|chevauchements=0|plus petit=22 px « Les Comètes Filantes »|« Les Dragons Dorés » rogné ou à cheval sur le bord ; « +150 » rogné ou à cheval sur le bord ; « Les Comètes Filantes » rogné ou à cheval sur le bord ; « Les Pirates du Lac » rogné ou à cheval sur le bord ; « Les Panthères Noires » rogné ou à cheval sur le bord
+TOUR|6|statues-statue|coupés=0|chevauchements=0|plus petit=24 px « Statues musicales »|
+TOUR|6|vrai-faux-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|6|vrai-faux-revelation|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|6|zoom-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|6|zoom-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
