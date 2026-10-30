@@ -95,6 +95,18 @@ object Sons {
     private var appli: Context? = null
     /** Tous les sons du démarrage sont chargés : une boucle absente ensuite est un incident. */
     private var chargementFini = false
+    /**
+     * Instant (SystemClock.uptimeMillis) où part la musique de la présentation d'un jeu ; 0 : aucune de prévue. Son
+     * intro vidéo l'attend ([attenteIntroMs]).
+     */
+    @Volatile private var musiqueIntroA = 0L
+
+    /**
+     * Attente (ms) avant de lancer une intro vidéo de jeu prête, pour que sa première image parte avec le début de sa
+     * musique, qui s'entend [BouclePcm.latenceMs] après son départ ; jamais plus de [ATTENTE_INTRO_MAX_MS].
+     */
+    fun attenteIntroMs(): Int = attenteIntro(musiqueIntroA, SystemClock.uptimeMillis(), BouclePcm.latenceMs)
+
     private val volumes = Lit.entries.associateWith { 0f }.toMutableMap()
     private var ambiance = Ambiance.SILENCE
     /** Dernière ambiance demandée, même encore programmée : c'est elle qu'on remet au retour au premier plan. */
@@ -277,6 +289,7 @@ object Sons {
                     is Ordre.Jouer -> plus(o.dansMs) { jouer(o.son, o.etireSurMs, o.gauche, o.droite, o.vitesse) }
                     is Ordre.Musique -> {
                         ambianceVoulue = o.ambiance
+                        if (o.ambiance.presentation) musiqueIntroA = SystemClock.uptimeMillis() + o.dansMs
                         plus(o.dansMs) { versAmbiance(o.ambiance, o.fonduMs) }
                     }
                     is Ordre.Caler -> plus(o.dansMs) { caler() }
@@ -462,6 +475,7 @@ object Sons {
     /** Annule ce qui était prévu et éteint en douceur les sons longs encore en cours. La musique, elle, continue. */
     private fun couper() {
         h.removeCallbacksAndMessages(prevus)
+        musiqueIntroA = 0L
         longs.keys.forEach { essayer("couper") { eteindre(it) } }
         // Le crayon se tait aussi ; le prochain point reçu le relance.
         if (crayonActif) {
@@ -563,6 +577,15 @@ object Sons {
             if (v == volumes.getValue(l)) return@forEach
             volumes[l] = v
             essayer("volume") { lits[l]?.setVolume(v) }
+        }
+        // Musique d'intro d'un jeu qui part (cedric, 30/10) : d'emblée à son volume, sans fondu d'entrée, pour que son
+        // début (trompettes, violon, « Oh-a-oh »…) s'entende en entier, du tout premier échantillon.
+        Lit.entries.forEach { l ->
+            val v = a.volume(l, Look.gs)
+            if (v > 0f && l.departFranc && volumes.getValue(l) == 0f && lits[l]?.isPlaying != true) {
+                volumes[l] = v
+                essayer("volume") { lits[l]?.setVolume(v) }
+            }
         }
         Lit.entries.forEach { if (a.volume(it, Look.gs) > 0f) reveiller(lits[it] ?: rechargerLit(it)) }
         val depart = volumes.toMap()
@@ -910,3 +933,9 @@ private class Boucle(
         }, apresMs)
     }
 }
+
+/** Voir [Sons.attenteIntroMs] ([a] : 0, aucune musique prévue ; [latence] < 0 : pas encore mesurée). */
+internal fun attenteIntro(a: Long, maintenant: Long, latence: Long): Int =
+    if (a <= 0L) 0 else (a + latence.coerceIn(0L, BouclePcm.LATENCE_MAX_MS) - maintenant).coerceIn(0L, ATTENTE_INTRO_MAX_MS).toInt()
+
+internal const val ATTENTE_INTRO_MAX_MS = 3_000L

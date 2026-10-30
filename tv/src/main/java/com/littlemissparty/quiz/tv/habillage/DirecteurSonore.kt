@@ -63,6 +63,9 @@ class DirecteurSonore {
     /** Une épreuve a changé pendant la pause : la transition sera jouée après le décompte. */
     private var transitionEnAttente = false
 
+    /** Présentation d'un jeu à intro vidéo, Game Show (le Duel et le Simon ont leur propre départ). */
+    private fun introCalee(i: Instant) = i.gameShow && !i.duel && !i.simon && nomIntroJeu(i.famille) != null
+
     private fun changeDEcran(a: Instant, b: Instant) = a.ecran != b.ecran || a.index != b.index || a.partie != b.partie
 
     /** Box qui démarre ou se reconnecte : seulement le générique d'une partie pas encore commencée, sinon la musique. */
@@ -125,6 +128,16 @@ class DirecteurSonore {
                 o += Ordre.Musique(Ambiance.SILENCE)
                 o += Ordre.Musique(Ambiance.DUEL_PRESENTATION, Tempo.DUEL_INTRO_BOUCLE, Tempo.FONDU_RELAIS)
                 o += Ordre.Caler(Tempo.DUEL_INTRO_BOUCLE)
+            } else if (introCalee(i)) {
+                // Game Show, jeu à intro vidéo (cedric, 30/10) : sa musique part du tout début de son fichier (le début
+                // joué une fois, puis la boucle), en même temps que la première image de la vidéo, qui l'attend
+                // ([Sons.attenteIntroMs]). Le jingle du rideau d'abord, s'il y en a un.
+                val dans = if (nouvelleEpreuve) Tempo.TRANSITION_MUSIQUE else Tempo.INTRO_MUSIQUE
+                o += Ordre.Jouer(if (nouvelleEpreuve) Son.TRANSITION else Son.WHOOSH)
+                o += Ordre.Musique(Ambiance.SILENCE)
+                // La boucle « fête » (16 s, calée sur le tempo commun) repart elle aussi de sa première mesure.
+                o += Ordre.Caler(dans)
+                o += Ordre.Musique(ambiance(i), dans)
             } else if (nouvelleEpreuve) {
                 // Présentation d'un jeu : le jingle du rideau, puis une musique douce sous la voix de Sarah.
                 o += Ordre.Jouer(Son.TRANSITION)
@@ -651,6 +664,12 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "gonfleur" to Ambiance.GONFLEUR_PRESENTATION,
 )
 
+/** Musique d'une présentation de jeu (Game Show) : son intro vidéo part avec elle ([Sons.attenteIntroMs]). */
+internal val Ambiance.presentation: Boolean get() = this == Ambiance.PRESENTATION || this in PRESENTATIONS_PROPRES.values
+
+/** Musique d'intro d'un jeu : elle part d'emblée à son volume, sans fondu d'entrée, du début de son fichier. */
+internal val Lit.departFranc: Boolean get() = name.endsWith("_INTRO")
+
 /** Qui a disparu ? : la boucle de Mission Impossible repart de là, après son début (échantillon 162 641 à 44,1 kHz). */
 internal const val DISPARU_INTRO_REPRISE_MS = 3_688L
 
@@ -1129,6 +1148,11 @@ object Tempo {
     const val BT_OUTRO_MUSIQUE = 4_000L
 
     const val TRANSITION_MUSIQUE = 2_000L
+    /**
+     * Game Show, présentation d'un jeu sans rideau (le premier, après la grande intro) : la musique attend ce temps, que la
+     * vidéo d'intro ait le temps d'être prête et parte avec elle.
+     */
+    const val INTRO_MUSIQUE = 1_000L
     /** Durée du rideau plein écran qui annonce un nouveau jeu (assez court pour ne pas retarder la fête). */
     const val TRANSITION_RIDEAU = 2_600L
     const val PAUSE_MUSIQUE = 1_500L

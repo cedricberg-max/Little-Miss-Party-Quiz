@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.habillage
 import com.littlemissparty.quiz.engine.Phase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -1487,5 +1488,79 @@ class DirecteurSonoreTest {
         assertEquals(44_100, e.frequence)
         assertEquals(671_940L, e.images)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `intro d'un jeu - sa musique part du debut de son fichier, sans fondu, en meme temps que la video qui l'attend`() {
+        // cedric, 30/10 : « tout commencera précisément au début de la boucle », et le petit début joué une fois part avec la vidéo.
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        val lancee = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true, famille = "quiz")
+        d.observer(lancee.copy(lancement = true))
+        // Premier jeu, juste après la grande intro (pas de rideau) : la musique attend que la vidéo soit prête.
+        assertEquals(
+            listOf(Ordre.Couper, Ordre.Jouer(Son.WHOOSH), Ordre.Musique(Ambiance.SILENCE), Ordre.Caler(Tempo.INTRO_MUSIQUE), Ordre.Musique(Ambiance.QUIZ_PRESENTATION, Tempo.INTRO_MUSIQUE)),
+            d.observer(lancee),
+        )
+        d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true, famille = "quiz"))
+        // Jeu suivant : le jingle du rideau, puis la musique d'intro, repartie de sa première mesure.
+        val vf = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 8, equipes = 2, epreuve = "express|", gameShow = true, famille = "express")
+        assertEquals(
+            listOf(Ordre.Couper, Ordre.Jouer(Son.TRANSITION), Ordre.Musique(Ambiance.SILENCE), Ordre.Caler(Tempo.TRANSITION_MUSIQUE), Ordre.Musique(Ambiance.VRAIFAUX_PRESENTATION, Tempo.TRANSITION_MUSIQUE)),
+            d.observer(vf),
+        )
+        assertTrue(Tempo.INTRO_MUSIQUE >= DELAI_INTRO_JEU_MS + 500)
+        // La boucle « fête » d'un jeu à intro vidéo repart aussi de sa première mesure.
+        d.observer(vf.copy(ecran = Ecran.QUESTION))
+        val patate = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 12, equipes = 2, epreuve = "patate|", gameShow = true, famille = "patate")
+        val o = d.observer(patate)
+        assertTrue(Ordre.Caler(Tempo.TRANSITION_MUSIQUE) in o)
+        assertEquals(Ordre.Musique(Ambiance.PRESENTATION, Tempo.TRANSITION_MUSIQUE), o.last())
+        // Sans intro vidéo (Juste Chiffre, Portes), en Classique, au Duel et au Simon : comme avant, sans calage.
+        listOf(
+            patate.copy(index = 14, epreuve = "juste|", famille = "juste"),
+            patate.copy(index = 16, epreuve = "portes|", famille = "portes"),
+            patate.copy(index = 18, epreuve = "duel|", famille = "duel", duel = true),
+            patate.copy(index = 20, epreuve = "simon|", famille = "simon", simon = true),
+        ).forEach { i ->
+            // Après un autre jeu : c'est bien un nouveau jeu, avec son rideau.
+            d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = i.index - 1, equipes = 2, epreuve = "quiz|Q${i.index}", gameShow = true, famille = "quiz"))
+            val arrivee = d.observer(i)
+            assertTrue(i.famille, Son.TRANSITION in arrivee.sons() || i.duel)
+            assertTrue(i.famille, arrivee.none { it is Ordre.Caler && it.dansMs == Tempo.TRANSITION_MUSIQUE })
+        }
+        val classique = DirecteurSonore()
+        classique.observer(salon.copy(equipes = 2))
+        classique.observer(lancee.copy(gameShow = false, ecran = Ecran.QUESTION))
+        assertTrue(classique.observer(vf.copy(gameShow = false)).none { it is Ordre.Caler })
+    }
+
+    @Test
+    fun `intro d'un jeu - chaque musique de presentation fait attendre la video, chaque musique d'intro part sans fondu`() {
+        PRESENTATIONS_PROPRES.values.forEach { assertTrue("$it", it.presentation) }
+        assertTrue(Ambiance.PRESENTATION.presentation)
+        listOf(Ambiance.DUEL_PRESENTATION, Ambiance.SIMON_ENTRE, Ambiance.QUESTION, Ambiance.SALON, Ambiance.SILENCE).forEach { assertFalse("$it", it.presentation) }
+        // Toutes les boucles des présentations propres partent franc ; la « fête » (partout ailleurs aussi) garde son fondu.
+        PRESENTATIONS_PROPRES.values.forEach { a -> Lit.entries.filter { a.volume(it, gs = true) > 0f }.forEach { assertTrue("$a $it", it.departFranc) } }
+        assertFalse(Lit.COMPLET.departFranc)
+        assertFalse(Lit.BT_ATTENTE.departFranc)
+        // Toutes les familles qui ont une musique propre ont une intro vidéo (sinon personne ne l'attendrait).
+        PRESENTATIONS_PROPRES.keys.forEach { assertNotNull(it, nomIntroJeu(it)) }
+    }
+
+    @Test
+    fun `intro d'un jeu - l'attente de la video jusqu'au depart de sa musique`() {
+        // Musique prévue dans 1,7 s, entendue 80 ms après son départ : la vidéo attend 1,78 s.
+        assertEquals(1_780, attenteIntro(a = 10_000L, maintenant = 8_300L, latence = 80L))
+        // Latence pas encore mesurée : on ne compte qu'à partir du départ.
+        assertEquals(1_700, attenteIntro(a = 10_000L, maintenant = 8_300L, latence = -1L))
+        // Musique déjà partie (vidéo lente, ou relancée) : elle démarre tout de suite.
+        assertEquals(0, attenteIntro(a = 10_000L, maintenant = 12_000L, latence = 80L))
+        // Aucune musique prévue (coupée) : aucune attente.
+        assertEquals(0, attenteIntro(a = 0L, maintenant = 12_000L, latence = 80L))
+        // Jamais plus de 3 s, même avec une horloge folle.
+        assertEquals(ATTENTE_INTRO_MAX_MS.toInt(), attenteIntro(a = 100_000L, maintenant = 1_000L, latence = 80L))
+        // Latence aberrante plafonnée.
+        assertEquals(1_700 + BouclePcm.LATENCE_MAX_MS.toInt(), attenteIntro(a = 10_000L, maintenant = 8_300L, latence = 99_999L))
     }
 }
