@@ -1199,7 +1199,7 @@ class DirecteurSonoreTest {
     fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
         val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
         // La boucle « fête » de Digital Love sous les intros, sauf le Duel, le Simon et le Blind test (cedric, 29/10).
-        listOf("juste", "patate", "statues", "musical", "").forEach {
+        listOf("juste", "patate", "gonfleur", "musical", "").forEach {
             assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
         }
         assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
@@ -1392,6 +1392,25 @@ class DirecteurSonoreTest {
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
         assertEquals(367_927L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation des Statues musicales - U Can't Touch This, boucle entiere`() {
+        val statues = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "statues|", gameShow = true, famille = "statues")
+        assertEquals(Ambiance.STATUES_PRESENTATION, ambiancePresentation(statues))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(statues.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.STATUES_PRESENTATION.volume(Lit.STATUES_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.STATUES_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.STATUES_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.STATUES_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.STATUES_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.STATUES_PRESENTATION, d.observer(statues).musique())
+        val wav = java.io.File("src/main/res/raw/gs_statues_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(636_307L, e.images)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 }
