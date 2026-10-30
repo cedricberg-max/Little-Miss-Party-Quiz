@@ -186,8 +186,9 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
             }
             verifier("coffres-ouverture", 1_200)
             // Le classement entre deux coffres (cedric, 30/10 : les ronds des rangs serrés dans leur carte).
-            ecran.voit("Le classement", 15_000)
-            verifier("coffres-classement", 1_200)
+            // Game Show : « LE CLASSEMENT » en capitales ; il ne reste que quelques secondes, capturé dès qu'il paraît.
+            attendreQue("classement des coffres", 15_000) { (ecran.affiche("LE CLASSEMENT") || ecran.affiche("Le classement")).takeIf { it } }
+            verifier("coffres-classement", 600)
         }
         jeu("gonfleur") {
             aller("t-gonfleur") { it.child("pump/key").value != null }
@@ -197,11 +198,12 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
             equipes.forEachIndexed { i, e -> e.gonfler(code, 8 + 7 * i) }
             verifier("gonfleur-course", 1_200)
         }
-        jeu("ca-va-exploser") {
+        // La bombe et le duel se jouent à deux équipes au moins : rien à voir avec une seule.
+        if (nombre >= 2) jeu("ca-va-exploser") {
             aller("t-patate") { it.child("potato/lit").value == true }
             verifier("ca-va-exploser-bombe", 1_200)
         }
-        jeu("duel") {
+        if (nombre >= 2) jeu("duel") {
             aller("t-duel") { it.child("duel/step").value == "ready" }
             verifier("duel-pret", 1_500)
             assertEquals("applied", regie.commande(code, "duel_start"))
