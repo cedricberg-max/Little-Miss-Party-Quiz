@@ -120,8 +120,8 @@ class IntroJeuTest {
 
     @Test
     fun `intros avec bruitages - leur son sort, les autres restent muettes`() {
-        val sonores = listOf("simon", "vraifaux", "disparu", "floue", "mimes", "picto", "statues", "quiz", "quisuisje", "gonfleur")
-        val muettes = listOf("illustre", "musical", "blind", "zoom", "chante", "patate", "coffres", "duel")
+        val sonores = listOf("simon", "vraifaux", "disparu", "floue", "mimes", "picto", "statues", "quiz", "quisuisje", "gonfleur", "illustre")
+        val muettes = listOf("musical", "blind", "zoom", "chante", "patate", "coffres", "duel")
         sonores.forEach { assertEquals(it, 1f, volumeIntroJeu(it), 0f) }
         muettes.forEach { assertEquals(it, 0f, volumeIntroJeu(it), 0f) }
         // Le fichier a une piste son (une piste « soun ») si et seulement si son son sort : jamais de bruitages perdus,
