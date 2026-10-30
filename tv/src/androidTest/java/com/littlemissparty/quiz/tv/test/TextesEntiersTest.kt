@@ -44,7 +44,7 @@ class TextesEntiersTest(private val nombre: Int) : TestTv() {
             "cards" to listOf(mapOf("word" to "J'ai de grandes oreilles rondes"), mapOf("word" to "Je porte une culotte rouge")),
         )
         val flou = mapOf(
-            "id" to "f1", "text" to "Qu'est-ce que c'est ?", "choices" to listOf("Un téléphérique"), "correct" to 0,
+            "id" to "f1", "text" to "Qu'est-ce que c'est ?", "choices" to listOf("Un téléphérique", "Un bateau"), "correct" to 0,
             "duration" to 60, "kind" to "flou", "double" to false, "round" to "Image floue", "imageId" to photo,
         )
         val picto = mapOf(
