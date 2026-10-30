@@ -690,6 +690,10 @@ internal const val QUIZ_INTRO_REPRISE_MS = 2_160L
 internal const val VRAIFAUX_INTRO_REPRISE_MS = 6_932L
 internal const val VRAIFAUX_INTRO_REPRISE_IMAGE = 305_706L
 
+/** Gonfleur fou : « Don't you know » une fois (7,42 s), puis la boucle au raccord adouci repart de cet échantillon. */
+internal const val GONFLEUR_INTRO_REPRISE_MS = 7_420L
+internal const val GONFLEUR_INTRO_REPRISE_IMAGE = 327_222L
+
 /** Musique de l'écran de présentation d'un jeu ([propres] : voir [PRESENTATIONS_PROPRES]). */
 internal fun ambiancePresentation(i: Instant, propres: Map<String, Ambiance> = PRESENTATIONS_PROPRES): Ambiance = when {
     i.duel -> Ambiance.DUEL_PRESENTATION
@@ -804,8 +808,12 @@ enum class Lit(
     MIMES_INTRO(null, "gs_mimes_intro"),
     /** Game Show, Statues musicales : la boucle sous leur vidéo d'intro dans la rue (cedric, 30/10) : U Can't Touch This, 14,43 s, boucle entière, −12 LUFS. */
     STATUES_INTRO(null, "gs_statues_intro"),
-    /** Game Show, Gonfleur fou : la boucle sous sa vidéo d'intro (cedric, 30/10) : « Don't you know » (remplace Pump It Up, 30/10), 7,42 s, boucle entière, −12 LUFS. */
-    GONFLEUR_INTRO(null, "gs_gonfleur_intro"),
+    /**
+     * Game Show, Gonfleur fou : la boucle sous sa vidéo d'intro (cedric, 30/10) : « Don't you know » (remplace Pump It Up),
+     * −12 LUFS. Premier passage net, le premier son pile sur le « Don't » ; puis la boucle au raccord adouci (la suite de la
+     * chanson glisse en 0,5 s vers le « Don't », validé le 30/10) repart de l'échantillon [GONFLEUR_INTRO_REPRISE_IMAGE].
+     */
+    GONFLEUR_INTRO(null, "gs_gonfleur_intro", repriseMs = GONFLEUR_INTRO_REPRISE_MS, repriseImage = GONFLEUR_INTRO_REPRISE_IMAGE),
     /** Game Show, Quiz illustré : la boucle sous sa vidéo d'intro (cedric, 30/10) : Des chiffres et des lettres, 19,05 s, boucle entière, −12 LUFS. */
     ILLUSTRE_INTRO(null, "gs_quizillustre_intro"),
     /** Game Show, Quiz musical : la boucle sous sa vidéo d'intro (cedric, 30/10) : Lady de Modjo, 15,24 s, boucle entière, −12 LUFS. */

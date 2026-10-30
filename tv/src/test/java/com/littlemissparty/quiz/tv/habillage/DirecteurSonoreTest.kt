@@ -1419,21 +1419,21 @@ class DirecteurSonoreTest {
     }
 
     @Test
-    fun `presentation du Gonfleur fou - Dont you know, boucle entiere`() {
+    fun `presentation du Gonfleur fou - Dont you know une fois, puis la boucle au raccord adouci`() {
         val gonfleur = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "gonfleur|", gameShow = true, famille = "gonfleur")
         assertEquals(Ambiance.GONFLEUR_PRESENTATION, ambiancePresentation(gonfleur))
         assertEquals(Ambiance.PRESENTATION, ambiancePresentation(gonfleur.copy(gameShow = false)))
         assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.GONFLEUR_PRESENTATION.volume(Lit.GONFLEUR_INTRO, gs = true), 0f)
         Lit.entries.filter { it != Lit.GONFLEUR_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.GONFLEUR_PRESENTATION.volume(it, gs = true), 0f) }
         assertNull(Lit.GONFLEUR_INTRO.fichierPour(false))
-        assertEquals(0L, Lit.GONFLEUR_INTRO.repriseMs)
+        assertEquals(327_222L, repriseEnImages(Lit.GONFLEUR_INTRO.repriseMs, Lit.GONFLEUR_INTRO.repriseImage, 44_100))
         val d = DirecteurSonore()
         d.observer(salon.copy(gameShow = true, equipes = 2))
         assertEquals(Ambiance.GONFLEUR_PRESENTATION, d.observer(gonfleur).musique())
         val wav = java.io.File("src/main/res/raw/gs_gonfleur_intro.wav").readBytes()
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
-        assertEquals(327_222L, e.images)
+        assertEquals(654_444L, e.images)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 
