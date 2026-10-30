@@ -420,9 +420,9 @@ describe("programme modifié pendant la partie", () => {
 
 describe("prestation de test (cedric, 24/10)", async () => {
   const S = await import("../web/public/show.js");
-  test("les 18 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
-    assert.equal(JEUX_DU_TEST.length, 18);
-    assert.equal(new Set(JEUX_DU_TEST).size, 18);
+  test("les 19 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
+    assert.equal(JEUX_DU_TEST.length, 19);
+    assert.equal(new Set(JEUX_DU_TEST).size, 19);
     assert.deepEqual([...JEUX_DU_TEST].sort(), Object.keys(S.ROUND_TYPES).filter((k) => !["finale", "portes"].includes(k)).sort());
     assert.equal(JEUX_DU_TEST.at(-1), "coffres");
   });
