@@ -3260,8 +3260,9 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
     assert.equal(await regie.textContent("#ask-title"), "Lancer l'anniversaire de Chloé ?");
     const date = new Date("2099-10-24T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
     assert.equal(await regie.textContent("#ask-line"), `7 ans – ${date}`);
-    assert.equal(await regie.textContent("#ask-warn"), "⚠ Ce n'est pas la date d'aujourd'hui.");
-    assert.equal(await regie.textContent("#ask-ok"), "Lancer");
+    // Une autre date (cedric, 30/10) : on peut la lancer, la fenêtre dit pour quand elle était prévue.
+    assert.equal(await regie.textContent("#ask-warn"), `⚠ Fête initialement prévue le ${date}. Lancer quand même ?`);
+    assert.equal(await regie.textContent("#ask-ok"), "Lancer quand même");
     assert.equal(await regie.evaluate(() => document.activeElement?.id), "ask-cancel");
     await capture(regie, "lancement-fenetre", { pleinePage: false });
     await regie.click("#ask-cancel");

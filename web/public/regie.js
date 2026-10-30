@@ -4406,7 +4406,9 @@ function nomDansPhrase(show) {
 async function confirmationLancement({ show, snapshot, problems, run }) {
   const date = show.date ? new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : "";
   const line = [show.age ? `${show.age} ans` : "", date].filter(Boolean).join(" – ");
-  const warn = show.date && show.date !== isoDay() ? "⚠ Ce n'est pas la date d'aujourd'hui." : "";
+  // Fête à une autre date (date fausse dans la Régie PC, par exemple) : on peut la lancer, mais on le dit (cedric, 30/10).
+  const horsDate = !!show.date && show.date !== isoDay();
+  const warn = horsDate ? `⚠ Fête initialement prévue le ${date}. Lancer quand même ?` : "";
   const soucis = problems.length
     ? `⚠ ${problems.join("\n")}\n\nProgramme qui sera joué : ${snapshot.rounds.map((r) => r.title).join(" → ")}.` : "";
   const st = live.state ?? {};
@@ -4422,7 +4424,7 @@ async function confirmationLancement({ show, snapshot, problems, run }) {
     const suite = st.phase === "lobby" ? "Les équipes restent." : "Les équipes restent, on repart au début.";
     return { title: `Remplacer ${ancien} par ${nouveau} ?`, text: [suite, soucis].filter(Boolean).join("\n\n"), line, warn, ok: "Remplacer", safe: true };
   }
-  return { title: `Lancer ${nomDansPhrase(show)} ?`, text: soucis, line, warn, ok: problems.length ? "Lancer quand même" : "Lancer", safe: true };
+  return { title: `Lancer ${nomDansPhrase(show)} ?`, text: soucis, line, warn, ok: problems.length || horsDate ? "Lancer quand même" : "Lancer", safe: true };
 }
 
 /**
