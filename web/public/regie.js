@@ -2713,7 +2713,7 @@ function renderDemo(st) {
 }
 
 /** Saut vers le début du jeu [r], après confirmation adaptée (aller plus loin, ou recommencer). */
-async function jumpTo(r, st) {
+async function jumpTo(r, st, pasCharge = false) {
   const { questions, index, current } = gamesOf(st);
   const name = gameName(r, questions);
   const replay = played(r, st, index);
@@ -2723,7 +2723,7 @@ async function jumpTo(r, st) {
   const ok = await demander(replay
     ? { title: `Recommencer « ${name} » ?`, attention: "Ce jeu repart à zéro : les points gagnés pendant ce jeu sont effacés.", text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores du jeu en cours." : " La TV repart sur la présentation du jeu, puis « ▶ Lancer l'épreuve »."}`, ok: "Recommencer ce jeu", alert: true }
     // « ▶ Y aller » du Conducteur (cedric, 30/10) : « Êtes-vous sûr ? » Oui / Non.
-    : { ...SUR, line: `Vous allez passer à «\u00a0${name}\u00a0».`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés.${bilan ? ` La TV montre le bilan des scores, puis « ${name} » quand vous appuyez sur « Jeu suivant ».` : ""} Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.` });
+    : { ...SUR, line: `Vous allez passer à «\u00a0${name}\u00a0».`, warn: pasCharge ? "⚠ Ce jeu n'est pas encore chargé dans la box : des photos ou des musiques peuvent manquer. Lancer quand même ?" : "", text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés.${bilan ? ` La TV montre le bilan des scores, puis « ${name} » quand vous appuyez sur « Jeu suivant ».` : ""} Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.` });
   if (!ok) return;
   // Photos et extraits du jeu recopiés dans la partie s'ils y manquent (copies effacées après la fête, partie reprise
   // sur une autre box) : jamais bloquant, une copie déjà là n'est pas refaite.
@@ -2800,6 +2800,24 @@ function jeuCommence(r, questions, st) {
   return r.start <= lockedUntil(questions, index);
 }
 
+/**
+ * Voyant d'un jeu du conducteur (cedric, 30/10) : ses photos et musiques sont-elles dans la box ? La box marque chaque
+ * média dans games/<code>/media/<id> (« ok », « loading », « missing »). Vert : tout est là (ou rien à charger) ;
+ * rouge : il en manque ; orange : en chargement. Une box qui ne marque pas encore les photos : seuls les sons comptent.
+ */
+function voyantDuJeu(qs) {
+  const media = live.media ?? {};
+  const sons = (q) => [q.audioId, q.refrainId, ...(Array.isArray(q.audioIds) ? q.audioIds : []), ...(Array.isArray(q.songs) ? q.songs.map((x) => x?.songId) : [])];
+  const photos = (q) => [q.imageId, ...(Array.isArray(q.choiceImages) ? q.choiceImages : []), ...(Array.isArray(q.cards) ? q.cards.map((c) => c?.imageId) : [])];
+  const marquePhotos = (live.plan?.questions ?? []).some((q) => q && photos(q).some((id) => id && media[id] != null));
+  const ids = new Set(qs.filter(Boolean).flatMap((q) => [...sons(q), ...(marquePhotos ? photos(q) : [])]).filter(Boolean));
+  const etats = [...ids].map((id) => media[id]);
+  if (etats.includes("missing")) return "rouge";
+  return etats.every((v) => v === "ok") ? "vert" : "orange";
+}
+
+const VOYANTS = { vert: "Photos et musiques chargées dans la box", orange: "Photos et musiques en cours de chargement dans la box", rouge: "Il manque des photos ou des musiques de ce jeu dans la box" };
+
 /** Jeux dépliés dans le conducteur (cedric, 30/10 : tous repliés d'office, ▸ montre les questions). */
 const jeuxDeplies = new Set();
 
@@ -2809,7 +2827,8 @@ function renderPlan(st) {
   const plan = live.plan;
   const questions = plan?.questions ?? [];
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
-  const key = JSON.stringify([plan?.title, plan?.rev, questions.map((q) => q.id ?? q.text), index, st.phase, editing, !!pending?.advance, mayReplaceShow(st), [...jeuxDeplies], st.jeuxCommences ?? null]);
+  const key = JSON.stringify([plan?.title, plan?.rev, questions.map((q) => q.id ?? q.text), index, st.phase, editing, !!pending?.advance, mayReplaceShow(st), [...jeuxDeplies], st.jeuxCommences ?? null,
+    programRounds(questions).map((r) => voyantDuJeu(questions.slice(r.start, r.end + 1)))]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   box.innerHTML = "";
@@ -2888,8 +2907,13 @@ function roundHead(r, rounds, future, questions, index, editable) {
   titre.type = "button";
   titre.className = "plan-deplier";
   titre.setAttribute("aria-expanded", deplie ? "true" : "false");
-  titre.innerHTML = '<span class="fleche" aria-hidden="true"></span><span class="plan-round"></span>';
+  const voyant = voyantDuJeu(questions.slice(r.start, r.end + 1));
+  head.dataset.voyant = voyant;
+  titre.innerHTML = '<span class="fleche" aria-hidden="true"></span><span class="voyant" role="img"></span><span class="plan-round"></span>';
   titre.querySelector(".fleche").textContent = deplie ? "▾" : "▸";
+  titre.querySelector(".voyant").classList.add(voyant);
+  titre.querySelector(".voyant").setAttribute("aria-label", VOYANTS[voyant]);
+  titre.querySelector(".voyant").title = VOYANTS[voyant];
   titre.querySelector(".plan-round").textContent = r.title;
   titre.onclick = () => {
     // Le lâcher d'un jeu déplacé n'est pas un toucher sur son nom.
@@ -2919,7 +2943,11 @@ function roundHead(r, rounds, future, questions, index, editable) {
   // ▶ (à la place de « ⏭ Changer de jeu ») : aller à ce jeu en arrêtant le jeu en cours, partie commencée ; « Êtes-vous sûr ? ».
   const st = live.state ?? {};
   const enCours = r.start <= index && index <= r.end && st.phase !== "ended";
-  if (editable && index >= 0 && !enCours) button("▶", "go", !!pending?.advance, () => jumpTo(r, live.state ?? {}), `Aller à « ${r.title} »`);
+  if (editable && index >= 0 && !enCours) {
+    // Pas encore chargé dans la box (cedric, 30/10) : jamais bloqué (un wifi faible peut ne jamais finir), mais la
+    // confirmation le dit.
+    button("▶", "go", !!pending?.advance, () => jumpTo(r, live.state ?? {}, voyant !== "vert"), `Aller à « ${r.title} »`);
+  }
   // Plus de flèches (cedric, 30/10) : un appui long soulève le jeu, il suit le doigt et se pose quand on lâche.
   if (editable && k >= 0 && !editing && rounds.every((x) => questions[x.start].round)) head.addEventListener("pointerdown", (e) => soulever(e, head, r, rounds, questions, index));
   return head;

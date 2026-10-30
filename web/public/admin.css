@@ -1295,3 +1295,8 @@ body.mode-carte > header { display: none; }
 body.mode-carte main { padding: 8px 8px 24px; }
 body.mode-carte .carte-jeu .jeu-bloc { margin: 0; }
 body.mode-carte .blind-ecouter { display: none; }
+/* Téléphone (390 px) : le texte d'une ligne sur toute la largeur, ↑ ↓ ✕ ensemble à droite, dessous (simulation, 30/10). */
+body.mode-carte .quiz-complet-q .tirage-texte { flex: 1 1 calc(100% - 48px); }
+body.mode-carte .quiz-complet-q .quiz-complet-monter { margin-left: auto; }
+body.mode-carte .quiz-complet-q .tirage-q-ligne { column-gap: 6px; }
+body.mode-carte .quiz-complet-q .tirage-photo, body.mode-carte .quiz-complet-q .tirage-mini { width: 56px; height: 42px; font-size: 26px; }

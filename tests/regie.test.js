@@ -3527,6 +3527,8 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
     await inRegie(regie);
     await ouvrirConducteur(regie);
     await regie.locator(".plan-head", { hasText: "Animaux" }).locator("button.go").click();
+    // Son extrait pas encore marqué par la box : voyant orange, la confirmation dit « Lancer quand même ? ».
+    await regie.locator("#ask-warn:not([hidden])", { hasText: "pas encore chargé" }).waitFor();
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "Bilan des scores sur la TV, puis « Animaux »." }).waitFor();
     await waitFor(async () => (await read(`images/${PHOTO}`)) === PNG && (await read(`sounds/${SON}`)) === MP3, "photo et extrait recopiés dans la partie");
@@ -3550,6 +3552,7 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
     await inRegie(regie);
     await ouvrirConducteur(regie);
     await regie.locator(".plan-head", { hasText: "Statues musicales" }).locator("button.go").click();
+    await regie.locator("#ask-warn:not([hidden])", { hasText: "pas encore chargé" }).waitFor();
     await respond(regie);
     await waitFor(async () => (await read("songs/danse/n")) === 2, "chanson entière recopiée", 20000);
     assert.deepEqual(await read("songs/danse"), { n: 2, kbps: 96, length: 187, p: [P0, P1] });
@@ -10199,6 +10202,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await cadre.locator("button.de-unique").click();
     await cadre.locator(".quiz-compteur", { hasText: "3" }).waitFor();
     await capture(regie, "plus-jeu-carte-quiz");
+    await cadre.locator(".quiz-complet-q").last().scrollIntoViewIfNeeded();
+    await capture(regie, "plus-jeu-carte-quiz-questions");
     await regie.locator("#carte-envoyer:not([disabled])").click();
     await regie.locator("#r-toast", { hasText: "« Quiz » est ajouté après le jeu en cours." }).waitFor();
     assert.equal(await regie.locator("#carte").isHidden(), true);
@@ -10367,6 +10372,47 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#c-next", { hasText: "Jeu suivant : Jeu B ▶" }).click();
     await waitFor(async () => (await read("state/qid")) === "b1", "la TV enchaîne sur le jeu B");
     assert.equal((await read("state")).scores.rose, 50);
+    await regie.context().close();
+  });
+
+  test("voyant de chaque jeu du conducteur (cedric, 30/10) : vert chargé dans la box, orange en chargement, rouge il en manque ; ▶ sur un jeu pas chargé demande « Lancer quand même ? »", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const q = (id, round, extra = {}) => ({ id, text: `${id} ?`, choices: ["Oui", "Non"], correct: 0, duration: 20, kind: "classic", round, ...extra });
+    const SON = "0123456789abcdef";
+    const PHOTO = "fedcba9876543210";
+    const plan = [q("a1", "Jeu A"), q("b1", "Jeu B", { audioId: SON }), q("c1", "Jeu C", { imageId: PHOTO }), q("d1", "Jeu D")];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", blind: true, questions: plan });
+    await box.set({ ...questionState(4), index: 0, qid: "a1", text: "a1 ?", choices: ["Oui", "Non"], total: plan.length });
+    const regie = await openRegie(await contexteSansChoix({ viewport: { width: 390, height: 760 } }));
+    await pair(regie);
+    await inRegie(regie);
+    await ouvrirConducteur(regie);
+    const voyants = () => regie.locator(".plan-head").evaluateAll((xs) => xs.map((x) => x.dataset.voyant));
+    const media = (valeurs) => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/media`), valeurs));
+    // Rien de marqué : le son en chargement ; une box qui ne marque pas les photos ne les compte pas.
+    await waitFor(async () => (await voyants()).join() === "vert,orange,vert,vert", "son pas encore marqué : orange");
+    await media({ [SON]: "missing", [PHOTO]: "loading" });
+    await waitFor(async () => (await voyants()).join() === "vert,rouge,orange,vert", "son manquant : rouge ; photo en chargement : orange");
+    await capture(regie, "conducteur-voyants");
+    // ▶ sur un jeu rouge : jamais bloqué, mais la confirmation dit « Lancer quand même ? » ; Non : rien n'est envoyé.
+    await regie.click('.plan-head[data-round="Jeu B"] button.go');
+    await regie.locator("#ask-warn:not([hidden])", { hasText: "Ce jeu n'est pas encore chargé dans la box" }).waitFor();
+    await capture(regie, "conducteur-pas-charge");
+    assert.match(await respond(regie, false), /^Êtes-vous sûr \?/);
+    await regie.waitForTimeout(300);
+    assert.equal(box.gotos.length, 0);
+    await regie.click('.plan-head[data-round="Jeu B"] button.go');
+    assert.match(await respond(regie), /^Êtes-vous sûr \?/);
+    await waitFor(async () => box.gotos.length === 1, "la TV va au jeu B");
+    // Tout chargé : vert, ▶ ne demande que « Êtes-vous sûr ? ».
+    await media({ [SON]: "ok", [PHOTO]: "ok" });
+    await ouvrirConducteur(regie);
+    await waitFor(async () => (await voyants()).join() === "vert,vert,vert,vert", "tout chargé : vert");
+    await regie.click('.plan-head[data-round="Jeu C"] button.go');
+    await regie.locator("#ask:not([hidden])").waitFor();
+    assert.equal(await regie.locator("#ask-warn").isHidden(), true, "chargé : pas d'avertissement");
+    assert.match(await respond(regie, false), /^Êtes-vous sûr \?/);
     await regie.context().close();
   });
 

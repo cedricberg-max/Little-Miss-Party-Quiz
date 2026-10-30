@@ -116,6 +116,11 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .plan-head { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .regie .plan-head button.plan-deplier { flex: 1; min-width: 0; height: auto; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 4px; border: 0; background: none; text-align: left; font-size: inherit; font-weight: inherit; color: inherit; }
 .regie .plan-head .plan-deplier .fleche { flex: none; width: 16px; color: var(--halo); font-size: 14px; }
+/* Voyant du jeu (cedric, 30/10) : vert chargé dans la box, orange en chargement, rouge il en manque. */
+.regie .plan-head .voyant { flex: none; width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0, 0, 0, .35); }
+.regie .plan-head .voyant.vert { background: #3ddc84; }
+.regie .plan-head .voyant.orange { background: #ffa726; }
+.regie .plan-head .voyant.rouge { background: #ff5a5f; }
 .regie .plan-head .plan-deplier .plan-round { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .regie .plan-head button.go { color: var(--gold); border-color: rgba(255, 210, 120, .5); }
 /* Deux couleurs (cedric, 30/10) : joué (éteint) ou pas encore joué (allumé), même au-dessus du jeu en cours ; le jeu en cours encadré. */
