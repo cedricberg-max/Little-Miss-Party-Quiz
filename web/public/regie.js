@@ -334,13 +334,12 @@ function renderTuiles(st, teams) {
     }
     b.append(nom, score, etat);
     b.setAttribute("aria-label", `${t.name ?? "Équipe"} : ${scores[id] ?? 0} points${etat.textContent ? `, ${etat.textContent}` : ""}`);
-    b.disabled = st.phase === "ended" && !coupee;
-    b.onclick = coupee ? ouvrirTablette : () => choosePoints(id, true);
+    // Bonus et malus seulement par « ± Points » dans ☰ Plus (cedric, 30/10) : une tuile ne réagit que tablette coupée (QR code).
+    b.disabled = !coupee;
+    if (coupee) b.onclick = ouvrirTablette;
     return b;
   });
-  const astuce = Object.assign(document.createElement("p"), { className: "t-astuce", textContent: "Touchez une équipe : bonus ou malus" });
-  astuce.hidden = st.phase === "ended";
-  box.replaceChildren(...tuiles, astuce);
+  box.replaceChildren(...tuiles);
 }
 
 /**
@@ -2760,7 +2759,8 @@ function renderTeams(st, teams) {
       row.dataset.team = id;
       row.innerHTML = '<span class="dot"></span><span class="swatch"></span><span class="name"></span><span class="score"></span>'
         + '<button class="pts-open">± Points</button>';
-      row.querySelector(".pts-open").onclick = () => choosePoints(id);
+      // Le second appui d'un double appui sur un montant tombe ici, sous la fenêtre fermée : il ne la rouvre pas.
+      row.querySelector(".pts-open").onclick = (e) => { if (e.detail < 2) choosePoints(id); };
       box.appendChild(row);
     });
   }
@@ -4631,66 +4631,58 @@ async function adjust(team, delta) {
 }
 
 /**
- * Bonus ou malus en deux temps. Préparer le montant (montants types, ±1, ±10, saisie, curseur) ne change rien :
- * ni score ni animation. « Valider » envoie une seule correction, du montant exact ; la TV l'annonce une fois.
- * Le bouton se bloque dès le premier appui et la fenêtre se ferme : un double appui ne compte jamais deux fois.
+ * ± Points (cedric, 30/10) : la liste des équipes, puis deux blocs, Bonus +50 / +100 / +200 et Malus −50 / −100 / −200.
+ * Un seul appui envoie la correction et ferme la fenêtre ; le bandeau « Annuler » reste quelques secondes.
+ * Les boutons se bloquent dès le premier appui : un double appui ne compte jamais deux fois.
  */
-const MAX_POINTS = 500;
 let points = null;
 
-/**
- * [pick] : ouvert depuis « ± Points » des mimes, du Pictionary ou du blind test (onglet Équipes masqué) :
- * l'animatrice choisit l'équipe dans la fenêtre même, le montant préparé est gardé.
- */
-function choosePoints(team, pick = false) {
-  points = { team, sign: 1, amount: 0, sending: false, pick };
-  $("pts-input").value = "";
+/** [team] : « ± Points » d'une ligne de l'onglet Équipes, directement sur ses bonus et malus ; null : la liste des équipes. */
+function choosePoints(team = null) {
+  points = { team: team && live.teams[team] ? team : null, sending: false };
   $("pts").hidden = false;
   renderPoints();
 }
 
-/** Équipe à proposer d'abord : celle qui mime, dessine ou a buzzé, sinon la première inscrite. */
-function defaultTeam() {
-  const st = live.state ?? {};
-  const ids = Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0)).map(([id]) => id);
-  return [st.mime?.team, st.mime?.last?.team, st.buzz?.team].find((id) => id && live.teams[id]) ?? ids[0];
-}
-
-function setAmount(n) {
-  if (!points || points.sending) return;
-  points.amount = Math.max(0, Math.min(MAX_POINTS, Math.round(Number(n) || 0)));
-  renderPoints();
+function equipesInscrites() {
+  return Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0));
 }
 
 function renderPoints() {
   if (!points) return;
-  const { team, sign, amount, sending, pick } = points;
-  const delta = sign * amount;
-  $("pts-title").textContent = pick ? "Bonus ou malus" : `Points pour ${live.teams[team]?.name ?? "l'équipe"}`;
-  const chips = $("pts-teams");
-  chips.replaceChildren(...(pick ? Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0)) : []).map(([id, t]) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.dataset.team = id;
-    b.textContent = t.name ?? "Équipe";
-    b.classList.toggle("on", id === team);
-    b.disabled = sending;
-    b.onclick = () => { if (points && !points.sending) { points.team = id; renderPoints(); } };
-    return b;
-  }));
-  const score = live.state?.scores?.[team] ?? 0;
-  $("pts-bonus").classList.toggle("on", sign > 0);
-  $("pts-malus").classList.toggle("on", sign < 0);
-  $("pts-value").textContent = `${sign > 0 ? "+" : "−"}${amount}`;
-  $("pts-value").className = `pts-value ${amount ? (sign > 0 ? "bonus" : "malus") : ""}`;
-  $("pts-preview").textContent = amount ? `Score : ${score} → ${score + delta}` : `Score : ${score} · choisissez un montant`;
-  if (document.activeElement !== $("pts-input")) $("pts-input").value = amount ? String(amount) : "";
-  $("pts-range").value = String(amount);
-  $("pts-presets").querySelectorAll("[data-set]").forEach((b) => { b.classList.toggle("on", Number(b.dataset.set) === amount); });
-  const ok = $("pts-ok");
-  ok.disabled = !amount || sending || !live.teams[team];
-  ok.textContent = sending ? "Envoi…" : amount ? `Valider ${sign > 0 ? "+" : "−"}${amount} point${amount > 1 ? "s" : ""}` : "Valider";
-  ok.classList.toggle("malus", sign < 0);
+  const { team, sending } = points;
+  if (team && !live.teams[team]) points.team = null;
+  const t = points.team && live.teams[points.team];
+  $("pts-title").textContent = t ? `Points pour ${t.name ?? "l'équipe"}` : "± Points : quelle équipe ?";
+  $("pts-teams").hidden = !!t;
+  $("pts-montants").hidden = !t;
+  if (!t) {
+    // Reconstruite seulement quand une équipe ou un score change : un appui ne tombe jamais sur un bouton remplacé.
+    const cle = JSON.stringify(equipesInscrites().map(([id, e]) => [id, e.name, e.color, live.state?.scores?.[id] ?? 0]));
+    if ($("pts-teams").dataset.key === cle) return;
+    $("pts-teams").dataset.key = cle;
+    $("pts-teams").replaceChildren(...equipesInscrites().map(([id, e]) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.team = id;
+      const pastille = document.createElement("span");
+      pastille.className = "swatch";
+      pastille.style.background = e.color ?? "";
+      const nom = document.createElement("span");
+      nom.className = "name";
+      nom.textContent = e.name ?? "Équipe";
+      const score = document.createElement("span");
+      score.className = "score";
+      score.textContent = String(live.state?.scores?.[id] ?? 0);
+      b.append(pastille, nom, score);
+      b.onclick = () => { if (points && !points.sending) { points.team = id; renderPoints(); } };
+      return b;
+    }));
+    return;
+  }
+  $("pts-teams").dataset.key = "";
+  $("pts-score").textContent = `Score : ${live.state?.scores?.[points.team] ?? 0}`;
+  document.querySelectorAll("#pts [data-delta]").forEach((b) => { b.disabled = sending; });
 }
 
 function closePoints() {
@@ -4698,24 +4690,18 @@ function closePoints() {
   $("pts").hidden = true;
 }
 
-async function validatePoints() {
-  if (!points || points.sending || !points.amount || !live.teams[points.team]) return;
+async function donnerPoints(delta) {
+  if (!points || points.sending || !live.teams[points.team]) return;
   points.sending = true;
-  const { team, sign, amount } = points;
+  const { team } = points;
   renderPoints();
   closePoints();
-  await adjust(team, sign * amount);
+  await adjust(team, delta);
 }
 
-$("pts-bonus").onclick = () => { if (points && !points.sending) { points.sign = 1; renderPoints(); } };
-$("pts-malus").onclick = () => { if (points && !points.sending) { points.sign = -1; renderPoints(); } };
-$("pts-presets").querySelectorAll("[data-set]").forEach((b) => { b.onclick = () => setAmount(Number(b.dataset.set)); });
-document.querySelectorAll("#pts [data-step]").forEach((b) => { b.onclick = () => setAmount((points?.amount ?? 0) + Number(b.dataset.step)); });
-$("pts-input").oninput = () => setAmount($("pts-input").value);
-$("pts-input").onblur = () => renderPoints();
-$("pts-range").oninput = () => setAmount($("pts-range").value);
-$("pts-ok").onclick = validatePoints;
-$("c-points").onclick = () => { if (Object.keys(live.teams).length) choosePoints(defaultTeam(), true); else toast("Aucune équipe inscrite."); };
+document.querySelectorAll("#pts [data-delta]").forEach((b) => { b.onclick = () => donnerPoints(Number(b.dataset.delta)); });
+$("pts-autre").onclick = () => { if (points && !points.sending) { points.team = null; renderPoints(); } };
+$("c-points").onclick = (e) => { if (e.detail > 1) return; if (Object.keys(live.teams).length) choosePoints(); else toast("Aucune équipe inscrite."); };
 $("pts-cancel").onclick = closePoints;
 $("pts").onclick = (e) => { if (e.target === $("pts")) closePoints(); };
 

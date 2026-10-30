@@ -543,12 +543,10 @@ async function openAdmin() {
 }
 
 /** L'animatrice scanne le même QR code que les équipes, touche « Accès régie » et tape le mot de passe. */
-/** Bonus de [amount] points pour une équipe, en deux temps : préparer le montant, puis valider. */
+/** Bonus ou malus de [amount] points (±50, ±100 ou ±200) pour une équipe : son « ± Points », puis un seul appui. */
 async function givePoints(page, team, amount) {
   await page.locator(`#panel-teams [data-team="${team}"] .pts-open`).click();
-  await page.locator("#pts-input").fill(String(Math.abs(amount)));
-  if (amount < 0) await page.click("#pts-malus");
-  await page.click("#pts-ok");
+  await page.click(`#pts [data-delta="${amount}"]`);
 }
 
 async function pair(page, password = PASSWORD) {
@@ -1400,12 +1398,10 @@ describe("régie", () => {
     await page.locator("#c-answer .rep-txt", { hasText: "Réponse cachée" }).waitFor();
     await page.click("#c-answer");
     await page.locator("#c-answer .rep-txt", { hasText: "La baleine bleue" }).waitFor();
-    // Toucher une équipe : « Bonus ou malus » réglé sur elle.
-    await tuile("dra").click();
-    await page.locator("#pts:not([hidden])").waitFor();
-    assert.match(await page.locator("#pts-teams button.on").textContent(), /Les Dragons/);
-    await page.click("#pts-cancel");
-    await page.locator("#pts").waitFor({ state: "hidden" });
+    // Bonus et malus seulement par « ± Points » dans ☰ Plus (cedric, 30/10) : une tuile ne s'ouvre pas, aucune astuce.
+    assert.equal(await tuile("dra").isDisabled(), true);
+    assert.equal(await page.locator(".t-astuce").count(), 0);
+    assert.equal(await page.locator("#pts").isHidden(), true);
     // Réponse révélée : la réponse de chaque équipe et ses points ; la tablette des Stars coupée : tuile rouge, toucher = QR.
     await box.set({ ...base, phase: "reveal", correct: 1, scores: { lic: 400, dra: 250, sta: 200, pir: 250 },
       awards: { lic: { correct: true, points: 100, bonus: 0 }, dra: { correct: false, points: 0, bonus: 0 }, pir: { correct: true, points: 100, bonus: 0 } } });
@@ -1447,6 +1443,8 @@ describe("régie", () => {
     box = startBox();
     await addTeam("touj", "TOUJ");
     await setPresence("touj", true);
+    // Huit équipes : la liste tient aussi sur le plus petit téléphone.
+    for (const n of ["Les Licornes magiques", "Dragons", "Stars", "Pirates", "Bleus", "Violets", "Rouges"]) await addTeam(n.toLowerCase().replace(/\W/g, ""), n);
     for (const [w, h] of [[360, 640], [300, 560], [390, 844]]) {
       const page = await openRegie(await contexteSansChoix({ viewport: { width: w, height: h } }));
       await pair(page);
@@ -1458,19 +1456,26 @@ describe("régie", () => {
       await page.click("#c-points");
       await page.locator("#pts:not([hidden])").waitFor();
       await page.waitForTimeout(300);
-      // Les champs gardent leur rendu clair : case blanche, chiffres foncés.
-      assert.equal(await page.locator("#pts-input").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(255, 255, 255)");
-      const blocs = await page.evaluate(() => [...document.querySelector("#pts .pts-box").children]
-        .filter((el) => el.getClientRects().length).map((el) => { const r = el.getBoundingClientRect(); return { id: el.id || el.className, top: r.top, bottom: r.bottom }; }));
-      for (const b of blocs) assert.ok(b.top >= 0 && b.bottom <= h + 0.5, `${w}x${h} : « ${b.id} » dans l'écran ${JSON.stringify(b)}`);
-      for (let k = 1; k < blocs.length; k++) {
-        assert.ok(blocs[k].top >= blocs[k - 1].bottom - 0.5, `${w}x${h} : « ${blocs[k].id} » ne chevauche pas « ${blocs[k - 1].id} »`);
-      }
-      await capture(page, `points-${w}x${h}`, { pleinePage: false });
-      // Valider reste touchable et donne les points.
-      await page.click('#pts-presets [data-set="10"]');
-      await page.click("#pts-ok");
+      // La liste des équipes, puis les bonus et malus : chaque écran tient dans le téléphone, rien ne se superpose.
+      const verifier = async (etape) => {
+        const blocs = await page.evaluate(() => [...document.querySelectorAll("#pts .pts-box > *, #pts .pts-teams > *, #pts .pts-montants > *")]
+          .filter((el) => el.getClientRects().length).map((el) => { const r = el.getBoundingClientRect(); return { id: el.id || el.className || el.textContent, parent: el.parentElement.className, top: r.top, bottom: r.bottom }; }));
+        for (const b of blocs) assert.ok(b.top >= 0 && b.bottom <= h + 0.5, `${w}x${h} ${etape} : « ${b.id} » dans l'écran ${JSON.stringify(b)}`);
+        for (const parent of new Set(blocs.map((b) => b.parent))) {
+          const freres = blocs.filter((b) => b.parent === parent);
+          for (let k = 1; k < freres.length; k++) {
+            assert.ok(freres[k].top >= freres[k - 1].bottom - 0.5, `${w}x${h} ${etape} : « ${freres[k].id} » ne chevauche pas « ${freres[k - 1].id} »`);
+          }
+        }
+        await capture(page, `points-${etape}-${w}x${h}`, { pleinePage: false });
+      };
+      await verifier("equipes");
+      await page.click('#pts-teams button[data-team="touj"]');
+      await verifier("montants");
+      // Un appui donne les points et ferme la fenêtre.
+      await page.click('#pts [data-delta="50"]');
       await page.locator("#pts").waitFor({ state: "hidden" });
+      await page.locator("#undo-text", { hasText: "+50 pour TOUJ" }).waitFor();
       await page.context().close();
     }
   });
@@ -2366,14 +2371,14 @@ describe("régie", () => {
     await inRegie(page);
     // Dans le salon d'attente la régie s'ouvre sur les prestations : l'animatrice passe aux équipes.
     await page.click("#tab-teams");
-    await givePoints(page, "rose", 10);
-    await page.locator(".team .score", { hasText: "10" }).waitFor();
-    await page.locator("#undo-text", { hasText: "+10 pour Les Roses" }).waitFor();
+    await givePoints(page, "rose", 50);
+    await page.locator(".team .score", { hasText: "50" }).waitFor();
+    await page.locator("#undo-text", { hasText: "+50 pour Les Roses" }).waitFor();
     await page.click("#undo-go");
     await waitFor(async () => (await commands()).some((c) => c.type === "undo" && c.target === 1), "annulation envoyée");
     const adjust = (await commands()).find((c) => c.type === "adjust");
     assert.equal(adjust.team, "rose");
-    assert.equal(adjust.delta, 10);
+    assert.equal(adjust.delta, 50);
     await page.context().close();
   });
 
@@ -2393,64 +2398,55 @@ describe("régie", () => {
     await page.locator("#mime:not([hidden])").waitFor();
     assert.equal(await page.locator(".tabs").isVisible(), false);
     await page.click("#c-points");
-    // L'équipe qui mime est proposée d'abord ; l'animatrice choisit une autre équipe, le montant reste.
-    await page.locator("#pts-teams button.on", { hasText: "Les Roses" }).waitFor();
-    await page.click('#pts [data-set="50"]');
+    // La liste des équipes d'abord ; l'animatrice touche la sienne, puis un bonus.
+    await page.locator("#pts-title", { hasText: "quelle équipe" }).waitFor();
+    assert.deepEqual(await page.locator("#pts-teams button .name").allTextContents(), ["Les Roses", "Les Bleus"]);
     await page.click('#pts-teams button[data-team="bleu"]');
-    await page.locator("#pts-teams button.on", { hasText: "Les Bleus" }).waitFor();
-    await page.locator("#pts-ok", { hasText: "Valider +50 points" }).click();
+    await page.locator("#pts-title", { hasText: "Points pour Les Bleus" }).waitFor();
+    await page.click('#pts [data-delta="50"]');
     await page.locator("#undo-text", { hasText: "+50 pour Les Bleus" }).waitFor();
     const adjust = (await commands()).filter((c) => c.type === "adjust");
     assert.deepEqual(adjust.map((c) => [c.team, c.delta]), [["bleu", 50]]);
     await page.context().close();
   });
 
-  test("bonus et malus en deux temps : préparer ne change rien, une validation = un seul envoi du montant exact", async () => {
+  test("« ± Points » simplifié (cedric, 30/10) : l'équipe, puis trois bonus et trois malus ; un appui = un seul envoi, « Annuler » quelques secondes", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
     const page = await openRegie();
     await pair(page);
     await inRegie(page);
     await page.click("#tab-teams");
     await page.locator('.team[data-team="rose"] .pts-open').click();
     await page.locator("#pts-title", { hasText: "Points pour Les Roses" }).waitFor();
-    assert.equal(await page.locator("#pts-ok").isDisabled(), true, "rien à valider tant qu'aucun montant n'est choisi");
-    // L'animatrice hésite : montants types, ±10, ±1, saisie, curseur… rien ne part vers la TV.
-    await page.click('#pts [data-set="100"]');
-    await page.click('#pts [data-step="10"]');
-    await page.click('#pts [data-step="10"]');
-    await page.click('#pts [data-step="-1"]');
-    await page.locator("#pts-value", { hasText: "+119" }).waitFor();
-    await page.locator("#pts-input").fill("520");
-    await page.locator("#pts-value", { hasText: "+500" }).waitFor();
-    await page.locator("#pts-range").fill("200");
-    await page.locator("#pts-value", { hasText: "+200" }).waitFor();
-    await page.click('#pts [data-set="150"]');
-    await page.locator("#pts-preview", { hasText: "Score : 0 → 150" }).waitFor();
-    await page.locator("#pts-ok", { hasText: "Valider +150 points" }).waitFor();
+    assert.deepEqual(await page.locator("#pts .pts-bloc.bonus button").allTextContents(), ["+50", "+100", "+200"]);
+    assert.deepEqual(await page.locator("#pts .pts-bloc.malus button").allTextContents(), ["−50", "−100", "−200"]);
+    assert.equal(await page.locator("#pts-score").textContent(), "Score : 0");
+    // « ← Autre équipe » revient à la liste, sans rien envoyer.
+    await page.click("#pts-autre");
+    await page.locator("#pts-title", { hasText: "quelle équipe" }).waitFor();
+    await page.click('#pts-teams button[data-team="rose"]');
     await new Promise((r) => setTimeout(r, 300));
-    assert.equal((await commands()).length, 0, "préparer n'envoie rien");
-    // Double appui sur « Valider » : une seule correction.
-    await page.locator("#pts-ok").dblclick();
-    await page.locator("#undo-text", { hasText: "+150 pour Les Roses" }).waitFor();
-    await page.locator('.team[data-team="rose"] .score', { hasText: "150" }).waitFor();
+    assert.equal((await commands()).length, 0, "choisir l'équipe n'envoie rien");
+    // Double appui sur +200 : une seule correction, la fenêtre se ferme et le second appui ne la rouvre pas.
+    await page.locator('#pts [data-delta="200"]').dblclick();
+    await page.locator("#undo-text", { hasText: "+200 pour Les Roses" }).waitFor();
+    await page.locator('.team[data-team="rose"] .score', { hasText: "200" }).waitFor();
     assert.equal(await page.locator("#pts").isHidden(), true);
-    // Malus : on bascule le signe, on valide.
-    await page.locator('.team[data-team="rose"] .pts-open').click();
-    await page.locator("#pts-value", { hasText: "+0" }).waitFor();
-    await page.click("#pts-malus");
-    await page.click('#pts [data-set="50"]');
-    await page.locator("#pts-ok", { hasText: "Valider −50 points" }).click();
+    // Malus : −50.
+    await givePoints(page, "rose", -50);
     await page.locator("#undo-text", { hasText: "−50 pour Les Roses" }).waitFor();
-    // Annuler sans valider : rien n'est envoyé.
-    await page.locator('.team[data-team="rose"] .pts-open').click();
-    await page.click('#pts [data-set="300"]');
+    await page.locator('.team[data-team="rose"] .score', { hasText: "150" }).waitFor();
+    // Fermer sans toucher un montant : rien n'est envoyé.
+    await page.locator('.team[data-team="bleu"] .pts-open').click();
     await page.click("#pts-cancel");
-    await page.locator('.team[data-team="rose"] .score', { hasText: "100" }).waitFor();
-    await new Promise((r) => setTimeout(r, 300));
-    const deltas = (await commands()).filter((c) => c.type === "adjust").map((c) => c.delta);
-    assert.deepEqual(deltas, [150, -50]);
-    assert.equal(box.state.scores.rose, 100);
+    await page.locator("#pts").waitFor({ state: "hidden" });
+    // « Annuler » sur le bandeau : le malus est annulé.
+    await page.click("#undo-go");
+    await waitFor(async () => (await commands()).some((c) => c.type === "undo"), "annulation envoyée");
+    const deltas = (await commands()).filter((c) => c.type === "adjust").map((c) => [c.team, c.delta]);
+    assert.deepEqual(deltas, [["rose", 200], ["rose", -50]]);
     await page.context().close();
   });
 
@@ -3327,7 +3323,7 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
     await regie.locator("#c-next", { hasText: "Lancer la fête !" }).click();
     await regie.locator("#c-phase", { hasText: "Question en cours" }).waitFor();
     await regie.click("#tab-teams");
-    await givePoints(regie, "rose", 10);
+    await givePoints(regie, "rose", 50);
     await waitFor(async () => (await read("state/scored")) === true, "point compté par la box");
     await ouvrirConducteur(regie);
     await regie.locator("#panel-plan .plan-head").first().waitFor();
@@ -3586,8 +3582,8 @@ describe("remplacement d'un appareil en cours de partie", () => {
   test("tablette remplacée : l'équipe continue sur le nouvel appareil, l'ancien est désactivé même rechargé", async () => {
     const { regie, old, blue } = await startedGame();
     await regie.locator("#panel-teams [data-team] .pts-open").first().waitFor();
-    await givePoints(regie, blue, 10);
-    await waitFor(async () => (await read("state"))?.scores?.[blue] === 10, "points avant le remplacement");
+    await givePoints(regie, blue, 50);
+    await waitFor(async () => (await read("state"))?.scores?.[blue] === 50, "points avant le remplacement");
 
     // Un téléphone de secours scanne le QR code : il demande à entrer, sans rien taper.
     const fresh = await tablet();
@@ -3607,7 +3603,7 @@ describe("remplacement d'un appareil en cours de partie", () => {
     assert.equal((await read(`answers/q1/${blue}`))?.choice, 1);
     const teams = await read("teams");
     assert.equal(Object.keys(teams).length, 2, "toujours deux équipes");
-    assert.equal((await read("state")).scores[blue], 10, "points gardés");
+    assert.equal((await read("state")).scores[blue], 50, "points gardés");
 
     // Ancien appareil : désactivé tout de suite, et encore après un rechargement.
     await old.locator("#screen-replaced.active").waitFor();
@@ -3626,8 +3622,8 @@ describe("remplacement d'un appareil en cours de partie", () => {
   test("« 📱 Reconnecter » sur le téléphone régie (cedric, 21/10) : QR code, la tablette touche son équipe, Sarah la lui confie ; aussi depuis le bandeau rouge", async () => {
     const { regie, old, blue } = await startedGame();
     await regie.locator("#panel-teams [data-team] .pts-open").first().waitFor();
-    await givePoints(regie, blue, 10);
-    await waitFor(async () => (await read("state"))?.scores?.[blue] === 10, "points avant la reconnexion");
+    await givePoints(regie, blue, 50);
+    await waitFor(async () => (await read("state"))?.scores?.[blue] === 50, "points avant la reconnexion");
 
     // Toujours en bas de la régie, entre Pause et Terminer : le QR code de la partie, en mode « reprendre une équipe ».
     assert.deepEqual(await regie.locator(".actions .row .btn").evaluateAll((l) => l.map((b) => b.getAttribute("aria-label") ?? b.innerText)), ["Pause", "Reconnecter une tablette", "Terminer"]);
@@ -3653,7 +3649,7 @@ describe("remplacement d'un appareil en cours de partie", () => {
     await fresh.locator("#screen-question.active").waitFor();
     assert.equal(await fresh.locator("#screen-question .team-label").textContent(), "Les Bleus");
     await old.locator("#screen-replaced.active").waitFor();
-    assert.equal((await read("state")).scores[blue], 10, "points gardés");
+    assert.equal((await read("state")).scores[blue], 50, "points gardés");
 
     // Une tablette coupée : le bandeau rouge a son bouton « 📱 Reconnecter » (le bandeau, lui, reste affiché).
     await old.context().close();
@@ -10180,8 +10176,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     await regie.click("#c-next");
     await regie.locator("#c-phase", { hasText: "Question en cours" }).waitFor();
-    await givePoints(regie, "rose", 10);
-    await waitFor(async () => (await read("state/scores/rose")) === 10, "10 points pour les Roses");
+    await givePoints(regie, "rose", 50);
+    await waitFor(async () => (await read("state/scores/rose")) === 50, "50 points pour les Roses");
     const rounds = async () => (await read("conducteur")).questions.map((q) => q.round);
 
     // « ＋ Jeu » (cedric, 30/10) : une ligne par jeu ; le Quiz ouvre sa carte, celle de la Régie PC, en plein écran.
@@ -10249,7 +10245,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#r-toast", { hasText: "Le programme venait de changer" }).waitFor();
     assert.deepEqual(await rounds(), ["Animaux", "Animaux", "Animaux", "Quiz", "Quiz"]);
 
-    assert.equal(await read("state/scores/rose"), 10, "Scores gardés");
+    assert.equal(await read("state/scores/rose"), 50, "Scores gardés");
     const lib = await library("quizzes");
     assert.deepEqual(lib.dino, DINO, "Quiz de la bibliothèque inchangé");
     assert.deepEqual(lib.animaux, ANIMAUX);

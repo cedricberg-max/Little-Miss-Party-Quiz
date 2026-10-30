@@ -573,8 +573,7 @@ describe("trois fêtes en même temps sur trois box", () => {
     await Promise.all([
       (async () => {
         await regieLea.locator(`#panel-teams [data-team="${uids.licornesLea}"] .pts-open`).click();
-        await regieLea.locator("#pts-input").fill("50");
-        await regieLea.click("#pts-ok");
+        await regieLea.click('#pts [data-delta="50"]');
       })(),
       regieTom.locator("#c-pause", { hasText: "Pause" }).click(),
       regieInes.locator("#flou-ok").click(),
