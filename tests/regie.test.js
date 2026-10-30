@@ -1034,7 +1034,7 @@ describe("régie", () => {
   });
 
   for (const [width, height] of [[360, 640], [390, 780]]) {
-    test(`petit téléphone ${width}×${height} : pendant un buzz en pause automatique, Reprendre, le bouton principal et le verdict restent à l'écran`, async () => {
+    test(`petit téléphone ${width}×${height} : pendant un buzz, en pause puis reprise, Reprendre, le bouton principal et le verdict restent à l'écran`, async () => {
       box = startBox();
       await addTeam("rose", "Les Roses", "#FFE600");
       await addTeam("bleu", "Les Bleus");
@@ -1066,6 +1066,12 @@ describe("régie", () => {
       // réponse » sont entièrement dans l'écran sans rien faire défiler, même sous le bandeau des tablettes coupées,
       // et y restent quand Sarah fait défiler la régie.
       await page.locator("#r-alerte", { hasText: "Les Bleus" }).waitFor({ timeout: 8000 });
+      // En pause (test du 30/10 au soir) : le verdict attend la reprise, « Reprendre » d'abord, à portée de doigt.
+      await page.locator("#flou-info", { hasText: "appuyez sur « Reprendre », puis jugez la réponse de Les Roses" }).waitFor();
+      await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
+      await waitFor(async () => (await commands()).some((c) => c.type === "resume"), "reprise envoyée");
+      // Partie reprise, tablette des Bleus toujours coupée : le verdict en plein écran au-dessus des commandes.
+      await box.set({ paused: false, pauseReason: null, pauseTeam: null });
       await page.locator("#flou-info", { hasText: "Les Roses a buzzé ! Réponse attendue : une chanson avec le mot « roi »" }).waitFor();
       assert.equal(await page.locator("#flou-info .buzz-nom-couleur").textContent(), "JAUNE");
       // La réponse attendue sur sa propre ligne, en gros, dans le même cadre que la couleur et le verdict (cedric, 24/10).
@@ -1087,8 +1093,6 @@ describe("régie", () => {
       // Fine bande : bien moins haute que l'ancien gros carré jaune.
       assert.ok((await page.locator("#flou-info").boundingBox()).height <= 100, "bande de l'équipe fine (le gros carré jaune faisait 150 px)");
       await capture(page, `verdict-buzz-${width}x${height}`);
-      await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
-      await waitFor(async () => (await commands()).some((c) => c.type === "resume"), "reprise envoyée");
       await page.context().close();
     });
   }
