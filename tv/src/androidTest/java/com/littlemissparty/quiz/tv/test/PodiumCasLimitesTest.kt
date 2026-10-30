@@ -103,6 +103,35 @@ class PodiumCasLimitesTest : TestTv() {
     }
 
     /**
+     * Les jauges en plan cinéma (décor 3D et robot dans une seule vidéo, cedric 30/10) puis la fête : les textes en direct
+     * restent par-dessus, et des captures à chaque moment (attente, tambour, arrivée de la fête, sa boucle).
+     */
+    @Test
+    fun jaugesEnPlanCinemaPuisLaFete() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val chats = pupitre("chats").also { it.rejoindre(code, "Chats", "#FFE600") }
+        val regie = regieReliee(code)
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQuestion(licornes, code, 0)
+        for ((equipe, points) in listOf(licornes to 120, dragons to 70, chats to 40)) {
+            val id = regie.envoyer(code, "adjust", extra = mapOf("team" to equipe.uid, "delta" to points))!!
+            assertEquals("applied", regie.verdict(code, id))
+            attendreQue("points de ${equipe.uid}") { points(licornes, code, equipe.uid).takeIf { it == points.toLong() } }
+        }
+        assertEquals("applied", regie.commande(code, "end"))
+        ecran.voit("LE GRAND GAGNANT EST", 45_000)
+        ecran.voit("Dragons")
+        ecran.capture("jauges-attente", 3_000)
+        ecran.capture("jauges-tambour", 8_000)
+        ecran.voit("Bravo à toutes les équipes", 15_000)
+        ecran.capture("fete-arrivee", 1_500)
+        ecran.capture("fete-boucle", 5_000)
+        ecran.voit("Licornes")
+    }
+
+    /**
      * Les noms des tubes restent jusqu'à leur descente sous le plateau ([Tempo.PODIUM_REVELATION]), et les textes de la
      * révélation sont déjà là, invisibles, avant : on attend que [perdante] quitte l'écran avec les tubes, puis on
      * vérifie qu'elle ne revient pas dessous (l'ancienne bande des autres équipes arrivait après le nom du gagnant).
