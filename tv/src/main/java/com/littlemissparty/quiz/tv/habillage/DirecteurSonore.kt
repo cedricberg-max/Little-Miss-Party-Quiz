@@ -647,6 +647,7 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "express" to Ambiance.VRAIFAUX_PRESENTATION,
     "mimes" to Ambiance.MIMES_PRESENTATION,
     "statues" to Ambiance.STATUES_PRESENTATION,
+    "gonfleur" to Ambiance.GONFLEUR_PRESENTATION,
 )
 
 /** Qui a disparu ? : la boucle de Mission Impossible repart de là, après son début (échantillon 162 641 à 44,1 kHz). */
@@ -763,6 +764,8 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
     MIMES_INTRO(null, "gs_mimes_intro"),
     /** Game Show, Statues musicales : la boucle sous leur vidéo d'intro dans la rue (cedric, 30/10) : U Can't Touch This, 14,43 s, boucle entière, −12 LUFS. */
     STATUES_INTRO(null, "gs_statues_intro"),
+    /** Game Show, Gonfleur fou : la boucle sous sa vidéo d'intro (cedric, 30/10) : Pump It Up, 4 mesures, 7,44 s, boucle entière, −12 LUFS. */
+    GONFLEUR_INTRO(null, "gs_gonfleur_intro"),
     /**
      * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
      * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
@@ -839,6 +842,8 @@ enum class Ambiance(
     MIMES_PRESENTATION(gameShow = mapOf(Lit.MIMES_INTRO to 0.5f)),
     /** Présentation des Statues musicales (Game Show) : U Can't Touch This, au volume de la boucle « fête ». */
     STATUES_PRESENTATION(gameShow = mapOf(Lit.STATUES_INTRO to 0.5f)),
+    /** Présentation du Gonfleur fou (Game Show) : Pump It Up, au volume de la boucle « fête ». */
+    GONFLEUR_PRESENTATION(gameShow = mapOf(Lit.GONFLEUR_INTRO to 0.5f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -880,7 +885,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }

@@ -1199,7 +1199,7 @@ class DirecteurSonoreTest {
     fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
         val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
         // La boucle « fête » de Digital Love sous les intros, sauf le Duel, le Simon et le Blind test (cedric, 29/10).
-        listOf("juste", "patate", "gonfleur", "musical", "").forEach {
+        listOf("juste", "patate", "portes", "musical", "").forEach {
             assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
         }
         assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
@@ -1299,7 +1299,7 @@ class DirecteurSonoreTest {
         assertEquals("bombe", familleType(com.littlemissparty.quiz.engine.QuestionKind.COFFRES))
         assertEquals(Ambiance.COFFRES_PRESENTATION, ambiancePresentation(coffres))
         assertEquals(Ambiance.PRESENTATION, ambiancePresentation(coffres.copy(gameShow = false)))
-        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(coffres.copy(famille = "gonfleur")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(coffres.copy(famille = "juste")))
         assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.COFFRES_PRESENTATION.volume(Lit.COFFRES_INTRO, gs = true), 0f)
         Lit.entries.filter { it != Lit.COFFRES_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.COFFRES_PRESENTATION.volume(it, gs = true), 0f) }
         assertNull(Lit.COFFRES_INTRO.fichierPour(false))
@@ -1411,6 +1411,25 @@ class DirecteurSonoreTest {
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
         assertEquals(636_307L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Gonfleur fou - Pump It Up, boucle entiere`() {
+        val gonfleur = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "gonfleur|", gameShow = true, famille = "gonfleur")
+        assertEquals(Ambiance.GONFLEUR_PRESENTATION, ambiancePresentation(gonfleur))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(gonfleur.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.GONFLEUR_PRESENTATION.volume(Lit.GONFLEUR_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.GONFLEUR_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.GONFLEUR_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.GONFLEUR_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.GONFLEUR_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.GONFLEUR_PRESENTATION, d.observer(gonfleur).musique())
+        val wav = java.io.File("src/main/res/raw/gs_gonfleur_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(328_194L, e.images)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 }
