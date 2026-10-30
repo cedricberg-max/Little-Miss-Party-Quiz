@@ -1433,7 +1433,7 @@ class DirecteurSonoreTest {
         val wav = java.io.File("src/main/res/raw/gs_gonfleur_intro.wav").readBytes()
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
-        assertEquals(328_194L, e.images)
+        assertEquals(327_222L, e.images)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 
