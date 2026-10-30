@@ -98,7 +98,7 @@ class PodiumGameShowTest {
         val serres = listOf(900, 899)
         var ms = JAUGES_DEBUT
         var vitesse = 0f
-        while (ms < MONTEE_FIN) {
+        while (ms + 40f <= MONTEE_FIN) {
             val v = compteurSuspense(ms + 40f, serres) - compteurSuspense(ms, serres)
             assertTrue("$ms ms : $v", v > 0f && v >= 0.8f * vitesse)
             vitesse = v
