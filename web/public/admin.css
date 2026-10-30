@@ -972,7 +972,7 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
   .tirage-q.perso .quiz-complet-monter { margin-left: auto; }
 }
 .grille-vignettes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.grille-vignette { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line-2); background: #fff; }
+.grille-vignette { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line-2); background: #fff; }
 .grille-vignette.emoji { display: grid; place-items: center; font-size: 22px; line-height: 1; }
 .mot-deja { display: block; color: var(--bad); font-size: 13px; font-weight: 800; }
 .vos-images-pied { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -1071,6 +1071,9 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 .mime-images { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .mime-image { display: flex; align-items: center; gap: 10px; min-height: 40px; }
 .mime-image .tirage-photo, .mime-image .tirage-mini { height: 48px; width: 64px; }
+/* Comme sur la TV (cedric, 29/10) : la carte à mimer en 10:7, le mot du Pictionary en carré, le personnage en rond. */
+.mime-image .tirage-photo { height: 45px; width: 64px; }
+.tirage-q.perso img.tirage-mini { width: 44px; height: 44px; border-radius: 50%; }
 .mime-image .tirage-mini.emoji { font-size: 30px; }
 .mime-mot { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .mime-image .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
@@ -1089,7 +1092,7 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 .picto-mots { flex: 1 1 auto; min-width: 0; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 10px; }
 .picto-mot { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 3px 4px 3px 8px; border-radius: 12px; background: var(--paper, #fff); border: 1px solid var(--line-2); }
 .picto-mot .picto-emoji { font-size: 26px; line-height: 1; }
-.picto-mot .tirage-photo { height: 38px; width: 50px; }
+.picto-mot .tirage-photo { height: 40px; width: 40px; border-radius: 18%; }
 .picto-nom { font-weight: 600; overflow-wrap: anywhere; }
 .picto-mot.deja .picto-nom { color: var(--bad, #b3261e); }
 .picto-mot .tirage-retirer { flex: none; width: 30px; height: 30px; border-radius: 10px; font-size: 13px; }

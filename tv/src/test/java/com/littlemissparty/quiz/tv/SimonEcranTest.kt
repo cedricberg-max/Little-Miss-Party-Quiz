@@ -1,7 +1,5 @@
 package com.littlemissparty.quiz.tv
 
-import com.littlemissparty.quiz.engine.SIMON_CHIFFRES_MS
-import com.littlemissparty.quiz.engine.SIMON_PAS_MS
 import com.littlemissparty.quiz.engine.SIMON_REGARDEZ_MS
 import com.littlemissparty.quiz.engine.SIMON_VERIF_FIN_MS
 import com.littlemissparty.quiz.engine.SIMON_VERIF_PAS_MS
@@ -9,6 +7,8 @@ import com.littlemissparty.quiz.engine.SimonAnswer
 import com.littlemissparty.quiz.engine.SimonRound
 import com.littlemissparty.quiz.engine.SimonVerdict
 import com.littlemissparty.quiz.engine.reponseMs
+import com.littlemissparty.quiz.engine.simonPasMs
+import com.littlemissparty.quiz.tv.habillage.NotesSimon
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -28,15 +28,16 @@ class SimonEcranTest {
         val r = tour(3)
         assertEquals(EtapeSimon.REGARDEZ, vueSimon(r, t0, 10).etape)
         val montre = t0 + SIMON_REGARDEZ_MS
+        val pas = simonPasMs(3)
         for (i in 0 until 3) {
-            val v = vueSimon(r, montre + i * SIMON_PAS_MS + 10, 10)
+            val v = vueSimon(r, montre + i * pas + 10, 10)
             assertEquals(EtapeSimon.MONTRE, v.etape)
             assertEquals(i, v.boule)
             assertTrue(v.allumee)
             // Un petit noir avant la boule suivante.
-            assertFalse(vueSimon(r, montre + i * SIMON_PAS_MS + SIMON_ALLUME_MS + 10, 10).allumee)
+            assertFalse(vueSimon(r, montre + i * pas + simonAllumeMs(pas) + 10, 10).allumee)
         }
-        val reponse = montre + 3 * SIMON_PAS_MS
+        val reponse = montre + 3 * pas
         val joue = vueSimon(r, reponse, 10)
         assertEquals(EtapeSimon.JOUE, joue.etape)
         assertEquals(10, joue.reste)
@@ -45,9 +46,39 @@ class SimonEcranTest {
     }
 
     @Test
-    fun `premiere suite a chiffres - l'annonce d'abord, une seule fois dans le jeu`() {
-        assertEquals(EtapeSimon.CHIFFRES, vueSimon(tour(4), t0 + 100, 10).etape)
-        assertEquals(EtapeSimon.REGARDEZ, vueSimon(tour(4), t0 + SIMON_CHIFFRES_MS, 10).etape)
+    fun `suite longue - les boules defilent plus vite, chacune allumee puis un petit noir`() {
+        // cedric, 29/10 : plus la suite grandit, plus elle défile vite.
+        for (n in listOf(1, 4, 8, 12)) {
+            val r = tour(n.coerceAtMost(suite.size)).copy(sequence = List(n) { suite[it % suite.size] }, suite = n)
+            val montre = t0 + SIMON_REGARDEZ_MS
+            val pas = simonPasMs(n)
+            for (i in 0 until n) {
+                val v = vueSimon(r, montre + i * pas + 10, 10)
+                assertEquals("suite de $n, boule $i", i, v.boule)
+                assertTrue(v.allumee)
+                assertFalse(vueSimon(r, montre + i * pas + simonAllumeMs(pas) + 10, 10).allumee)
+            }
+            assertEquals(EtapeSimon.JOUE, vueSimon(r, montre + n * pas, 10).etape)
+            // Au moins 100 ms de noir entre deux boules, même au plus rapide.
+            assertTrue(pas - simonAllumeMs(pas) >= 100)
+        }
+        assertTrue(simonPasMs(8) < simonPasMs(3))
+    }
+
+    @Test
+    fun `la note de chaque boule dure le temps ou elle est allumee, jamais coupee a rien`() {
+        for (n in 1..20) {
+            val note = simonAllumeMs(simonPasMs(n)).toInt().coerceIn(NotesSimon.DUREE_MIN_MS, NotesSimon.DUREE_MS)
+            assertTrue("suite de $n", note >= 250 && note <= simonPasMs(n))
+        }
+        assertEquals(NotesSimon.DUREE_MS, simonAllumeMs(simonPasMs(1)).toInt().coerceAtMost(NotesSimon.DUREE_MS))
+    }
+
+    @Test
+    fun `plus de chiffres - la suite de 4 commence directement par regardez bien`() {
+        // cedric, 29/10 : seulement des boules de couleur, plus d'annonce « Les chiffres débarquent ».
+        assertEquals(EtapeSimon.REGARDEZ, vueSimon(tour(4), t0 + 100, 10).etape)
+        assertEquals(EtapeSimon.REGARDEZ, vueSimon(tour(8), t0 + 100, 10).etape)
         assertEquals(EtapeSimon.REGARDEZ, vueSimon(tour(4, chiffresVus = true), t0 + 100, 10).etape)
     }
 

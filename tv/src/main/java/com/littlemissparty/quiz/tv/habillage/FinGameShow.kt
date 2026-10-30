@@ -60,14 +60,21 @@ private const val FONDU_FIN_MS = 500
 private const val MERCI_MS = 5_000
 private const val A_BIENTOT_MS = 6_000
 private const val APPARITION_TEXTE_MS = 1_200
+/**
+ * Depuis le 29/10 (validé par cedric), les textes de fin sont dans la vidéo elle-même : le titre néon « MERCI D'AVOIR
+ * PARTICIPÉ ! » en haut, « À BIENTÔT SUR » et le logo THE GAME SHOW en bas. L'appli n'écrit plus rien par-dessus
+ * (sinon les textes seraient en double). false = retour aux textes écrits par l'appli, avec la vidéo d'avant le 29/10
+ * (sans textes, dans l'historique git).
+ */
+internal const val FIN_TEXTES_DANS_LA_VIDEO = true
 
 /**
  * Écran de fin cinéma du Game Show (choix de cedric du 24 octobre), après le podium, sur le dernier groove
  * d'Aerodynamic : la vidéo res/raw/gs_fin_video.mp4, calculée à l'avance en 3D sur le plateau (gros plan du robot qui
  * fait un clin d'œil, la caméra recule, le logo s'allume avec « by Little Miss Party »), puis le robot qui dit au revoir
  * dans l'arche, en boucle aussi longtemps qu'il faut. La vidéo part sur un temps de la musique et sa boucle reste calée
- * sur les tours de gs_bed_fin ([Sons.tourFin]). L'appli écrit en direct l'enseigne « MERCI ! » et « À bientôt
- * sur The Game Show ! » dans le bas, resté calme dans la vidéo. Une seule vidéo à la fois : pendant ce temps le décor
+ * sur les tours de gs_bed_fin ([Sons.tourFin]). Les textes sont dans la vidéo ([FIN_TEXTES_DANS_LA_VIDEO]).
+ * Une seule vidéo à la fois : pendant ce temps le décor
  * du dessous ne lit pas son fond ([Habillage.finVideo]) et aucun clip du robot ne passe. Si la vidéo ne se lit pas,
  * l'écran de fin dessiné d'avant revient ([AuRevoirGameShow]). Rien ici ne touche à la partie.
  */
@@ -98,7 +105,7 @@ fun FinCinemaGameShow(modifier: Modifier = Modifier, fonduMs: Int = FONDU_FIN_MS
             onRelease = { it.liberer() },
             modifier = Modifier.fillMaxSize(),
         )
-        if (prete) MessagesFin()
+        if (prete) { if (FIN_TEXTES_DANS_LA_VIDEO) TextesDeLaVideo() else MessagesFin() }
     }
     // La boucle de la vidéo suit les tours de la musique, en accélérant ou ralentissant un peu ([SuiviMusique]).
     LaunchedEffect(lecteur) {
@@ -119,6 +126,18 @@ fun FinCinemaGameShow(modifier: Modifier = Modifier, fonduMs: Int = FONDU_FIN_MS
             val ecart = ecartSigne(attendu - FIN_BOUCLE_DEBUT_MS, pos - FIN_BOUCLE_DEBUT_MS, FIN_BOUCLE_MS)
             suivi.suivre(v, attendu, ecart)
         }
+    }
+}
+
+/**
+ * Rien à l'image : seulement la place des deux textes de la vidéo (titre en haut, y 0-280 px sur 1080 ; « À bientôt »
+ * et logo en bas, y 755-1040 px), pour les lecteurs d'écran et les tests de l'écran de fin.
+ */
+@Composable
+private fun TextesDeLaVideo() {
+    Echelle(960.dp, 540.dp, Modifier.fillMaxSize()) {
+        Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(140.dp).semantics { contentDescription = "Merci d'avoir participé !" })
+        Box(Modifier.align(Alignment.TopCenter).padding(top = 377.dp).fillMaxWidth().height(143.dp).semantics { contentDescription = "À BIENTÔT SUR THE GAME SHOW !" })
     }
 }
 

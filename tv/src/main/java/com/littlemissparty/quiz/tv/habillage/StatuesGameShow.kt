@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.tv.EtapeStatues
+import com.littlemissparty.quiz.tv.STATUES_SUSPENSE_MS
 import com.littlemissparty.quiz.tv.Team
 import com.littlemissparty.quiz.tv.UiState
 import com.littlemissparty.quiz.tv.toColor
@@ -51,7 +52,6 @@ import kotlin.math.sin
 
 private val LARGEUR = 1600.dp
 private val HAUTEUR = 700.dp
-private val GLACE = listOf(Color.White, Color(0xFFC9F7FF), Color(0xFF5FDcFF), Color(0xFF2C7DFF))
 private val OR = listOf(Color(0xFFFFF7B0), Color(0xFFFFE600), Color(0xFFFFA51F))
 private val BARRES = listOf(GS.Rose, GS.Jaune, GS.Cyan, GS.Vert, GS.Orange, Color(0xFFB56BFF))
 
@@ -61,19 +61,25 @@ private val BARRES = listOf(GS.Rose, GS.Jaune, GS.Cyan, GS.Vert, GS.Orange, Colo
  */
 @Composable
 internal fun StatuesGameShow(state: UiState.Playing, etape: EtapeStatues, gagnantes: List<Team>, modifier: Modifier = Modifier) {
+    // Choix A de cedric (29/10) : STATUE ! en pierre, puis un seul écran BRAVO pour les gagnantes et les autres, qui
+    // remplace le récap de la chanson. Gagnantes et récap passent par le même appel : l'animation ne repart pas à 0.
+    if (etape == EtapeStatues.STATUE) { StatuePierre(modifier); return }
+    val r = state.statues?.result
+    if ((etape == EtapeStatues.GAGNANTES || etape == EtapeStatues.RECAP) && r != null && gagnantes.isNotEmpty()) {
+        val equipe = { t: Team -> EquipeBravo(t.name, t.color.toColor(), r.gains[t.uid] ?: 0) }
+        val depart = (System.currentTimeMillis() + state.serverOffset - r.at - STATUES_SUSPENSE_MS) / 1000f
+        BravoStatues(gagnantes.map(equipe), state.teams.filter { t -> gagnantes.none { it.uid == t.uid } }.map(equipe), depart, modifier)
+        return
+    }
     EchelleSansCoupe(LARGEUR, HAUTEUR, modifier) {
         val centre = Modifier.align(Alignment.Center).padding(top = 40.dp)
         when (etape) {
             EtapeStatues.DANSE -> Dansez(centre)
-            EtapeStatues.STATUE -> StatueGlace(centre)
             EtapeStatues.FINIE -> FinDeLaChanson(centre)
             EtapeStatues.SUSPENSE -> QuiAGagne(centre)
-            EtapeStatues.GAGNANTES -> {
-                val gains = state.statues?.result?.gains.orEmpty()
-                StatueDOr(gagnantes.map { Triple(it.name, it.color.toColor(), gains[it.uid] ?: 0) }, centre)
-            }
-            EtapeStatues.RECAP -> RecapGameShow(state, centre)
-            EtapeStatues.AUTRE -> {}
+            // Personne n'a gagné (pas de points) : « Personne cette fois ! » reste jusqu'au classement.
+            EtapeStatues.GAGNANTES, EtapeStatues.RECAP -> StatueDOr(emptyList(), centre)
+            EtapeStatues.STATUE, EtapeStatues.AUTRE -> {}
         }
     }
 }
@@ -88,43 +94,6 @@ private fun FinDeLaChanson(modifier: Modifier) {
         )
         Spacer(Modifier.height(26.dp))
         LigneBuzz("PLUS PERSONNE NE BOUGE", 30.sp, Modifier.apparition(300, "fin"))
-    }
-}
-
-/** Récap de la chanson : chaque équipe, à sa couleur, ses points de la chanson et son total ; les gagnantes d'abord. */
-@Composable
-private fun RecapGameShow(state: UiState.Playing, modifier: Modifier) {
-    val r = state.statues?.result ?: return
-    val tours = state.question?.statuesTours ?: 1
-    val lignes = state.teams.sortedWith(compareByDescending<Team> { r.gains[it.uid] ?: 0 }.thenByDescending { state.scores[it.uid] ?: 0 })
-    // Jusqu'à 8 équipes : deux colonnes au-delà de 4, rien n'est coupé.
-    val colonnes = if (lignes.size > 4) 2 else 1
-    val taille = if (lignes.size > 4) 40f else 52f
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        LigneBuzz(if (tours > 1) "CHANSON ${r.song + 1} / $tours" else "LES POINTS DE LA CHANSON", 30.sp, Modifier.apparition(0, r.at))
-        Spacer(Modifier.height(24.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(70.dp)) {
-            lignes.chunked((lignes.size + colonnes - 1) / colonnes).forEach { colonne ->
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    colonne.forEachIndexed { i, team ->
-                        val gain = r.gains[team.uid] ?: 0
-                        Row(Modifier.apparition(120L * i, team.uid), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.width(if (colonnes > 1) 420.dp else 620.dp)) { NomUneLigne(team.name, team.color.toColor(), taille, if (colonnes > 1) 420.dp else 620.dp) }
-                            Spacer(Modifier.width(18.dp))
-                            Text(
-                                if (gain > 0) "+$gain" else "0", maxLines = 1, softWrap = false,
-                                modifier = Modifier.width(150.dp),
-                                style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = (taille * 0.8f).sp, color = if (gain > 0) GS.Jaune else Color.White.copy(alpha = 0.6f)),
-                            )
-                            Text(
-                                "${state.scores[team.uid] ?: 0}", maxLines = 1, softWrap = false,
-                                style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = (taille * 0.6f).sp, color = Color.White),
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -166,67 +135,6 @@ private fun Egaliseur(ms: () -> Float, modifier: Modifier) {
             drawRoundRect(c, Offset(x, size.height - haut), Size(l, haut), CornerRadius(l / 2))
             drawRoundRect(Color.White.copy(alpha = 0.55f), Offset(x + l * 0.3f, size.height - haut + l * 0.3f), Size(l * 0.4f, (haut - l * 0.6f).coerceAtLeast(0f)), CornerRadius(l / 4))
         }
-    }
-}
-
-/** S2 : STATUE ! en glace, qui claque à l'arrêt de la musique, se fend, et des éclats de givre qui flottent. */
-@Composable
-private fun StatueGlace(modifier: Modifier) {
-    val ms = horloge(Unit)
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            Modifier.graphicsLayer {
-                val p = (ms() / 180f).coerceIn(0f, 1f)
-                val s = 1.55f - 0.55f * (1f - (1f - p) * (1f - p))
-                scaleX = s
-                scaleY = s
-                alpha = p
-                // Secousse brève au contact, comme un bloc de glace qui tombe.
-                val choc = ((ms() - 180f) / 220f).coerceIn(0f, 1f)
-                translationX = if (choc in 0.001f..0.999f) sin(choc * 30f) * (1f - choc) * 10f * density else 0f
-            },
-        ) {
-            // Halo cyan, puis la glace ; les fêlures se dessinent par-dessus.
-            Text(
-                "STATUE !", maxLines = 1, softWrap = false,
-                style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 180.sp, color = Color(0xFF0B3C7A), shadow = Shadow(GS.Cyan, Offset.Zero, 60f)),
-                modifier = Modifier.clearAndSetSemantics {}.graphicsLayer { translationY = 7f * density },
-            )
-            Text(
-                "STATUE !", maxLines = 1, softWrap = false,
-                style = TextStyle(brush = Brush.verticalGradient(GLACE), fontFamily = PoliceGsTitre, fontSize = 180.sp, shadow = Shadow(Color(0xFF7FE9FF), Offset.Zero, 24f)),
-            )
-            Canvas(Modifier.matchParentSize().clearAndSetSemantics {}) {
-                val a = ((ms() - 200f) / 250f).coerceIn(0f, 1f)
-                if (a <= 0f) return@Canvas
-                val w = size.width
-                val h = size.height
-                val trait = Stroke(2.5f * density, cap = StrokeCap.Round)
-                val c = Color.White.copy(alpha = 0.85f * a)
-                // Trois fêlures, chacune en zigzag, qui s'allongent.
-                for ((x0, y0, dx) in listOf(Triple(0.18f, 0.22f, 1f), Triple(0.55f, 0.8f, -1f), Triple(0.78f, 0.3f, -1f))) {
-                    var x = x0 * w
-                    var y = y0 * h
-                    for (k in 0 until 4) {
-                        val nx = x + dx * w * 0.035f * (1 + k % 2)
-                        val ny = y + (if (y0 < 0.5f) 1f else -1f) * h * 0.12f
-                        drawLine(c, Offset(x, y), Offset(x + (nx - x) * a, y + (ny - y) * a), trait.width, StrokeCap.Round)
-                        x = nx
-                        y = ny
-                    }
-                }
-                // Givre : quelques éclats qui scintillent autour des lettres.
-                val t = ms() / 1000f
-                for (k in 0 until 14) {
-                    val px = w * ((k * 0.137f + 0.05f) % 1f)
-                    val py = h * (0.1f + 0.8f * ((k * 0.311f) % 1f)) - (t * 12f * density * (1 + k % 3)) % (h * 0.3f)
-                    val eclat = 0.4f + 0.6f * abs(sin(t * 3f + k))
-                    drawCircle(Color.White.copy(alpha = 0.7f * a * eclat), (1.5f + k % 3) * density, Offset(px, py))
-                }
-            }
-        }
-        Spacer(Modifier.height(26.dp))
-        LigneBuzz("PLUS PERSONNE NE BOUGE", 30.sp, Modifier.apparition(300, "statue"))
     }
 }
 

@@ -120,6 +120,12 @@ object Boite {
     /** Design choisi dans le menu Retour (« gs3d », « gs » ou « classique ») ; null = celui de la box par défaut (plateau 3D). */
     fun choisirDesign(cle: String?) = design.edit().apply { if (cle == null) clear() else putString("design-v3", cle) }.commit()
 
+    /**
+     * Décor des tests : « gs », le décor dessiné (pas de vidéo de fond à décoder pendant tout le test), sauf relance à
+     * la main avec « gs3d » pour des captures sur l'affiche du plateau, comme sur la TV (argument « design »).
+     */
+    val designDesTests: String get() = InstrumentationRegistry.getArguments().getString("design") ?: "gs"
+
     fun codeActif(): String? = prefs.getString("active_game", null)
 
     fun lancer(): ActivityScenario<MainActivity> = ActivityScenario.launch(MainActivity::class.java)

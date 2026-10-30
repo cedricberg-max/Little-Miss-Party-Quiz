@@ -120,6 +120,11 @@ sealed interface UiState {
         /** Heure du serveur où le chrono atteint zéro (null en pause ou hors question). */
         val deadline: Long? = null,
         val remainingMs: Long = 0,
+        /**
+         * Game Show : heure du serveur où Sarah a lancé la fin après le podium (« ▶ Lancer la fin »), null tant que la
+         * musique du podium attend en boucle (et hors fin de partie).
+         */
+        val outroAt: Long? = null,
         val answered: Set<String> = emptySet(),
         val awards: Map<String, Award> = emptyMap(),
         val scores: Map<String, Int> = emptyMap(),
@@ -1303,6 +1308,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 paused = s.paused,
                 pauseReason = s.hold?.reason,
                 resumeAt = s.resumeAt,
+                outroAt = s.outroAt,
                 deadline = g.deadline(),
                 tempsEcoule = g.tempsEcoule(),
                 // « Ça va exploser ! » : la mèche tirée au sort remplace la durée de la question.
@@ -1919,11 +1925,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         // « 🏁 Fin de la fête » sur la régie (cedric, 23/10) : seulement une fois la partie terminée (écran « Merci
         // d'avoir participé ») ; la TV quitte la partie et revient à l'accueil, comme « Terminer et lancer une nouvelle
-        // partie » du menu Retour.
+        // partie » du menu Retour. « ⛔ Arrêter la partie » (cedric, 29/10, avec `arret`) : à tout moment, tout
+        // s'arrête tout de suite, sans podium, et la TV revient à l'accueil de la même façon.
         if (type == NEW_GAME) {
+            val arret = snap.child("arret").getValue(Boolean::class.java) == true
             viewModelScope.launch {
                 val fin = actions.withLock {
-                    val ended = game?.state?.phase == Phase.ENDED
+                    val ended = arret || game?.state?.phase == Phase.ENDED
                     val result = if (ended) CommandResult(CommandStatus.APPLIED) else CommandResult(CommandStatus.REFUSED, reason = "not_ended")
                     gameRef?.updateChildren(statusOf(id, result))?.let { runCatching { it.await() } }
                     ended

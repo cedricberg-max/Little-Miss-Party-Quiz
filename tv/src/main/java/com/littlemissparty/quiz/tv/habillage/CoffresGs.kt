@@ -1,6 +1,8 @@
 package com.littlemissparty.quiz.tv.habillage
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.BitmapRegionDecoder
 import android.graphics.Rect
 import androidx.compose.runtime.Composable
@@ -16,7 +18,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.Dispatchers
@@ -96,9 +97,18 @@ private fun lireFerme(context: Context, nom: String): ImageBitmap? = runCatching
     }
 }.getOrNull()
 
+/**
+ * Une planche entière (≈ 16 Mo pour une ouverture), décodée en fond directement dans la mémoire de la carte graphique
+ * (Bitmap.Config.HARDWARE) : test du 28/10 au soir, petit gel quand le couvercle s'ouvre et que les pièces jaillissent ;
+ * la planche lue en fond était encore envoyée à la carte graphique pendant le dessin de l'ouverture. Si la box refuse
+ * ce format, décodage ordinaire, préparé d'avance (prepareToDraw).
+ */
 private fun lire(context: Context, nom: String): ImageBitmap? = runCatching {
     val id = context.resources.getIdentifier(nom, "drawable", context.packageName)
-    if (id == 0) null else ImageBitmap.imageResource(context.resources, id)
+    if (id == 0) return@runCatching null
+    val res = context.resources
+    val carte = runCatching { BitmapFactory.decodeResource(res, id, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.HARDWARE }) }.getOrNull()
+    (carte ?: BitmapFactory.decodeResource(res, id)?.apply { prepareToDraw() })?.asImageBitmap()
 }.getOrNull()
 
 /**

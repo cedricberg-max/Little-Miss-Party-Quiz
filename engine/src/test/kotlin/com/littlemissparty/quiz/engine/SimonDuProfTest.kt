@@ -54,12 +54,12 @@ class SimonDuProfTest {
     }
 
     @Test
-    fun `la suite secrete commence par 3 couleurs, un chiffre au 4e rang, jamais deux fois le meme element de suite`() {
+    fun `la suite secrete n'a que des boules de couleur, jamais deux fois le meme element de suite`() {
+        assertFalse(SIMON_AVEC_CHIFFRES, "plus de chiffres dans le Simon (cedric, 29/10)")
         repeat(50) { graine ->
             val s = suiteSimon(random = Random(graine))
             assertEquals(SIMON_LONGUEUR_MAX, s.size)
-            assertTrue(s.take(3).all { it in SIMON_COULEURS }, "3 couleurs d'abord : $s")
-            assertTrue(s[3] in SIMON_CHIFFRES, "les chiffres débarquent au 4e rang : $s")
+            assertTrue(s.all { it in SIMON_COULEURS }, "que des couleurs : $s")
             assertTrue(s.zipWithNext().none { (a, b) -> a == b }, "jamais deux fois de suite : $s")
             assertTrue(s.all { it in SIMON_ELEMENTS })
         }
@@ -88,6 +88,21 @@ class SimonDuProfTest {
         assertEquals(mapOf("orange" to 1, "vert" to 1, "rose" to 1), etat["players"], "le joueur n° 1 de chaque équipe")
         assertNull(etat["key"])
         assertFalse(pub.toString().contains(r.sequence.joinToString(",")), "la suite n'est jamais publiée avant le bilan")
+    }
+
+    @Test
+    fun `plus la suite grandit, plus elle defile vite, jamais trop vite`() {
+        // cedric, 29/10 : les toutes premières faciles à retenir, puis de plus en plus rapide.
+        assertEquals(1_000L, simonPasMs(1))
+        assertEquals(935L, simonPasMs(2))
+        assertEquals(415L, simonPasMs(10))
+        assertEquals(400L, simonPasMs(11))
+        assertEquals(400L, simonPasMs(30))
+        assertEquals(1_000L, simonPasMs(0), "jamais plus lent que la première")
+        for (n in 1..29) assertTrue(simonPasMs(n + 1) <= simonPasMs(n), "suite de ${n + 1}")
+        // Le chrono part quand la dernière boule a fini, au nouveau rythme.
+        val r = SimonRound(1, List(12) { "rouge" }, listOf("A"), suite = 8, startAt = t0)
+        assertEquals(t0 + SIMON_REGARDEZ_MS + 8 * simonPasMs(8), r.reponseAt)
     }
 
     @Test
@@ -180,26 +195,25 @@ class SimonDuProfTest {
     }
 
     @Test
-    fun `les chiffres debarquent une seule fois dans le jeu, avant la premiere suite de 4`() {
+    fun `plus de chiffres - jamais d'annonce, jamais de pave des chiffres, meme a la suite de 4 et au-dela`() {
         val g = pret(listOf("orange", "vert"))
         repeat(3) { i -> g.joue(t0 + i * 30_000L) { mapOf("orange" to tape(), "vert" to tape()) } }
         assertEquals(4, g.state.simon!!.prochaine)
         val debut = t0 + 200_000
         g.lance(debut)
-        assertTrue(g.state.simon!!.annonceChiffres)
-        assertEquals(debut + SIMON_CHIFFRES_MS + SIMON_REGARDEZ_MS, g.state.simon!!.montreAt, "l'annonce passe avant la suite")
+        assertFalse(g.state.simon!!.annonceChiffres)
+        assertEquals(debut + SIMON_REGARDEZ_MS, g.state.simon!!.montreAt, "la suite part tout de suite, sans annonce")
         val etat = Codec.publicState(g, teams = listOf("orange", "vert"))["simon"] as Map<*, *>
-        assertEquals(debut, etat["chiffresAt"])
-        assertEquals(true, etat["chiffres"])
-        assertTrue(g.state.simon!!.solution[3] in SIMON_CHIFFRES)
+        assertNull(etat["chiffresAt"])
+        assertEquals(false, etat["chiffres"], "les tablettes ne montrent jamais le pavé des chiffres")
+        assertTrue(g.state.simon!!.solution.all { it in SIMON_COULEURS })
         assertNotNull(g.judgeSimon(mapOf("orange" to g.tape(), "vert" to g.tape(erreur = 3)), g.simonJugeAt()!!))
         assertTrue(g.state.simon!!.fini)
-        // Tour suivant : plus d'annonce, le pavé des chiffres reste.
         assertNotNull(g.simonGo(listOf("orange", "vert"), t0 + 300_000))
-        repeat(3) { i -> g.joue(t0 + 310_000 + i * 30_000L) { mapOf("orange" to tape(), "vert" to tape()) } }
+        repeat(4) { i -> g.joue(t0 + 310_000 + i * 30_000L) { mapOf("orange" to tape(), "vert" to tape()) } }
         g.lance(t0 + 500_000)
         assertFalse(g.state.simon!!.annonceChiffres)
-        assertEquals(t0 + 500_000 + SIMON_REGARDEZ_MS, g.state.simon!!.montreAt)
+        assertEquals(false, (Codec.publicState(g, teams = listOf("orange", "vert"))["simon"] as Map<*, *>)["chiffres"])
     }
 
     @Test
@@ -254,9 +268,11 @@ class SimonDuProfTest {
         assertTrue(g.simonFini)
         assertEquals(CommandStatus.REFUSED, g.run("simon_go", t0 + 80_000).status, "2 tours seulement")
         assertEquals(mapOf("orange" to SIMON_POINTS, "vert" to SIMON_POINTS), g.state.scores().filterValues { it != 0 })
-        assertNotNull(g.next(t0 + 90_000), "« Jeu suivant »")
-        assertEquals("q1", g.state.qid)
+        assertNotNull(g.next(t0 + 90_000), "« Voir les scores »")
+        assertEquals(Phase.SCORES, g.state.phase)
         assertNull(g.state.simon)
+        assertNotNull(g.next(t0 + 95_000), "« Jeu suivant »")
+        assertEquals("q1", g.state.qid)
     }
 
     @Test

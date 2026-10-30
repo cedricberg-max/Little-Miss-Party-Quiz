@@ -56,10 +56,11 @@ internal fun lireEnteteWav(octets: ByteArray, tailleFichier: Long = Long.MAX_VAL
 
 /**
  * Les morceaux à lire pour sortir [n] images d'une boucle de [total] images, en partant de l'image [depuis] :
- * (début, longueur) ; le dernier finit au bout de la boucle et le suivant repart de 0, à l'image près.
+ * (début, longueur) ; le dernier finit au bout de la boucle et le suivant repart de [reprise] (0 : du début), à
+ * l'image près. Avec une reprise, les images d'avant ne se lisent qu'une fois, au départ (une intro).
  */
-internal fun morceauxBoucle(depuis: Long, n: Long, total: Long): List<Pair<Long, Long>> {
-    require(total > 0)
+internal fun morceauxBoucle(depuis: Long, n: Long, total: Long, reprise: Long = 0): List<Pair<Long, Long>> {
+    require(total > 0 && reprise in 0 until total)
     val out = mutableListOf<Pair<Long, Long>>()
     var p = Math.floorMod(depuis, total)
     var reste = n
@@ -67,7 +68,14 @@ internal fun morceauxBoucle(depuis: Long, n: Long, total: Long): List<Pair<Long,
         val l = minOf(reste, total - p)
         out += p to l
         reste -= l
-        p = (p + l) % total
+        p += l
+        if (p == total) p = reprise
     }
     return out
+}
+
+/** Image de la boucle où l'on arrive après avoir lu [n] images depuis [depuis] (voir [morceauxBoucle]). */
+internal fun imageApres(depuis: Long, n: Long, total: Long, reprise: Long = 0): Long {
+    val p = Math.floorMod(depuis, total) + n
+    return if (p < total) p else reprise + (p - total) % (total - reprise)
 }

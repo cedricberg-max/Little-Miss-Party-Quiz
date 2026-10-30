@@ -40,7 +40,13 @@ curl -sf -X PUT -H "Authorization: Bearer owner" -d '{"hostUid":"emulateur-ci"}'
 adb shell rm -rf "$CAPTURES"
 adb shell mkdir -p "$CAPTURES"
 
-./gradlew :tv:connectedDebugAndroidTest --stacktrace
+# Décor des tests (gs par défaut) et, au besoin, seulement quelques classes : relance à la main pour des captures.
+ARGS=(-Pandroid.testInstrumentationRunnerArguments.design="${DESIGN_TESTS:-gs}")
+if [ -n "${CLASSES_TESTS:-}" ]; then
+  ARGS+=(-Pandroid.testInstrumentationRunnerArguments.class="$(echo "$CLASSES_TESTS" | tr -d ' ' | sed 's/\([^,]*\)/com.littlemissparty.quiz.tv.test.\1/g')")
+fi
+echo "Décor des tests : ${DESIGN_TESTS:-gs} ; classes : ${CLASSES_TESTS:-toutes}"
+./gradlew :tv:connectedDebugAndroidTest "${ARGS[@]}" --stacktrace
 STATUS=$?
 
 adb pull "$CAPTURES/." "$OUT/captures/" > /dev/null || true

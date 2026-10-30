@@ -145,7 +145,10 @@ class DuelDesRobotsTest {
         h.duelBuzz(e, pan3 + 100, pan3 + 150)
         h.timeUp(pan3 + 100 + DUEL_LATENCE_MAX_MS)
         assertEquals(mapOf(e to 1), h.duelsGagnes())
+        // Fin du duel : le tableau des scores (test du 28/10), puis le jeu suivant.
         assertEquals(CommandStatus.APPLIED, h.run("next", pan3 + 5_000).status)
+        assertEquals(Phase.SCORES, h.state.phase)
+        assertEquals(CommandStatus.APPLIED, h.run("next", pan3 + 6_000).status)
         assertEquals(emptyMap(), h.duelsGagnes())
     }
 
@@ -271,8 +274,10 @@ class DuelDesRobotsTest {
         assertEquals(CommandStatus.REFUSED, g.run("duel_stop", t0 + 3_000).status, "plus rien à arrêter")
         assertEquals(CommandStatus.REFUSED, g.run("duel_next", t0 + 3_000).status, "le duel prêt n'est pas joué")
         assertEquals(CommandStatus.APPLIED, g.run("next", t0 + 4_000).status)
-        assertEquals("q1", g.state.qid)
+        assertEquals(Phase.SCORES, g.state.phase, "le tableau des scores d'abord")
         assertNull(g.state.duel)
+        assertEquals(CommandStatus.APPLIED, g.run("next", t0 + 5_000).status)
+        assertEquals("q1", g.state.qid)
     }
 
     @Test
@@ -322,6 +327,8 @@ class DuelDesRobotsTest {
         assertNull(g.readyDuel(setOf("orange"), t0))
         assertEquals("none", (Codec.publicState(g, teams = setOf("orange"))["duel"] as Map<*, *>)["step"])
         assertEquals(CommandStatus.APPLIED, g.run("next", t0 + 1_000, teams = setOf("orange")).status)
+        assertEquals(Phase.SCORES, g.state.phase)
+        assertEquals(CommandStatus.APPLIED, g.run("next", t0 + 2_000, teams = setOf("orange")).status)
         assertEquals("q1", g.state.qid)
     }
 
@@ -509,9 +516,12 @@ class DuelDesRobotsTest {
         relue()
         val avantQ2 = g.state.scores()
         assertEquals(apresQuiz + (if (a == "orange") DUEL_POINTS else 0), avantQ2["orange"])
-        // Jeu suivant : le quiz q2, scores gardés, plus aucun duel en cours.
+        // Jeu suivant : le tableau des scores, puis le quiz q2, scores gardés, plus aucun duel en cours.
         t = pan + 10_000
         assertEquals(CommandStatus.APPLIED, g.run("next", t).status)
+        assertEquals(Phase.SCORES, g.state.phase)
+        relue()
+        assertEquals(CommandStatus.APPLIED, g.run("next", t + 500).status)
         assertEquals("q2", g.state.qid)
         assertNull(g.state.duel)
         assertEquals(avantQ2, g.state.scores())
@@ -528,6 +538,8 @@ class DuelDesRobotsTest {
         // Et on va jusqu'au bout : le quiz q2 puis les résultats, sans blocage.
         t += 8_000
         assertEquals(CommandStatus.APPLIED, g.run("next", t).status)
+        assertEquals(Phase.SCORES, g.state.phase)
+        assertEquals(CommandStatus.APPLIED, g.run("next", t + 500).status)
         assertEquals("q2", g.state.qid)
         var n = 0
         while (g.state.phase != Phase.ENDED) { t += 1_000; assertNotNull(g.next(t), "suivant bloqué en ${g.state.phase}"); assertTrue(++n < 10) }

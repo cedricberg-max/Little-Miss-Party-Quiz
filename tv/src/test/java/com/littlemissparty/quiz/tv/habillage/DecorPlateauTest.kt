@@ -17,4 +17,15 @@ class DecorPlateauTest {
         // Une vidéo MP4 (boîte « ftyp ») : pas un fichier vide ou une image renommée.
         assertTrue(String(video.readBytes().copyOfRange(4, 8)) == "ftyp")
     }
+
+    @Test
+    fun `le decor tourne au ralenti choisi par cedric, en aller-retour de 13,4 s`() {
+        // cedric (29/10) : la boucle aller-retour sans coupure, ralentie × 0,6 (7,3 s avant, 8,2 s en aller-retour).
+        val octets = File("src/main/res/raw/gs_fond_plateau.mp4").readBytes()
+        val i = (0 until octets.size - 4).first { String(octets, it, 4, Charsets.ISO_8859_1) == "mvhd" }
+        fun entier(at: Int, n: Int) = (0 until n).fold(0L) { acc, k -> (acc shl 8) or (octets[at + k].toLong() and 0xFF) }
+        val v1 = octets[i + 4].toInt() == 1
+        val secondes = entier(i + if (v1) 28 else 20, if (v1) 8 else 4).toDouble() / entier(i + if (v1) 24 else 16, 4)
+        assertTrue("durée $secondes s", secondes in 13.0..14.0)
+    }
 }

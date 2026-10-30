@@ -22,6 +22,12 @@ val SIMON_CHIFFRES = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
 /** Longueur de suite où les chiffres arrivent : ce rang est toujours un chiffre, les suivants au hasard. */
 const val SIMON_CHIFFRES_DES = 4
 
+/**
+ * Plus de chiffres dans le Simon (cedric, 29/10 : « une suite de boules colorées ») : seulement les 8 couleurs, jamais
+ * l'annonce « Les chiffres débarquent », jamais le pavé des chiffres sur les tablettes. true = retour aux chiffres.
+ */
+const val SIMON_AVEC_CHIFFRES = false
+
 /** Longueur maximale d'une suite : les équipes encore en jeu à ce stade gagnent toutes le tour. */
 const val SIMON_LONGUEUR_MAX = 20
 
@@ -34,9 +40,18 @@ const val SIMON_REPONSE_SEC = 10
 const val SIMON_REPONSE_MIN_SEC = 5
 const val SIMON_REPONSE_MAX_SEC = 60
 
-/** « Regardez bien… » avant la première boule, puis le temps de chaque boule allumée. */
+/** « Regardez bien… » avant la première boule, puis le temps de chaque boule des premières suites. */
 const val SIMON_REGARDEZ_MS = 2_000L
 const val SIMON_PAS_MS = 1_000L
+
+/**
+ * Le rythme d'un vrai Simon (cedric, 29/10 : « ça manque énormément de rythme ») : la suite se montre de plus en plus
+ * vite à chaque boule ajoutée. 1 s par boule pour la toute première, [SIMON_ACCELERE_MS] de moins par boule en plus,
+ * jamais moins de [SIMON_PAS_MIN_MS] (suite de 10 et plus).
+ */
+const val SIMON_ACCELERE_MS = 65L
+const val SIMON_PAS_MIN_MS = 400L
+fun simonPasMs(suite: Int): Long = (SIMON_PAS_MS - SIMON_ACCELERE_MS * (suite - 1).coerceAtLeast(0)).coerceAtLeast(SIMON_PAS_MIN_MS)
 
 /** Animation « Attention, les chiffres débarquent ! », avant la première suite à chiffres du jeu. */
 const val SIMON_CHIFFRES_MS = 4_500L
@@ -103,11 +118,11 @@ data class SimonRound(
     val prochaine: Int get() = verdict?.let { if (it.bahAlors) suite else suite + 1 } ?: suite
 
     /** La suite en cours (ou prête) commence par l'annonce des chiffres. */
-    val annonceChiffres: Boolean get() = suite >= SIMON_CHIFFRES_DES && !chiffresVus
+    val annonceChiffres: Boolean get() = SIMON_AVEC_CHIFFRES && suite >= SIMON_CHIFFRES_DES && !chiffresVus
 
     /** Heure de la première boule, de la fin de la suite (le chrono part), et de la fin du chrono. */
     val montreAt: Long? get() = startAt?.let { it + (if (annonceChiffres) SIMON_CHIFFRES_MS else 0L) + SIMON_REGARDEZ_MS }
-    val reponseAt: Long? get() = montreAt?.let { it + suite * SIMON_PAS_MS }
+    val reponseAt: Long? get() = montreAt?.let { it + suite * simonPasMs(suite) }
     fun finAt(reponseSec: Int): Long? = reponseAt?.let { it + reponseMs(suite, reponseSec) }
 
     /** Ce qu'il faut taper à la suite en cours. */
@@ -162,13 +177,14 @@ fun reponseMs(longueur: Int, reponseSec: Int): Long =
 
 /**
  * La suite secrète d'un tour, [longueur] éléments : des couleurs jusqu'au rang [SIMON_CHIFFRES_DES] − 1, un chiffre à ce
- * rang, puis couleurs et chiffres au hasard ; jamais deux fois le même élément de suite.
+ * rang, puis couleurs et chiffres au hasard ; jamais deux fois le même élément de suite. Sans chiffres
+ * ([SIMON_AVEC_CHIFFRES]) : que des couleurs.
  */
 fun suiteSimon(longueur: Int = SIMON_LONGUEUR_MAX, random: Random = Random.Default): List<String> {
     val suite = mutableListOf<String>()
     for (rang in 1..longueur) {
         val famille = when {
-            rang < SIMON_CHIFFRES_DES -> SIMON_COULEURS
+            !SIMON_AVEC_CHIFFRES || rang < SIMON_CHIFFRES_DES -> SIMON_COULEURS
             rang == SIMON_CHIFFRES_DES -> SIMON_CHIFFRES
             random.nextBoolean() -> SIMON_CHIFFRES
             else -> SIMON_COULEURS

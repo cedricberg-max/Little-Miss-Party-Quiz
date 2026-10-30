@@ -63,6 +63,9 @@ class DirecteurSonore {
     /** Une épreuve a changé pendant la pause : la transition sera jouée après le décompte. */
     private var transitionEnAttente = false
 
+    /** Présentation d'un jeu à intro vidéo, Game Show (le Duel a son propre départ, son air western joué une fois). */
+    private fun introCalee(i: Instant) = i.gameShow && !i.duel && nomIntroJeu(i.famille) != null
+
     private fun changeDEcran(a: Instant, b: Instant) = a.ecran != b.ecran || a.index != b.index || a.partie != b.partie
 
     /** Box qui démarre ou se reconnecte : seulement le générique d'une partie pas encore commencée, sinon la musique. */
@@ -125,6 +128,16 @@ class DirecteurSonore {
                 o += Ordre.Musique(Ambiance.SILENCE)
                 o += Ordre.Musique(Ambiance.DUEL_PRESENTATION, Tempo.DUEL_INTRO_BOUCLE, Tempo.FONDU_RELAIS)
                 o += Ordre.Caler(Tempo.DUEL_INTRO_BOUCLE)
+            } else if (introCalee(i)) {
+                // Game Show, jeu à intro vidéo (cedric, 30/10) : sa musique part du tout début de son fichier (le début
+                // joué une fois, puis la boucle), en même temps que la première image de la vidéo, qui l'attend
+                // ([Sons.attenteIntroMs]). Le jingle du rideau d'abord, s'il y en a un.
+                val dans = if (nouvelleEpreuve) Tempo.TRANSITION_MUSIQUE else Tempo.INTRO_MUSIQUE
+                o += Ordre.Jouer(if (nouvelleEpreuve) Son.TRANSITION else Son.WHOOSH)
+                o += Ordre.Musique(Ambiance.SILENCE)
+                // La boucle « fête » (16 s, calée sur le tempo commun) repart elle aussi de sa première mesure.
+                o += Ordre.Caler(dans)
+                o += Ordre.Musique(ambiance(i), dans)
             } else if (nouvelleEpreuve) {
                 // Présentation d'un jeu : le jingle du rideau, puis une musique douce sous la voix de Sarah.
                 o += Ordre.Jouer(Son.TRANSITION)
@@ -148,6 +161,8 @@ class DirecteurSonore {
                     o += Ordre.Musique(Ambiance.SILENCE)
                     // Blind test : son générique court à la présentation, un éclat de cuivres au passage en points doublés.
                     if (i.blindPresentation) o += Ordre.Jouer(Son.BT_GENERIQUE)
+                    // Game Show : la musique d'attente sous « Lancer le morceau », après le générique s'il passe.
+                    if (musique == Ambiance.BT_ATTENTE) o += Ordre.Musique(musique, if (i.blindPresentation) Tempo.BT_ATTENTE_APRES_GENERIQUE else 0L)
                     if (i.blind && i.blindDouble && !p.blindDouble) o += Ordre.Jouer(Son.BT_DOUBLE)
                 } else if (nouvelleEpreuve) {
                     o += Ordre.Jouer(Son.TRANSITION)
@@ -299,11 +314,13 @@ class DirecteurSonore {
                 // Game Show : le podium sur Digital Love (cedric, 23 octobre). La chanson part sur « why don't you
                 // play the game » pendant que les jauges montent, roulement de tambour par-dessus ; le solo de guitare
                 // tombe sur le nom du gagnant (Tempo.PODIUM_REVELATION) ; à la fin de la chanson, l'écran de fin et le
-                // dernier groove d'Aerodynamic. Tout est dans gs_podium : rien d'autre ne joue.
+                // dernier groove d'Aerodynamic. Juste avant la note grave de 4:07, gs_podium s'arrête et la boucle d'attente
+                // enchaîne pile à sa coupe (écho, boucle sans guitare) jusqu'à « ▶ Lancer la fin » (cedric, 29/10).
+                // Box qui revient alors que la fin est déjà lancée : la musique de la fin, sans rejouer le podium.
+                if (i.finLancee) return listOf(Ordre.Couper, Ordre.Musique(if (i.outro) Ambiance.SILENCE else Ambiance.AU_REVOIR))
                 o += Ordre.Musique(Ambiance.SILENCE)
                 o += Ordre.Jouer(Son.PODIUM)
-                // Avec l'outro du robot en fusée, le groove d'Aerodynamic attend la fin de la vidéo (l'écran le lance).
-                if (!i.outro) o += Ordre.Musique(Ambiance.AU_REVOIR, Tempo.PODIUM_FIN, Tempo.FONDU_AU_REVOIR)
+                o += Ordre.Enchainer(Son.PODIUM, Tempo.PODIUM_COUPE, Ambiance.PODIUM_ATTENTE)
             } else {
                 o += Ordre.Musique(Ambiance.SILENCE)
                 // Grand gagnant : long roulement qui monte pendant tout le suspense, la montée arrive sur la fin.
@@ -322,6 +339,14 @@ class DirecteurSonore {
 
     private fun memeEcran(p: Instant, i: Instant): List<Ordre> {
         val o = mutableListOf<Ordre>()
+        // « ▶ Lancer la fin » sur le podium du Game Show : le podium (ou sa boucle d'attente) s'éteint en fondu sous
+        // l'arrivée de l'outro ; sans la vidéo de l'outro, l'écran de fin et le groove d'Aerodynamic.
+        if (i.ecran == Ecran.FIN && i.gameShow && i.finLancee && !p.finLancee) {
+            o += Ordre.Couper
+            o += Ordre.Musique(Ambiance.SILENCE, fonduMs = Tempo.FONDU_LANCER_FIN)
+            if (!i.outro) o += Ordre.Musique(Ambiance.AU_REVOIR, fonduMs = Tempo.FONDU_AU_REVOIR)
+            return o
+        }
         if (i.equipes > p.equipes) o += Ordre.Jouer(Son.equipe(i.equipes - 1))
         // Buzzer de l'accueil, pour s'amuser : chaque appui fait le bruit rigolo de l'équipe, autant de fois qu'elle veut.
         // Game Show : le mot robot de l'équipe, celui de son arrivée et de ses buzz en jeu (cedric, 23 octobre : il
@@ -343,6 +368,12 @@ class DirecteurSonore {
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
             if (i.jeuBuzz || i.blind) o += buzzJeu(p, i)
+            // Blind test, Game Show : la musique d'attente se coupe net quand Sarah lance le morceau (même si elle
+            // n'était pas encore entrée après le générique : rien de prévu ne doit repartir sous la chanson).
+            if (i.blind && i.gameShow && p.ecran == Ecran.QUESTION && p.blindAttente && !i.blindAttente) {
+                o += Ordre.Couper
+                o += Ordre.Musique(ambiance(i), fonduMs = Tempo.FONDU_RELAIS)
+            }
             // Blind test : le diamant se pose chaque fois que Sarah lance (ou relance) la chanson.
             if (i.blind && i.blindLecture && !p.blindLecture && i.buzzEquipe < 0) o += Ordre.Jouer(Son.BT_DIAMANT)
             // Qui a disparu ? : « abracadabra » au début du tour de magie, « pouf ! » quand l'objet a disparu.
@@ -439,13 +470,11 @@ class DirecteurSonore {
     private fun ambiance(i: Instant) = when (i.ecran) {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
-        Ecran.PRESENTATION -> when {
-            i.duel -> Ambiance.DUEL_PRESENTATION
-            i.simon && i.gameShow -> Ambiance.SIMON_ENTRE
-            else -> Ambiance.PRESENTATION
-        }
+        Ecran.PRESENTATION -> ambiancePresentation(i)
         Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
             i.express -> Ambiance.EXPRESS
+            // Blind test, Game Show : la musique d'attente tant que Sarah n'a pas lancé le morceau.
+            i.blindAttente && i.gameShow && i.ecran == Ecran.QUESTION -> Ambiance.BT_ATTENTE
             // Extrait musical : rien ne doit couvrir la chanson.
             i.musical && i.ecran != Ecran.VERROUILLEE -> Ambiance.SILENCE
             // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
@@ -477,7 +506,14 @@ class DirecteurSonore {
             i.superFinale && i.ecran == Ecran.QUESTION -> Ambiance.DECISIVE
             else -> ambianceParDefaut(i.ecran)
         }
-        Ecran.FIN -> if (i.gameShow) Ambiance.AU_REVOIR else ambianceParDefaut(i.ecran)
+        // Game Show : la boucle d'attente du podium tant que Sarah n'a pas lancé la fin ; pendant l'outro (sa vidéo a son
+        // propre son), rien ; l'écran lance le groove d'Aerodynamic après elle.
+        Ecran.FIN -> when {
+            !i.gameShow -> ambianceParDefaut(i.ecran)
+            !i.finLancee -> Ambiance.PODIUM_ATTENTE
+            i.outro -> Ambiance.SILENCE
+            else -> Ambiance.AU_REVOIR
+        }
         else -> ambianceParDefaut(i.ecran)
     }
 
@@ -572,6 +608,8 @@ data class Instant(
      */
     val blind: Boolean = false,
     val blindPresentation: Boolean = false,
+    /** Blind test : l'écran « Lancer le morceau » (morceau pas encore écouté, personne n'a buzzé). */
+    val blindAttente: Boolean = false,
     val blindLecture: Boolean = false,
     val blindDouble: Boolean = false,
     val blindCoupe: Boolean = false,
@@ -591,12 +629,78 @@ data class Instant(
     val gameShow: Boolean = false,
     /** Game Show avec la vidéo de l'outro dans l'appli ([Outro]) : après le podium, l'écran lance lui-même la musique de fin. */
     val outro: Boolean = false,
+    /** Game Show, après le podium : Sarah a lancé la fin (« ▶ Lancer la fin ») ; avant, la musique attend en boucle. */
+    val finLancee: Boolean = false,
     /**
      * Game Show : la grosse intro du lancement passe en plein écran avec sa propre musique (Get Lucky) ; l'habillage
      * se tait jusqu'à sa fin, puis l'écran du moment (la présentation du 1er jeu) entre normalement.
      */
     val lancement: Boolean = false,
+    /** Famille du jeu en cours, comme pour sa vidéo d'intro ([familleJeu] : "blind", "quiz", "duel"…). */
+    val famille: String = "",
 )
+
+/**
+ * Game Show : jeux qui ont leur propre boucle sous l'écran de présentation (la vidéo d'intro, jusqu'à « ▶ Lancer
+ * l'épreuve »), par famille ([familleJeu]). Les autres gardent la boucle « fête » de Digital Love ([Ambiance.PRESENTATION]),
+ * choix de cedric le 29/10 : « la plupart des intros », et une boucle à soi pour certains jeux quand il en donne une.
+ * Le Duel et le Simon ont déjà la leur (ci-dessous). Pour un nouveau jeu : une [Lit], une [Ambiance], une ligne ici.
+ */
+internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
+    "blind" to Ambiance.BT_PRESENTATION,
+    "chante" to Ambiance.CHANTE_PRESENTATION,
+    "zoom" to Ambiance.ZOOM_PRESENTATION,
+    "flou" to Ambiance.ZOOM_PRESENTATION,
+    "disparu" to Ambiance.DISPARU_PRESENTATION,
+    // Coffres mystères : leur famille s'appelle « bombe » ([familleType]).
+    "bombe" to Ambiance.COFFRES_PRESENTATION,
+    "quiz" to Ambiance.QUIZ_PRESENTATION,
+    "illustre" to Ambiance.ILLUSTRE_PRESENTATION,
+    "musical" to Ambiance.MUSICAL_PRESENTATION,
+    "patate" to Ambiance.PATATE_PRESENTATION,
+    "pictionary" to Ambiance.PICTO_PRESENTATION,
+    "quisuis" to Ambiance.QUISUIS_PRESENTATION,
+    "express" to Ambiance.VRAIFAUX_PRESENTATION,
+    "mimes" to Ambiance.MIMES_PRESENTATION,
+    "statues" to Ambiance.STATUES_PRESENTATION,
+    "gonfleur" to Ambiance.GONFLEUR_PRESENTATION,
+)
+
+/** Musique d'une présentation de jeu (Game Show) : son intro vidéo part avec elle ([Sons.attenteIntroMs]). */
+internal val Ambiance.presentation: Boolean get() =
+    this == Ambiance.PRESENTATION || this == Ambiance.SIMON_PRESENTATION || this in PRESENTATIONS_PROPRES.values
+
+/** Musique d'intro d'un jeu : elle part d'emblée à son volume, sans fondu d'entrée, du début de son fichier. */
+internal val Lit.departFranc: Boolean get() = name.endsWith("_INTRO")
+
+/**
+ * Qui a disparu ? : la boucle de Mission Impossible repart de là, après son début (cedric, 30/10 : sans les 0,388 s de
+ * silence du début) : échantillon [DISPARU_INTRO_REPRISE_IMAGE] à 44,1 kHz.
+ */
+internal const val DISPARU_INTRO_REPRISE_MS = 3_300L
+internal const val DISPARU_INTRO_REPRISE_IMAGE = 145_547L
+
+/** Quiz : la boucle de Questions pour un champion repart de là, après les trompettes (échantillon 95 256). */
+internal const val QUIZ_INTRO_REPRISE_MS = 2_160L
+
+/**
+ * Vrai ou Faux express : Video Killed the Radio Star, le « Oh-a-oh » une fois (le fichier part pile dessus, cedric 30/10 :
+ * sans le quart de seconde d'avant), puis la boucle repart de l'échantillon [VRAIFAUX_INTRO_REPRISE_IMAGE].
+ */
+internal const val VRAIFAUX_INTRO_REPRISE_MS = 6_932L
+internal const val VRAIFAUX_INTRO_REPRISE_IMAGE = 305_706L
+
+/** Gonfleur fou : « Don't you know » une fois (7,42 s), puis la boucle au raccord adouci repart de cet échantillon. */
+internal const val GONFLEUR_INTRO_REPRISE_MS = 7_420L
+internal const val GONFLEUR_INTRO_REPRISE_IMAGE = 327_222L
+
+/** Musique de l'écran de présentation d'un jeu ([propres] : voir [PRESENTATIONS_PROPRES]). */
+internal fun ambiancePresentation(i: Instant, propres: Map<String, Ambiance> = PRESENTATIONS_PROPRES): Ambiance = when {
+    i.duel -> Ambiance.DUEL_PRESENTATION
+    i.simon && i.gameShow -> Ambiance.SIMON_PRESENTATION
+    i.gameShow -> propres[i.famille] ?: Ambiance.PRESENTATION
+    else -> Ambiance.PRESENTATION
+}
 
 const val DISPARU_MEMORISER = 1
 const val DISPARU_MAGIE = 2
@@ -610,7 +714,13 @@ enum class Ecran { HORS_PARTIE, SALON, PRESENTATION, QUESTION, MIMES, MIMES_TOUR
  * Les boucles musicales de 16 s (8 mesures à 120 BPM), toujours calées sur le même tempo. [gs] : boucle propre au
  * Game Show, sans équivalent classique ([fichier] null : le Classique ne la charge pas).
  */
-enum class Lit(val fichier: String?, val gs: String? = null) {
+enum class Lit(
+    val fichier: String?,
+    val gs: String? = null,
+    val repriseMs: Long = 0,
+    /** Reprise à l'échantillon près (44,1 kHz), quand elle ne tombe pas sur une milliseconde entière ; 0 : [repriseMs]. */
+    val repriseImage: Long = 0,
+) {
     COMPLET("lmp_bed_full"),
     LEGER("lmp_bed_light"),
     MIMES("lmp_bed_mimes"),
@@ -641,6 +751,85 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
     SIMON_DOUCE(null, "gs_simon_douce"),
     SIMON_SUITE(null, "gs_simon_suite"),
     SIMON_FORT(null, "gs_simon_fort"),
+    /**
+     * Game Show, le Simon du Prof : sous sa vidéo d'intro seulement (cedric, 30/10), la douce tournée pour partir sur son
+     * temps fort (même boucle de 15,01 s, sans couture) ; le jeu garde [SIMON_DOUCE].
+     */
+    SIMON_INTRO(null, "gs_simon_intro"),
+    /**
+     * Game Show, Blind test : la musique d'attente de l'écran « Lancer le morceau » (cedric, 29/10, boucle A) : l'intro
+     * seule de « Music Sounds Better With You » (Stardust), mesures 1 à 7, 13,52 s à 124,2 BPM, sans blanc, −12 LUFS
+     * comme l'accueil.
+     */
+    BT_ATTENTE(null, "gs_bt_attente"),
+    /**
+     * Game Show, Blind test : la boucle sous sa vidéo d'intro (cedric, 29/10, boucle C) : « Intro » d'Alan Braxe &
+     * Fred Falke, la ligne de basse entrée à 1:17,65, 4 mesures (la phrase entière) prises à 1:25,4, 7,75 s à
+     * 123,91 BPM, raccord fondu 25 ms sur la suite réelle, −12 LUFS comme la boucle « fête » des autres intros.
+     */
+    BT_INTRO(null, "gs_bt_intro"),
+    /**
+     * Game Show, Chante le mot ! : la boucle sous sa vidéo d'intro (cedric, 29/10 : « parfaite ») : La Vie en rose
+     * (Édith Piaf), de « Quand il me prend dans ses bras » à « je vois la vie en rose », 11,90 s, raccord déjà fondu,
+     * −12 LUFS comme la boucle « fête » des autres intros.
+     */
+    CHANTE_INTRO(null, "gs_chante_intro"),
+    /**
+     * Game Show, Zoom mystère et Image floue : la boucle sous leur vidéo d'intro (cedric, 29/10 : « vraiment bien ») :
+     * La Panthère rose, 16,67 s, sans raccord audible, −12 LUFS comme la boucle « fête » des autres intros.
+     */
+    ZOOM_INTRO(null, "gs_zoom_intro"),
+    /**
+     * Game Show, Qui a disparu ? : la boucle sous sa vidéo d'intro (cedric, 29/10) : Mission Impossible, un début joué
+     * une fois (3,30 s, son premier échantillon sur le début de la musique), puis 13,2 s qui tournent (boucle D, 0,10 s plus courte, 30/10) à partir de
+     * l'échantillon 145 547 ([repriseImage]), −12 LUFS.
+     */
+    DISPARU_INTRO(null, "gs_disparu_intro", repriseMs = DISPARU_INTRO_REPRISE_MS, repriseImage = DISPARU_INTRO_REPRISE_IMAGE),
+    /** Game Show, Coffres mystères : la boucle sous sa vidéo d'intro (cedric, 29/10 : « parfaite ») : Pirates des Caraïbes, 13,62 s, −12 LUFS. */
+    COFFRES_INTRO(null, "gs_coffres_intro"),
+    /**
+     * Game Show, Quiz : la boucle sous sa vidéo d'intro (cedric, 29/10 : « meilleur, je valide ») : le
+     * générique de Questions pour un champion, les trompettes une fois, puis la boucle depuis l'échantillon 95 256
+     * ([repriseMs]), −12 LUFS.
+     */
+    QUIZ_INTRO(null, "gs_quiz_intro", repriseMs = QUIZ_INTRO_REPRISE_MS),
+    /** Game Show, Qui suis-je ? : la boucle sous sa vidéo d'intro (cedric, 29/10) : Soul Bossa Nova, 18,77 s, raccord fondu, −12 LUFS. */
+    QUISUIS_INTRO(null, "gs_quisuisje_intro"),
+    /**
+     * Game Show, Vrai ou Faux express : la boucle sous sa vidéo d'intro (cedric, 30/10 : « je prends la boucle Video Killed
+     * the Radio Star », à la place de X-Files) : le « Oh-a-oh » joué une fois, puis la boucle depuis l'échantillon 322 812
+     * ([repriseMs]), 11,01 s en tout.
+     */
+    VRAIFAUX_INTRO(null, "gs_vraifaux_intro", repriseMs = VRAIFAUX_INTRO_REPRISE_MS, repriseImage = VRAIFAUX_INTRO_REPRISE_IMAGE),
+    /**
+     * Game Show, Mimes : la boucle sous leur vidéo d'intro (cedric, 30/10 : « parfaite ») : Just Because of You,
+     * 4 mesures, 8,34 s, raccord déjà fondu, −12 LUFS.
+     */
+    MIMES_INTRO(null, "gs_mimes_intro"),
+    /** Game Show, Statues musicales : la boucle sous leur vidéo d'intro dans la rue (cedric, 30/10) : U Can't Touch This, 14,43 s, boucle entière, −12 LUFS. */
+    STATUES_INTRO(null, "gs_statues_intro"),
+    /**
+     * Game Show, Gonfleur fou : la boucle sous sa vidéo d'intro (cedric, 30/10) : « Don't you know » (remplace Pump It Up),
+     * −12 LUFS. Premier passage net, le premier son pile sur le « Don't » ; puis la boucle au raccord adouci (la suite de la
+     * chanson glisse en 0,5 s vers le « Don't », validé le 30/10) repart de l'échantillon [GONFLEUR_INTRO_REPRISE_IMAGE].
+     */
+    GONFLEUR_INTRO(null, "gs_gonfleur_intro", repriseMs = GONFLEUR_INTRO_REPRISE_MS, repriseImage = GONFLEUR_INTRO_REPRISE_IMAGE),
+    /** Game Show, Quiz illustré : la boucle sous sa vidéo d'intro (cedric, 30/10) : Des chiffres et des lettres, 19,05 s, boucle entière, −12 LUFS. */
+    ILLUSTRE_INTRO(null, "gs_quizillustre_intro"),
+    /** Game Show, Quiz musical : la boucle sous sa vidéo d'intro (cedric, 30/10) : Lady de Modjo, 15,24 s, boucle entière, −12 LUFS. */
+    MUSICAL_INTRO(null, "gs_quizmusical_intro"),
+    /** Game Show, Ça va exploser ! : la boucle sous sa vidéo d'intro (cedric, 30/10, pour ce soir) : thème de James Bond, nouvelle boucle A (30/10), 14,74 s, 8 mesures, boucle entière, −12 LUFS. */
+    PATATE_INTRO(null, "gs_explose_intro"),
+    /** Game Show, Pictionary : la boucle sous sa vidéo d'intro (cedric, 30/10) : Take On Me, 4 mesures, 5,69 s, boucle entière, −12 LUFS. */
+    PICTO_INTRO(null, "gs_picto_intro"),
+    /**
+     * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
+     * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
+     * sans guitare (vitesse d'origine, calée sur la mesure) qui entre dessous pendant que le son descend en 2 s jusqu'à
+     * -6 dB ; puis, à [repriseMs], 8 mesures de boucle pure qui tournent jusqu'à « ▶ Lancer la fin ». Niveau déjà réglé
+     * dans le fichier (le même que le podium) : son ambiance le joue à plein volume.
+     */
+    PODIUM_ATTENTE(null, "gs_podium_attente", repriseMs = PODIUM_ATTENTE_REPRISE_MS),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -677,10 +866,52 @@ enum class Ambiance(
      * sous la voix de Sarah ; Classique : la musique des questions.
      */
     SIMON_ENTRE(legere = 0.7f, gameShow = mapOf(Lit.SIMON_DOUCE to 0.82f)),
-    /** Pendant une suite : la boucle aux percussions, assez bas pour entendre la note de chaque boule ; Classique : silence. */
-    SIMON_SUITE(gameShow = mapOf(Lit.SIMON_SUITE to 0.84f)),
-    /** Pendant une suite avec des chiffres (longue, plus dure) : la partie où tout joue ; Classique : silence. */
-    SIMON_FORT(gameShow = mapOf(Lit.SIMON_FORT to 0.55f)),
+    /** Game Show : la présentation du Simon (sa vidéo d'intro), la douce partie sur son temps fort, au même volume. */
+    SIMON_PRESENTATION(gameShow = mapOf(Lit.SIMON_INTRO to 0.82f)),
+    /**
+     * Pendant une suite : la boucle aux percussions, assez bas pour que la note de chaque boule passe nettement au-dessus
+     * (cedric, 28/10 au soir : « pas assez fort ») ; Classique : silence.
+     */
+    SIMON_SUITE(gameShow = mapOf(Lit.SIMON_SUITE to SIMON_MUSIQUE_SUITE)),
+    /** Pendant une suite avec des chiffres (longue, plus dure) : la partie où tout joue, baissée de même ; Classique : silence. */
+    SIMON_FORT(gameShow = mapOf(Lit.SIMON_FORT to SIMON_MUSIQUE_FORT)),
+    /**
+     * Blind test, Game Show : sous l'écran « Lancer le morceau », au niveau de l'accueil, coupée net quand Sarah lance
+     * le morceau (cedric, 29/10) ; Classique : le silence d'avant.
+     */
+    BT_ATTENTE(gameShow = mapOf(Lit.BT_ATTENTE to 0.49f)),
+    /** Présentation du Blind test (Game Show) : sa boucle d'Alan Braxe, au volume de la boucle « fête » des autres intros. */
+    BT_PRESENTATION(gameShow = mapOf(Lit.BT_INTRO to 0.5f)),
+    /** Présentation de Chante le mot ! (Game Show) : sa boucle de La Vie en rose, au volume de la boucle « fête ». */
+    CHANTE_PRESENTATION(gameShow = mapOf(Lit.CHANTE_INTRO to 0.5f)),
+    /** Présentation du Zoom mystère et de l'Image floue (Game Show) : La Panthère rose, au volume de la boucle « fête ». */
+    ZOOM_PRESENTATION(gameShow = mapOf(Lit.ZOOM_INTRO to 0.5f)),
+    /** Présentation de Qui a disparu ? (Game Show) : Mission Impossible, au volume de la boucle « fête ». */
+    DISPARU_PRESENTATION(gameShow = mapOf(Lit.DISPARU_INTRO to 0.5f)),
+    /** Présentation des Coffres mystères (Game Show) : Pirates des Caraïbes, au volume de la boucle « fête ». */
+    COFFRES_PRESENTATION(gameShow = mapOf(Lit.COFFRES_INTRO to 0.5f)),
+    /** Présentation du Quiz (Game Show) : Questions pour un champion, au volume de la boucle « fête ». */
+    QUIZ_PRESENTATION(gameShow = mapOf(Lit.QUIZ_INTRO to 0.5f)),
+    /** Présentation de Qui suis-je ? (Game Show) : Soul Bossa Nova, au volume de la boucle « fête ». */
+    QUISUIS_PRESENTATION(gameShow = mapOf(Lit.QUISUIS_INTRO to 0.5f)),
+    /** Présentation du Vrai ou Faux express (Game Show) : Video Killed the Radio Star, au volume de la boucle « fête ». */
+    VRAIFAUX_PRESENTATION(gameShow = mapOf(Lit.VRAIFAUX_INTRO to 0.5f)),
+    /** Présentation des Mimes (Game Show) : Just Because of You, au volume de la boucle « fête ». */
+    MIMES_PRESENTATION(gameShow = mapOf(Lit.MIMES_INTRO to 0.5f)),
+    /** Présentation des Statues musicales (Game Show) : U Can't Touch This, au volume de la boucle « fête ». */
+    STATUES_PRESENTATION(gameShow = mapOf(Lit.STATUES_INTRO to 0.5f)),
+    /** Présentation du Gonfleur fou (Game Show) : « Don't you know », au volume de la boucle « fête ». */
+    GONFLEUR_PRESENTATION(gameShow = mapOf(Lit.GONFLEUR_INTRO to 0.5f)),
+    /** Présentation du Quiz illustré (Game Show) : Des chiffres et des lettres, au volume de la boucle « fête ». */
+    ILLUSTRE_PRESENTATION(gameShow = mapOf(Lit.ILLUSTRE_INTRO to 0.5f)),
+    /** Présentation du Quiz musical (Game Show) : Lady de Modjo, au volume de la boucle « fête ». */
+    MUSICAL_PRESENTATION(gameShow = mapOf(Lit.MUSICAL_INTRO to 0.5f)),
+    /** Présentation de Ça va exploser ! (Game Show) : James Bond, au volume de la boucle « fête ». */
+    PATATE_PRESENTATION(gameShow = mapOf(Lit.PATATE_INTRO to 0.5f)),
+    /** Présentation du Pictionary (Game Show) : Take On Me, au volume de la boucle « fête ». */
+    PICTO_PRESENTATION(gameShow = mapOf(Lit.PICTO_INTRO to 0.5f)),
+    /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
+    PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
      * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
      * trop éteint (cedric, 24/10).
@@ -719,7 +950,8 @@ enum class Ambiance(
             Lit.PAUSE -> pause
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
-            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT -> 0f
+            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PICTO_INTRO, Lit.SIMON_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }
@@ -870,12 +1102,19 @@ sealed interface Ordre {
     data class Reprendre(val son: Son, val dansMs: Long = 0) : Ordre
     /** Annule les sons prévus et fait taire les sons longs en cours (changement d'écran, pause). */
     data object Couper : Ordre
+    /**
+     * Quand le son long [son] (lancé juste avant) arrive à [aMs] de sa lecture, passe sans fondu à l'[ambiance] : son
+     * fichier enchaîne pile sur la fin du son. Calé sur la position réelle du son peu avant ([Tempo.ENCHAINER_AVANT]),
+     * pas seulement sur l'horloge : la box met plus ou moins de temps à démarrer un son. Annulé par [Couper].
+     */
+    data class Enchainer(val son: Son, val aMs: Long, val ambiance: Ambiance) : Ordre
 
     fun decale(ms: Long): Ordre = when (this) {
         is Jouer -> copy(dansMs = dansMs + ms)
         is Musique -> copy(dansMs = dansMs + ms)
         is Caler -> copy(dansMs = dansMs + ms)
         is Reprendre -> copy(dansMs = dansMs + ms)
+        is Enchainer -> copy(aMs = aMs + ms)
         else -> this
     }
 }
@@ -891,6 +1130,8 @@ object Tempo {
     /** Temps fort qui suit la dernière note du générique (16 temps) : la musique du salon prend le relais. */
     const val GENERIQUE_RELAIS = 8_000L
     const val FONDU_RELAIS = 120L
+    /** Blind test : la musique d'attente entre à la fin du générique court (4,8 s). */
+    const val BT_ATTENTE_APRES_GENERIQUE = 4_500L
     /** Duel des robots : la boucle western prend le relais à la fin de son début (gs_duel_intro_debut, 2,95 s). */
     const val DUEL_INTRO_BOUCLE = 2_946L
     /** Après deux mesures au niveau du générique, la musique du salon redescend doucement à son volume de fond. */
@@ -919,11 +1160,15 @@ object Tempo {
     const val FIN_MUSIQUE = 17_000L
     /**
      * Podium du Game Show (gs_podium) : les jauges montent sur « why don't you play the game », le solo de guitare
-     * de Digital Love tombe à [PODIUM_REVELATION] sur le nom du gagnant ; l'écran de fin arrive quand la chanson
-     * s'éteint, à [PODIUM_FIN], sur le dernier groove d'Aerodynamic.
+     * de Digital Love tombe à [PODIUM_REVELATION] sur le nom du gagnant ; gs_podium s'arrête à [PODIUM_COUPE] (4:07 de
+     * la chanson, juste avant la note grave de trop) et [Lit.PODIUM_ATTENTE] enchaîne pile là (cedric, 29/10).
      */
     const val PODIUM_REVELATION = 15_444L
-    const val PODIUM_FIN = 102_500L
+    const val PODIUM_COUPE = 50_089L
+    /** « ▶ Lancer la fin » : la boucle d'attente du podium s'éteint doucement sous le fondu de l'outro. */
+    const val FONDU_LANCER_FIN = 1_500L
+    /** [Ordre.Enchainer] relit la position du son ce temps-là avant l'enchaînement. */
+    const val ENCHAINER_AVANT = 1_500L
     const val FONDU_AU_REVOIR = 2_000L
     /** Coup de cuivres du « Top départ » des mimes, après les deux coups de sifflet. */
     const val MIME_TOP_IMPACT = 500L
@@ -941,6 +1186,11 @@ object Tempo {
     const val BT_OUTRO_MUSIQUE = 4_000L
 
     const val TRANSITION_MUSIQUE = 2_000L
+    /**
+     * Game Show, présentation d'un jeu sans rideau (le premier, après la grande intro) : la musique attend ce temps, que la
+     * vidéo d'intro ait le temps d'être prête et parte avec elle.
+     */
+    const val INTRO_MUSIQUE = 1_000L
     /** Durée du rideau plein écran qui annonce un nouveau jeu (assez court pour ne pas retarder la fête). */
     const val TRANSITION_RIDEAU = 2_600L
     const val PAUSE_MUSIQUE = 1_500L
@@ -969,3 +1219,9 @@ internal fun vitesseEtiree(dureeFichierMs: Int, etireSurMs: Long): Float =
 
 /** Un son étiré ne descend pas sous cette vitesse : au-delà, il deviendrait pâteux. */
 internal const val VITESSE_MIN = 0.6f
+/** gs_podium_attente : l'écho et la descente durent 11,54 s, puis la boucle pure (8 mesures) tourne depuis là. */
+internal const val PODIUM_ATTENTE_REPRISE_MS = 11_540L
+
+/** Simon : musique sous les notes des boules (avant le 28/10 au soir : 0,84 et 0,55, les notes s'y perdaient). */
+internal const val SIMON_MUSIQUE_SUITE = 0.6f
+internal const val SIMON_MUSIQUE_FORT = 0.42f

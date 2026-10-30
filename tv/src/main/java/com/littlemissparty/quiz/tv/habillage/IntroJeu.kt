@@ -118,10 +118,21 @@ private fun ressourceIntroJeu(nom: String): Int = when (nom) {
 
 /**
  * Intro jouée une seule fois puis tenue sur sa fin (ms où elle reprend en boucle), ou null : en boucle entière.
- * Duel des robots : 21,7 s avec le titre à la fin, les 2 dernières secondes figées tournent sans fin.
+ * Duel des robots : l'intro de 21,72 s puis la boucle d'attente B (12 s, la caméra glisse et revient,
+ * choix de cedric le 29/10), seule à tourner sans fin jusqu'à « ▶ Lancer l'épreuve ».
  */
 internal fun repriseIntroJeu(nom: String): Int? = if (nom == "duel") REPRISE_INTRO_DUEL_MS else null
-internal const val REPRISE_INTRO_DUEL_MS = 19_800
+
+/**
+ * Volume de la piste son d'une vidéo d'intro (0 : muette, la plupart). Le Simon du Prof et le Vrai ou Faux (cedric, 29/10) : des bruitages
+ * discrets (−29 LUFS) mixés pour passer par-dessus sa musique, qui continue ; ils tournent avec la vidéo.
+ */
+internal fun volumeIntroJeu(nom: String): Float = if (nom in INTROS_SONORES) 1f else 0f
+
+/** Intros refaites dans leur décor avec leurs bruitages (cedric, 29-30/10 ; jamais de rire, Vrai ou Faux). */
+private val INTROS_SONORES = setOf("simon", "vraifaux", "disparu", "floue", "mimes", "picto", "statues", "quiz", "quisuisje", "gonfleur", "illustre", "patate", "musical", "coffres")
+internal const val REPRISE_INTRO_DUEL_MS = 21_720
+internal const val BOUCLE_INTRO_DUEL_MS = 12_000
 
 /** Le temps de laisser la grande intro du lancement prendre l'écran, si c'est le premier jeu de la fête. */
 internal const val DELAI_INTRO_JEU_MS = 300L
@@ -131,11 +142,11 @@ private val LARGEUR_TITRE_INTRO = 520.dp
 
 /**
  * Intro d'un jeu, design « The Game Show » (cedric, 24 octobre : l'intro fait office d'emblème) : la vidéo du jeu,
- * rendue à l'avance en 3D (16 s en boucle, muette : le robot y joue au jeu), en plein écran, et « PROCHAIN JEU » et le
+ * rendue à l'avance en 3D (16 s en boucle, muette sauf [volumeIntroJeu] : le robot y joue au jeu), en plein écran, et « PROCHAIN JEU » et le
  * nom du jeu écrits en direct en bas à gauche, sur le sol du plateau, sous le robot et à gauche du bouton de
  * l'animatrice. [video] faux (pause) : la vidéo s'arrête. Elle attend [DELAI_INTRO_JEU_MS] puis apparaît en fondu ;
  * pendant ce temps le décor du dessous ne lit pas son propre fond vidéo ([Habillage.introJeu] : une vidéo à la fois).
- * Si elle ne se lit pas, l'écran dessiné d'avant revient. Aucun son, rien de focalisable.
+ * Si elle ne se lit pas, l'écran dessiné d'avant revient. Pas de son de l'habillage (la piste de la vidéo seulement, voir [volumeIntroJeu]), rien de focalisable.
  */
 @Composable
 internal fun IntroJeuGameShow(titre: String, famille: String, nom: String, video: Boolean, modifier: Modifier = Modifier) {
@@ -175,7 +186,9 @@ internal fun IntroJeuGameShow(titre: String, famille: String, nom: String, video
             AndroidView(
                 factory = {
                     LecteurFond(
-                        it, ressourceIntroJeu(nom), surPret = { prete = true }, repriseMs = repriseIntroJeu(nom),
+                        it, ressourceIntroJeu(nom), surPret = { prete = true }, repriseMs = repriseIntroJeu(nom), volume = volumeIntroJeu(nom),
+                        // Prête, elle attend que sa musique parte, pour démarrer avec elle (le Duel a son propre calage).
+                        attenteMs = { if (nom == "duel") 0 else Sons.attenteIntroMs() },
                         surEchec = {
                             Sons.incident("Intro du jeu « $nom » : la vidéo a lâché (${GelFond.fondsOuverts} vidéos ouvertes), essai ${essai + 1}")
                             echec = true

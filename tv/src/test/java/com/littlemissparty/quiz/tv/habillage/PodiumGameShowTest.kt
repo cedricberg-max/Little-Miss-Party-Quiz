@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv.habillage
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -50,7 +51,7 @@ class PodiumGameShowTest {
         // Personne n'a marqué : rien ne brille, les tubes gardent leur fond de liquide.
         assertEquals(0f, tubePlein(DESCENTE_DEBUT, 0, listOf(0, 0)), 0f)
         assertEquals(0.03f, remplissage(DESCENTE_DEBUT, 0, listOf(0, 0)), 0f)
-        assertTrue(JAUGES_FIN <= MONTEE_DEBUT && MONTEE_FIN + 400f <= DESCENTE_DEBUT)
+        assertTrue(JAUGES_DEBUT < MONTEE_DEBUT && MONTEE_FIN + 400f <= DESCENTE_DEBUT)
     }
 
     @Test
@@ -63,9 +64,46 @@ class PodiumGameShowTest {
             assertTrue("$p à $ms ms recule", v >= avant[i])
             avant[i] = v
         }
-        // Sous le plafond (90 % de 770 = 693), chacun finit exactement sur son score dès la fin de la montée.
-        for (p in listOf(640, 510, 693, 120, 0)) assertEquals(p, valeurSuspense(JAUGES_FIN, p, s))
+        // Sous le plafond (90 % de 770 = 693), chacun est exactement sur son score au début de la montée finale.
+        for (p in listOf(640, 510, 693, 120, 0)) assertEquals(p, valeurSuspense(MONTEE_DEBUT, p, s))
         assertEquals(0, valeurSuspense(JAUGES_DEBUT, 900, s))
+    }
+
+    @Test
+    fun `la jauge suit le roulement, elle ne s'arrete jamais et va de plus en plus vite jusqu'au meilleur score`() {
+        // cedric, 30/10 : la jauge s'arrêtait quand le roulement accélérait, puis bondissait à la fin.
+        for (s in listOf(scores, listOf(800, 800, 600), listOf(1_000, 10, 5), listOf(300), listOf(500, 0, 0), listOf(120, 70, 40), listOf(100, 95))) {
+            val pas = 40f
+            var avant = compteurSuspense(JAUGES_DEBUT, s)
+            var vitesse = 0f
+            var ms = JAUGES_DEBUT + pas
+            while (ms <= MONTEE_FIN + 0.5f) {
+                val c = compteurSuspense(ms, s)
+                val v = c - avant
+                assertTrue("$s à $ms ms : la jauge s'arrête", v > 0f)
+                assertTrue("$s à $ms ms : la jauge ralentit ($v < $vitesse)", v >= vitesse * 0.99f)
+                vitesse = v
+                avant = c
+                ms += pas
+            }
+            assertEquals(s.max().toFloat(), compteurSuspense(MONTEE_FIN, s), 1e-3f)
+            // Pas de bond : jamais plus de 6 % du meilleur score en une image (25 i/s).
+            ms = JAUGES_DEBUT
+            while (ms < MONTEE_FIN) {
+                assertTrue("$s à $ms ms : bond", compteurSuspense(ms + pas, s) - compteurSuspense(ms, s) <= 0.06f * s.max())
+                ms += pas
+            }
+        }
+        // Scores très serrés : la fin ne ralentit qu'un peu, sans jamais s'arrêter.
+        val serres = listOf(900, 899)
+        var ms = JAUGES_DEBUT
+        var vitesse = 0f
+        while (ms + 40f <= MONTEE_FIN) {
+            val v = compteurSuspense(ms + 40f, serres) - compteurSuspense(ms, serres)
+            assertTrue("$ms ms : $v", v > 0f && v >= 0.8f * vitesse)
+            vitesse = v
+            ms += 40f
+        }
     }
 
     @Test
@@ -86,7 +124,7 @@ class PodiumGameShowTest {
 
     @Test
     fun `les tubes s'enfoncent juste avant le solo, apres la montee`() {
-        assertTrue(JAUGES_FIN < DESCENTE_DEBUT && DESCENTE_FIN < revelation)
+        assertTrue(MONTEE_FIN < DESCENTE_DEBUT && DESCENTE_FIN < revelation)
         assertEquals(0f, descenteTubes(DESCENTE_DEBUT), 0f)
         assertEquals(1f, descenteTubes(DESCENTE_FIN), 0f)
         assertEquals(1f, descenteTubes(revelation), 0f)
@@ -164,5 +202,74 @@ class PodiumGameShowTest {
         assertTrue(File("src/main/res/raw/gs_podium_fete.mp4").isFile)
         // 96 images à 25 i/s (8 temps de Digital Love) : une image clé y est posée pour une reprise sans saut.
         assertEquals(3_840, FETE_BOUCLE_DEBUT_MS)
+    }
+
+    @Test
+    fun `nom du gagnant en neon plein, sans reflet sur le haut des lettres, filigrane A derriere le nom et les points`() {
+        // Choix de cedric (30/10) d'après la maquette en 1080p : contour sombre fin (4 px → 2 dp de chaque côté du bord),
+        // deux lueurs (écarts types 44 et 20 px), filigrane #06020E à 80 %, flou de 45 px, 90 px de plus que le texte.
+        assertEquals(4f, NOM_CONTOUR_DP, 0f)
+        assertTrue(NOM_LUEUR_LARGE_DP > NOM_LUEUR_SERREE_DP)
+        assertEquals(0.8f, FILIGRANE_OPACITE, 0f)
+        assertEquals(45f, FILIGRANE_MARGE_DP, 0f)
+        assertEquals(22.5f, FILIGRANE_FLOU_DP * 0.57735f + 0.5f, 0.5f)
+        assertEquals(42f, POINTS_SOUS_NOM_DP, 0f)
+        // Plus aucun reflet fixe sur le haut des lettres, ni voile en dégradé : le corps du nom est une lettre pleine.
+        val source = File("src/main/java/com/littlemissparty/quiz/tv/habillage/NomNerveux.kt").readText()
+        val corps = source.substringAfter("// Corps, néon plein").substringBefore("// Flash blanc")
+        assertTrue(corps.contains("drawText(l.mise, couleur, o"))
+        assertTrue(!corps.contains("verticalGradient") && !corps.contains("Brush."))
+        assertTrue(!source.contains("radialGradient(listOf(GS.Noir"))
+        // Chaque dessin d'une lettre dit s'il est plein ou en trait : le trait du contour ne déteint plus sur la lettre.
+        Regex("""drawText\(l\.mise[^\n]*""").findAll(source).forEach { assertTrue(it.value, it.value.contains("drawStyle = ")) }
+    }
+
+    @Test
+    fun `jauges en plan cinema - le lecteur est rendu avant que la fete prepare le sien, une seule video a la fois`() {
+        // La fête se prépare 300 ms avant le solo ([PodiumGameShow] : robotFete) ; le lecteur des jauges part avant.
+        assertTrue(JAUGES_VIDEO_FIN_MS < Tempo.PODIUM_REVELATION - 300)
+        assertTrue(JAUGES_VIDEO_FIN_MS > Tempo.PODIUM_REVELATION - 1_000)
+        assertEquals("gs_podium_jauges", JAUGES_VIDEO)
+        // Sans le fichier, le plateau et les clips du robot dans l'arche restent (rien ne casse).
+        val f = File("src/main/res/raw/$JAUGES_VIDEO.mp4")
+        // L'index (moov) avant les images (mdat), même derrière un bloc uuid du rendu : lecture sans attendre tout le fichier.
+        if (f.isFile) {
+            val tete = String(f.readBytes().copyOf(65_536), Charsets.ISO_8859_1)
+            assertTrue(tete.indexOf("moov") in 0 until (tete.indexOf("mdat").takeIf { it >= 0 } ?: Int.MAX_VALUE))
+        }
+    }
+
+    @Test
+    fun `fete en plan cinema - la derniere image des jauges reste jusqu'a la premiere image de la fete, rien par-dessus le podium`() {
+        // Émulateur, 30/10 : un écran noir entre le solo et la fête quand la box tarde à l'afficher.
+        val podium = File("src/main/java/com/littlemissparty/quiz/tv/habillage/PodiumGameShow.kt").readText()
+        assertTrue(podium.contains("jaugesCinema && !(tubesPartis && (fetePrete || feteEchec))"))
+        assertTrue(podium.contains("surPret = { prete = true; surAffiche() }"))
+        assertTrue(podium.contains("Habillage.podium.value = true"))
+        // Le BONUS d'une correction de score faite juste avant la fin ne reste pas sur les jauges.
+        val activite = File("src/main/java/com/littlemissparty/quiz/tv/MainActivity.kt").readText()
+        assertTrue(activite.contains("if (Habillage.podium.value) LaunchedEffect(Unit) { viewModel.coupFini(c.id) }"))
+    }
+
+    @Test
+    fun `jauges - filigrane A derriere le logo et le grand gagnant est, qui s'eteint avec le titre`() {
+        // cedric, 30/10 : la couronne du nouveau décor délavait les textes du haut.
+        val podium = File("src/main/java/com/littlemissparty/quiz/tv/habillage/PodiumGameShow.kt").readText()
+        assertTrue(podium.contains("filigrane(Rect(size.width / 2 - demi, 3.dp.toPx(), size.width / 2 + demi, FILIGRANE_TITRE_BAS_DP.dp.toPx()), part)"))
+        assertTrue(podium.contains("(1f - (m - DESCENTE_DEBUT) / 400f).coerceIn(0f, 1f)"))
+        // Le filigrane descend sous le titre (64 dp + 30 sp) sans toucher les chiffres des tubes.
+        assertTrue(FILIGRANE_TITRE_BAS_DP in TEXTE_SOUS_LOGO_DP + 40f..TEXTE_SOUS_LOGO_DP + 55f)
+        // Le logo 25 % plus grand, la ligne de texte dessous descendue d'autant (les deux ne se touchent pas).
+        assertEquals(26f * 1.25f, LOGO_PODIUM_DP, 0.01f)
+        assertTrue(TEXTE_SOUS_LOGO_DP >= 8f + LOGO_PODIUM_DP * 2f)
+        assertEquals("LE GRAND GAGNANT EST…", TITRE_JAUGES)
+    }
+
+    @Test
+    fun `film d'apercu - le podium sans videos n'existe que dans les tests`() {
+        // Le film pas à pas des tests remplace les deux vidéos par un fond uni ; l'appli les joue toujours.
+        assertFalse(podiumSansVideos)
+        val appli = File("src/main/java").walkTopDown().filter { it.extension == "kt" }.map { it.readText() }
+        assertTrue(appli.none { it.contains("podiumSansVideos = true") })
     }
 }

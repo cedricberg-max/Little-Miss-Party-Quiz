@@ -49,6 +49,11 @@ const val REBUZZ_DELAY_MS = 3_000L
 
 /** Vrai ou Faux express : temps de la révélation avant l'affirmation suivante. */
 const val EXPRESS_REVEAL_MS = 3_500L
+/**
+ * Vrai ou Faux express : les scores de fin de série arrivent tout seuls. Pendant ce temps, un « suivant » de la régie est
+ * un appui réflexe (test du 28/10 : scores à 21:19:53, « suivant » à 21:19:54, jeu suivant lancé sans les jauges).
+ */
+const val EXPRESS_SCORES_GUARD_MS = 4_000L
 
 /** Mimes en file : temps entre la fin du tour d'une couleur et son bilan des scores (« TEMPS ÉCOULÉ ! » puis le bravo). */
 const val MIME_BILAN_AUTO_MS = 4_500L
@@ -126,6 +131,11 @@ data class GameState(
      * copies des médias de la partie 24 h après.
      */
     val endedAt: Long? = null,
+    /**
+     * Heure du serveur où l'animatrice a lancé la fin après le podium ([OutroLaunched]), seulement tant que la partie
+     * est terminée : la TV quitte alors la boucle d'attente du podium pour l'outro et l'écran de fin.
+     */
+    val outroAt: Long? = null,
     /**
      * Un point a déjà été donné ou retiré depuis le début de la partie (question, mime, coffre, ballon, statue, bombe,
      * correction de la régie…), même annulé ensuite : la prestation ne peut plus être remplacée ([Game.mayReplaceProgram]).
@@ -257,6 +267,14 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * est presque toujours le second appui d'un double clic sur OK (celui qui a lancé la question ou la reprise).
      * Mesuré sur l'heure du serveur, il ne dépend pas du moment où la télécommande livre l'appui.
      */
+    /** Fin d'une série express : les scores sont à l'écran depuis moins de [EXPRESS_SCORES_GUARD_MS]. */
+    fun scoresJustShown(now: Long): Boolean {
+        if (state.phase != Phase.SCORES || question?.isExpress != true) return false
+        // Seulement le tableau arrivé seul à la fin de la série, pas le bilan d'un jeu quitté par la régie.
+        val shown = log.lastOrNull { it is ScoresShown || it is GameLeft } as? ScoresShown ?: return false
+        return now - shown.at < EXPRESS_SCORES_GUARD_MS
+    }
+
     fun justStarted(now: Long, ms: Long = CLOSE_GUARD_MS): Boolean {
         val q = question ?: return false
         if (!timerRuns(q) || state.paused) return false
@@ -323,7 +341,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         // Un score qui bouge, quel que soit le jeu : la prestation ne pourra plus être remplacée.
         val scored = next.scored || next.scores().filterValues { it != 0 } != state.scores().filterValues { it != 0 }
         // Heure de fin gardée seulement tant que la partie reste terminée (reprise après la fin : plus de fin).
-        state = next.copy(lastSeq = event.seq, endedAt = next.endedAt.takeIf { next.phase == Phase.ENDED }, scored = scored)
+        state = next.copy(
+            lastSeq = event.seq, endedAt = next.endedAt.takeIf { next.phase == Phase.ENDED },
+            outroAt = next.outroAt.takeIf { next.phase == Phase.ENDED }, scored = scored,
+        )
         // Remise à zéro : le journal de la partie repart d'elle (un jeu de l'ancien programme n'est jamais « rejoué »).
         if (event is ProgramReset) log.clear()
         log += event
@@ -433,6 +454,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             s.phase == Phase.REVEAL -> s.copy(phase = Phase.SCORES)
             // Fin d'une manche de mimes, entre deux tours : les points sont déjà comptés, on passe au classement.
             s.phase == Phase.QUESTION && s.mime != null && !s.mimeTurn -> s.copy(phase = Phase.SCORES, mime = null)
+            // Fin des statues, du duel ou du Simon : leurs points sont déjà comptés, le tableau des scores avant le jeu suivant.
+            s.phase == Phase.QUESTION && !s.intro && quiz.questions.getOrNull(s.index)?.let { it.isStatues || it.isDuel || it.isSimon } == true ->
+                s.copy(phase = Phase.SCORES, statues = null, duel = null, simon = null)
             else -> null
         }
         is DoorSet -> {
@@ -521,7 +545,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 (e.gold && (e.bomb || !r.danger || r.goldFound || e.delta != GOLD_POINTS))) null
             else {
                 val next = r.copy(opened = r.opened + ChestOpen(e.team, e.chest, e.delta, e.bomb, e.at, e.gold))
-                // La bombe arrête le jeu : bilan des coffres, puis classement.
+                // La bombe arrête le jeu : bilan des coffres, puis le jeu suivant (ou les résultats finaux).
                 s.copy(chests = s.chests + (e.qid to next), phase = if (next.team == null) Phase.REVEAL else s.phase)
             }
         }
@@ -532,7 +556,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (e.target !in s.adjustments) null
             else s.copy(adjustments = s.adjustments - e.target)
         is GameEnded ->
-            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null, intro = false, endedAt = e.at, statues = null, duel = null, simon = null)
+            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null, intro = false, endedAt = e.at, outroAt = null, statues = null, duel = null, simon = null)
+        // Une seule fois, et seulement la partie terminée.
+        is OutroLaunched -> if (s.phase != Phase.ENDED || s.outroAt != null) null else s.copy(outroAt = e.at)
         // Mauvaise prestation : retour au salon d'attente, comme une partie neuve (jamais après un point, ni après la fin).
         is ProgramReset -> if (!replaceable(s)) null else GameState()
         is PictoShown -> {
@@ -962,13 +988,14 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             question?.isGonfleur == true -> null
             // « Ça va exploser ! » : seule la mèche décide de la fin.
             question?.isPatate == true -> null
-            // Statues musicales : du récap d'une chanson, « Jeu suivant » (ou les résultats finaux) ; pendant une chanson,
-            // il faut d'abord désigner les gagnantes.
-            question?.isStatues == true -> if (!statuesJugees(state)) null else if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
-            // Duel des robots : « Jeu suivant » entre deux duels, jamais pendant un face-à-face.
-            question?.isDuel == true -> if (!duelLibre(state)) null else if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
-            // Simon du Prof : « Jeu suivant » entre deux suites, jamais pendant une suite.
-            question?.isSimon == true -> if (!simonLibre(state)) null else if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
+            // Statues musicales : du récap d'une chanson, le tableau des scores (ou les résultats finaux), comme à la fin de
+            // chaque jeu (test du 28/10 : le jeu suivant partait sans les jauges) ; pendant une chanson, il faut d'abord
+            // désigner les gagnantes.
+            question?.isStatues == true -> if (!statuesJugees(state)) null else scoresOuFin(now)
+            // Duel des robots : les scores entre deux duels, jamais pendant un face-à-face.
+            question?.isDuel == true -> if (!duelLibre(state)) null else scoresOuFin(now)
+            // Simon du Prof : les scores entre deux suites, jamais pendant une suite.
+            question?.isSimon == true -> if (!simonLibre(state)) null else scoresOuFin(now)
             state.mime == null -> close(now)
             state.mimeTurn -> mimeStop(now)
             else -> scoresOuFin(now)
@@ -981,10 +1008,14 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             question?.isPortes == true && state.doorsOpened < question!!.choices.size -> openDoor(now)
             // Blind test : « Titre suivant » annonce le morceau suivant de la playlist, sans le lancer.
             nextTrack() != null -> openQuestion(state.index + 1, now)
+            // Coffres mystères : chaque coffre a déjà montré le classement, pas de tableau des scores en plus (cedric,
+            // 28/10) : le jeu suivant, ou directement les résultats finaux s'ils étaient le dernier jeu.
+            question?.isCoffres == true -> if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
             else -> scoresOuFin(now)
         }
         Phase.SCORES -> leaveTarget?.let { goto(it, now) } ?: if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
-        Phase.ENDED -> null
+        // Après le podium (la musique attend en boucle) : « ▶ Lancer la fin », une seule fois.
+        Phase.ENDED -> if (state.outroAt == null) emit(OutroLaunched(nextSeq, now)) else null
     }
 
     /**

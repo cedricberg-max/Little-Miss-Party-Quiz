@@ -28,8 +28,8 @@ const val MAX_CHESTS = 20
 /** Ouverture d'un coffre à la TV, puis l'animation bonus ou malus de l'équipe : l'équipe suivante ne peut pas ouvrir avant. */
 const val CHEST_SHOW_MS = 4_500L
 
-/** Après chaque coffre (sauf la bombe), le classement à la TV : qui monte, qui descend. */
-const val CHEST_RANKING_MS = 3_000L
+/** Après chaque coffre (sauf la bombe), le classement à la TV : qui monte, qui descend (4 s, version A du 29/10). */
+const val CHEST_RANKING_MS = 4_000L
 
 /** Annonce « une bombe se cache… et un coffre en or » à la TV, après le dernier tour sans danger. */
 const val BOMB_ALERT_MS = 5_000L

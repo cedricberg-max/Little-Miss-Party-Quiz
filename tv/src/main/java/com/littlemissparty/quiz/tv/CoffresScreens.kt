@@ -32,6 +32,7 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.AlerteBombe
 import com.littlemissparty.quiz.tv.habillage.BilanBombe
 import com.littlemissparty.quiz.tv.habillage.ClassementCoffre
+import com.littlemissparty.quiz.tv.habillage.ClassementCoffreGs
 import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.LignePortes
@@ -124,7 +125,8 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (!state.paused) when {
-                    state.phase == Phase.REVEAL -> NextButton(versClassement(state, "Voir les scores"), actions.next, key = "coffres-bilan-${state.index}")
+                    // Pas de tableau des scores après les coffres (cedric, 28/10) : le jeu suivant, ou les résultats finaux.
+                    state.phase == Phase.REVEAL -> NextButton(suiteLabel(state), actions.next, key = "coffres-bilan-${state.index}")
                     // Sans régie, à la télécommande : un coffre au hasard pour l'équipe qui joue (tablette en panne).
                     r?.team != null && state.regies == 0 && maintenant >= r.readyAt ->
                         TvButton("🎲 Coffre au hasard", actions.chestRandom, fontSize = 22.sp)
@@ -151,7 +153,9 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
         }
         if (classement != null) key(classement.at, classement.chest) {
             val lignes = remember(classement, state.scores, state.teams) { lignesClassement(state, classement) }
-            ClassementCoffre(lignes, state.teams.indexOfFirst { it.uid == classement.team }, Modifier.fillMaxSize())
+            val joue = state.teams.indexOfFirst { it.uid == classement.team }
+            // Game Show : le classement A en cartes néon (cedric, 29/10) ; Classique : celui d'avant, inchangé.
+            if (Look.gs) ClassementCoffreGs(lignes, joue, Modifier.fillMaxSize()) else ClassementCoffre(lignes, joue, Modifier.fillMaxSize())
         }
         if (alerte) key(dernier?.at) { AlerteBombe(onFini = {}, modifier = Modifier.fillMaxSize()) }
     }

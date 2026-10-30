@@ -33,6 +33,8 @@ const BOX_TIMEOUT_MS = 6000;
 
 let db, uid, code, onExit;
 let serverOffset = 0;
+/** Box d'avant (pas d'outroAt après « ▶ Lancer la fin ») : le bouton s'efface, « Fin de la fête » prend sa place. */
+let finSansOutro = false;
 /** Réaffichage à la fin du décompte de reprise (le bouton principal redevient actif). */
 let countdownTimer = null;
 let unsubscribers = [];
@@ -160,13 +162,16 @@ function installerCockpit() {
   plus.textContent = "☰ Plus";
   $("c-pause").after(plus);
   const grille = $("plus-grille");
-  for (const id of ["c-add", "c-replay", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-end"]) grille.append($(id));
+  // « ⏭ Terminer » rangé ici aussi (cedric, 30/10 : trop dangereux sur l'écran principal en pleine partie), juste
+  // avant « ⛔ Arrêter la partie ».
+  for (const id of ["c-add", "c-replay", "c-recommencer", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-end", "c-arret"]) grille.append($(id));
+  $("c-end").querySelector(".label").textContent = "⏭ Terminer";
   $("plus-onglets").append($("c-notes"), document.querySelector(".regie .tabs"),
     $("panel-teams"), $("panel-plan"), $("panel-show"), $("panel-defis"));
   // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer » : appui long, elle reste).
   grille.addEventListener("click", (e) => {
     const bouton = e.target.closest("button");
-    if (bouton && bouton.id !== "c-end") fermerPlus();
+    if (bouton && bouton.id !== "c-arret") fermerPlus();
   }, true);
   // Le milieu de l'écran (cedric, 25/10) : une tuile par équipe, sous la carte de la question.
   const tuiles = document.createElement("section");
@@ -381,11 +386,13 @@ function stopListening() {
  * elle renvoie un message affiché dans la fenêtre, qui reste ouverte (mot de passe faux…), ou rien si tout va bien.
  * Renvoie une promesse : vrai si l'animatrice confirme (et que l'action a réussi).
  */
-function demander({ title, text = "", ok = "Confirmer", alert = false, line = "", warn = "", danger = "", safe = false, password = false, action = null }) {
+function demander({ title, text = "", ok = "Confirmer", non = "Annuler", alert = false, attention = "", line = "", warn = "", danger = "", safe = false, password = false, action = null }) {
   return new Promise((resolve) => {
     const box = $("ask");
     const show = (id, value) => { $(id).textContent = value; $(id).hidden = !value; };
     $("ask-title").textContent = title;
+    $("ask-attention").hidden = !attention;
+    $("ask-attention").querySelector("span").textContent = attention;
     show("ask-text", text);
     show("ask-line", line);
     show("ask-warn", warn);
@@ -399,7 +406,7 @@ function demander({ title, text = "", ok = "Confirmer", alert = false, line = ""
     okBtn.textContent = ok ?? "";
     okBtn.disabled = false;
     okBtn.classList.toggle("alert", alert);
-    cancelBtn.textContent = ok == null ? "Fermer" : "Annuler";
+    cancelBtn.textContent = ok == null ? "Fermer" : non;
     let busy = false;
     const close = (answer) => {
       if (busy) return;
@@ -585,8 +592,30 @@ function derniere(st) {
   return st.total != null && (st.index ?? 0) + 1 >= st.total;
 }
 
+/**
+ * Vrai ou Faux express : une autre affirmation de la même série suit. La TV enchaîne toute seule et les scores
+ * n'arrivent qu'à la fin de la série (cedric, 28/10) : jamais « Voir les scores » entre deux affirmations.
+ */
+function expressSuivante(st) {
+  if (st.kind !== "express") return false;
+  const questions = live.plan?.questions ?? [];
+  const q = questions[st.index ?? -1];
+  const n = questions[(st.index ?? -1) + 1];
+  return q != null && n != null && n.kind === "express" && (n.round ?? null) === (q.round ?? null);
+}
+
 function versClassement(st, libelle) {
   return derniere(st) ? "Résultats finaux 🏆" : libelle;
+}
+
+/**
+ * Fin des coffres mystères : pas de tableau des scores, chaque coffre a déjà montré le classement (cedric, 28/10) ;
+ * le bouton annonce le jeu suivant, ou les résultats finaux si c'était le dernier jeu.
+ */
+function finCoffresLabel(st) {
+  if (derniere(st)) return "Résultats finaux 🏆";
+  const { next, questions } = gamesOf(st);
+  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Question suivante";
 }
 
 function nextLabel(st, teamCount) {
@@ -609,7 +638,7 @@ function nextLabel(st, teamCount) {
     case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : versClassement(st, "Voir le classement")) : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
-    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : versClassement(st, "Voir les scores");
+    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : expressSuivante(st) ? "Affirmation suivante ▶" : st.kind === "coffres" ? finCoffresLabel(st) : versClassement(st, "Voir les scores");
     case "scores": {
       const { next, questions } = gamesOf(st);
       // Bilan d'un jeu quitté en cours de route (cedric, 24/10) : « suivant » ouvre le jeu choisi.
@@ -657,6 +686,7 @@ function render() {
   $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? ""
     : st.phase === "ended" ? (st.leftAt ? "🏁 Fête terminée. La TV est revenue à l'accueil, prête pour la prochaine fête. Merci !"
       : gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre."
+      : finAttendue(st) ? "Bravo à toutes les équipes ! Le podium est sur la TV. Parlez aux enfants, puis « ▶ Lancer la fin » : la fusée part, puis l'écran Merci."
       : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu). Sinon : « 🏁 Fin de la fête ».")
     : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
@@ -714,8 +744,14 @@ function render() {
   next.hidden = st.phase === "ended" && (!gamesOf(st).next || !!st.leftAt);
   // Fin de la partie (cedric, 23/10) : sur l'écran « Merci d'avoir participé », un gros bouton pour quitter la fête ;
   // la TV revient à l'accueil. Une fois la TV partie (leftAt), plus rien à piloter ici.
+  // « ▶ Lancer la fin » (cedric, 29/10) : le podium attend Sarah ; la box publie outroAt une fois la fin lancée.
+  // Une box d'avant ne publie rien : après sa réponse, place directement à « Fin de la fête ».
+  if (st.phase !== "ended") finSansOutro = false;
+  const lancer = $("c-lancer-fin");
+  lancer.hidden = !finAttendue(st);
+  lancer.disabled = !!pending?.advance;
   const fin = $("c-fin");
-  fin.hidden = st.phase !== "ended" || !!st.leftAt;
+  fin.hidden = st.phase !== "ended" || !!st.leftAt || !lancer.hidden;
   fin.disabled = !!pending?.advance;
   fin.classList.toggle("secondary", !next.hidden);
   next.textContent = pending?.advance ? "Envoi…" : nextLabel(st, teams.length);
@@ -740,7 +776,8 @@ function render() {
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
-  $("c-end").hidden = st.phase === "ended";
+  $("c-end").hidden = st.phase === "ended" || st.phase === "lobby";
+  $("c-arret").hidden = st.phase === "lobby" || !!st.leftAt;
   caleSurLeBas();
 }
 
@@ -1915,9 +1952,8 @@ function statuesBoutonPrincipal(e, st) {
   if (c) return c.personne ? "✓ Valider : personne" : c.equipes.size > 1 ? `✓ Valider : ${c.equipes.size} gagnantes` : c.equipes.size ? `✓ Valider : ${live.teams[[...c.equipes][0]]?.name ?? "1 gagnante"}` : "Touchez la ou les gagnantes";
   if (!e.resultat) return e.encore ? "⏭ Chanson suivante" : "⏭ Finir la chanson";
   if (e.annonce > 0) return "Annonce sur la TV…";
-  if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
-  const { next, questions } = gamesOf(st);
-  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Jeu suivant ▶";
+  // Fin du jeu : le tableau des scores sur la TV, comme après chaque jeu (test du 28/10), puis « Jeu suivant ».
+  return versClassement(st, "Voir les scores");
 }
 
 /** Ancienne TV : un gros bouton par équipe pour désigner la gagnante, à la fin ou dès qu'il n'en reste qu'une. */
@@ -2072,10 +2108,9 @@ function duelBoutonPrincipal(e, st) {
   return "🤠 Lancer le duel";
 }
 
+/** Fin du duel ou du Simon : le tableau des scores sur la TV (test du 28/10), puis « Jeu suivant » ; au dernier jeu, les résultats. */
 function finDuelLabel(st) {
-  if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
-  const { next, questions } = gamesOf(st);
-  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Jeu suivant ▶";
+  return versClassement(st, "Voir les scores");
 }
 
 function duelPrincipal(e) {
@@ -2273,7 +2308,7 @@ function renderCoffres(st) {
       + (!c.danger ? `Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`
         : `💣 La bombe est cachée dans un des coffres !${c.goldLeft === true ? " ⭐ Le coffre en or (+500) aussi." : ""}`);
   $("coffres-opened").textContent = opened.length
-    ? opened.slice(-4).map((o) => `${name(o.team)} : coffre ${o.chest + 1} ${o.bomb ? "💣" : `${o.gold === true ? "⭐ " : ""}${o.delta < 0 ? "−" : "+"}${Math.abs(o.delta)}`}`).join(" · ")
+    ? opened.slice(-4).map((o) => `${name(o.team)} : ${o.bomb ? "💣" : `${o.gold === true ? "⭐ " : ""}${o.delta < 0 ? "−" : "+"}${Math.abs(o.delta)}`}`).join(" · ")
     : `${c.count ?? 0} coffres fermés.`;
   const btn = $("coffres-random");
   const wait = (c.readyAt ?? 0) - (Date.now() + serverOffset);
@@ -2531,6 +2566,9 @@ function renderGames(st) {
   $("c-replay").disabled = editing;
   // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer la fête ! » suffit).
   $("c-rescue").hidden = st.phase === "lobby" || !rounds.length || !live.plan?.rev;
+  // « ↺ Relancer ce jeu » (cedric, 30/10) : le jeu en cours repart à zéro d'un seul geste, pendant un jeu seulement.
+  $("c-recommencer").hidden = st.phase === "lobby" || !current || !live.plan?.rev;
+  $("c-recommencer").disabled = editing;
   if (rescueOpen && $("c-rescue").hidden) rescueOpen = false;
   $("rescue").hidden = !rescueOpen;
   if (rescueOpen) renderRescue(st);
@@ -2606,7 +2644,7 @@ async function jumpTo(r, st) {
   // Quitter le jeu en cours pour un autre (cedric, 24/10) : la TV montre d'abord le bilan des scores.
   const bilan = jeuEnCours(st) && r !== current;
   const ok = await demander(replay
-    ? { title: `Recommencer « ${name} » ?`, text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores." : ""}`, ok: "Recommencer ce jeu", alert: true }
+    ? { title: `Recommencer « ${name} » ?`, attention: "Ce jeu repart à zéro : les points gagnés pendant ce jeu sont effacés.", text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores." : ""}`, ok: "Recommencer ce jeu", alert: true }
     : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés.${bilan ? ` La TV montre le bilan des scores, puis « ${name} » quand vous appuyez sur « Jeu suivant ».` : ""} Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
   if (!ok) return;
   // Photos et extraits du jeu recopiés dans la partie s'ils y manquent (copies effacées après la fête, partie reprise
@@ -2623,6 +2661,11 @@ async function jumpTo(r, st) {
 }
 
 $("c-rescue").onclick = () => { rescueOpen = true; render(); };
+$("c-recommencer").onclick = () => {
+  const st = live.state ?? {};
+  const { current } = gamesOf(st);
+  if (current && !pending?.advance) jumpTo(current, st);
+};
 $("c-add").onclick = () => openLibrary();
 $("c-replay").onclick = () => openRejouer();
 $("rescue-close").onclick = () => { rescueOpen = false; render(); };
@@ -3587,6 +3630,13 @@ async function addPicked(where) {
   const rejeuEnCours = enRejeu();
   const refused = tvRefuses(picked.questions);
   if (refused) { toast(refused); return; }
+  // « ▶ Rejouer maintenant » pendant un jeu : « Êtes-vous sûr ? » avant d'arrêter le jeu en cours (cedric, 30/10).
+  const enJeu = !["lobby", "ended"].includes(live.state?.phase ?? "lobby");
+  if (where === "now" && enJeu) {
+    const nom = picked.game?.label ? `«\u00a0${picked.game.label}\u00a0»` : "ce jeu";
+    if (!await demander({ ...SUR, line: `Vous allez lancer ${nom} tout de suite.`, text: "Le jeu en cours s'arrête là. Les points déjà gagnés sont gardés." })) return;
+    if (!picked || editing || adding) return;
+  }
   // Le jeu choisi est gardé : fenêtre fermée pendant la copie des images, l'ajout part quand même (test du 27/10 :
   // la copie des pochettes d'un blind test prenait du temps sans rien montrer, et l'ajout se perdait).
   const choix = picked;
@@ -4116,6 +4166,7 @@ const STATUS_MESSAGES = {
   stale_program: "Le programme venait de changer : rien n'a été fait, la liste des jeux est à jour.",
   countdown: "La partie reprend (3, 2, 1) : attendez la fin du décompte.",
   just_started: "Le chrono vient de partir : rien n'a été arrêté. Touchez à nouveau pour l'arrêter.",
+  scores_just_shown: "Les scores viennent de s'afficher : laissez-les quelques secondes à l'écran, puis touchez à nouveau.",
   bad_factor: "Valeur de points inconnue.",
   not_ended: "La partie n'est pas encore terminée : appuyez d'abord longtemps sur « Terminer ».",
   no_name: "Tapez d'abord le nom de l'équipe.",
@@ -4133,7 +4184,11 @@ function toast(message) {
  * Envoie une commande avec le numéro d'étape affiché (expectSeq). La box refuse une commande
  * d'avancement si la partie a bougé entre-temps : un double appui n'avance jamais de deux étapes.
  */
-async function send(type, extra = {}, { advance = false } = {}) {
+/**
+ * [repli] : un refus « not_ended » ou une écriture refusée (règles d'avant) ne s'affiche pas ; l'appelant se replie
+ * (« Arrêter la partie » sur une TV ou un site d'avant).
+ */
+async function send(type, extra = {}, { advance = false, repli = false } = {}) {
   const st = live.state;
   if (!st || (advance && pending?.advance)) return null;
   const cmdRef = push(ref(db, `games/${code}/commands`));
@@ -4158,11 +4213,12 @@ async function send(type, extra = {}, { advance = false } = {}) {
       const status = s.val();
       if (!status) return;
       tvRepond();
-      if (status.status !== "applied") toast(STATUS_MESSAGES[status.reason] ?? STATUS_MESSAGES[status.status] ?? "Commande refusée.");
+      if (status.status !== "applied" && !(repli && status.reason === "not_ended")) toast(STATUS_MESSAGES[status.reason] ?? STATUS_MESSAGES[status.status] ?? "Commande refusée.");
       done(status);
     });
     set(cmdRef, { type, expectSeq: st.seq ?? 0, by: uid, at: serverTimestamp(), ...extra }).catch((e) => {
       console.error(e);
+      if (repli) return done({ status: "refused", reason: "write_denied" });
       toast("Commande refusée : ce téléphone n'est peut-être plus relié.");
       done(null);
     });
@@ -4278,6 +4334,21 @@ function showUndo(text, seq) {
   undoTimer = setTimeout(() => { $("undo").hidden = true; }, 10000);
 }
 
+/** « ▶ Lancer la fin » à faire : podium sur la TV, fin pas encore lancée (outroAt), TV toujours sur la fête. */
+function finAttendue(st) {
+  return st.phase === "ended" && !st.leftAt && st.outroAt == null && !finSansOutro;
+}
+
+$("c-lancer-fin").onclick = async () => {
+  const st = live.state;
+  if (!st || !finAttendue(st) || pending?.advance) return;
+  const status = await send("next", {}, { advance: true });
+  // La box a répondu sans publier outroAt : box d'avant, « Fin de la fête » prend la place. Sans réponse : réessayer.
+  if (status && live.state?.outroAt == null) finSansOutro = true;
+  if (status?.status === "applied") toast("▶ Fin lancée : la fusée part sur la TV.");
+  render();
+};
+
 $("c-factor").querySelectorAll("[data-factor]").forEach((b) => {
   b.onclick = () => send("factor", { factor: Number(b.dataset.factor) });
 });
@@ -4336,20 +4407,106 @@ $("c-fin").onclick = async () => {
 };
 $("c-answer").onclick = () => { answerMasked = !answerMasked; render(); };
 
-// « Terminer la partie » : appui long d'une seconde, pour ne jamais finir une partie par erreur.
-(() => {
-  const btn = $("c-end");
+/**
+ * Bouton à appui long (cedric, 29/10) : la jauge se remplit pendant [ms] ; lâché avant, c'est un appui court.
+ * [court] et [long] sont appelés au lâcher et à la fin de la jauge ; aucun des deux ne part sans « Êtes-vous sûr ? ».
+ */
+function appuiLong(btn, ms, { court, long }) {
   let hold = null;
   let fired = false;
+  btn.style.setProperty("--jauge", `${ms}ms`);
   const cancel = () => { clearTimeout(hold); btn.classList.remove("pressing"); };
   btn.addEventListener("pointerdown", () => {
     fired = false;
     btn.classList.add("pressing");
-    hold = setTimeout(() => { fired = true; cancel(); send("end", {}, { advance: true }); }, 1000);
+    hold = setTimeout(() => { fired = true; cancel(); navigator.vibrate?.(80); long(); }, ms);
   });
   ["pointerup", "pointerleave", "pointercancel"].forEach((e) => btn.addEventListener(e, cancel));
-  btn.onclick = () => { if (!fired) toast("Gardez le doigt appuyé une seconde pour terminer la partie."); fired = false; };
-})();
+  btn.onclick = () => { if (!fired) court(); fired = false; };
+}
+
+// Les trois confirmations ne s'affichent que sur ce téléphone, jamais sur la TV (cedric, 29/10).
+const SUR = { title: "Êtes-vous sûr ?", ok: "Oui", non: "Non" };
+
+/** « ⏭ Terminer », appui court : le jeu en cours s'arrête, la suite démarre (jeu suivant, ou podium au dernier jeu). */
+async function terminerLeJeu() {
+  const st = live.state ?? {};
+  if (st.phase === "lobby" || st.phase === "ended" || pending?.advance) return;
+  const { questions, current, next } = gamesOf(st);
+  const nom = current ? `« ${gameName(current, questions)} »` : "Le jeu en cours";
+  if (!next) {
+    if (!await demander({ ...SUR, line: "Vous allez passer au podium final.", text: `${nom} est le dernier jeu.` })) return;
+    return send("end", {}, { advance: true });
+  }
+  const suivant = gameName(next, questions);
+  if (!await demander({ ...SUR, line: `Vous allez passer au jeu suivant : «\u00a0${suivant}\u00a0».`, text: `${nom} s'arrête ici. Les points déjà gagnés sont gardés.` })) return;
+  const jeu = questions.slice(next.start, next.end + 1);
+  copyImages(jeu).catch((e) => console.warn("Illustrations non recopiées", e));
+  copySounds(jeu);
+  const status = await send("goto", { index: next.start, qid: questions[next.start].id }, { advance: true });
+  if (status?.status === "applied") toast(jeuEnCours(st) ? `Bilan des scores sur la TV, puis « ${suivant} ».` : `C'est parti pour « ${suivant} » !`);
+}
+
+/** « ⏭ Terminer », appui long : directement les résultats finaux (podium), quel que soit le jeu en cours. */
+async function allerAuPodium() {
+  const st = live.state ?? {};
+  if (st.phase === "lobby" || st.phase === "ended" || pending?.advance) return;
+  if (!await demander({ ...SUR, line: "Vous allez passer au podium final.", text: "Les jeux qui restent ne seront pas joués." })) return;
+  send("end", {}, { advance: true });
+}
+
+/**
+ * « ⛔ Arrêter la partie » (cedric, 29/10) : tout s'arrête tout de suite, sans podium ; la TV revient à l'accueil et
+ * la régie la suit. Une TV ou un site d'avant refuse « arret » : la partie est alors terminée puis quittée.
+ */
+async function arreterLaPartie() {
+  const st = live.state ?? {};
+  if (st.phase === "lobby" || st.leftAt || pending?.advance) return;
+  if (!await demander({
+    ...SUR, alert: true,
+    attention: "Ce bouton va mettre fin définitivement à la partie.",
+    text: "Pas de podium : la TV revient tout de suite à l'accueil.",
+  })) return;
+  let r = await send("newgame", { arret: true }, { advance: true, repli: true });
+  if (r?.status === "refused" && (r.reason === "not_ended" || r.reason === "write_denied")) {
+    const fin = live.state?.phase === "ended" ? { status: "applied" } : await send("end", {}, { advance: true });
+    if (fin?.status === "applied") r = await send("newgame", {}, { advance: true });
+  }
+  if (r?.status === "applied") toast("⛔ Partie arrêtée : la TV revient à l'accueil.");
+}
+
+/** Le choix de l'appui long sur « ⏭ Terminer » (cedric, 30/10) : « podium », « arret », ou null (annulé). */
+function choisirLaFin() {
+  return new Promise((resolve) => {
+    const box = $("fin-choix");
+    const close = (choix) => {
+      box.hidden = true;
+      $("fin-podium").onclick = $("fin-arret").onclick = $("fin-annuler").onclick = box.onclick = null;
+      resolve(choix);
+    };
+    $("fin-podium").onclick = () => close("podium");
+    $("fin-arret").onclick = () => close("arret");
+    $("fin-annuler").onclick = () => close(null);
+    // Toucher à côté de la fenêtre = annuler.
+    box.onclick = (e) => { if (e.target === box) close(null); };
+    box.hidden = false;
+    $("fin-annuler").focus();
+  });
+}
+
+/** « ⏭ Terminer », appui long : aller au podium ou terminer complètement, puis « Êtes-vous sûr ? » (cedric, 30/10). */
+async function finAuChoix() {
+  const st = live.state ?? {};
+  if (st.phase === "lobby" || st.phase === "ended" || st.leftAt || pending?.advance) return;
+  fermerPlus(); // le doigt est encore sur « ⏭ Terminer » : « ☰ Plus » se referme derrière le choix
+  const choix = await choisirLaFin();
+  if (choix === "podium") return allerAuPodium();
+  if (choix === "arret") return arreterLaPartie();
+}
+
+appuiLong($("c-end"), 1000, { court: terminerLeJeu, long: finAuChoix });
+// Arrêter la partie : seulement en appui long (1,5 s), jamais d'un simple toucher.
+appuiLong($("c-arret"), 1500, { court: () => toast("Gardez le doigt appuyé sur « Arrêter la partie » jusqu'au bout de la jauge."), long: arreterLaPartie });
 
 $("tab-teams").onclick = () => { tabChosen = true; switchTab("teams"); };
 $("tab-plan").onclick = () => { tabChosen = true; switchTab("plan"); };

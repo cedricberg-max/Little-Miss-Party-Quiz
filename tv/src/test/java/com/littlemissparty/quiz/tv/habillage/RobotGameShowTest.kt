@@ -210,6 +210,15 @@ class RobotGameShowTest {
         assertNull(momentRobot(partie(Phase.QUESTION), 0, null))
     }
 
+    /** Bouche bée (29/10) : il reste jusqu'au sursaut de 3,5 s, et repart avant la fin des 5 secondes. */
+    @Test
+    fun `le robot bouche bee reste jusqu'a son sursaut et repart avant la fin du temps`() {
+        val trajet = CATALOGUE.single { it.fichier == "gs_robot_suspense" }.trajet
+        assertTrue("reste au bord jusqu'à 4 s", trajet.etapes[trajet.etapes.size - 2].ms >= 4_000)
+        assertTrue("sorti avant la fin des 5 s, ${trajet.totalMs}", trajet.totalMs <= 5_000)
+        assertEquals(1040f / 1060f, formatClip("gs_robot_suspense"), 0f)
+    }
+
     /**
      * Chaque clip est dessiné dans une boîte à son format (cedric, 27/10 au soir : main coupée au bord ; 13 clips refaits
      * plus larges) : la largeur lue dans le fichier vaut celle que l'appli prévoit, sinon le robot serait écrasé.

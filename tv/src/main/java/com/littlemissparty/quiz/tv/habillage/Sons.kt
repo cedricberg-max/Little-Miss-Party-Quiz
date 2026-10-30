@@ -95,6 +95,18 @@ object Sons {
     private var appli: Context? = null
     /** Tous les sons du démarrage sont chargés : une boucle absente ensuite est un incident. */
     private var chargementFini = false
+    /**
+     * Instant (SystemClock.uptimeMillis) où part la musique de la présentation d'un jeu ; 0 : aucune de prévue. Son
+     * intro vidéo l'attend ([attenteIntroMs]).
+     */
+    @Volatile private var musiqueIntroA = 0L
+
+    /**
+     * Attente (ms) avant de lancer une intro vidéo de jeu prête, pour que sa première image parte avec le début de sa
+     * musique, qui s'entend [BouclePcm.latenceMs] après son départ ; jamais plus de [ATTENTE_INTRO_MAX_MS].
+     */
+    fun attenteIntroMs(): Int = attenteIntro(musiqueIntroA, SystemClock.uptimeMillis(), BouclePcm.latenceMs)
+
     private val volumes = Lit.entries.associateWith { 0f }.toMutableMap()
     private var ambiance = Ambiance.SILENCE
     /** Dernière ambiance demandée, même encore programmée : c'est elle qu'on remet au retour au premier plan. */
@@ -260,7 +272,7 @@ object Sons {
             Lit.FIN -> ({ t -> tourFin = t })
             else -> null
         }
-        val b = boucle(app, nom, surTour) ?: return@essayer
+        val b = boucle(app, nom, surTour, l.repriseMs, l.repriseImage) ?: return@essayer
         lits[l] = b
         val v = volumes.getValue(l)
         b.setVolume(v)
@@ -277,10 +289,12 @@ object Sons {
                     is Ordre.Jouer -> plus(o.dansMs) { jouer(o.son, o.etireSurMs, o.gauche, o.droite, o.vitesse) }
                     is Ordre.Musique -> {
                         ambianceVoulue = o.ambiance
+                        if (o.ambiance.presentation) musiqueIntroA = SystemClock.uptimeMillis() + o.dansMs
                         plus(o.dansMs) { versAmbiance(o.ambiance, o.fonduMs) }
                     }
                     is Ordre.Caler -> plus(o.dansMs) { caler() }
                     is Ordre.Reprendre -> plus(o.dansMs) { reprendreLong(o.son) }
+                    is Ordre.Enchainer -> plus(o.aMs - Tempo.ENCHAINER_AVANT) { enchainer(o.son, o.aMs, o.ambiance) }
                 }
             }
         }
@@ -461,6 +475,7 @@ object Sons {
     /** Annule ce qui était prévu et éteint en douceur les sons longs encore en cours. La musique, elle, continue. */
     private fun couper() {
         h.removeCallbacksAndMessages(prevus)
+        musiqueIntroA = 0L
         longs.keys.forEach { essayer("couper") { eteindre(it) } }
         // Le crayon se tait aussi ; le prochain point reçu le relance.
         if (crayonActif) {
@@ -513,6 +528,40 @@ object Sons {
         }
     }
 
+    /**
+     * Passe à l'[ambiance] (sans fondu) quand le son [s] arrive à [aMs] : sa position réelle est relue maintenant, peu
+     * avant, pour que la boucle enchaîne pile sur la fin du son, quel que soit le temps que la box a mis à le démarrer.
+     * Son déjà arrêté (ou jamais parti) : l'ambiance tout de suite.
+     */
+    private fun enchainer(s: Son, aMs: Long, a: Ambiance) {
+        // Chargée dès maintenant (muette) : au moment voulu, elle n'a plus qu'à partir.
+        Lit.entries.forEach { if (a.volume(it, Look.gs) > 0f && lits[it] == null) rechargerLit(it) }
+        val mp = longs[s]
+        val entendu = mp?.takeIf { it.isPlaying }?.let { positionEntendue(it) }
+        // La boucle part en avance du temps que cette box met à faire entendre une boucle qui démarre.
+        val avance = BouclePcm.latenceMs.coerceIn(0L, BouclePcm.LATENCE_MAX_MS)
+        val reste = if (entendu == null) 0L else (aMs - entendu - avance).coerceIn(0L, Tempo.ENCHAINER_AVANT * 2)
+        val passer = Runnable {
+            if (enArriere) return@Runnable
+            ambianceVoulue = a
+            essayer("enchainer") { versAmbiance(a, 0) }
+        }
+        if (reste <= 0) passer.run() else h.postAtTime(passer, prevus, SystemClock.uptimeMillis() + reste)
+    }
+
+    /**
+     * Position (ms) du son qu'on entend en ce moment : d'après l'horodatage du lecteur (image de tel instant, latence
+     * de la sortie comprise), sinon sa position.
+     */
+    private fun positionEntendue(mp: MediaPlayer): Long? = runCatching {
+        val ts = mp.timestamp
+        if (ts != null && ts.mediaClockRate > 0f) {
+            (ts.anchorMediaTimeUs + ((System.nanoTime() - ts.anchorSytemNanoTime) / 1000 * ts.mediaClockRate).toLong()) / 1000
+        } else {
+            mp.currentPosition.toLong()
+        }
+    }.getOrNull()
+
     /** Les boucles repartent du début de leur première mesure à cet instant (relais du générique). */
     private fun caler() {
         departDesLits = SystemClock.elapsedRealtime()
@@ -522,6 +571,22 @@ object Sons {
     /** Fondu enchaîné d'une ambiance à l'autre : chaque boucle glisse vers son volume, celles qui se taisent s'arrêtent. */
     private fun versAmbiance(a: Ambiance, fonduMs: Long = FONDU_MS) {
         ambiance = a
+        // Sans fondu (enchaînement pile sur la fin d'un son) : chaque boucle a son volume avant même de partir.
+        if (fonduMs <= 0) Lit.entries.forEach { l ->
+            val v = a.volume(l, Look.gs)
+            if (v == volumes.getValue(l)) return@forEach
+            volumes[l] = v
+            essayer("volume") { lits[l]?.setVolume(v) }
+        }
+        // Musique d'intro d'un jeu qui part (cedric, 30/10) : d'emblée à son volume, sans fondu d'entrée, pour que son
+        // début (trompettes, violon, « Oh-a-oh »…) s'entende en entier, du tout premier échantillon.
+        Lit.entries.forEach { l ->
+            val v = a.volume(l, Look.gs)
+            if (v > 0f && l.departFranc && volumes.getValue(l) == 0f && lits[l]?.isPlaying != true) {
+                volumes[l] = v
+                essayer("volume") { lits[l]?.setVolume(v) }
+            }
+        }
         Lit.entries.forEach { if (a.volume(it, Look.gs) > 0f) reveiller(lits[it] ?: rechargerLit(it)) }
         val depart = volumes.toMap()
         val etapes = (fonduMs / PAS_MS).toInt().coerceAtLeast(1)
@@ -573,11 +638,11 @@ object Sons {
     }
 
     /** [surTour] : appelé au début de chaque tour (instant SystemClock.elapsedRealtime), avec 0 quand elle s'arrête. */
-    private fun boucle(context: Context, nom: String, surTour: ((Long) -> Unit)? = null): LitSonore? {
+    private fun boucle(context: Context, nom: String, surTour: ((Long) -> Unit)? = null, repriseMs: Long = 0, repriseImage: Long = 0): LitSonore? {
         // Fichier en WAV (les fonds du Game Show) : un flux continu, sans relais entre deux lecteurs.
         val res = id(context, nom) ?: return null
         try {
-            BouclePcm.ouvrir(context, res, surTour, BOUCLE_MS) { incident("Boucle « $nom » : $it") }?.let { return it }
+            BouclePcm.ouvrir(context, res, surTour, BOUCLE_MS, { incident("Boucle « $nom » : $it") }, repriseMs, repriseImage)?.let { return it }
         } catch (e: Exception) {
             incident("Boucle « $nom » : flux impossible (${e.message}), lue par deux lecteurs")
         }
@@ -868,3 +933,9 @@ private class Boucle(
         }, apresMs)
     }
 }
+
+/** Voir [Sons.attenteIntroMs] ([a] : 0, aucune musique prévue ; [latence] < 0 : pas encore mesurée). */
+internal fun attenteIntro(a: Long, maintenant: Long, latence: Long): Int =
+    if (a <= 0L) 0 else (a + latence.coerceIn(0L, BouclePcm.LATENCE_MAX_MS) - maintenant).coerceIn(0L, ATTENTE_INTRO_MAX_MS).toInt()
+
+internal const val ATTENTE_INTRO_MAX_MS = 3_000L

@@ -353,6 +353,11 @@ describe("pupitre", () => {
     await bleus.locator("#coffres-host .bc-titre", { hasText: "Au tour de l'équipe Les Roses" }).waitFor();
     await bleus.locator(".bc-texte", { hasText: "Encore 6 coffres sans danger" }).waitFor();
     assert.equal(await roses.locator(".bc-case").count(), 10);
+    // Sans numéros (cedric, 29/10) : les coffres aux mêmes places que sur la TV, 2 rangées de 5 pour 10 coffres.
+    assert.deepEqual(await roses.locator(".bc-rangee").evaluateAll((rs) => rs.map((r) => r.querySelectorAll(".bc-case").length)), [5, 5]);
+    assert.equal((await roses.locator(".bc-plaque").allTextContents()).join(""), "", "aucun numéro sur les coffres");
+    const { repartitionCoffres } = await import("../web/public/coffres.js");
+    assert.deepEqual([6, 7, 12, 13, 20].map(repartitionCoffres), [[6], [3, 4], [6, 6], [4, 4, 5], [6, 7, 7]], "mêmes rangées que la TV");
     assert.equal(await bleus.locator(".bc-case:not([disabled])").count(), 0, "seule l'équipe qui joue ouvre");
     // Plus de bouton « Ouvrir » (cedric, 27/10 au soir) : toucher le coffre 3 l'ouvre tout de suite.
     assert.equal(await roses.locator(".bc-ouvrir").count(), 0);
@@ -360,7 +365,7 @@ describe("pupitre", () => {
     // Double toucher (deux coffres très vite) : un seul coffre part, le premier.
     await roses.evaluate(() => { const c = document.querySelectorAll(".bc-case"); c[2].click(); c[4].click(); });
     await waitFor(async () => (await read("chestChoice/bc-1-0"))?.i === 2, "coffre 3 envoyé à la box");
-    await roses.locator(".bc-texte", { hasText: "Coffre 3 choisi : regardez la TV !" }).waitFor();
+    await roses.locator(".bc-texte", { hasText: "Coffre choisi : regardez la TV !" }).waitFor();
     assert.equal(await roses.locator(".bc-case:not([disabled])").count(), 0, "plus rien à toucher une fois le coffre envoyé");
     await new Promise((res) => setTimeout(res, 500));
     assert.equal((await read("chestChoice/bc-1-0"))?.i, 2, "le deuxième toucher n'a rien changé");
@@ -371,7 +376,7 @@ describe("pupitre", () => {
     await hostState(question({ ...base, chests: chests({ team: b, turn: 1, safeLeft: 0, danger: true, goldLeft: true, key: "bc-1-1", readyAt: at + 4000, opened: [ouvert], gains: { [r]: 150, [b]: 0 } }) }));
     await bleus.locator(".bc-case.bc-attente").waitFor();
     assert.equal(await bleus.locator(".bc-case").nth(2).locator(".bc-contenu").textContent(), "?", "suspense pendant l'animation de la TV");
-    await bleus.locator(".bc-titre", { hasText: "Coffre 3…" }).waitFor();
+    await bleus.locator(".bc-titre", { hasText: "Le coffre s'ouvre…" }).waitFor();
     await bleus.locator(".bc-case.bc-plus .bc-contenu", { hasText: "+150" }).waitFor({ timeout: 5000 });
     // Au tour des Bleus : le bouton attend la fin de l'animation sur la TV.
     await bleus.locator(".bc-titre", { hasText: "À vous, Les Bleus !" }).waitFor();
@@ -745,6 +750,22 @@ describe("pupitre", () => {
     const t2 = Date.now();
     await hostState(simon({ step: "play", suite: 1, key: "s1-1-1-200", startAt: t2 - 4_000, montreAt: t2 - 2_000, reponseAt: t2 - 1_000, finAt: t2 + 60_000 }));
     await roses.locator(".sm-compte", { hasText: "Ta suite (0/1)" }).waitFor();
+    // Que des couleurs (cedric, 29/10) : pas de chiffres, les 8 boules prennent la place, entières, droit comme couché.
+    assert.equal(await roses.locator(".sm-chiffres").isVisible(), false, "plus de chiffres");
+    const FORMATS = { "téléphone droit": [390, 844, 70], "téléphone couché": [844, 390, 60], "tablette posée": [1280, 800, 150], "tablette droite": [800, 1280, 150] };
+    for (const [format, [width, height, mini]] of Object.entries(FORMATS)) {
+      await roses.setViewportSize({ width, height });
+      await roses.waitForTimeout(300);
+      if (process.env.LMP_SHOTS) await roses.screenshot({ path: `${process.env.LMP_SHOTS}/simon-couleurs-${width}x${height}.png` });
+      const cadres = await roses.evaluate(() => [...document.querySelectorAll(".sm-boules .sm-boule, .sm-effacer, .sm-valider")].map((el) => {
+        const r = el.getBoundingClientRect();
+        return { c: el.className, l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width };
+      }));
+      assert.equal(cadres.length, 10, format);
+      for (const k of cadres) assert.ok(k.l >= -1 && k.t >= -1 && k.r <= width + 1 && k.b <= height + 1, `${format} : ${JSON.stringify(k)} dépasse`);
+      const boule = Math.min(...cadres.filter((k) => k.c.includes("sm-boule")).map((k) => k.w));
+      assert.ok(boule >= mini, `${format} : boules de ${Math.round(boule)} px (au moins ${mini})`);
+    }
     for (const p of [roses, bleus, verts]) await p.context().close();
   });
 

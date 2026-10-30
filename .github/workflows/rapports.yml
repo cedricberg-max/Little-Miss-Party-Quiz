@@ -30,7 +30,7 @@ permissions:
 jobs:
   captures:
     if: inputs.captures != ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -76,12 +76,40 @@ jobs:
             done
             [ -n "$trouve" ] || echo "=== ABSENTE $nom"
           done
+      - name: Afficher les films (aperçus)
+        if: contains(inputs.noms, 'apercu')
+        run: |
+          for mp4 in $(find archive -name '*apercu*.mp4' | sort | head -2); do
+            echo "=== VIDEO $(basename "$mp4") $(wc -c < "$mp4")"
+            base64 -w 4000 "$mp4" | sed 's/^/V64 /'
+            echo "=== FIN VIDEO"
+          done
+
+      # Le film du podium image par image (PodiumFilmTest) : textes sur fond noir puis sur fond blanc, en vidéo RVB
+      # quasi sans perte ; l'incrustation sur les vraies vidéos et la musique se fait ensuite, hors du journal.
+      - name: Afficher le film du podium (images pas à pas)
+        if: contains(inputs.noms, 'film')
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null; }
+          premiere=$(find archive -name 'film-noir-0000.png' | head -1)
+          [ -n "$premiere" ] || { echo "=== ABSENT film"; exit 0; }
+          d=$(dirname "$premiere")
+          echo "Images : $(ls "$d" | grep -c '^film-noir-') noires, $(ls "$d" | grep -c '^film-blanc-') blanches"
+          # « film » : les deux fonds ; « film-noir » ou « film-blanc » : un seul (journal moins lourd à relire).
+          fonds="noir blanc"
+          case ",$NOMS," in *,film-noir,*) fonds=noir ;; *,film-blanc,*) fonds=blanc ;; esac
+          for fond in $fonds; do
+            ffmpeg -loglevel error -framerate 25 -i "$d/film-$fond-%04d.png" -c:v libx264rgb -crf 10 -preset slow -pix_fmt rgb24 "$RUNNER_TEMP/film-$fond.mp4"
+            echo "=== VIDEO film-$fond.mp4 $(wc -c < "$RUNNER_TEMP/film-$fond.mp4")"
+            base64 -w 4000 "$RUNNER_TEMP/film-$fond.mp4" | sed 's/^/V64 /'
+            echo "=== FIN VIDEO"
+          done
 
   # Audit des images des packs (test Mi Box du 26/10 : questions Marvel du Quiz illustré sans images). Lecture seule ;
   # le journal étant public, rien que des titres de packs, des comptes et des identifiants d'images.
   audit:
     if: inputs.audit == 'packs'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -122,7 +150,7 @@ jobs:
 
   bombe:
     if: inputs.audit == 'bombe'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -138,7 +166,7 @@ jobs:
 
   partie:
     if: inputs.audit == 'partie'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -154,7 +182,7 @@ jobs:
 
   lire:
     if: inputs.captures == '' && inputs.audit == ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       NOMBRE: ${{ inputs.nombre }}

@@ -100,10 +100,35 @@ class BombeCacheeTest {
         assertNull(g.openRandomChest(t0 + 999_000), "plus aucun coffre ne s'ouvre")
         val gains = g.gameGains()
         equipes.forEach { assertEquals((g.state.scores()[it] ?: 0) - (avant[it] ?: 0), gains[it] ?: 0) }
+        // Pas de tableau des scores après les coffres (cedric, 28/10 : chaque coffre a déjà montré le classement).
+        val scores = g.state.scores()
         g.next(t0 + 999_000)
-        assertEquals(Phase.SCORES, g.state.phase, "classement")
-        g.next(t0 + 999_500)
-        assertEquals("q2", g.question?.id, "le jeu suivant s'enchaîne")
+        assertEquals("q2", g.question?.id, "le jeu suivant s'enchaîne, sans tableau des scores")
+        assertEquals(Phase.QUESTION, g.state.phase)
+        assertFalse(g.events.any { it is ScoresShown && it.at >= t0 + 999_000 }, "jamais de tableau des scores après les coffres")
+        assertEquals(scores, g.state.scores(), "points gardés")
+    }
+
+    @Test
+    fun `coffres mysteres en dernier jeu, la bombe puis directement les resultats finaux`() {
+        val g = Game(Quiz("p", "P", listOf(quiz, bombe), intros = false)).apply {
+            next(t0)
+            close(t0 + 2_000)
+            next(t0 + 3_000, mapOf("licornes" to Answer(0, t0 + 1_000)))
+            next(t0 + 4_000)
+            next(t0 + 5_000)
+        }
+        assertEquals("b1", g.question?.id)
+        g.dealChests(equipes, t0 + 7_000)
+        repeat(g.chestRound!!.safe) { g.ouvrir(Random(it)) }
+        val team = g.chestRound!!.team!!
+        g.openChest(team, g.chestRound!!.closed.first(), g.chestRound!!.readyAt, toujoursBombe)
+        assertEquals(Phase.REVEAL, g.state.phase, "bilan des coffres")
+        val scores = g.state.scores()
+        g.next(t0 + 999_000)
+        assertEquals(Phase.ENDED, g.state.phase, "podium tout de suite, pas de tableau des scores avant")
+        assertFalse(g.events.any { it is ScoresShown && it.at >= t0 + 999_000 })
+        assertEquals(scores, g.state.scores(), "points gardés")
     }
 
     @Test

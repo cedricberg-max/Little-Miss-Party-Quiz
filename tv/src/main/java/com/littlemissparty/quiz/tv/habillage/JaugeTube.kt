@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -72,8 +73,48 @@ internal fun DrawScope.dessineJaugeSimple(part: Float, couleur: Color) {
             Offset(4f, size.height - 4f - niveau), Size(w - 8f, niveau), CornerRadius(w * 0.14f),
         )
     }
-    drawRoundRect(couleur.copy(alpha = 0.55f), cornerRadius = r, style = androidx.compose.ui.graphics.drawscope.Stroke(3f))
+    drawRoundRect(couleur.copy(alpha = 0.55f), cornerRadius = r, style = Stroke(3f))
 }
+
+/**
+ * Tableau des scores, Game Show (cedric, 29/10) : sa jauge d'aujourd'hui avec un contour néon très marqué collé au
+ * verre (un trait sombre, le néon plein de la couleur de l'équipe et sa lueur, un filet blanc au milieu), pour qu'elle
+ * ressorte sur le plateau ; l'ombre : en plus, une ombre douce autour du tube qui le détache du décor. À dessiner
+ * sur la toile du tube : l'ombre avant le tube ([ombreJauge]), le contour après ([contourJauge]). Sans graduation.
+ */
+internal fun DrawScope.ombreJauge(ombre: OmbreDeJauge) {
+    if (ombre == OmbreDeJauge.AUCUNE) return
+    // Pas de flou sur Android 9 : six rectangles de plus en plus grands et pâles font le fondu (cœur à ~42 % pour la
+    // légère, ~66 % pour la plus présente, comme les maquettes du 29/10).
+    val presente = ombre == OmbreDeJauge.PRESENTE
+    val marge = size.width * if (presente) 0.45f else 0.35f
+    val alpha = if (presente) 0.165f else 0.087f
+    for (k in 0 until 6) {
+        val d = marge * (k + 1) / 6f
+        drawRoundRect(
+            NuitJauge.copy(alpha = alpha), Offset(-d, -d), Size(size.width + 2 * d, size.height + 2 * d), CornerRadius(size.width * 0.3f + d),
+        )
+    }
+}
+
+/** L'ombre autour de la jauge des scores (choix de cedric, 29/10). */
+internal enum class OmbreDeJauge { AUCUNE, LEGERE, PRESENTE }
+
+internal fun DrawScope.contourJauge(couleur: Color) {
+    val w = size.width
+    val e = w * 0.052f
+    val r = CornerRadius(w * 0.3f + e)
+    val o = Offset(-e, -e)
+    val t = Size(w + 2 * e, size.height + 2 * e)
+    drawRoundRect(NuitJauge, o, t, r, style = Stroke(w * 0.093f))
+    // Lueur du néon : trois traits de plus en plus larges et pâles.
+    for (k in 3 downTo 1) drawRoundRect(couleur.copy(alpha = 0.10f * (4 - k)), o, t, r, style = Stroke(w * (0.04f + 0.05f * k)))
+    drawRoundRect(couleur, o, t, r, style = Stroke(w * 0.041f))
+    drawRoundRect(Color.White.copy(alpha = 0.85f), o, t, r, style = Stroke(w * 0.012f))
+}
+
+/** Nuit du plateau sous le contour et l'ombre légère. */
+private val NuitJauge = Color(0xFF05010D)
 
 private fun DrawScope.image(img: ImageBitmap, x: Float, y: Float, w: Float, h: Float, filtre: ColorFilter? = null) {
     if (w < 1f || h < 1f) return

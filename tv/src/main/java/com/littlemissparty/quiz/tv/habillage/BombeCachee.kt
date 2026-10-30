@@ -35,6 +35,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -67,6 +68,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -122,6 +124,11 @@ const val CLASSEMENT_COFFRE_MS = 2_900L
 
 private const val T_ENTREE = 450f
 private const val T_OUVRE = 1_300f
+/**
+ * Plus de numéros sur les coffres (cedric, 29/10, choix B) : la tablette montre les coffres aux mêmes places que la TV.
+ * true = retour aux numéros.
+ */
+internal const val NUMEROS_COFFRES = false
 /** Le numéro du coffre s'éteint en ~75 ms quand le couvercle s'ouvre (planche du 28/10). */
 private const val NUMERO_EXTINCTION_MS = 75f
 /** Atlas gs_piece_or : 4 × 4 cases de 128 px, case k = la pièce tournée de k/16 de tour. */
@@ -461,7 +468,9 @@ fun SceneCoffres(
             val h = m.hauteur * e
             val ouvert = ouverts.containsKey(i)
             val delta = ouverts[i]
-            Box(Modifier.offset(x = (cx - w / 2).dp, y = (base - h).dp).size(w.dp, h.dp)) {
+            // Un coffre ouvert passe derrière les coffres fermés (cedric, 29/10) : son couvercle levé ne recouvre plus le
+            // coffre de la rangée du dessus, qui reste lisible en entier.
+            Box(Modifier.offset(x = (cx - w / 2).dp, y = (base - h).dp).size(w.dp, h.dp).zIndex(if (ouvert) 0f else 1f)) {
                 Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
                     // Ombre au sol : le coffre est posé.
                     drawOval(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent)), Offset(-size.width * 0.08f, size.height - 6f * density * e), Size(size.width * 1.16f, 12f * density * e))
@@ -473,7 +482,7 @@ fun SceneCoffres(
                     )
                 }
                 val p = plaque(m)
-                if (!ouvert) {
+                if (!ouvert && NUMEROS_COFFRES) {
                     Box(
                         Modifier.offset(x = (p.left * w).dp, y = (p.top * h).dp).size((p.width * w).dp, (p.height * h).dp),
                         contentAlignment = Alignment.Center,
@@ -485,7 +494,7 @@ fun SceneCoffres(
                             else styleCentre(maxOf(p.height * h * 0.72f, 15f * e).sp, Color(0xFF3A1C00)),
                         )
                     }
-                } else {
+                } else if (ouvert) {
                     // Coffre ouvert : sa valeur s'affiche sur la face avant.
                     val (fond, encre, texte) = when {
                         delta == null -> Triple(Color(0xFF2A0E1E), MALUS_CORAIL, if (bombe == null) "💣" else if (bombe == 0) "💣 0" else "💣 " + texteValeur(bombe))
@@ -503,8 +512,8 @@ fun SceneCoffres(
                 }
             }
         }
-        if (bandeau) BandeauTour(auTour, Modifier.align(Alignment.TopCenter).padding(top = 14.dp))
-        if (phaseDanger) PastilleDanger(pouls, Modifier.align(Alignment.TopStart).padding(start = 18.dp, top = 18.dp))
+        if (bandeau) BandeauTour(auTour, Modifier.align(Alignment.TopCenter).padding(top = 14.dp).zIndex(2f))
+        if (phaseDanger) PastilleDanger(pouls, Modifier.align(Alignment.TopStart).padding(start = 18.dp, top = 18.dp).zIndex(2f))
     }
 }
 
@@ -637,6 +646,12 @@ fun OuvertureCoffre(
         jusqua(total)
         fini()
     }
+    // Rapport de fluidité : le couvercle qui s'ouvre et les pièces qui jaillissent comptés à part (test du 28/10 au soir).
+    LaunchedEffect(index) {
+        delay(T_OUVRE.toLong())
+        com.littlemissparty.quiz.tv.Fluidite.moment = "ouverture"
+        try { delay(600) } finally { com.littlemissparty.quiz.tv.Fluidite.moment = null }
+    }
     val modele = modeleCoffre(index)
     ChargerOuvertureGs(modele)
     val m = MODELES[modele]
@@ -722,7 +737,7 @@ fun OuvertureCoffre(
                 }
                 // Le numéro reste allumé dans la fenêtre, comme sur les gradins, et s'éteint quand le couvercle s'ouvre.
                 val allume = 1f - ((ms - T_OUVRE) / NUMERO_EXTINCTION_MS).coerceIn(0f, 1f)
-                if (Look.gs && allume > 0f) {
+                if (Look.gs && NUMEROS_COFFRES && allume > 0f) {
                     val p = plaque(m)
                     val texte = mesure.measure(
                         "${index + 1}",
@@ -808,7 +823,7 @@ fun OuvertureCoffre(
             equipe to couleur,
             Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
                 .graphicsLayer { alpha = if (carte) 1f - ((t.value - tVerdict) / 220f).coerceIn(0f, 1f) else 1f },
-            suite = " ouvre le coffre n° ${index + 1}", cle = index,
+            suite = if (NUMEROS_COFFRES) " ouvre le coffre n° ${index + 1}" else " ouvre un coffre !", cle = index,
         ) else Row(
             Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
                 .graphicsLayer { alpha = if (carte) 1f - ((t.value - tVerdict) / 220f).coerceIn(0f, 1f) else 1f }
@@ -818,7 +833,7 @@ fun OuvertureCoffre(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(equipe, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false), style = styleBandeau.copy(fontSize = 22.sp, color = couleur))
-            Text(" ouvre le coffre n° ${index + 1}", maxLines = 1, softWrap = false, style = styleBandeau.copy(fontSize = 22.sp, color = Neon.Blanc))
+            Text(if (NUMEROS_COFFRES) " ouvre le coffre n° ${index + 1}" else " ouvre un coffre !", maxLines = 1, softWrap = false, style = styleBandeau.copy(fontSize = 22.sp, color = Neon.Blanc))
         }
         if (carte) {
             // La carte BONUS / MALUS, un peu réduite et au-dessus du coffre ouvert pour le laisser voir.

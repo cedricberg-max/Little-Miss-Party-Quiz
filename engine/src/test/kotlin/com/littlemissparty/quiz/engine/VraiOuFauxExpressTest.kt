@@ -59,6 +59,47 @@ class VraiOuFauxExpressTest {
     }
 
     @Test
+    fun `les scores de fin de serie restent a l'ecran malgre un appui reflexe de la regie`() {
+        // Test du 28/10 : scores à 21:19:53, « suivant » du téléphone à 21:19:54, le jeu suivant partait sans les jauges.
+        val equipes = setOf("rose")
+        val g = Game(quiz).apply { next(t0) }
+        g.close(t0 + 8_000)
+        g.expressStep(t0 + 9_200, emptyMap())
+        g.expressStep(t0 + 12_700, emptyMap())
+        g.close(t0 + 20_000)
+        g.expressStep(t0 + 21_200, emptyMap())
+        g.expressStep(t0 + 24_700, emptyMap())
+        assertEquals(Phase.SCORES, g.state.phase)
+        val reflexe = g.execute(Command.Next("n1", g.state.lastSeq), t0 + 25_700, equipes)
+        assertEquals(CommandStatus.REFUSED, reflexe.status)
+        assertEquals("scores_just_shown", reflexe.reason)
+        assertEquals(Phase.SCORES, g.state.phase)
+        // Quelques secondes plus tard, « Jeu suivant » repart normalement.
+        val suite = g.execute(Command.Next("n2", g.state.lastSeq), t0 + 24_700 + EXPRESS_SCORES_GUARD_MS, equipes)
+        assertEquals(CommandStatus.APPLIED, suite.status)
+        assertEquals("q3", g.state.qid)
+    }
+
+    @Test
+    fun `entre deux affirmations, suivant enchaine sans scores et hors express les scores ne sont pas retenus`() {
+        val equipes = setOf("rose")
+        val g = Game(quiz).apply { next(t0) }
+        g.close(t0 + 8_000)
+        g.expressStep(t0 + 9_200, emptyMap())
+        assertEquals(Phase.REVEAL, g.state.phase)
+        assertEquals(CommandStatus.APPLIED, g.execute(Command.Next("n1", g.state.lastSeq), t0 + 9_500, equipes).status)
+        assertEquals("e2", g.state.qid)
+        assertEquals(Phase.QUESTION, g.state.phase)
+        // Quiz classique : la régie montre les scores puis passe à la suite aussi vite qu'elle veut.
+        g.goto(2, t0 + 30_000)
+        g.close(t0 + 32_000)
+        g.execute(Command.Next("n2", g.state.lastSeq), t0 + 32_100, equipes)
+        g.execute(Command.Next("n3", g.state.lastSeq), t0 + 32_200, equipes)
+        assertEquals(Phase.SCORES, g.state.phase)
+        assertEquals(CommandStatus.APPLIED, g.execute(Command.Next("n4", g.state.lastSeq), t0 + 32_300, equipes).status)
+    }
+
+    @Test
     fun `en pause, rien n'avance tout seul`() {
         val g = Game(quiz).apply { next(t0) }
         g.close(t0 + 8_000)

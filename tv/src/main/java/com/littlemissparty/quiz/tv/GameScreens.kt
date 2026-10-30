@@ -691,7 +691,7 @@ internal fun suiteLabel(state: UiState.Playing): String = when {
 @Composable
 fun FinalScreen(state: UiState.Playing, actions: TvActions) {
     // Célébration de fin (de 1 à 8 équipes, égalité, personne n'a marqué) : habillage/Victoire.kt.
-    Victoire(state.ranking.map { (team, score) -> Classee(team.name, team.color.toColor(), score) })
+    Victoire(state.ranking.map { (team, score) -> Classee(team.name, team.color.toColor(), score) }, finLancee = state.outroAt != null)
 }
 
 @Composable

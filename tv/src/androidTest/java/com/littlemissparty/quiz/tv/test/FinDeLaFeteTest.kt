@@ -29,6 +29,29 @@ class FinDeLaFeteTest : TestTv() {
     @After
     fun rangerRegies() = regies.forEach { it.close() }
 
+    /**
+     * « ⛔ Arrêter la partie » (cedric, 29/10) : en pleine partie, tout s'arrête tout de suite, sans podium ; la TV revient
+     * à l'accueil avec une nouvelle partie, l'ancienne est marquée terminée et quittée.
+     */
+    @Test
+    fun arreterLaPartieEnCoursRameneLaTvALAccueilSansPodium() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = RegieSimulee().also { regies += it }
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        ecran.voit("Régie reliée")
+        assertNotEquals("ended", licornes.etat(code).child("phase").value)
+
+        val id = regie.envoyer(code, "newgame", extra = mapOf("arret" to true)) ?: throw AssertionError("« arrêt » refusé par le serveur")
+        assertEquals("applied", regie.verdict(code, id))
+        val nouveau = attendreQue("nouvelle partie créée", 30_000) { Boite.codeActif()?.takeIf { it != code } }
+        assertNotEquals(code, nouveau)
+        ecran.voit("Scannez pour jouer", 30_000)
+        attendreQue("ancienne partie marquée quittée") { licornes.etat(code).child("leftAt").value as? Number }
+        assertEquals("ended", licornes.etat(code).child("phase").value)
+        ecran.capture("arret-retour-accueil")
+    }
+
     @Test
     fun laFinDeLaFeteRameneLaTvALAccueil() {
         val code = lancerBoite()
@@ -46,7 +69,7 @@ class FinDeLaFeteTest : TestTv() {
 
         assertEquals("applied", regie.commande(code, "end"))
         attendreQue("partie terminée") { licornes.etat(code).child("phase").value?.takeIf { it == "ended" } }
-        if (Look.gs) bientotSousLEnseigne()
+        if (Look.gs) bientotSousLEnseigne(code, regie, licornes)
         ecran.capture("ecran-de-fin")
 
         // « 🏁 Fin de la fête » : nouvelle partie à l'accueil, l'ancienne marquée quittée.
@@ -70,11 +93,20 @@ class FinDeLaFeteTest : TestTv() {
      * ne se lisait pas. La ligne est maintenant sous l'enseigne, avec un vrai écart (plus que le halo rose). Si la vidéo
      * de fin ne se lit pas (écran de secours dessiné), la ligne reste au moins sous « Merci d'avoir participé ! ».
      */
-    private fun bientotSousLEnseigne() {
-        // Le podium joue d'abord sa chanson (Tempo.PODIUM_FIN, 102,5 s), puis l'outro du robot en fusée (115,5 s, si elle est
-        // dans l'appli), puis l'écran de fin écrit « À bientôt » 6 s après.
+    private fun bientotSousLEnseigne(code: String, regie: RegieSimulee, licornes: PupitreSimule) {
+        // Le podium joue sa chanson jusqu'à sa coupe (Tempo.PODIUM_COUPE, 50 s), puis sa boucle d'attente : l'image du
+        // podium reste là tant que Sarah n'a pas lancé la fin (cedric, 29/10).
+        SystemClock.sleep(Tempo.PODIUM_COUPE + 10_000)
+        ecran.neVoitPas("À BIENTÔT SUR THE GAME SHOW", 1_000)
+        assertEquals(null, licornes.etat(code).child("outroAt").value)
+        ecran.capture("podium-attente")
+        // « ▶ Lancer la fin » (le bouton « suivant » de la fin de partie) : une seule fois.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("fin lancée") { licornes.etat(code).child("outroAt").value as? Number }
+        assertEquals("ended", licornes.etat(code).child("phase").value)
+        // Puis l'outro du robot en fusée (116,8 s, si elle est dans l'appli), puis l'écran de fin écrit « À bientôt » 6 s après.
         if (Outro.disponible) {
-            SystemClock.sleep(Tempo.PODIUM_FIN + 20_000)
+            SystemClock.sleep(20_000)
             ecran.capture("outro-robot")
         }
         ecran.voit("À BIENTÔT SUR THE GAME SHOW", if (Outro.disponible) 160_000 else 130_000)

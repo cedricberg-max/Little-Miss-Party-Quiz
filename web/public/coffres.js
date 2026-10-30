@@ -11,13 +11,26 @@ export const modeleCoffre = (i) => MODELES[i % MODELES.length];
 /** Plaque dorée de chaque dessin (img/coffres/coffre-N.svg) : centre vertical et hauteur, en % de l'image. */
 const PLAQUES = [[64.6, 26.6], [56.1, 26.9], [64.8, 25.3], [60.4, 25.6], [60.8, 26.5], [63.6, 26.5]];
 
+/**
+ * Les rangées de coffres, comme les gradins de la TV (BombeCachee.kt, repartitionCoffres) : 1 rangée jusqu'à 6, 2 jusqu'à
+ * 12, 3 au-delà, les rangées du devant un coffre de plus. Sans numéros sur les coffres (cedric, 29/10, choix B), la
+ * tablette montre les coffres à la même place que la TV : la rangée du fond en haut, de gauche à droite.
+ */
+export function repartitionCoffres(nombre) {
+  if (nombre <= 0) return [];
+  const rangees = nombre <= 6 ? 1 : nombre <= 12 ? 2 : 3;
+  const base = Math.floor(nombre / rangees);
+  const reste = nombre % rangees;
+  return Array.from({ length: rangees }, (_, r) => base + (r >= rangees - reste ? 1 : 0));
+}
+
 /** Le contenu d'un coffre ne s'affiche sur la tablette qu'une fois montré par la TV (pas de suspense gâché). */
 export const REVELATION_MS = 1800;
 
 /** « +150 », « −100 » (vrai signe moins), comme sur la TV. */
 export const signe = (v) => `${v < 0 ? "−" : "+"}${Math.abs(v)}`;
 
-/** Game Show : les coffres 3D de la TV (img/coffres/gs-coffre-N.webp), numéro dans leur fenêtre noire. */
+/** Game Show : les coffres 3D de la TV (img/coffres/gs-coffre-N.webp), fenêtre noire sans numéro (cedric, 29/10). */
 const PLAQUES_GS = [[67.6, 23.4], [60, 23.4], [68.4, 23.4], [64.2, 23.4], [64.2, 23.4], [66.8, 23.4]];
 
 const coffreHTML = (i) => {
@@ -28,7 +41,7 @@ const coffreHTML = (i) => {
   <span class="bc-coffre bc-m${m}">
     <span class="bc-lueur"></span>
     <img class="bc-image" src="img/coffres/${gs ? `gs-coffre-${m + 1}.webp` : `coffre-${m + 1}.svg`}" alt="" draggable="false">
-    <span class="bc-plaque" style="top:${y}%;height:${h}%">${i + 1}</span>
+    <span class="bc-plaque" style="top:${y}%;height:${h}%"></span>
     <span class="bc-contenu"></span>
   </span>`;
 };
@@ -74,11 +87,22 @@ export function ecranCoffres(hote, { surChoix }) {
       count = v.count ?? 0;
       grille.innerHTML = "";
       grille.style.setProperty("--n", `${count}`);
+      const rangees = repartitionCoffres(count);
+      grille.style.setProperty("--par-rangee", `${Math.max(1, ...rangees)}`);
+      let rangee = null;
+      let reste = 0;
       for (let i = 0; i < count; i++) {
+        if (reste === 0) {
+          rangee = document.createElement("div");
+          rangee.className = "bc-rangee";
+          grille.appendChild(rangee);
+          reste = rangees[grille.children.length - 1];
+        }
+        reste--;
         const b = document.createElement("button");
         b.type = "button";
         b.className = "bc-case";
-        b.setAttribute("aria-label", `Coffre ${i + 1}`);
+        b.setAttribute("aria-label", "Coffre");
         b.innerHTML = coffreHTML(i);
         // Toucher un coffre l'ouvre tout de suite, sans bouton à confirmer (cedric, 27/10 au soir).
         b.onclick = () => {
@@ -86,7 +110,7 @@ export function ecranCoffres(hote, { surChoix }) {
           envoyee = cle;
           surChoix(i);
         };
-        grille.appendChild(b);
+        rangee.appendChild(b);
       }
     }
     const ouverts = new Map((v.ouverts ?? []).map((o) => [o.chest, o]));

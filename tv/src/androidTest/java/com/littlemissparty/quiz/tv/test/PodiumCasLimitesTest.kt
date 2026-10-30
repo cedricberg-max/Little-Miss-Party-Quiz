@@ -1,6 +1,8 @@
 package com.littlemissparty.quiz.tv.test
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
 import com.littlemissparty.quiz.tv.habillage.Tempo
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -23,7 +25,7 @@ class PodiumCasLimitesTest : TestTv() {
     @Before
     fun gameShow() {
         RegieSimulee.definirMotDePasse()
-        Boite.choisirDesign("gs")
+        Boite.choisirDesign(Boite.designDesTests)
     }
 
     @After
@@ -100,6 +102,42 @@ class PodiumCasLimitesTest : TestTv() {
         // Écran final : le gagnant seul (cedric, 26/10 : « 2 Sacha 250 » sous le gagnant, « je ne vois pas l'intérêt »).
         seulementLesGagnants("Dragons")
         ecran.capture("podium-gagnant-seul")
+    }
+
+    /**
+     * Les jauges en plan cinéma (décor 3D et robot dans une seule vidéo, cedric 30/10) puis la fête : les textes en direct
+     * restent par-dessus, et des captures à chaque moment (attente, tambour, arrivée de la fête, sa boucle).
+     */
+    @Test
+    fun jaugesEnPlanCinemaPuisLaFete() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val chats = pupitre("chats").also { it.rejoindre(code, "Chats", "#FFE600") }
+        val regie = regieReliee(code)
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQuestion(licornes, code, 0)
+        for ((equipe, points) in listOf(licornes to 120, dragons to 70, chats to 40)) {
+            val id = regie.envoyer(code, "adjust", extra = mapOf("team" to equipe.uid, "delta" to points))!!
+            assertEquals("applied", regie.verdict(code, id))
+            attendreQue("points de ${equipe.uid}") { points(licornes, code, equipe.uid).takeIf { it == points.toLong() } }
+        }
+        // Film de tout le podium (sans son : l'émulateur n'en a pas), pour un aperçu avec la musique ajoutée après.
+        val film = Thread {
+            UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).executeShellCommand(
+                "screenrecord --size 1280x720 --bit-rate 1500000 --time-limit 48 ${Ecran.DOSSIER_CAPTURES}/podium-apercu.mp4",
+            )
+        }.apply { start() }
+        assertEquals("applied", regie.commande(code, "end"))
+        ecran.voit("LE GRAND GAGNANT EST", 45_000)
+        ecran.voit("Dragons")
+        ecran.capture("jauges-attente", 3_000)
+        ecran.capture("jauges-tambour", 8_000)
+        ecran.voit("Bravo à toutes les équipes", 15_000)
+        ecran.capture("fete-arrivee", 1_500)
+        ecran.capture("fete-boucle", 5_000)
+        ecran.voit("Licornes")
+        film.join(60_000)
     }
 
     /**

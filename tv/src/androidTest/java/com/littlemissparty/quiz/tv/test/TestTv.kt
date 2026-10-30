@@ -38,7 +38,7 @@ abstract class TestTv {
         Boite.oublierPartie()
         // Chaque test part du Game Show sur le décor dessiné : même écran et mêmes boutons que le plateau 3D par défaut,
         // sans la vidéo de fond, que le décodeur logiciel de l'émulateur lirait en boucle pendant tout le test.
-        Boite.choisirDesign("gs")
+        Boite.choisirDesign(Boite.designDesTests)
         val debut = System.currentTimeMillis()
         Boite.verifierEmulateur()
         Log.i(TAG, "Émulateur Firebase vérifié en ${System.currentTimeMillis() - debut} ms")

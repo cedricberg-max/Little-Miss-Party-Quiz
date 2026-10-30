@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.lerp as melange
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -74,6 +75,15 @@ internal class MinutageJuste(val chiffres: Int, finMs: Long = Tempo.REVELATION_O
     fun ecart(i: Int) = regle + 2.1f + i * 0.3f
     val bonus = regle + 2.8f
 }
+
+/**
+ * Le cadre sombre de la règle (choix A de cedric, 29/10) : du haut des noms des équipes du plus haut étage jusque sous
+ * le dernier écart, en dp autour de la ligne de la règle ([haut] au-dessus, [bas] en dessous).
+ */
+internal data class CadreRegle(val haut: Float, val bas: Float)
+
+internal fun cadreRegle(etageMax: Int, ecarts: Int): CadreRegle =
+    CadreRegle(haut = 30f + etageMax.coerceAtLeast(0) * 50f + 31f + 22f, bas = if (ecarts <= 0) 62f else 80f + (ecarts.coerceAtMost(2) - 1) * 30f + 22f)
 
 /** Bornes et pas des graduations de la règle : la réponse et tous les nombres dedans, avec un peu de marge. */
 internal data class EchelleRegle(val bas: Double, val haut: Double, val pas: Double)
@@ -277,6 +287,27 @@ private fun DrawScope.dessineRevelation(t: Float, m: MinutageJuste, x: TextesJus
     val x1 = W * 0.94f
     val y = H * 0.62f
     fun px(v: Double) = x0 + ((v - ech.bas) / (ech.haut - ech.bas)).toFloat() * (x1 - x0)
+    val xs = reponses.map { px(it.nombre.toDouble()) }
+    val demis = x.noms.map { max(it.size.width / 2f, 18f * dp) + 4f * dp }
+    val etages = etagesEquipes(xs, demis)
+    val arr = px(bonne.toDouble())
+    val ur = tb - (m.rayon - m.regle)
+    // Le cadre sombre au contour néon autour de toute la zone (comme la question) : il s'ouvre depuis le centre avec la
+    // règle, et son contour passe au vert quand le rayon touche le bon nombre.
+    val cadre = cadreRegle(etages.maxOrNull() ?: 0, minOf(2, reponses.size))
+    val ouvre = dos(tb / 0.45f)
+    if (ouvre > 0f) {
+        val demiL = (W * 0.465f) * ouvre
+        // Jamais par-dessus la machine remontée sous la question : au pire, un étage de noms dépasse du cadre.
+        val haut = max(y - cadre.haut * dp, cy + hautFinal / 2f + 10f * dp)
+        val hCadre = y + cadre.bas * dp - haut
+        val coin = CornerRadius(22f * dp)
+        val bordVert = if (ur > 0.35f) exp(-(ur - 0.35f) * 2.2f) else 0f
+        val bord = melange(Cyan, Vert, bordVert)
+        drawRoundRect(Color(0xC80A0618), Offset(cx - demiL, haut), Size(2 * demiL, hCadre), coin, alpha = ouvre.coerceAtMost(1f))
+        drawRoundRect(bord.copy(alpha = 0.22f + 0.4f * bordVert), Offset(cx - demiL, haut), Size(2 * demiL, hCadre), coin, style = Stroke(9f * dp))
+        drawRoundRect(bord.copy(alpha = 0.75f + 0.25f * bordVert), Offset(cx - demiL, haut), Size(2 * demiL, hCadre), coin, style = Stroke(2f * dp))
+    }
     val trace = lerp(x0, x1, lisse(tb / 0.5f))
     drawLine(Cyan.copy(alpha = 0.35f), Offset(x0, y), Offset(trace, y), 10f * dp)
     drawLine(Cyan, Offset(x0, y), Offset(trace, y), 4f * dp)
@@ -289,9 +320,7 @@ private fun DrawScope.dessineRevelation(t: Float, m: MinutageJuste, x: TextesJus
         texte(x.graduation(v.toLong()), Offset(gx, y + 19f * dp), alpha = 0.8f)
         v += ech.pas
     }
-    val arr = px(bonne.toDouble())
     // Le rayon vert descend de la machine jusqu'au bon nombre sur la règle.
-    val ur = tb - (m.rayon - m.regle)
     if (ur > 0f) {
         // Du bas de la machine (au centre) jusqu'au nombre sur la règle, en biais si le nombre n'est pas au milieu.
         val depart = Offset(cx, cy + hautFinal / 2f)
@@ -318,9 +347,6 @@ private fun DrawScope.dessineRevelation(t: Float, m: MinutageJuste, x: TextesJus
         }
     }
     // Les équipes tombent sur la règle, chacune à son nombre ; trop proches, elles montent d'un étage.
-    val xs = reponses.map { px(it.nombre.toDouble()) }
-    val demis = x.noms.map { max(it.size.width / 2f, 18f * dp) + 4f * dp }
-    val etages = etagesEquipes(xs, demis)
     reponses.forEachIndexed { i, r ->
         val t0 = m.equipe(i)
         val u = dos((t - t0) / 0.4f)
@@ -348,7 +374,7 @@ private fun DrawScope.dessineRevelation(t: Float, m: MinutageJuste, x: TextesJus
         val l = x.ecarts[i]
         val droite = xs[i] >= arr
         val cxTexte = if (droite) xe + 9f * dp + l.size.width / 2f else xe - 9f * dp - l.size.width / 2f
-        texte(l, Offset(cxTexte.coerceIn(l.size.width / 2f, W - l.size.width / 2f), yy - 2f * dp), alpha = a)
+        texte(l, Offset(cxTexte.coerceIn(W * 0.045f + l.size.width / 2f, W * 0.955f - l.size.width / 2f), yy - 2f * dp), alpha = a)
     }
     val b = x.bonus
     if (b != null && reponses.isNotEmpty()) {
@@ -357,8 +383,8 @@ private fun DrawScope.dessineRevelation(t: Float, m: MinutageJuste, x: TextesJus
             val xg = xs[0]
             val py = y - 30f * dp - etages[0] * 50f * dp
             // Du côté opposé au bon nombre (le rayon vert arrive de l'autre côté), sauf s'il n'y a pas la place.
-            val aGauche = xg - 40f * dp - b.size.width >= 0f
-            val aDroite = xg + 40f * dp + b.size.width <= W
+            val aGauche = xg - 40f * dp - b.size.width >= W * 0.035f
+            val aDroite = xg + 40f * dp + b.size.width <= W * 0.965f
             val gauche = if (xg <= arr) aGauche || !aDroite else !aDroite && aGauche
             val cxb = if (gauche) xg - 30f * dp - b.size.width / 2f else xg + 30f * dp + b.size.width / 2f
             texte(b, Offset(cxb, py), echelle = p)

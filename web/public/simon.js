@@ -109,6 +109,8 @@ export function ecranSimon(hote, { surTouche, surEffacer, surValider }) {
     q(".sm-bas").hidden = !(joue || v.etat === "envoye");
     q(".sm-sep").hidden = !v.chiffres;
     q(".sm-chiffres").hidden = !v.chiffres;
+    // Sans chiffres (cedric, 29/10 : que des couleurs, comme un vrai Simon) : les boules prennent la place libérée.
+    racine.classList.toggle("sm-sans-chiffres", !v.chiffres);
     const saisie = v.saisie ?? [];
     const n = Math.max(v.longueur ?? 0, saisie.length);
     q(".sm-compte").textContent = n ? `Ta suite (${saisie.length}/${n})` : "";

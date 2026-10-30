@@ -338,7 +338,8 @@ class RegieTest : TestTv() {
         // Pictionary : l'intro, puis Sarah montre 3 mots au dessinateur des Licornes.
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("PICTIONARY")
-        ecran.voit("Pictionary !")
+        ecran.voit("Un enfant dessine sur la tablette")
+        assertFalse("le nom n'est écrit qu'une fois", ecran.affiche("Pictionary !"))
         assertEquals("applied", regie.commande(code, "picto_show", mapOf("team" to licornes.uid)))
         ecran.voit("Au tour de")
         ecran.voit("Toute l'équipe se retourne")
@@ -623,6 +624,9 @@ class RegieTest : TestTv() {
         ecran.capture("chante-le-mot-buzz", attente = 700)
         assertEquals("applied", regie.commande(code, "buzz_ok"))
         ecran.voit("Bravo Licornes, quelle voix !")
+        // Le mot reste sur l'enseigne à gauche ; à droite, seulement les félicitations, sans « Le mot : » répété (28/10).
+        if (Look.gs) assertFalse("le mot n'est pas répété à droite", ecran.affiche("Le mot :"))
+        ecran.capture("chante-le-mot-bravo", attente = 900)
         assertEquals("applied", regie.commande(code, "next"))
         assertEquals("applied", regie.commande(code, "next"))
 
@@ -829,7 +833,7 @@ class RegieTest : TestTv() {
         ecran.neVoitPas("STATUE !", 3_000)
         assertEquals("applied", regie.commande(code, "statues_stop"))
         ecran.voit("STATUE !")
-        // « STATUE ! » claque en 0,2 s puis se fend et givre : capturé une fois posé.
+        // « STATUE ! » claque en 0,2 s (Game Show : la pierre tombe et lâche sa poussière) : capturé une fois posé.
         ecran.capture("statues-musicales-statue", attente = 900)
         assertEquals("applied", regie.commande(code, "statues_play"))
         ecran.voit("DANSEZ !")
@@ -837,15 +841,23 @@ class RegieTest : TestTv() {
         assertEquals("refused", regie.commande(code, "next"))
         assertEquals("applied", regie.commande(code, "statues_win", mapOf("teams" to listOf(dragons.uid))))
         ecran.voit(if (Look.gs) "ET L'ÉQUIPE GAGNANTE EST…" else "Et l'équipe gagnante est…")
-        ecran.voit(if (Look.gs) "La statue d'or" else "Bravo", 6_000)
+        ecran.voit("Bravo", 6_000)
         ecran.voit("Dragons")
         ecran.capture("statues-musicales-gagnante")
         attendreQue("300 pour la gagnante") { points(dragons, code, dragons.uid).takeIf { it == Scoring.MINI_WIN.toLong() } }
         assertEquals(Scoring.MINI_PLAYED.toLong(), points(licornes, code, licornes.uid))
-        // Le récap des points de la chanson, puis la chanson suivante.
-        ecran.voit(if (Look.gs) "CHANSON 1 / 2" else "Chanson 1 / 2", 8_000)
-        ecran.voit("+300")
-        ecran.capture("statues-musicales-recap")
+        if (Look.gs) {
+            // Game Show (choix A de cedric, 29/10) : un seul écran BRAVO, la gagnante et son +300, puis les autres et
+            // leur +150 ; il remplace le récap de la chanson.
+            ecran.voit("Dragons ! +300")
+            ecran.voit("Bravo aussi aux autres ! Licornes +150")
+            ecran.capture("statues-musicales-recap", attente = 5_000)
+        } else {
+            // Le récap des points de la chanson, puis la chanson suivante.
+            ecran.voit("Chanson 1 / 2", 8_000)
+            ecran.voit("+300")
+            ecran.capture("statues-musicales-recap")
+        }
         assertEquals("applied", regie.commande(code, "statues_song"))
         ecran.voit("DANSEZ !")
         ecran.voit("Chanson 2 / 2")
@@ -1274,7 +1286,6 @@ class RegieTest : TestTv() {
         attendreQue("bombe passée") {
             licornes.etat(code).takeIf { it.child("potato/holder").value == autre.uid && it.child("potato/booms").childrenCount == 0L }
         }
-        ecran.capture("patate-passe")
         // Ping-pong : chaque équipe la renvoie aussitôt reçue, sans attendre ; tous les renvois passent, rien n'explose.
         assertTrue("renvoi immédiat", autre.envoyerPatate(code, porteur.uid))
         attendreQue("renvoyée aussitôt") { licornes.etat(code).takeIf { it.child("potato/holder").value == porteur.uid } }
@@ -1284,6 +1295,8 @@ class RegieTest : TestTv() {
         }
         assertEquals("rien n'a explosé pendant le ping-pong", 0L, licornes.etat(code).child("potato/booms").childrenCount)
         ecran.voit("La bombe est chez")
+        // Capture après le ping-pong : sur le plateau 3D elle prend plusieurs secondes, la bombe exploserait avant le renvoi.
+        ecran.capture("patate-passe")
 
         attendreQue("première explosion", 70_000) { licornes.etat(code).takeIf { it.child("potato/booms").childrenCount >= 1 } }
         ecran.capture("patate-boum")
