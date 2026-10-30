@@ -1353,4 +1353,25 @@ class DirecteurSonoreTest {
         assertEquals(827_536L, e.images)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
+
+    @Test
+    fun `presentation du Vrai ou Faux express - X-Files, le debut une fois puis la boucle a la petite flute`() {
+        val vf = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "express|", gameShow = true, famille = "express")
+        assertEquals("express", familleType(com.littlemissparty.quiz.engine.QuestionKind.EXPRESS))
+        assertEquals(Ambiance.VRAIFAUX_PRESENTATION, ambiancePresentation(vf))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(vf.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(vf.copy(famille = "juste")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.VRAIFAUX_PRESENTATION.volume(Lit.VRAIFAUX_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.VRAIFAUX_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.VRAIFAUX_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.VRAIFAUX_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.VRAIFAUX_PRESENTATION, d.observer(vf).musique())
+        val wav = java.io.File("src/main/res/raw/gs_vraifaux_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(1_192_724L, e.images)
+        assertEquals(133_711L, Lit.VRAIFAUX_INTRO.repriseMs * 44_100 / 1000)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
 }

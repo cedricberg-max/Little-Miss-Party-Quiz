@@ -644,6 +644,7 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "quiz" to Ambiance.QUIZ_PRESENTATION,
     "illustre" to Ambiance.QUIZ_PRESENTATION,
     "quisuis" to Ambiance.QUISUIS_PRESENTATION,
+    "express" to Ambiance.VRAIFAUX_PRESENTATION,
 )
 
 /** Qui a disparu ? : la boucle de Mission Impossible repart de là, après son début (échantillon 162 641 à 44,1 kHz). */
@@ -651,6 +652,12 @@ internal const val DISPARU_INTRO_REPRISE_MS = 3_688L
 
 /** Quiz et Quiz illustré : la boucle de Questions pour un champion repart de là, après les trompettes (échantillon 95 256). */
 internal const val QUIZ_INTRO_REPRISE_MS = 2_160L
+
+/**
+ * Vrai ou Faux express : la boucle de X-Files repart de là, à la première petite flûte (échantillon 133 711 : le fichier
+ * commence par 6 échantillons de silence pour que la reprise tombe pile sur une milliseconde).
+ */
+internal const val VRAIFAUX_INTRO_REPRISE_MS = 3_032L
 
 /** Musique de l'écran de présentation d'un jeu ([propres] : voir [PRESENTATIONS_PROPRES]). */
 internal fun ambiancePresentation(i: Instant, propres: Map<String, Ambiance> = PRESENTATIONS_PROPRES): Ambiance = when {
@@ -742,6 +749,12 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
     /** Game Show, Qui suis-je ? : la boucle sous sa vidéo d'intro (cedric, 29/10) : Soul Bossa Nova, 18,77 s, raccord fondu, −12 LUFS. */
     QUISUIS_INTRO(null, "gs_quisuisje_intro"),
     /**
+     * Game Show, Vrai ou Faux express : la boucle sous sa vidéo d'intro (cedric, 30/10 : « la boucle X-Files est bien ») :
+     * le thème de X-Files, un début joué une fois, puis la boucle depuis la première petite flûte (échantillon 133 711,
+     * [repriseMs]), −12 LUFS.
+     */
+    VRAIFAUX_INTRO(null, "gs_vraifaux_intro", repriseMs = VRAIFAUX_INTRO_REPRISE_MS),
+    /**
      * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
      * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
      * sans guitare (vitesse d'origine, calée sur la mesure) qui entre dessous pendant que le son descend en 2 s jusqu'à
@@ -811,6 +824,8 @@ enum class Ambiance(
     QUIZ_PRESENTATION(gameShow = mapOf(Lit.QUIZ_INTRO to 0.5f)),
     /** Présentation de Qui suis-je ? (Game Show) : Soul Bossa Nova, au volume de la boucle « fête ». */
     QUISUIS_PRESENTATION(gameShow = mapOf(Lit.QUISUIS_INTRO to 0.5f)),
+    /** Présentation du Vrai ou Faux express (Game Show) : X-Files, au volume de la boucle « fête ». */
+    VRAIFAUX_PRESENTATION(gameShow = mapOf(Lit.VRAIFAUX_INTRO to 0.5f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -852,7 +867,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }
