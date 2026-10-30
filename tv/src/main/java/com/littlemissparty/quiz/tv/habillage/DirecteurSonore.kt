@@ -645,6 +645,7 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "illustre" to Ambiance.QUIZ_PRESENTATION,
     "quisuis" to Ambiance.QUISUIS_PRESENTATION,
     "express" to Ambiance.VRAIFAUX_PRESENTATION,
+    "mimes" to Ambiance.MIMES_PRESENTATION,
 )
 
 /** Qui a disparu ? : la boucle de Mission Impossible repart de là, après son début (échantillon 162 641 à 44,1 kHz). */
@@ -755,6 +756,11 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
      */
     VRAIFAUX_INTRO(null, "gs_vraifaux_intro", repriseMs = VRAIFAUX_INTRO_REPRISE_MS),
     /**
+     * Game Show, Mimes : la boucle sous leur vidéo d'intro (cedric, 30/10 : « parfaite ») : Just Because of You,
+     * 4 mesures, 8,34 s, raccord déjà fondu, −12 LUFS.
+     */
+    MIMES_INTRO(null, "gs_mimes_intro"),
+    /**
      * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
      * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
      * sans guitare (vitesse d'origine, calée sur la mesure) qui entre dessous pendant que le son descend en 2 s jusqu'à
@@ -826,6 +832,8 @@ enum class Ambiance(
     QUISUIS_PRESENTATION(gameShow = mapOf(Lit.QUISUIS_INTRO to 0.5f)),
     /** Présentation du Vrai ou Faux express (Game Show) : X-Files, au volume de la boucle « fête ». */
     VRAIFAUX_PRESENTATION(gameShow = mapOf(Lit.VRAIFAUX_INTRO to 0.5f)),
+    /** Présentation des Mimes (Game Show) : Just Because of You, au volume de la boucle « fête ». */
+    MIMES_PRESENTATION(gameShow = mapOf(Lit.MIMES_INTRO to 0.5f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -867,7 +875,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }
