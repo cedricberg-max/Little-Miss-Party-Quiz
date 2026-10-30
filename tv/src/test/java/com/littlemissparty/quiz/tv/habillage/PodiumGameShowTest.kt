@@ -194,6 +194,10 @@ class PodiumGameShowTest {
         assertEquals("gs_podium_jauges", JAUGES_VIDEO)
         // Sans le fichier, le plateau et les clips du robot dans l'arche restent (rien ne casse).
         val f = File("src/main/res/raw/$JAUGES_VIDEO.mp4")
-        if (f.isFile) assertTrue(String(f.readBytes().copyOf(4096), Charsets.ISO_8859_1).contains("moov"))
+        // L'index (moov) avant les images (mdat), même derrière un bloc uuid du rendu : lecture sans attendre tout le fichier.
+        if (f.isFile) {
+            val tete = String(f.readBytes().copyOf(65_536), Charsets.ISO_8859_1)
+            assertTrue(tete.indexOf("moov") in 0 until (tete.indexOf("mdat").takeIf { it >= 0 } ?: Int.MAX_VALUE))
+        }
     }
 }
