@@ -247,10 +247,7 @@ class Ecran(private val nomTest: () -> String) {
      * animation qui n'est pas encore entrée) ne comptent pas.
      */
     fun aucunTexteCoupe() {
-        val defauts = elements().filter { it.visible && !it.entier && it.texte.isNotBlank() }.map { "« ${it.texte} » rogné ou à cheval sur le bord" }.toMutableList()
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            fenetres().flatMap(::racinesCompose).forEach { racine -> defautsDeMots(racine.semanticsOwner.rootSemanticsNode, "", defauts) }
-        }
+        val defauts = defautsTextes()
         if (defauts.isNotEmpty()) {
             capture("texte-coupe")
             runCatching { Log.e(TAG, "Textes coupés :\n${defauts.joinToString("\n")}\nplan de l'écran :\n${plan()}") }
@@ -273,6 +270,74 @@ class Ecran(private val nomTest: () -> String) {
             capture("texte-recouvert")
             throw AssertionError("« $texte » descend sous le haut des cartes (${fond.toInt()} px > ${plafond.toInt()} px)")
         }
+    }
+
+    /** Les défauts de la règle 10 sur tout l'écran (voir [aucunTexteCoupe]), sans échouer : vide si tout est entier. */
+    fun defautsTextes(): List<String> {
+        val defauts = elements().filter { it.visible && !it.entier && it.texte.isNotBlank() }.map { "« ${it.texte} » rogné ou à cheval sur le bord" }.toMutableList()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            fenetres().flatMap(::racinesCompose).forEach { racine -> defautsDeMots(racine.semanticsOwner.rootSemanticsNode, "", defauts) }
+        }
+        return defauts.distinct()
+    }
+
+    /**
+     * Textes dont les cadres se chevauchent (cedric, 30/10 : chaque texte occupe un « carré » invisible ; quand deux
+     * carrés se recouvrent, un texte passe sous l'autre et paraît coupé). Deux textes différents, visibles, dont la zone
+     * commune dépasse [part] du plus petit ; un texte posé dans un autre (lueur, chiffre dans son rond) ne compte pas.
+     */
+    fun recouvrements(part: Float = 0.15f): List<String> {
+        val zones = mutableListOf<Pair<String, android.graphics.RectF>>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            fenetres().flatMap(::racinesCompose).forEach { racine -> zonesDeTexte(racine.semanticsOwner.rootSemanticsNode, zones) }
+        }
+        val defauts = mutableListOf<String>()
+        for (i in zones.indices) for (j in i + 1 until zones.size) {
+            val (ta, a) = zones[i]
+            val (tb, b) = zones[j]
+            if (ta == tb || ta.contains(tb) || tb.contains(ta)) continue
+            if (a.contains(b) || b.contains(a)) continue
+            val c = android.graphics.RectF()
+            if (!c.setIntersect(a, b)) continue
+            val petit = minOf(a.width() * a.height(), b.width() * b.height())
+            if (petit > 0 && c.width() * c.height() > part * petit) defauts += "« $ta » et « $tb » se chevauchent"
+        }
+        return defauts.distinct()
+    }
+
+    private fun zonesDeTexte(n: SemanticsNode, zones: MutableList<Pair<String, android.graphics.RectF>>) {
+        val texte = n.config.getOrNull(SemanticsProperties.Text).orEmpty().joinToString(" ") { it.text }.trim()
+        val b = n.boundsInWindow
+        if (texte.isNotEmpty() && b.width > 1 && b.height > 1) zones += texte to android.graphics.RectF(b.left, b.top, b.right, b.bottom)
+        n.children.forEach { zonesDeTexte(it, zones) }
+    }
+
+    /**
+     * Le plus petit texte visible de l'écran : sa hauteur de lettre en pixels de l'écran (taille de police après
+     * toutes les mises à l'échelle) et le texte. Pour voir si un texte devient minuscule avec 8 équipes, ou avec 3.
+     */
+    fun plusPetitTexte(): Pair<Float, String>? {
+        var mini: Pair<Float, String>? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            fun visiter(n: SemanticsNode) {
+                val b = n.boundsInWindow
+                if (b.width > 1 && b.height > 1) {
+                    val mises = mutableListOf<TextLayoutResult>()
+                    n.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(mises)
+                    mises.firstOrNull()?.let { l ->
+                        val st = l.layoutInput.style.fontSize
+                        if (st.isSp) {
+                            val px = with(l.layoutInput.density) { st.toPx() }
+                            val t = l.layoutInput.text.text
+                            if (t.isNotBlank() && (mini == null || px < mini!!.first)) mini = px to t
+                        }
+                    }
+                }
+                n.children.forEach(::visiter)
+            }
+            fenetres().flatMap(::racinesCompose).forEach { visiter(it.semanticsOwner.rootSemanticsNode) }
+        }
+        return mini
     }
 
     private fun defautsDeMots(n: SemanticsNode, texte: String, defauts: MutableList<String>) {

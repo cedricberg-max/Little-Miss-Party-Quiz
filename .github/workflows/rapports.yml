@@ -62,20 +62,28 @@ jobs:
           command -v convert >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick >/dev/null; }
           echo "== Toutes les captures du passage =="
           find archive -name '*.png' -printf '%f\n' | sort
-          # Une capture s'appelle « <Test>-<n°>-<nom>.png » ; un même nom peut venir de plusieurs tests.
+          # Une capture s'appelle « <Test>-<n°>-<nom>.png » ; un même nom peut venir de plusieurs tests. Le nom d'un test
+          # à paramètres contient des espaces (« [3 équipes] ») : lu ligne à ligne. Un nom avec « * » (ex. « tour-* »)
+          # prend toutes les captures qui correspondent, plus petites (planche des 1 à 8 équipes).
+          set -f
           for nom in $(printf '%s' "$NOMS" | tr ',' ' '); do
-            case "$nom" in *[!a-zA-Z0-9-]*) echo "Nom ignoré : $nom"; continue ;; esac
+            case "$nom" in *[!a-zA-Z0-9*-]*) echo "Nom ignoré : $nom"; continue ;; esac
+            case "$nom" in *'*'*) combien=400; taille='640x>'; qualite=60 ;; *) combien=3; taille='960x>'; qualite=72 ;; esac
             trouve=
-            for png in $(find archive -name "*-[0-9][0-9]-$nom.png" -o -name "$nom.png" | sort | head -3); do
+            while IFS= read -r png; do
+              [ -n "$png" ] || continue
               trouve=1
-              fichier=$(basename "$png" .png)
-              convert "$png" -resize '960x>' -quality 72 "$RUNNER_TEMP/$fichier.jpg"
+              fichier=$(basename "$png" .png | tr -c 'a-zA-Z0-9.\n-' '_')
+              convert "$png" -resize "$taille" -quality "$qualite" "$RUNNER_TEMP/$fichier.jpg"
               echo "=== CAPTURE $fichier $(identify -format '%wx%h' "$png") $(wc -c < "$RUNNER_TEMP/$fichier.jpg")"
               base64 -w 1000 "$RUNNER_TEMP/$fichier.jpg" | sed 's/^/B64 /'
               echo "=== FIN $fichier"
-            done
+            done < <(find archive \( -name "*-[0-9][0-9]-$nom.png" -o -name "$nom.png" \) | sort | head -"$combien")
             [ -n "$trouve" ] || echo "=== ABSENTE $nom"
           done
+      - name: Rapport du tour des écrans (1 à 8 équipes)
+        if: contains(inputs.noms, 'tour')
+        run: find archive -name 'logcat.txt' -exec grep -h 'TOUR|' {} + | sed 's/^.*TOUR|/TOUR|/' || echo "=== ABSENT rapport du tour"
       - name: Afficher les films (aperçus)
         if: contains(inputs.noms, 'apercu')
         run: |
