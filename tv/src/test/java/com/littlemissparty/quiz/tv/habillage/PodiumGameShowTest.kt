@@ -70,7 +70,7 @@ class PodiumGameShowTest {
     }
 
     @Test
-    fun `la jauge suit le roulement : elle ne s'arrete jamais et va de plus en plus vite jusqu'au meilleur score`() {
+    fun `la jauge suit le roulement, elle ne s'arrete jamais et va de plus en plus vite jusqu'au meilleur score`() {
         // cedric, 30/10 : la jauge s'arrêtait quand le roulement accélérait, puis bondissait à la fin.
         for (s in listOf(scores, listOf(800, 800, 600), listOf(1_000, 10, 5), listOf(300), listOf(500, 0, 0), listOf(120, 70, 40), listOf(100, 95))) {
             val pas = 40f
