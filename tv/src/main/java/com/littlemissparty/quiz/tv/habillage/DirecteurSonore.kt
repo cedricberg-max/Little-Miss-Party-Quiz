@@ -658,10 +658,10 @@ internal const val DISPARU_INTRO_REPRISE_MS = 3_688L
 internal const val QUIZ_INTRO_REPRISE_MS = 2_160L
 
 /**
- * Vrai ou Faux express : la boucle de X-Files repart de là, à la première petite flûte (échantillon 133 711 : le fichier
- * commence par 6 échantillons de silence pour que la reprise tombe pile sur une milliseconde).
+ * Vrai ou Faux express : la boucle de Video Killed the Radio Star repart de là, après le « Oh-a-oh » du début (échantillon
+ * 322 812 : le fichier commence par 92 échantillons de silence pour que la reprise tombe pile sur une milliseconde).
  */
-internal const val VRAIFAUX_INTRO_REPRISE_MS = 3_032L
+internal const val VRAIFAUX_INTRO_REPRISE_MS = 7_320L
 
 /** Musique de l'écran de présentation d'un jeu ([propres] : voir [PRESENTATIONS_PROPRES]). */
 internal fun ambiancePresentation(i: Instant, propres: Map<String, Ambiance> = PRESENTATIONS_PROPRES): Ambiance = when {
@@ -753,9 +753,9 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
     /** Game Show, Qui suis-je ? : la boucle sous sa vidéo d'intro (cedric, 29/10) : Soul Bossa Nova, 18,77 s, raccord fondu, −12 LUFS. */
     QUISUIS_INTRO(null, "gs_quisuisje_intro"),
     /**
-     * Game Show, Vrai ou Faux express : la boucle sous sa vidéo d'intro (cedric, 30/10 : « la boucle X-Files est bien ») :
-     * le thème de X-Files, un début joué une fois, puis la boucle depuis la première petite flûte (échantillon 133 711,
-     * [repriseMs]), −12 LUFS.
+     * Game Show, Vrai ou Faux express : la boucle sous sa vidéo d'intro (cedric, 30/10 : « je prends la boucle Video Killed
+     * the Radio Star », à la place de X-Files) : le « Oh-a-oh » joué une fois, puis la boucle depuis l'échantillon 322 812
+     * ([repriseMs]), 11,01 s en tout.
      */
     VRAIFAUX_INTRO(null, "gs_vraifaux_intro", repriseMs = VRAIFAUX_INTRO_REPRISE_MS),
     /**
@@ -841,7 +841,7 @@ enum class Ambiance(
     QUIZ_PRESENTATION(gameShow = mapOf(Lit.QUIZ_INTRO to 0.5f)),
     /** Présentation de Qui suis-je ? (Game Show) : Soul Bossa Nova, au volume de la boucle « fête ». */
     QUISUIS_PRESENTATION(gameShow = mapOf(Lit.QUISUIS_INTRO to 0.5f)),
-    /** Présentation du Vrai ou Faux express (Game Show) : X-Files, au volume de la boucle « fête ». */
+    /** Présentation du Vrai ou Faux express (Game Show) : Video Killed the Radio Star, au volume de la boucle « fête ». */
     VRAIFAUX_PRESENTATION(gameShow = mapOf(Lit.VRAIFAUX_INTRO to 0.5f)),
     /** Présentation des Mimes (Game Show) : Just Because of You, au volume de la boucle « fête ». */
     MIMES_PRESENTATION(gameShow = mapOf(Lit.MIMES_INTRO to 0.5f)),
