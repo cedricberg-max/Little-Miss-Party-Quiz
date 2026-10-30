@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
@@ -128,6 +129,11 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
             else classique()
             Spacer(Modifier.width(56.dp))
             Column(Modifier.weight(1f)) {
+            // Game Show : le filigrane A du podium derrière les textes (cedric, 30/10 : ils se perdaient dans le décor).
+            Column(if (Look.gs) Modifier.drawBehind {
+                val m = FILIGRANE_BLIND_MARGE_DP.dp.toPx()
+                filigrane(Rect(-m, -m, size.width + m, size.height + m), 1f)
+            } else Modifier) {
                 Text(
                     "BLIND TEST", color = Neon.Or, fontSize = 100.sp, lineHeight = 106.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
                     modifier = Modifier.apparition(400, playlist),
@@ -150,9 +156,13 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
                     fontWeight = FontWeight.Black, modifier = Modifier.apparition(1700, playlist),
                 )
             }
+            }
         }
     }
 }
+
+/** Le filigrane dépasse les textes de la présentation du blind test de 50 dp sur 1600 (≈ 30 dp à l'écran). */
+private const val FILIGRANE_BLIND_MARGE_DP = 50f
 
 /**
  * Une équipe a buzzé : panneau bleu nuit cerné d'un néon de la couleur de l'équipe, qui flashe trois fois,
