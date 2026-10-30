@@ -85,6 +85,23 @@ jobs:
             echo "=== FIN VIDEO"
           done
 
+      # Le film du podium image par image (PodiumFilmTest) : textes sur fond noir puis sur fond blanc, en vidéo RVB
+      # quasi sans perte ; l'incrustation sur les vraies vidéos et la musique se fait ensuite, hors du journal.
+      - name: Afficher le film du podium (images pas à pas)
+        if: contains(inputs.noms, 'film')
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null; }
+          premiere=$(find archive -name 'film-noir-0000.png' | head -1)
+          [ -n "$premiere" ] || { echo "=== ABSENT film"; exit 0; }
+          d=$(dirname "$premiere")
+          echo "Images : $(ls "$d" | grep -c '^film-noir-') noires, $(ls "$d" | grep -c '^film-blanc-') blanches"
+          for fond in noir blanc; do
+            ffmpeg -loglevel error -framerate 25 -i "$d/film-$fond-%04d.png" -c:v libx264rgb -crf 10 -preset slow -pix_fmt rgb24 "$RUNNER_TEMP/film-$fond.mp4"
+            echo "=== VIDEO film-$fond.mp4 $(wc -c < "$RUNNER_TEMP/film-$fond.mp4")"
+            base64 -w 4000 "$RUNNER_TEMP/film-$fond.mp4" | sed 's/^/V64 /'
+            echo "=== FIN VIDEO"
+          done
+
   # Audit des images des packs (test Mi Box du 26/10 : questions Marvel du Quiz illustré sans images). Lecture seule ;
   # le journal étant public, rien que des titres de packs, des comptes et des identifiants d'images.
   audit:

@@ -149,11 +149,11 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
             }.background(GS.Noir),
         )
         // Les jauges en plan cinéma, de la première image au solo ; leur dernière image reste sous la fête qui arrive.
-        if (jaugesCinema && !(tubesPartis && (fetePrete || feteEchec))) {
+        if (jaugesCinema && !(tubesPartis && (fetePrete || feteEchec)) && !podiumSansVideos) {
             JaugesCinema(jaugesRes, { ms().toInt() }, { robot == 3 && !feteEchec }, { jaugesEchec = true })
         }
         // Au solo, la fête en plan cinéma couvre tout le plateau ; elle part exactement sur le solo.
-        if (robot == 3 && !feteEchec) FeteCinema({ (revelation - ms()).toInt() }, { fetePrete = true }, { feteEchec = true })
+        if (robot == 3 && !feteEchec && !podiumSansVideos) FeteCinema({ (revelation - ms()).toInt() }, { fetePrete = true }, { feteEchec = true })
         if (gagnants.size > 1) Rayons { (ms() - revelation).coerceAtLeast(0f) }
         // Secousse de caméra quand le nom du gagnant claque (tout le podium bouge, le décor derrière reste).
         Box(
@@ -497,6 +497,13 @@ internal const val FILIGRANE_TITRE_BAS_DP = 126f
  */
 internal const val LOGO_PODIUM_DP = 32.5f
 internal const val TEXTE_SOUS_LOGO_DP = 78f
+
+/**
+ * Pour le film d'aperçu des tests seulement (PodiumFilmTest) : le podium sans ses deux vidéos, sur un fond uni, pour
+ * incruster ensuite les textes sur les vraies vidéos. Toujours faux dans l'appli.
+ */
+@androidx.annotation.VisibleForTesting
+internal var podiumSansVideos = false
 
 /** La vidéo des jauges en plan cinéma (sans elle : le plateau et les clips du robot). */
 internal const val JAUGES_VIDEO = "gs_podium_jauges"

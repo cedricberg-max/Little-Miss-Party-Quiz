@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv.habillage
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -225,5 +226,13 @@ class PodiumGameShowTest {
         assertEquals(26f * 1.25f, LOGO_PODIUM_DP, 0.01f)
         assertTrue(TEXTE_SOUS_LOGO_DP >= 8f + LOGO_PODIUM_DP * 2f)
         assertEquals("LE GRAND GAGNANT EST…", TITRE_JAUGES)
+    }
+
+    @Test
+    fun `film d'apercu - le podium sans videos n'existe que dans les tests`() {
+        // Le film pas à pas des tests remplace les deux vidéos par un fond uni ; l'appli les joue toujours.
+        assertFalse(podiumSansVideos)
+        val appli = File("src/main/java").walkTopDown().filter { it.extension == "kt" }.map { it.readText() }
+        assertTrue(appli.none { it.contains("podiumSansVideos = true") })
     }
 }
