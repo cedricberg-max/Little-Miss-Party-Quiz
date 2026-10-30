@@ -5350,6 +5350,7 @@ $("show-form").onsubmit = (e) => {
 
 /** Enregistre la prestation ouverte ; rend vrai une fois enregistrée (même gardée « À compléter »). */
 async function enregistrerPrestation() {
+  await cadrageEnCours;
   const s = formShow();
   // « À compléter » s'enregistre même incomplète (cedric, 21/10). « À venir » = prête pour la régie : s'il manque
   // quelque chose (prénom, âge, date, jeu prêt), elle est gardée « À compléter » et le message dit quoi.
@@ -6028,8 +6029,13 @@ function choicePhoto(q, slots, k) {
  * Cadrage d'une image (fichier d'origine ou image déjà rangée) dans sa bulle : [garder] reçoit l'image recadrée.
  * Annuler ne change rien ; un échec est dit dans la barre d'état, jamais bloquant.
  */
+/** Le cadrage en cours, jusqu'à l'image rangée : un « Enregistrer » cliqué juste après l'attend (sinon il garderait l'image d'avant). */
+let cadrageEnCours = Promise.resolve();
+
 async function cadrer(source, forme, garder) {
   if (!source) return;
+  let fini;
+  cadrageEnCours = new Promise((r) => (fini = r));
   try {
     const blob = await ouvrirCadrage(source, forme);
     if (!blob) return;
@@ -6038,6 +6044,8 @@ async function cadrer(source, forme, garder) {
   } catch (err) {
     console.error(err);
     status("rv-status", "Cadrage impossible pour cette image : essayez de la choisir à nouveau.");
+  } finally {
+    fini();
   }
 }
 
@@ -6468,6 +6476,7 @@ function moveQuestion(i, delta) {
 }
 
 $("rv-save").onclick = async () => {
+  await cadrageEnCours;
   const title = $("rv-title").value.trim();
   if (!title) return status("rv-status", "Donnez un titre au quiz.");
   const questions = draft.questions.filter((q) => q.text || q.choices.length || q.kind === "number");

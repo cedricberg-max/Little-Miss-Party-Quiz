@@ -10312,9 +10312,11 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.mouse.down();
     await page.mouse.move(box_.x - 400, box_.y + box_.height / 2, { steps: 8 });
     await page.mouse.up();
-    await page.click(".cadre-boite button:has-text('Valider le cadrage')");
-    await page.locator(".cadre-voile").waitFor({ state: "detached" });
-    await page.click("#rv-save");
+    // « Enregistrer » cliqué tout de suite après « Valider » (CI, 30/10) : il attend que l'image recadrée soit rangée.
+    await page.evaluate(() => {
+      [...document.querySelectorAll(".cadre-boite button")].find((b) => b.textContent.includes("Valider le cadrage")).click();
+      document.getElementById("rv-save").click();
+    });
     await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
     const saved = (await library("quizzes")).animaux.questions[0];
     const id = saved.choiceImages[0];
