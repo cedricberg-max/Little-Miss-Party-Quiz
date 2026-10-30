@@ -373,7 +373,9 @@ class Fantome {
       const vocabulaire = [...SIMON_COULEURS.map(([c]) => c), ...(sm.chiffres ? SIMON_CHIFFRES : [])];
       const secret = e && e.tour === sm.tour && e.qid === st.qid ? String(e.sequence ?? "").split(",") : [];
       const suite = Array.from({ length: n }, (_, k) => secret[k] ?? this.simonVu?.[k] ?? auHasard(vocabulaire));
-      if (n && Math.random() < 0.1) { const k = Math.floor(Math.random() * n); suite[k] = auHasard(vocabulaire.filter((x) => x !== suite[k])); }
+      // Comme de vrais enfants, ils se trompent de plus en plus quand la suite s'allonge (1 fois sur 10 à 1 boule,
+      // 1 sur 3 à 5, 6 sur 10 à 12) : une partie avec des fantômes ne dure pas indéfiniment (cedric, 30/10).
+      if (n && Math.random() < 1 - 0.92 ** Math.max(n, 1.3)) { const k = Math.floor(Math.random() * n); suite[k] = auHasard(vocabulaire.filter((x) => x !== suite[k])); }
       const debut = Math.max(sm.reponseAt ?? now, this.maintenant()) + hasard(600, 1500) * reglages.vitesse;
       const fin = (sm.finAt ?? debut + 10_000) - 400;
       const pas = Math.max(80, Math.min(hasard(350, 900) * reglages.vitesse, (fin - debut) / (n + 1)));

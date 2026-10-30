@@ -28,8 +28,12 @@ const val SIMON_CHIFFRES_DES = 4
  */
 const val SIMON_AVEC_CHIFFRES = false
 
-/** Longueur maximale d'une suite : les équipes encore en jeu à ce stade gagnent toutes le tour. */
-const val SIMON_LONGUEUR_MAX = 20
+/**
+ * Longueur maximale d'une suite : les équipes encore en jeu à ce stade gagnent toutes le tour. 12 depuis le 30/10
+ * (20 avant) : cedric, « il ne faut pas qu'une partie puisse durer aussi longtemps » ; au plus vite dès 6 boules,
+ * une suite de 12 est hors d'atteinte en pratique, et un tour dure au plus 12 suites.
+ */
+const val SIMON_LONGUEUR_MAX = 12
 
 /** Tours par jeu, réglables dans la Régie PC, et par défaut. */
 const val SIMON_TOURS = 3
