@@ -162,9 +162,9 @@ function installerCockpit() {
   plus.textContent = "☰ Plus";
   $("c-pause").after(plus);
   const grille = $("plus-grille");
-  // « ⏭ Terminer » reste en bas, à côté de Pause (cedric, 29/10) ; « ⛔ Arrêter la partie » est rangé ici.
-  for (const id of ["c-add", "c-replay", "c-recommencer", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-arret"]) grille.append($(id));
-  $("c-pause").after($("c-end"));
+  // « ⏭ Terminer » rangé ici aussi (cedric, 30/10 : trop dangereux sur l'écran principal en pleine partie), juste
+  // avant « ⛔ Arrêter la partie ».
+  for (const id of ["c-add", "c-replay", "c-recommencer", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-end", "c-arret"]) grille.append($(id));
   $("plus-onglets").append($("c-notes"), document.querySelector(".regie .tabs"),
     $("panel-teams"), $("panel-plan"), $("panel-show"), $("panel-defis"));
   // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer » : appui long, elle reste).
@@ -4497,6 +4497,7 @@ function choisirLaFin() {
 async function finAuChoix() {
   const st = live.state ?? {};
   if (st.phase === "lobby" || st.phase === "ended" || st.leftAt || pending?.advance) return;
+  fermerPlus(); // le doigt est encore sur « ⏭ Terminer » : « ☰ Plus » se referme derrière le choix
   const choix = await choisirLaFin();
   if (choix === "podium") return allerAuPodium();
   if (choix === "arret") return arreterLaPartie();

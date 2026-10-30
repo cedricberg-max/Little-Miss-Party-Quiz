@@ -1051,7 +1051,7 @@ describe("régie", () => {
       await page.locator("#c-hold", { hasText: "Les Bleus" }).waitFor();
       await page.locator("#flou-judge:not([hidden])").waitFor();
       // Chaque bouton du bas est entièrement dans l'écran et c'est bien lui qu'un doigt touche.
-      for (const id of ["c-pause", "c-end", "c-next"]) {
+      for (const id of ["c-pause", "c-plus", "c-next"]) {
         const visible = await page.evaluate((id) => {
           const el = document.getElementById(id);
           const r = el.getBoundingClientRect();
@@ -1152,8 +1152,9 @@ describe("régie", () => {
       return r.top >= 0 && r.bottom <= innerHeight + 0.5 && r.height > 0 && (hit === el || el.contains(hit));
     }, id);
     // Écran principal : la scène, Pause, « ☰ Plus » et le bouton principal ; le reste est rangé dans « ☰ Plus ».
-    for (const id of ["c-pause", "c-end", "c-plus", "c-next"]) assert.ok(await dansLEcran(id), `#${id} dans l'écran`);
-    for (const id of ["c-points", "c-tablette", "c-box", "c-arret", "c-notes", "panel-teams"]) {
+    for (const id of ["c-pause", "c-plus", "c-next"]) assert.ok(await dansLEcran(id), `#${id} dans l'écran`);
+    // « ⏭ Terminer » aussi, jamais sur l'écran principal en pleine partie (cedric, 30/10).
+    for (const id of ["c-points", "c-tablette", "c-box", "c-end", "c-arret", "c-notes", "panel-teams"]) {
       assert.equal(await page.locator(`#plus #${id}`).count(), 1, `#${id} rangé dans « ☰ Plus »`);
     }
     assert.equal(await page.locator("#plus").isHidden(), true);
@@ -2669,9 +2670,10 @@ describe("régie", () => {
     const page = await openRegie(undefined, `?g=${CODE}&emu=1&cockpit=1`);
     await pair(page);
     await inRegie(page);
-    assert.equal(await page.locator("#c-end").isHidden(), true, "rien à terminer au salon");
+    assert.equal(await page.locator("#c-end").getAttribute("hidden"), "", "rien à terminer au salon");
     await box.set({ ...questionState(1), qid: "q1", text: deuxJeux[0].text, choices: deuxJeux[0].choices, total: 2 });
-    await page.locator("#c-end", { hasText: "Terminer" }).click();
+    await page.click("#c-plus");
+    await page.locator("#plus #c-end", { hasText: "⏭ Terminer" }).click();
     await page.locator("#ask-line", { hasText: "Vous allez passer au jeu suivant : «\u00a0Animaux\u00a0»." }).waitFor();
     await capture(page, "terminer-jeu-suivant", { pleinePage: false });
     assert.equal(await page.locator("#ask-text").textContent(), "« Couleurs » s'arrête ici. Les points déjà gagnés sont gardés.");
@@ -2680,16 +2682,18 @@ describe("régie", () => {
     assert.deepEqual([await page.locator("#ask-ok").textContent(), await page.locator("#ask-cancel").textContent()], ["Oui", "Non"]);
     await respond(page, false);
     assert.equal((await commands()).length, 0, "Non : rien n'est envoyé");
+    await page.click("#c-plus");
     await page.click("#c-end");
     await respond(page);
     await waitFor(async () => (await commands()).some((c) => c.type === "goto" && c.index === 1 && c.qid === "q2"), "jeu suivant demandé");
     // Dernier jeu : la suite, ce sont les résultats finaux.
     await box.set({ ...questionState(5, 1), qid: "q2", text: deuxJeux[1].text, choices: deuxJeux[1].choices, index: 1, total: 2 });
+    await page.click("#c-plus");
     await page.click("#c-end");
     await page.locator("#ask-line", { hasText: "Vous allez passer au podium final." }).waitFor();
     assert.match(await respond(page), /Êtes-vous sûr \? « Animaux » est le dernier jeu\./);
     await page.locator("#c-phase", { hasText: "Partie terminée" }).waitFor();
-    assert.equal(await page.locator("#c-end").isHidden(), true);
+    assert.equal(await page.locator("#c-end").getAttribute("hidden"), "");
     await page.context().close();
   });
 
@@ -2701,6 +2705,7 @@ describe("régie", () => {
     const page = await openRegie(undefined, `?g=${CODE}&emu=1&cockpit=1`);
     await pair(page);
     await inRegie(page);
+    await page.click("#c-plus");
     await appuyerLongtemps(page, "c-end", 1200);
     // Le menu : podium à gauche, fin complète à droite.
     await page.locator("#fin-choix:not([hidden])", { hasText: "Que voulez-vous faire ?" }).waitFor();
@@ -2710,24 +2715,28 @@ describe("régie", () => {
     assert.equal(await page.locator("#fin-podium").textContent(), "🏆 Aller au podium");
     assert.equal(await page.locator("#fin-arret").textContent(), "⛔ Terminer complètement");
     assert.equal(await page.locator("#ask").isHidden(), true, "pas encore de confirmation");
+    assert.equal(await page.locator("#plus").getAttribute("hidden"), "", "« ☰ Plus » se referme derrière le choix");
     await capture(page, "terminer-appui-long-choix", { pleinePage: false });
     // Annuler : rien n'est envoyé.
     await page.click("#fin-annuler");
     await page.locator("#fin-choix").waitFor({ state: "hidden" });
     assert.equal((await commands()).length, 0, "Annuler : rien n'est envoyé");
     // Podium, puis Non : rien n'est envoyé.
+    await page.click("#c-plus");
     await appuyerLongtemps(page, "c-end", 1200);
     await page.click("#fin-podium");
     await page.locator("#ask-line", { hasText: "Vous allez passer au podium final." }).waitFor();
     assert.match(await respond(page, false), /Êtes-vous sûr \? Les jeux qui restent ne seront pas joués\./);
     assert.equal((await commands()).length, 0, "Non : rien n'est envoyé");
     // Fin complète, puis Non : l'encadré rouge, et rien n'est envoyé.
+    await page.click("#c-plus");
     await appuyerLongtemps(page, "c-end", 1200);
     await page.click("#fin-arret");
     await page.locator("#ask-attention:not([hidden])", { hasText: "⚠️ ATTENTION" }).waitFor();
     assert.match(await respond(page, false), /Êtes-vous sûr \? Pas de podium/);
     assert.equal((await commands()).length, 0, "Non : rien n'est envoyé");
     // Podium, puis Oui : les résultats finaux.
+    await page.click("#c-plus");
     await appuyerLongtemps(page, "c-end", 1200);
     await page.click("#fin-podium");
     await respond(page);
@@ -2744,6 +2753,7 @@ describe("régie", () => {
     const page = await openRegie(undefined, `?g=${CODE}&emu=1&cockpit=1`);
     await pair(page);
     await inRegie(page);
+    await page.click("#c-plus");
     await appuyerLongtemps(page, "c-end", 1200);
     await page.click("#fin-arret");
     assert.match(await respond(page), /Êtes-vous sûr \? Pas de podium : la TV revient tout de suite à l'accueil\./);
