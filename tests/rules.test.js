@@ -1644,7 +1644,7 @@ describe("Le Duel des robots", () => {
   });
 });
 
-describe("Le Simon du Prof", () => {
+describe("Le Simon de Buzzy", () => {
   const suite = (simon = {}, extra = {}) => seed({
     kind: "simon", qid: "r9s", choices: null, deadline: null,
     simon: {

@@ -83,7 +83,7 @@ import com.littlemissparty.quiz.tv.habillage.apparition
 import kotlinx.coroutines.delay
 
 /*
- * 🔴 Le Simon du Prof sur la TV (cedric, 27/10 ; planche du design). L'écran ne décide rien : la box tire la suite
+ * 🔴 Le Simon de Buzzy sur la TV (cedric, 27/10 ; planche du design). L'écran ne décide rien : la box tire la suite
  * secrète, lance chaque suite et juge. Ici, au tableau néon : « Regardez bien… » puis les boules qui s'allument une à
  * une avec leur note ; « Attention, les chiffres débarquent ! » avant la première suite à chiffres ; « À vous de
  * jouer ! » avec ce que chaque équipe tape en direct, en « ? » à sa couleur ; la vérification colonne par colonne ;
@@ -205,7 +205,7 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
 
     EchelleSansCoupe(SCENE_L, SCENE_H, Modifier.fillMaxSize()) {
         if (r != null) {
-            TubeSimon("LE SIMON DU PROF · TOUR ${r.tour}", GS.Cyan, Modifier.align(Alignment.TopStart).padding(start = 72.dp, top = 34.dp))
+            TubeSimon("LE SIMON DE BUZZY · TOUR ${r.tour}", GS.Cyan, Modifier.align(Alignment.TopStart).padding(start = 72.dp, top = 34.dp))
             val n = if (r.enCours || v == null) r.suite else v.suite
             TubeSimon("SUITE N° $n", GS.Orange, Modifier.align(Alignment.TopEnd).padding(end = 72.dp, top = 34.dp))
         }
@@ -307,7 +307,7 @@ private fun DrawScope.halo(couleur: Color, rayon: Float, n: Int) {
     }
 }
 
-/** « LE SIMON DU PROF · TOUR 3 », « SUITE N° 4 » : tubes néon en haut de l'écran. */
+/** « LE SIMON DE BUZZY · TOUR 3 », « SUITE N° 4 » : tubes néon en haut de l'écran. */
 @Composable
 private fun TubeSimon(texte: String, couleur: Color, modifier: Modifier) {
     val forme = RoundedCornerShape(50.dp)

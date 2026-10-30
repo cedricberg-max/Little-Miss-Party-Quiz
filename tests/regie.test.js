@@ -1802,11 +1802,11 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  /** Simon du Prof : la box publie state.simon (contrat du 27/10 au soir) ; la suite secrète n'y est jamais avant le bilan. */
+  /** Simon de Buzzy : la box publie state.simon (contrat du 27/10 au soir) ; la suite secrète n'y est jamais avant le bilan. */
   async function simonEnCours(simon, teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"]]) {
     box = startBox();
     for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
-    const plan = [{ id: "s1", kind: "simon", text: "Le Simon du Prof", round: "Le Simon du Prof", choices: [], correct: -1, double: false, tours: 2, reponse: 10, joueurs: 4 }];
+    const plan = [{ id: "s1", kind: "simon", text: "Le Simon de Buzzy", round: "Le Simon de Buzzy", choices: [], correct: -1, double: false, tours: 2, reponse: 10, joueurs: 4 }];
     await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, questions: plan });
     const etat = { tour: 1, tours: 2, suite: 3, step: "ready", teams: teams.map(([id]) => id), out: {}, players: Object.fromEntries(teams.map(([id], i) => [id, i + 1])), last: false, verdict: null, ...simon };
     await box.set({ ...questionState(1), qid: "s1", kind: "simon", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, simon: etat });
@@ -1816,7 +1816,7 @@ describe("régie", () => {
     return { page, etat };
   }
 
-  test("Simon du Prof : lancer la suite, l'arrêter en deux appuis, bilan après la vérification TV, suite et tour suivants, jeu suivant", async () => {
+  test("Simon de Buzzy : lancer la suite, l'arrêter en deux appuis, bilan après la vérification TV, suite et tour suivants, jeu suivant", async () => {
     const { page, etat } = await simonEnCours({});
     await page.locator("#simon-info", { hasText: "Tour 1 sur 2. Suite de 3 : appelez le joueur de chaque équipe." }).waitFor();
     await page.locator("#simon-equipes li", { hasText: "Les Bleus" }).locator("span", { hasText: "en jeu · joueur n°2" }).waitFor();
@@ -1866,7 +1866,7 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("Simon du Prof : « Jeu suivant » en cours de route confirmé, pause, 8 équipes lisibles", async () => {
+  test("Simon de Buzzy : « Jeu suivant » en cours de route confirmé, pause, 8 équipes lisibles", async () => {
     const huit = ["Orange", "Vert", "Rose", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"].map((n, i) => [`e${i}`, `Les ${n}s`, TEAM_COLORS_TEST[i % TEAM_COLORS_TEST.length]]);
     const { page, etat } = await simonEnCours({ out: { e3: 4 } }, huit);
     // La liste se remplit à l'arrivée de l'état de la partie : on attend la 8e équipe avant de compter.
@@ -1877,7 +1877,7 @@ describe("régie", () => {
     assert.ok(bas && bas.y + bas.height <= page.viewportSize().height + 1, "le gros bouton reste visible");
     await capture(page, "regie-simon-8-equipes");
     await page.click("#simon-fin");
-    assert.match(await respond(page, false), /Arrêter le Simon du Prof \? 2 tours pas encore gagnés/);
+    assert.match(await respond(page, false), /Arrêter le Simon de Buzzy \? 2 tours pas encore gagnés/);
     assert.equal((await commandes("next")).length, 0);
     await page.click("#simon-fin");
     await respond(page);
@@ -4027,7 +4027,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     // Le menu : Accueil, Bibliothèque, Paramètres (plus de page Jeux ni Prestations : tout part de l'Accueil).
     assert.deepEqual(await page.locator("#nav button").allInnerTexts(), ["Accueil", "Bibliothèque", "Paramètres"]);
-    // 18 jeux (dont le Quiz illustré, le Pictionary, les Coffres mystères, le Gonfleur fou, Ça va exploser !, le Duel des robots et le Simon du Prof) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
+    // 18 jeux (dont le Quiz illustré, le Pictionary, les Coffres mystères, le Gonfleur fou, Ça va exploser !, le Duel des robots et le Simon de Buzzy) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
     const tile = (type) => page.locator(`#screen-home .tile[data-game="${type}"]`);
     assert.equal(await page.locator("#screen-home .tile[data-game]").count(), 18);
     await tile("illustre").waitFor();
@@ -6018,7 +6018,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC (cedric, 27/10) : 🔴 Le Simon du Prof, nombre de tours, secondes pour taper une suite, joueurs par équipe ; dès 1 équipe", async () => {
+  test("Régie PC (cedric, 27/10) : 🔴 Le Simon de Buzzy, nombre de tours, secondes pour taper une suite, joueurs par équipe ; dès 1 équipe", async () => {
     const page = await admin();
     await page.locator('#home-games .tile[data-game=simon]', { hasText: "Rien à préparer" }).waitFor();
     await page.click("#home-new");

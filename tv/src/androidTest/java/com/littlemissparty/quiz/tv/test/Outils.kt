@@ -628,7 +628,7 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
     }.onFailure { Log.i(TAG, "Buzz du duel refusé : ${it.message}") }.isSuccess
 
     /**
-     * Le Simon du Prof : la tablette envoie la suite tapée ([items], codes du moteur), validée ou non ([ok]) ; false
+     * Le Simon de Buzzy : la tablette envoie la suite tapée ([items], codes du moteur), validée ou non ([ok]) ; false
      * si le serveur refuse (pas de suite en cours, équipe éliminée, chrono pas parti ou fini, déjà validé).
      */
     fun repondreSimon(code: String, items: List<String>, ok: Boolean = true): Boolean = runCatching {

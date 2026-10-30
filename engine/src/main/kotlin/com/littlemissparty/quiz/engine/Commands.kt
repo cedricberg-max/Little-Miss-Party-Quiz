@@ -69,10 +69,10 @@ sealed interface Command {
     /** Duel des robots : « ✋ Arrêter le duel », le face-à-face s'arrête sans points. */
     data class DuelStop(override val id: String, override val expectSeq: Int) : Command
 
-    /** Simon du Prof : « ▶ » de Sarah, la suite suivante (ou la même après « Bah alors »), ou le tour suivant. */
+    /** Simon de Buzzy : « ▶ » de Sarah, la suite suivante (ou la même après « Bah alors »), ou le tour suivant. */
     data class SimonGo(override val id: String, override val expectSeq: Int) : Command
 
-    /** Simon du Prof : « ✋ Arrêter la suite », elle se relancera telle quelle, sans élimination. */
+    /** Simon de Buzzy : « ✋ Arrêter la suite », elle se relancera telle quelle, sans élimination. */
     data class SimonStop(override val id: String, override val expectSeq: Int) : Command
 
     /** Blind test : lancer ou relancer la musique du morceau. */

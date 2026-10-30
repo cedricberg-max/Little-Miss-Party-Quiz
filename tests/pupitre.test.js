@@ -710,7 +710,7 @@ describe("pupitre", () => {
     for (const p of [roses, bleus, verts]) await p.context().close();
   });
 
-  test("Le Simon du Prof (cedric, 27/10) : on regarde la TV, puis le joueur appelé tape la suite et valide ; éliminés ou gagné après la vérification", async () => {
+  test("Le Simon de Buzzy (cedric, 27/10) : on regarde la TV, puis le joueur appelé tape la suite et valide ; éliminés ou gagné après la vérification", async () => {
     const roses = await openPupitre();
     await joinTeam(roses, "Les Roses");
     const bleus = await openPupitre();
@@ -720,7 +720,7 @@ describe("pupitre", () => {
     const teams = await read("teams");
     const id = (name) => Object.keys(teams).find((t) => teams[t].name === name);
     const [r, b, v] = [id("Les Roses"), id("Les Bleus"), id("Les Verts")];
-    const simon = (sm) => question({ qid: "s1", kind: "simon", text: "Le Simon du Prof", choices: null, deadline: null, durationMs: null,
+    const simon = (sm) => question({ qid: "s1", kind: "simon", text: "Le Simon de Buzzy", choices: null, deadline: null, durationMs: null,
       simon: { tour: 1, tours: 3, suite: 4, step: "ready", key: null, teams: [r, b], players: { [r]: 2, [b]: 1 }, chiffres: false, ...sm } });
     await hostState(simon({}));
     await roses.locator(".sm-texte", { hasText: "Prochaine suite : joueur 2, prépare-toi !" }).waitFor();

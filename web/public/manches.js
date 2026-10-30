@@ -311,7 +311,7 @@ export function cleanRound(r, playlists = {}) {
   else if (type === "coffres" || type === "gonfleur") out = { type };
   // Le Duel des robots (cedric, 27/10) : joueurs par équipe (environ), durée min / max du face-à-face, longs duels.
   else if (type === "duel") out = { type, ...reglagesDuel(r) };
-  // Le Simon du Prof (cedric, 27/10) : tours, secondes pour taper une suite, joueurs par équipe (environ).
+  // Le Simon de Buzzy (cedric, 27/10) : tours, secondes pour taper une suite, joueurs par équipe (environ).
   else if (type === "simon") out = { type, ...reglagesSimon(r) };
   // Blind test tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : ses chansons dans l'ordre, cases retirées
   // comprises (en attente de leur 🎲), et le nombre demandé.

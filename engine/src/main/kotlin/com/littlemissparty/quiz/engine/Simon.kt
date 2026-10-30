@@ -3,7 +3,7 @@ package com.littlemissparty.quiz.engine
 import kotlin.random.Random
 
 /*
- * 🔴 Le Simon du Prof (cedric, 27 octobre) : le robot professeur montre au tableau une suite de boules de couleur qui
+ * 🔴 Le Simon de Buzzy (cedric, 27 octobre) : le robot professeur montre au tableau une suite de boules de couleur qui
  * s'allument une à une (chacune sa note) ; la suite grandit d'un élément à chaque fois. Quand la suite atteint
  * [SIMON_CHIFFRES_DES] éléments, « Attention, les chiffres débarquent ! » : des chiffres s'y mêlent (rouge vert bleu 4
  * jaune…). Après la suite, le chrono part : sur sa tablette, un joueur de chaque équipe (un autre à chaque suite) tape

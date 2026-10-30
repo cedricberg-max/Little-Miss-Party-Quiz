@@ -1416,11 +1416,11 @@ class RegieTest : TestTv() {
         assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
         @Suppress("UNCHECKED_CAST")
         val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
-        // Exactement ce qu'envoie la régie pour une manche « Le Simon du Prof » (web/public/show.js) : un seul tour,
+        // Exactement ce qu'envoie la régie pour une manche « Le Simon de Buzzy » (web/public/show.js) : un seul tour,
         // 5 s pour taper, 2 joueurs par équipe.
         val simon = mapOf(
-            "id" to "sm", "text" to "Le Simon du Prof", "choices" to emptyList<String>(), "correct" to -1,
-            "kind" to "simon", "double" to false, "round" to "Le Simon du Prof", "tours" to 1, "reponse" to 5, "joueurs" to 2,
+            "id" to "sm", "text" to "Le Simon de Buzzy", "choices" to emptyList<String>(), "correct" to -1,
+            "kind" to "simon", "double" to false, "round" to "Le Simon de Buzzy", "tours" to 1, "reponse" to 5, "joueurs" to 2,
         )
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), simon)))
         assertEquals("applied", regie.commande(code, "next"))
@@ -1434,7 +1434,7 @@ class RegieTest : TestTv() {
         }
         assertEquals(1L, (licornes.etat(code).child("simon/suite").value as Number).toLong())
         ecran.voit("PRÊTS ?")
-        ecran.voit("LE SIMON DU PROF · TOUR 1")
+        ecran.voit("LE SIMON DE BUZZY · TOUR 1")
         ecran.capture("simon-pret")
         assertEquals("rien à taper avant la suite", false, licornes.repondreSimon(code, listOf("rouge")))
 

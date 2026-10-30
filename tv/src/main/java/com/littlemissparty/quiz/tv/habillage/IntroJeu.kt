@@ -124,7 +124,7 @@ private fun ressourceIntroJeu(nom: String): Int = when (nom) {
 internal fun repriseIntroJeu(nom: String): Int? = if (nom == "duel") REPRISE_INTRO_DUEL_MS else null
 
 /**
- * Volume de la piste son d'une vidéo d'intro (0 : muette, la plupart). Le Simon du Prof et le Vrai ou Faux (cedric, 29/10) : des bruitages
+ * Volume de la piste son d'une vidéo d'intro (0 : muette, la plupart). Le Simon de Buzzy et le Vrai ou Faux (cedric, 29/10) : des bruitages
  * discrets (−29 LUFS) mixés pour passer par-dessus sa musique, qui continue ; ils tournent avec la vidéo.
  */
 internal fun volumeIntroJeu(nom: String): Float = if (nom in INTROS_SONORES) 1f else 0f

@@ -1592,7 +1592,7 @@ async function envoyerPatate(to) {
 }
 
 /**
- * 🔴 Le Simon du Prof (écran simon.js) : { ctl, cle, saisie, envoye, minuterie } de la suite en cours. Les étapes se
+ * 🔴 Le Simon de Buzzy (écran simon.js) : { ctl, cle, saisie, envoye, minuterie } de la suite en cours. Les étapes se
  * calculent à l'heure du serveur : annonce des chiffres, le robot montre la suite (« Regarde bien la TV… »), le chrono
  * (on tape), puis la vérification de la TV avant de dire « éliminés » ou « gagné » (jamais avant la TV).
  */
@@ -1639,9 +1639,9 @@ function renderSimon(st) {
     texte = sm.last ? "C'était le dernier tour !" : "Le tour suivant arrive…";
   } else if (v && duTour && !sorti) { etat = "attente"; titre = "Bravo, vous continuez !"; texte = "La prochaine suite aura un élément de plus."; }
   else if (sm.step === "ready" || sm.step === "judged") {
-    etat = "attente"; titre = "Le Simon du Prof";
+    etat = "attente"; titre = "Le Simon de Buzzy";
     texte = !duTour ? "Vous jouerez au prochain tour." : sorti ? "Éliminés de ce tour : vous rejouerez au prochain." : `Prochaine suite : joueur ${joueur}, prépare-toi !`;
-  } else { etat = "attente"; titre = "Le Simon du Prof"; texte = "Regardez la TV !"; }
+  } else { etat = "attente"; titre = "Le Simon de Buzzy"; texte = "Regardez la TV !"; }
   simon.ctl.maj({
     etat, titre, texte, chrono, joueur: etat === "joue" || etat === "regarde" ? joueurTexte : "",
     chiffres: sm.chiffres === true, saisie: simon.saisie, longueur: sm.suite ?? 0,
@@ -1650,7 +1650,7 @@ function renderSimon(st) {
   if (prochain != null) simon.minuterie = setTimeout(render, Math.max(50, Math.min(1_000, prochain - now + 20)));
 }
 
-/** Simon du Prof : envoie ce que l'équipe a tapé (à chaque appui, pour la TV en direct), [ok] = « Valider ». */
+/** Simon de Buzzy : envoie ce que l'équipe a tapé (à chaque appui, pour la TV en direct), [ok] = « Valider ». */
 async function envoyerSimon(ok = false) {
   const key = game.state?.simon?.key;
   if (!key || !simon || simon.cle !== key || simon.envoye) return;

@@ -390,7 +390,7 @@ class DirecteurSonore {
             if (i.duel && i.duelEtape != p.duelEtape) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.duelEtape == "standoff") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
-            // Simon du Prof : la musique change net quand une suite démarre (Classique : elle se tait), revient après.
+            // Simon de Buzzy : la musique change net quand une suite démarre (Classique : elle se tait), revient après.
             if (i.simonSuite != p.simonSuite || i.simonChiffres != p.simonChiffres) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.simonSuite) Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
@@ -488,7 +488,7 @@ class DirecteurSonore {
                 "ready" -> Ambiance.DUEL_ANNONCE
                 else -> Ambiance.DUEL_ENTRE
             }
-            // Le Simon du Prof : la boucle douce entre deux suites, celle aux percussions pendant une suite (la note de
+            // Le Simon de Buzzy : la boucle douce entre deux suites, celle aux percussions pendant une suite (la note de
             // chaque boule passe par-dessus), la partie où tout joue quand les chiffres arrivent.
             i.simon && i.ecran == Ecran.QUESTION -> when {
                 !i.simonSuite -> Ambiance.SIMON_ENTRE
@@ -589,10 +589,10 @@ data class Instant(
      */
     val duel: Boolean = false,
     val duelEtape: String = "",
-    /** Le Simon du Prof : sa question est à l'écran ; une suite est en cours (le robot la montre, les équipes la tapent). */
+    /** Le Simon de Buzzy : sa question est à l'écran ; une suite est en cours (le robot la montre, les équipes la tapent). */
     val simon: Boolean = false,
     val simonSuite: Boolean = false,
-    /** Le Simon du Prof : la suite en cours a des chiffres (à partir de [com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES]). */
+    /** Le Simon de Buzzy : la suite en cours a des chiffres (à partir de [com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES]). */
     val simonChiffres: Boolean = false,
     /** Quiz : question fermée par la fin du chrono (une équipe n'a pas répondu), « TEMPS ÉCOULÉ ! » à l'écran. */
     val tempsEcoule: Boolean = false,
@@ -741,7 +741,7 @@ enum class Lit(
     /** Game Show : la boucle western du Duel des robots (36 temps, 21,24 s, sans blanc), sous l'annonce et entre deux duels. */
     DUEL(null, "gs_duel_intro_boucle"),
     /**
-     * Game Show, le Simon du Prof sur « Prix choc » d'Etienne de Crécy (cedric, 28/10), trois boucles prises entre les
+     * Game Show, le Simon de Buzzy sur « Prix choc » d'Etienne de Crécy (cedric, 28/10), trois boucles prises entre les
      * passages chantés (jamais la voix) à 127,87 BPM, coupées sur un début de mesure là où la suite ressemble le plus
      * au début (raccord fondu sur 60 ms) : la douce, sans batterie (8 mesures, 15 s, de 0:01,9) ; avec les premières
      * percussions (16 mesures, 30 s, de 0:43,2) ; la partie où tout joue (16 mesures, 30 s, de 2:02,0). Volumes laissés
@@ -752,7 +752,7 @@ enum class Lit(
     SIMON_SUITE(null, "gs_simon_suite"),
     SIMON_FORT(null, "gs_simon_fort"),
     /**
-     * Game Show, le Simon du Prof : sous sa vidéo d'intro seulement (cedric, 30/10), la douce tournée pour partir sur son
+     * Game Show, le Simon de Buzzy : sous sa vidéo d'intro seulement (cedric, 30/10), la douce tournée pour partir sur son
      * temps fort (même boucle de 15,01 s, sans couture) ; le jeu garde [SIMON_DOUCE].
      */
     SIMON_INTRO(null, "gs_simon_intro"),
@@ -862,7 +862,7 @@ enum class Ambiance(
     /** Duel des robots : entre deux duels, sous le résultat ; Game Show : la boucle western à −10 dB. */
     DUEL_ENTRE(legere = 0.3f, gameShow = mapOf(Lit.DUEL to 0.32f)),
     /**
-     * Le Simon du Prof, Game Show (« Prix choc », cedric 28/10) : la boucle douce à la présentation et entre deux suites,
+     * Le Simon de Buzzy, Game Show (« Prix choc », cedric 28/10) : la boucle douce à la présentation et entre deux suites,
      * sous la voix de Sarah ; Classique : la musique des questions.
      */
     SIMON_ENTRE(legere = 0.7f, gameShow = mapOf(Lit.SIMON_DOUCE to 0.82f)),

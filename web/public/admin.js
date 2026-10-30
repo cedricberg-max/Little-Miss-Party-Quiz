@@ -3531,7 +3531,7 @@ function reglagesDuDuel(r) {
 }
 
 /**
- * « 🔴 Le Simon du Prof » dans une prestation (cedric, 27/10) : rien à piocher ; le nombre de tours, les secondes pour
+ * « 🔴 Le Simon de Buzzy » dans une prestation (cedric, 27/10) : rien à piocher ; le nombre de tours, les secondes pour
  * taper une suite et le nombre approximatif de joueurs par équipe.
  */
 function reglagesDuSimon(r) {

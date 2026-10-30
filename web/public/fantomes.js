@@ -353,7 +353,7 @@ class Fantome {
   }
 
   /**
-   * 🔴 Simon du Prof : le joueur fantôme du tour tape la suite, élément par élément (la TV les montre en direct), puis
+   * 🔴 Simon de Buzzy : le joueur fantôme du tour tape la suite, élément par élément (la TV les montre en direct), puis
    * valide avant la fin du chrono ; une fois sur dix il se trompe d'un élément. La suite est secrète : avec le mot de
    * passe régie, la page la lit dans le journal de la box (elle y est dès le début du tour) ; sans lui, le fantôme se
    * souvient de la bonne suite montrée au bilan d'avant et devine le reste.

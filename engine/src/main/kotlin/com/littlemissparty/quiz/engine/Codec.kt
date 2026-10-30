@@ -347,7 +347,7 @@ object Codec {
         )
     }
 
-    /** Simon du Prof : clé des réponses des tablettes pour la suite en cours (`simon/<clé>/<équipe>`), ou null. */
+    /** Simon de Buzzy : clé des réponses des tablettes pour la suite en cours (`simon/<clé>/<équipe>`), ou null. */
     fun simonKey(game: Game): String? {
         val r = game.state.simon?.takeIf { it.enCours } ?: return null
         if (game.question?.isSimon != true || game.state.paused) return null
@@ -355,7 +355,7 @@ object Codec {
     }
 
     /**
-     * Simon du Prof, pour la TV, la régie et les tablettes : le tour, la suite (sa longueur), ses heures (montrée, chrono,
+     * Simon de Buzzy, pour la TV, la régie et les tablettes : le tour, la suite (sa longueur), ses heures (montrée, chrono,
      * fin), les équipes du tour et les éliminées, le joueur appelé dans chaque équipe, et le bilan une fois jugée. La suite
      * secrète n'y est jamais avant le bilan (seule la box la connaît) ; ensuite, la bonne suite pour la vérification.
      */

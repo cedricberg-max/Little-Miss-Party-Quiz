@@ -8,10 +8,10 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** 🔴 Le Simon du Prof : une suite qui grandit, une erreur élimine du tour, la dernière équipe en jeu le gagne. */
+/** 🔴 Le Simon de Buzzy : une suite qui grandit, une erreur élimine du tour, la dernière équipe en jeu le gagne. */
 class SimonDuProfTest {
 
-    private val simon = Question("s1", "Le Simon du Prof", emptyList(), -1, kind = QuestionKind.SIMON, roundTitle = "Le Simon du Prof", joueurs = 2, simonTours = 2)
+    private val simon = Question("s1", "Le Simon de Buzzy", emptyList(), -1, kind = QuestionKind.SIMON, roundTitle = "Le Simon de Buzzy", joueurs = 2, simonTours = 2)
     private val quiz = Question("q1", "Capitale ?", listOf("Paris", "Rome"), 0, durationSec = 20, roundTitle = "Quiz")
     private val t0 = 1_000_000L
     private val equipes = listOf("orange", "vert", "rose")
@@ -298,11 +298,23 @@ class SimonDuProfTest {
     @Test
     fun `reglages de la Regie PC hors limites ramenes dans les limites`() {
         val q = QuizJson.parse(
-            """{"id":"p","title":"P","questions":[{"id":"s","text":"Le Simon du Prof","choices":[],"kind":"simon","tours":99,"reponse":2,"joueurs":3}]}""",
+            """{"id":"p","title":"P","questions":[{"id":"s","text":"Le Simon de Buzzy","choices":[],"kind":"simon","tours":99,"reponse":2,"joueurs":3}]}""",
         ).questions.single()
         assertTrue(q.isSimon)
         assertEquals(SIMON_TOURS_MAX, q.simonTours)
         assertEquals(SIMON_REPONSE_MIN_SEC, q.simonSec)
         assertEquals(3, q.joueurs)
+    }
+
+    @Test
+    fun `une prestation preparee avant le nouveau nom montre le Simon de Buzzy`() {
+        val q = QuizJson.parse(
+            """{"id":"p","title":"P","questions":[{"id":"s","text":"Le Simon du Prof","round":"Le Simon du Prof","choices":[],"kind":"simon"},""" +
+                """{"id":"q","text":"Le Simon du Prof était-il un jeu ?","choices":["Oui","Non"],"correct":0}]}""",
+        ).questions
+        assertEquals("Le Simon de Buzzy", q[0].text)
+        assertEquals("Le Simon de Buzzy", q[0].roundTitle)
+        // Une question de quiz qui en parle garde son texte.
+        assertEquals("Le Simon du Prof était-il un jeu ?", q[1].text)
     }
 }

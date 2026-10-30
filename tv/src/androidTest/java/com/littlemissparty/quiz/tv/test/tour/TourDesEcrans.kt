@@ -326,7 +326,7 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
             mapOf("id" to "t-gonfleur", "text" to "Le Gonfleur fou", "duration" to 45, "kind" to "gonfleur", "round" to "Le Gonfleur fou") + vide,
             mapOf("id" to "t-patate", "text" to "Ça va exploser !", "duration" to 40, "kind" to "patate", "round" to "Ça va exploser !") + vide,
             mapOf("id" to "t-duel", "text" to "Le Duel des robots", "duration" to 10, "kind" to "duel", "round" to "Le Duel des robots", "joueurs" to 1, "faceMin" to 10, "faceMax" to 10, "longs" to false) + vide,
-            mapOf("id" to "t-simon", "text" to "Le Simon du Prof", "kind" to "simon", "round" to "Le Simon du Prof", "tours" to 1, "reponse" to 5, "joueurs" to 1) + vide,
+            mapOf("id" to "t-simon", "text" to "Le Simon de Buzzy", "kind" to "simon", "round" to "Le Simon de Buzzy", "tours" to 1, "reponse" to 5, "joueurs" to 1) + vide,
         )
     }
 

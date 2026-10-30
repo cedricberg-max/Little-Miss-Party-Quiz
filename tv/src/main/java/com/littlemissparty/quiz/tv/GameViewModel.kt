@@ -77,7 +77,7 @@ data class Team(val uid: String, val name: String, val color: String, val joined
 /** Appareil qui demande à entrer en cours de partie ; [replace] : l'équipe qu'il veut reprendre. */
 data class JoinRequestUi(val device: String, val name: String, val color: String, val replace: String?)
 
-/** Le Simon du Prof : ce qu'une équipe a tapé ([items]), validé ou non ([ok]), à l'heure du serveur [at]. */
+/** Le Simon de Buzzy : ce qu'une équipe a tapé ([items]), validé ou non ([ok]), à l'heure du serveur [at]. */
 data class SaisieSimon(val items: List<String>, val ok: Boolean, val at: Long?)
 
 sealed interface UiState {
@@ -206,14 +206,14 @@ sealed interface UiState {
         val duelGagnes: Map<String, Int> = emptyMap(),
         /** Le Duel des robots : décalage fin de l'horloge de la box avec le serveur (meilleure de 5 mesures), ou null. */
         val duelOffset: Long? = null,
-        /** Le Simon du Prof : le tour et sa suite (la suite secrète, que seule la box connaît), null hors de ce jeu. */
+        /** Le Simon de Buzzy : le tour et sa suite (la suite secrète, que seule la box connaît), null hors de ce jeu. */
         val simon: SimonRound? = null,
-        /** Le Simon du Prof : ce que chaque équipe tape en direct pour la suite en cours (montré en « ? » à la TV). */
+        /** Le Simon de Buzzy : ce que chaque équipe tape en direct pour la suite en cours (montré en « ? » à la TV). */
         val simonSaisies: Map<String, SaisieSimon> = emptyMap(),
-        /** Le Simon du Prof : temps pour répondre (réglé dans la Régie PC) et nombre de tours. */
+        /** Le Simon de Buzzy : temps pour répondre (réglé dans la Régie PC) et nombre de tours. */
         val simonSec: Int = 0,
         val simonTours: Int = 0,
-        /** Le Simon du Prof : joueurs par équipe (le joueur appelé tourne), et le dernier tour est gagné (« Jeu suivant »). */
+        /** Le Simon de Buzzy : joueurs par équipe (le joueur appelé tourne), et le dernier tour est gagné (« Jeu suivant »). */
         val simonJoueurs: Int = 0,
         val simonFini: Boolean = false,
         /** Quiz : la question a été fermée par la fin du chrono, la TV annonce « TEMPS ÉCOULÉ ! » avant la réponse. */
@@ -315,7 +315,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var duelListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var simonListener: Pair<DatabaseReference, ValueEventListener>? = null
 
-    /** Le Simon du Prof : ce que les tablettes ont envoyé pour la suite en cours (clé de la suite, puis équipe). */
+    /** Le Simon de Buzzy : ce que les tablettes ont envoyé pour la suite en cours (clé de la suite, puis équipe). */
     private var simonSaisies: Pair<String, Map<String, SaisieSimon>>? = null
 
     /**
@@ -958,7 +958,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                         },
                     )
                 }
-                // Simon du Prof : OK lance la suite (ou le tour suivant) ; après le dernier tour, passe au jeu suivant.
+                // Simon de Buzzy : OK lance la suite (ou le tour suivant) ; après le dernier tour, passe au jeu suivant.
                 else if (g.question?.isSimon == true) {
                     val r = g.state.simon
                     val ids = teams().map { it.uid }
@@ -1379,7 +1379,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // des 2 équipes pendant chaque face-à-face.
         if (g.needsDuel() && teams().size >= 2) act { it.readyDuel(teams().map { t -> t.uid }, serverNow()) }
         watchDuel(Codec.duelKey(g))
-        // Simon du Prof : la box prépare le premier tour dès le lancement du jeu, puis écoute ce que tapent les tablettes
+        // Simon de Buzzy : la box prépare le premier tour dès le lancement du jeu, puis écoute ce que tapent les tablettes
         // pendant chaque suite.
         if (g.needsSimon() && teams().isNotEmpty()) act { it.readySimon(teams().map { t -> t.uid }, serverNow()) }
         watchSimon(Codec.simonKey(g))
@@ -2421,7 +2421,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Simon du Prof : ce que tapent les tablettes pendant la suite en cours (games/<code>/simon/<clé>/<équipe> =
+     * Simon de Buzzy : ce que tapent les tablettes pendant la suite en cours (games/<code>/simon/<clé>/<équipe> =
      * { items: "rouge,vert,4", ok, at }), réécrit à chaque appui jusqu'à « Valider » (ok). Les règles n'acceptent que
      * les équipes encore en jeu, pendant le chrono, et plus rien après « Valider ». La TV le montre en direct ; quand
      * toutes les équipes en jeu ont validé, la box juge sans attendre la fin du chrono.
@@ -2460,7 +2460,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         ref.addValueEventListener(listener)
     }
 
-    /** Simon du Prof : les réponses de la suite en cours, temps pour valider compté depuis le début du chrono. */
+    /** Simon de Buzzy : les réponses de la suite en cours, temps pour valider compté depuis le début du chrono. */
     private fun reponsesSimon(g: Game): Map<String, SimonAnswer> {
         val depart = g.state.simon?.reponseAt ?: return emptyMap()
         val saisies = simonSaisies?.takeIf { (cle, _) -> cle == Codec.simonKey(g) }?.second.orEmpty()
@@ -2743,7 +2743,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "disparu" to true,
             // Le Duel des robots : buzz des tablettes dans duel/, PAN et jugement par la box, duel_start / duel_next / duel_stop.
             "duel" to true,
-            // Le Simon du Prof : réponses des tablettes dans simon/, suite secrète et jugement par la box, simon_go / simon_stop.
+            // Le Simon de Buzzy : réponses des tablettes dans simon/, suite secrète et jugement par la box, simon_go / simon_stop.
             "simon" to true,
             // Mauvaise prestation : une autre prestation remplace celle-ci tant qu'aucun point n'a été donné (retour au salon).
             "programReset" to true,
@@ -2765,7 +2765,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     // Le Duel des robots : joueurs par équipe et durée du face-à-face, relus après un redémarrage.
                     "faceMin" to it.faceMin.takeIf { _ -> it.isDuel },
                     "faceMax" to it.faceMax.takeIf { _ -> it.isDuel }, "longs" to it.longs.takeIf { _ -> it.isDuel },
-                    // Le Simon du Prof : tours, temps pour répondre et joueurs par équipe, relus après un redémarrage.
+                    // Le Simon de Buzzy : tours, temps pour répondre et joueurs par équipe, relus après un redémarrage.
                     "tours" to it.simonTours.takeIf { _ -> it.isSimon }, "reponse" to it.simonSec.takeIf { _ -> it.isSimon },
                     "joueurs" to it.joueurs.takeIf { _ -> it.isDuel || it.isSimon },
                 ))

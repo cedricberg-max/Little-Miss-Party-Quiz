@@ -2179,7 +2179,7 @@ $("duel-fin").onclick = async () => {
 };
 
 /**
- * Le Simon du Prof (cedric, 27/10) : la box tient la suite secrète et juge ; Sarah lance chaque suite, l'arrête si
+ * Le Simon de Buzzy (cedric, 27/10) : la box tient la suite secrète et juge ; Sarah lance chaque suite, l'arrête si
  * un enfant n'est pas prêt, puis passe à la suite ou au tour suivant. La TV vérifie colonne par colonne avant le
  * bandeau : le bouton suivant attend la fin de cette vérification.
  */
@@ -2292,7 +2292,7 @@ $("simon-fin").onclick = async () => {
   const s = live.state?.simon ?? {};
   const restent = Math.max(0, (s.tours ?? 1) - (s.tour ?? 1) + (s.step === "won" ? 0 : 1));
   const ok = await demander({
-    title: "Arrêter le Simon du Prof ?",
+    title: "Arrêter le Simon de Buzzy ?",
     text: restent ? `${restent} tour${restent > 1 ? "s" : ""} pas encore gagné${restent > 1 ? "s" : ""}.` : "",
     ok: "⏭ Jeu suivant",
   });
@@ -3601,7 +3601,7 @@ const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : s
 const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer aux Coffres mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à « Ça va exploser ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
-const OLD_TV_SIMON = "La TV doit être mise à jour pour jouer au Simon du Prof : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_SIMON = "La TV doit être mise à jour pour jouer au Simon de Buzzy : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DUEL = "La TV doit être mise à jour pour jouer au Duel des robots : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";

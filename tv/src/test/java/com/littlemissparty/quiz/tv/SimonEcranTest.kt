@@ -16,7 +16,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 🔴 Le Simon du Prof à la TV : ce que montre l'écran à chaque instant d'une suite. */
+/** 🔴 Le Simon de Buzzy à la TV : ce que montre l'écran à chaque instant d'une suite. */
 class SimonEcranTest {
     private val suite = listOf("rouge", "vert", "bleu", "4", "jaune", "7", "rose", "2")
     private val t0 = 1_000_000L
