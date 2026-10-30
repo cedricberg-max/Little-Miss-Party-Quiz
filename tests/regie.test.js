@@ -1927,6 +1927,42 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("« ↺ Relancer ce jeu » : le jeu en cours repart de sa première question d'un seul geste, après l'avertissement", async () => {
+    // cedric, 30/10 : une manche mal partie (règles pas comprises), Sarah relance le jeu en cours sans chercher.
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const plan = [
+      { id: "q1", text: "Couleur du ciel ?", choices: ["Vert", "Bleu"], correct: 1, duration: 20, kind: "classic", round: "Quiz de Léa" },
+      { id: "q2", text: "2 + 2 ?", choices: ["4", "5"], correct: 0, duration: 20, kind: "classic", round: "Quiz de Léa" },
+      { id: "f1", text: "Finale ?", choices: ["A", "B"], correct: 0, duration: 10, kind: "classic", round: "Finale" },
+    ];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, questions: plan });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    // Au salon : pas de jeu en cours, pas de bouton.
+    assert.equal(await page.locator("#c-recommencer").getAttribute("hidden"), "");
+    await box.set({ ...questionState(3), index: 1, qid: "q2", text: "2 + 2 ?", total: 3, scores: { rose: 100 } });
+    await page.locator("#c-games", { hasText: "En cours : Quiz de Léa" }).waitFor();
+    await page.locator("#c-recommencer:not([hidden])", { hasText: "↺ Relancer ce jeu" }).waitFor({ state: "attached" });
+    // Renoncer : rien n'est envoyé.
+    await page.locator("#c-recommencer").evaluate((el) => el.click());
+    assert.match(await page.locator("#ask-attention").textContent(), /Ce jeu repart à zéro : les points gagnés pendant ce jeu sont effacés\./);
+    assert.equal(await page.locator("#ask-attention").isHidden(), false);
+    await respond(page, false);
+    await page.waitForTimeout(300);
+    assert.equal(box.gotos.length, 0);
+    // Accepter : retour à la première question du jeu en cours, rien compté deux fois.
+    await page.locator("#c-recommencer").evaluate((el) => el.click());
+    assert.match(await respond(page), /Recommencer « Quiz de Léa » \?.*rien n'est compté deux fois/);
+    await waitFor(async () => box.gotos.length === 1, "retour au début du jeu envoyé à la TV");
+    assert.deepEqual(box.gotos, [{ index: 0, qid: "q1" }]);
+    // Partie terminée : plus de jeu en cours, plus de bouton.
+    await box.set({ phase: "ended", seq: (await read("state")).seq + 1 });
+    await page.locator("#c-recommencer[hidden]").waitFor({ state: "attached" });
+    await page.context().close();
+  });
+
   test("Pictionary : Sarah montre 3 mots, voit le choix du dessinateur, masque le mot puis valide ; 150 points", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");
@@ -2657,7 +2693,7 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("« ⏭ Terminer », appui long (jauge) : directement le podium final, après « Êtes-vous sûr ? »", async () => {
+  test("« ⏭ Terminer », appui long (jauge) : le choix podium ou fin complète (cedric, 30/10), puis « Êtes-vous sûr ? »", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");
     await set(gameRef("conducteur"), { id: "p", title: "Léa", rev: "s1", mimes: true, questions: deuxJeux });
@@ -2666,13 +2702,53 @@ describe("régie", () => {
     await pair(page);
     await inRegie(page);
     await appuyerLongtemps(page, "c-end", 1200);
+    // Le menu : podium à gauche, fin complète à droite.
+    await page.locator("#fin-choix:not([hidden])", { hasText: "Que voulez-vous faire ?" }).waitFor();
+    const gauche = await page.locator("#fin-podium").boundingBox();
+    const droite = await page.locator("#fin-arret").boundingBox();
+    assert.ok(gauche.x + gauche.width <= droite.x + 1, "« Aller au podium » à gauche de « Terminer complètement »");
+    assert.equal(await page.locator("#fin-podium").textContent(), "🏆 Aller au podium");
+    assert.equal(await page.locator("#fin-arret").textContent(), "⛔ Terminer complètement");
+    assert.equal(await page.locator("#ask").isHidden(), true, "pas encore de confirmation");
+    await capture(page, "terminer-appui-long-choix", { pleinePage: false });
+    // Annuler : rien n'est envoyé.
+    await page.click("#fin-annuler");
+    await page.locator("#fin-choix").waitFor({ state: "hidden" });
+    assert.equal((await commands()).length, 0, "Annuler : rien n'est envoyé");
+    // Podium, puis Non : rien n'est envoyé.
+    await appuyerLongtemps(page, "c-end", 1200);
+    await page.click("#fin-podium");
     await page.locator("#ask-line", { hasText: "Vous allez passer au podium final." }).waitFor();
     assert.match(await respond(page, false), /Êtes-vous sûr \? Les jeux qui restent ne seront pas joués\./);
     assert.equal((await commands()).length, 0, "Non : rien n'est envoyé");
+    // Fin complète, puis Non : l'encadré rouge, et rien n'est envoyé.
     await appuyerLongtemps(page, "c-end", 1200);
+    await page.click("#fin-arret");
+    await page.locator("#ask-attention:not([hidden])", { hasText: "⚠️ ATTENTION" }).waitFor();
+    assert.match(await respond(page, false), /Êtes-vous sûr \? Pas de podium/);
+    assert.equal((await commands()).length, 0, "Non : rien n'est envoyé");
+    // Podium, puis Oui : les résultats finaux.
+    await appuyerLongtemps(page, "c-end", 1200);
+    await page.click("#fin-podium");
     await respond(page);
     await page.locator("#c-phase", { hasText: "Partie terminée" }).waitFor();
     assert.deepEqual((await commands()).map((c) => c.type), ["end"]);
+    await page.context().close();
+  });
+
+  test("« ⏭ Terminer », appui long → « ⛔ Terminer complètement » → Oui : tout s'arrête sans podium", async () => {
+    box = startBox({ suite: "SUIT6" });
+    await addTeam("rose", "Les Roses");
+    await set(gameRef("conducteur"), { id: "p", title: "Léa", rev: "s1", mimes: true, questions: deuxJeux });
+    await box.set({ ...questionState(1), qid: "q1", text: deuxJeux[0].text, choices: deuxJeux[0].choices, total: 2 });
+    const page = await openRegie(undefined, `?g=${CODE}&emu=1&cockpit=1`);
+    await pair(page);
+    await inRegie(page);
+    await appuyerLongtemps(page, "c-end", 1200);
+    await page.click("#fin-arret");
+    assert.match(await respond(page), /Êtes-vous sûr \? Pas de podium : la TV revient tout de suite à l'accueil\./);
+    await waitFor(async () => (await commands()).some((c) => c.type === "newgame" && c.arret === true), "arrêt envoyé");
+    assert.equal((await commands()).some((c) => c.type === "end"), false, "jamais le podium");
     await page.context().close();
   });
 
@@ -6252,6 +6328,12 @@ describe("bibliothèque de quiz et prestations", () => {
     // « ▶ Rejouer maintenant » : les 2 questions juste après le quiz en cours, et la TV y va tout de suite.
     const avant = box.gotos.length;
     await regie.click("#lib-now");
+    // Un jeu est en cours : « Êtes-vous sûr ? » d'abord (cedric, 30/10) ; Non ne change rien.
+    await regie.locator("#ask-line", { hasText: "Vous allez lancer" }).waitFor();
+    assert.match(await respond(regie, false), /Êtes-vous sûr \? Le jeu en cours s'arrête là\. Les points déjà gagnés sont gardés\./);
+    assert.equal(box.gotos.length, avant, "Non : rien n'est envoyé");
+    await regie.click("#lib-now");
+    await respond(regie);
     // Quiz en cours : bilan des scores sur la TV d'abord (cedric, 24/10).
     await regie.locator("#r-toast", { hasText: "Bilan des scores sur la TV, puis" }).waitFor();
     await regie.locator("#lib").waitFor({ state: "hidden" });

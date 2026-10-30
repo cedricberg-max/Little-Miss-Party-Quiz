@@ -204,6 +204,7 @@
           <button id="c-points" class="btn secondary rescue-open">± Points</button>
           <button id="c-equipe" class="btn secondary rescue-open">＋ Ajouter une équipe</button>
           <button id="c-rescue" class="btn secondary rescue-open" hidden>⏭ Changer de jeu</button>
+          <button id="c-recommencer" class="btn secondary rescue-open" hidden>↺ Relancer ce jeu</button>
           <button id="c-box" class="btn secondary rescue-open">📺 Changer de box</button>
         </div>
         <details id="c-notes" class="notes" hidden>
@@ -335,7 +336,7 @@
           <button id="c-pause" class="btn secondary">Pause</button>
           <button id="c-tablette" class="btn secondary" aria-label="Reconnecter une tablette" title="Reconnecter une tablette"><span class="icone" aria-hidden="true">📱</span>Tablette</button>
           <!-- « Terminer » (cedric, 29/10) : appui court = jeu suivant (ou podium au dernier jeu) ; appui long = podium final. -->
-          <button id="c-end" class="btn danger hold" title="Appui court : jeu suivant · appui long : résultats finaux"><span class="fill"></span><span class="label">Terminer</span></button>
+          <button id="c-end" class="btn danger hold" title="Appui court : jeu suivant · appui long : podium ou fin complète"><span class="fill"></span><span class="label">Terminer</span></button>
         </div>
         <!-- « Arrêter la partie » (cedric, 29/10) : tout s'arrête, sans podium ; appui long obligatoire. Rangé dans ☰ Plus. -->
         <button id="c-arret" class="btn danger hold arret" type="button" hidden title="Appui long : arrêter la partie, sans podium"><span class="fill"></span><span class="label">⛔ Arrêter la partie</span></button>
@@ -472,6 +473,18 @@
         <p id="ask-error" class="ask-error" role="alert" hidden></p>
         <button id="ask-ok" class="btn main" type="button"></button>
         <button id="ask-cancel" class="btn secondary" type="button">Annuler</button>
+      </div>
+    </div>
+    <!-- Appui long sur « ⏭ Terminer » (cedric, 30/10) : podium à gauche, fin complète à droite, puis « Êtes-vous sûr ? ». -->
+    <div id="fin-choix" class="modal ask" hidden>
+      <div class="modal-box ask-box" role="dialog" aria-modal="true" aria-labelledby="fin-choix-titre">
+        <p id="fin-choix-titre" class="modal-title">Que voulez-vous faire ?</p>
+        <div class="fin-choix-boutons">
+          <button id="fin-podium" class="btn main" type="button">🏆 Aller au podium</button>
+          <button id="fin-arret" class="btn danger" type="button">⛔ Terminer complètement</button>
+        </div>
+        <p class="ask-text">Podium : les scores et le gagnant sur la TV. Terminer complètement : pas de podium, la TV revient à l'accueil.</p>
+        <button id="fin-annuler" class="btn secondary" type="button">Annuler</button>
       </div>
     </div>
   </div>

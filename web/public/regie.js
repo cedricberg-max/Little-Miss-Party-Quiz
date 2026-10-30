@@ -163,7 +163,7 @@ function installerCockpit() {
   $("c-pause").after(plus);
   const grille = $("plus-grille");
   // « ⏭ Terminer » reste en bas, à côté de Pause (cedric, 29/10) ; « ⛔ Arrêter la partie » est rangé ici.
-  for (const id of ["c-add", "c-replay", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-arret"]) grille.append($(id));
+  for (const id of ["c-add", "c-replay", "c-recommencer", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-arret"]) grille.append($(id));
   $("c-pause").after($("c-end"));
   $("plus-onglets").append($("c-notes"), document.querySelector(".regie .tabs"),
     $("panel-teams"), $("panel-plan"), $("panel-show"), $("panel-defis"));
@@ -2565,6 +2565,9 @@ function renderGames(st) {
   $("c-replay").disabled = editing;
   // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer la fête ! » suffit).
   $("c-rescue").hidden = st.phase === "lobby" || !rounds.length || !live.plan?.rev;
+  // « ↺ Relancer ce jeu » (cedric, 30/10) : le jeu en cours repart à zéro d'un seul geste, pendant un jeu seulement.
+  $("c-recommencer").hidden = st.phase === "lobby" || !current || !live.plan?.rev;
+  $("c-recommencer").disabled = editing;
   if (rescueOpen && $("c-rescue").hidden) rescueOpen = false;
   $("rescue").hidden = !rescueOpen;
   if (rescueOpen) renderRescue(st);
@@ -2640,7 +2643,7 @@ async function jumpTo(r, st) {
   // Quitter le jeu en cours pour un autre (cedric, 24/10) : la TV montre d'abord le bilan des scores.
   const bilan = jeuEnCours(st) && r !== current;
   const ok = await demander(replay
-    ? { title: `Recommencer « ${name} » ?`, text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores." : ""}`, ok: "Recommencer ce jeu", alert: true }
+    ? { title: `Recommencer « ${name} » ?`, attention: "Ce jeu repart à zéro : les points gagnés pendant ce jeu sont effacés.", text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores." : ""}`, ok: "Recommencer ce jeu", alert: true }
     : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés.${bilan ? ` La TV montre le bilan des scores, puis « ${name} » quand vous appuyez sur « Jeu suivant ».` : ""} Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
   if (!ok) return;
   // Photos et extraits du jeu recopiés dans la partie s'ils y manquent (copies effacées après la fête, partie reprise
@@ -2657,6 +2660,11 @@ async function jumpTo(r, st) {
 }
 
 $("c-rescue").onclick = () => { rescueOpen = true; render(); };
+$("c-recommencer").onclick = () => {
+  const st = live.state ?? {};
+  const { current } = gamesOf(st);
+  if (current && !pending?.advance) jumpTo(current, st);
+};
 $("c-add").onclick = () => openLibrary();
 $("c-replay").onclick = () => openRejouer();
 $("rescue-close").onclick = () => { rescueOpen = false; render(); };
@@ -3621,6 +3629,13 @@ async function addPicked(where) {
   const rejeuEnCours = enRejeu();
   const refused = tvRefuses(picked.questions);
   if (refused) { toast(refused); return; }
+  // « ▶ Rejouer maintenant » pendant un jeu : « Êtes-vous sûr ? » avant d'arrêter le jeu en cours (cedric, 30/10).
+  const enJeu = !["lobby", "ended"].includes(live.state?.phase ?? "lobby");
+  if (where === "now" && enJeu) {
+    const nom = picked.game?.label ? `«\u00a0${picked.game.label}\u00a0»` : "ce jeu";
+    if (!await demander({ ...SUR, line: `Vous allez lancer ${nom} tout de suite.`, text: "Le jeu en cours s'arrête là. Les points déjà gagnés sont gardés." })) return;
+    if (!picked || editing || adding) return;
+  }
   // Le jeu choisi est gardé : fenêtre fermée pendant la copie des images, l'ajout part quand même (test du 27/10 :
   // la copie des pochettes d'un blind test prenait du temps sans rien montrer, et l'ajout se perdait).
   const choix = picked;
@@ -4459,7 +4474,35 @@ async function arreterLaPartie() {
   if (r?.status === "applied") toast("⛔ Partie arrêtée : la TV revient à l'accueil.");
 }
 
-appuiLong($("c-end"), 1000, { court: terminerLeJeu, long: allerAuPodium });
+/** Le choix de l'appui long sur « ⏭ Terminer » (cedric, 30/10) : « podium », « arret », ou null (annulé). */
+function choisirLaFin() {
+  return new Promise((resolve) => {
+    const box = $("fin-choix");
+    const close = (choix) => {
+      box.hidden = true;
+      $("fin-podium").onclick = $("fin-arret").onclick = $("fin-annuler").onclick = box.onclick = null;
+      resolve(choix);
+    };
+    $("fin-podium").onclick = () => close("podium");
+    $("fin-arret").onclick = () => close("arret");
+    $("fin-annuler").onclick = () => close(null);
+    // Toucher à côté de la fenêtre = annuler.
+    box.onclick = (e) => { if (e.target === box) close(null); };
+    box.hidden = false;
+    $("fin-annuler").focus();
+  });
+}
+
+/** « ⏭ Terminer », appui long : aller au podium ou terminer complètement, puis « Êtes-vous sûr ? » (cedric, 30/10). */
+async function finAuChoix() {
+  const st = live.state ?? {};
+  if (st.phase === "lobby" || st.phase === "ended" || st.leftAt || pending?.advance) return;
+  const choix = await choisirLaFin();
+  if (choix === "podium") return allerAuPodium();
+  if (choix === "arret") return arreterLaPartie();
+}
+
+appuiLong($("c-end"), 1000, { court: terminerLeJeu, long: finAuChoix });
 // Arrêter la partie : seulement en appui long (1,5 s), jamais d'un simple toucher.
 appuiLong($("c-arret"), 1500, { court: () => toast("Gardez le doigt appuyé sur « Arrêter la partie » jusqu'au bout de la jauge."), long: arreterLaPartie });
 
