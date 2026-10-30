@@ -51,7 +51,7 @@ class PodiumGameShowTest {
         // Personne n'a marqué : rien ne brille, les tubes gardent leur fond de liquide.
         assertEquals(0f, tubePlein(DESCENTE_DEBUT, 0, listOf(0, 0)), 0f)
         assertEquals(0.03f, remplissage(DESCENTE_DEBUT, 0, listOf(0, 0)), 0f)
-        assertTrue(JAUGES_FIN <= MONTEE_DEBUT && MONTEE_FIN + 400f <= DESCENTE_DEBUT)
+        assertTrue(JAUGES_DEBUT < MONTEE_DEBUT && MONTEE_FIN + 400f <= DESCENTE_DEBUT)
     }
 
     @Test
@@ -64,9 +64,46 @@ class PodiumGameShowTest {
             assertTrue("$p à $ms ms recule", v >= avant[i])
             avant[i] = v
         }
-        // Sous le plafond (90 % de 770 = 693), chacun finit exactement sur son score dès la fin de la montée.
-        for (p in listOf(640, 510, 693, 120, 0)) assertEquals(p, valeurSuspense(JAUGES_FIN, p, s))
+        // Sous le plafond (90 % de 770 = 693), chacun est exactement sur son score au début de la montée finale.
+        for (p in listOf(640, 510, 693, 120, 0)) assertEquals(p, valeurSuspense(MONTEE_DEBUT, p, s))
         assertEquals(0, valeurSuspense(JAUGES_DEBUT, 900, s))
+    }
+
+    @Test
+    fun `la jauge suit le roulement : elle ne s'arrete jamais et va de plus en plus vite jusqu'au meilleur score`() {
+        // cedric, 30/10 : la jauge s'arrêtait quand le roulement accélérait, puis bondissait à la fin.
+        for (s in listOf(scores, listOf(800, 800, 600), listOf(1_000, 10, 5), listOf(300), listOf(500, 0, 0), listOf(120, 70, 40), listOf(100, 95))) {
+            val pas = 40f
+            var avant = compteurSuspense(JAUGES_DEBUT, s)
+            var vitesse = 0f
+            var ms = JAUGES_DEBUT + pas
+            while (ms <= MONTEE_FIN + 0.5f) {
+                val c = compteurSuspense(ms, s)
+                val v = c - avant
+                assertTrue("$s à $ms ms : la jauge s'arrête", v > 0f)
+                assertTrue("$s à $ms ms : la jauge ralentit ($v < $vitesse)", v >= vitesse * 0.99f)
+                vitesse = v
+                avant = c
+                ms += pas
+            }
+            assertEquals(s.max().toFloat(), compteurSuspense(MONTEE_FIN, s), 1e-3f)
+            // Pas de bond : jamais plus de 6 % du meilleur score en une image (25 i/s).
+            ms = JAUGES_DEBUT
+            while (ms < MONTEE_FIN) {
+                assertTrue("$s à $ms ms : bond", compteurSuspense(ms + pas, s) - compteurSuspense(ms, s) <= 0.06f * s.max())
+                ms += pas
+            }
+        }
+        // Scores très serrés : la fin ne ralentit qu'un peu, sans jamais s'arrêter.
+        val serres = listOf(900, 899)
+        var ms = JAUGES_DEBUT
+        var vitesse = 0f
+        while (ms < MONTEE_FIN) {
+            val v = compteurSuspense(ms + 40f, serres) - compteurSuspense(ms, serres)
+            assertTrue("$ms ms : $v", v > 0f && v >= 0.8f * vitesse)
+            vitesse = v
+            ms += 40f
+        }
     }
 
     @Test
@@ -87,7 +124,7 @@ class PodiumGameShowTest {
 
     @Test
     fun `les tubes s'enfoncent juste avant le solo, apres la montee`() {
-        assertTrue(JAUGES_FIN < DESCENTE_DEBUT && DESCENTE_FIN < revelation)
+        assertTrue(MONTEE_FIN < DESCENTE_DEBUT && DESCENTE_FIN < revelation)
         assertEquals(0f, descenteTubes(DESCENTE_DEBUT), 0f)
         assertEquals(1f, descenteTubes(DESCENTE_FIN), 0f)
         assertEquals(1f, descenteTubes(revelation), 0f)
