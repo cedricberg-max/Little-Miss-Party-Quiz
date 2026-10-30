@@ -657,6 +657,7 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "quiz" to Ambiance.QUIZ_PRESENTATION,
     "illustre" to Ambiance.ILLUSTRE_PRESENTATION,
     "musical" to Ambiance.MUSICAL_PRESENTATION,
+    "patate" to Ambiance.PATATE_PRESENTATION,
     "quisuis" to Ambiance.QUISUIS_PRESENTATION,
     "express" to Ambiance.VRAIFAUX_PRESENTATION,
     "mimes" to Ambiance.MIMES_PRESENTATION,
@@ -790,6 +791,8 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
     ILLUSTRE_INTRO(null, "gs_quizillustre_intro"),
     /** Game Show, Quiz musical : la boucle sous sa vidéo d'intro (cedric, 30/10) : Lady de Modjo, 15,24 s, boucle entière, −12 LUFS. */
     MUSICAL_INTRO(null, "gs_quizmusical_intro"),
+    /** Game Show, Ça va exploser ! : la boucle sous sa vidéo d'intro (cedric, 30/10, pour ce soir) : thème de James Bond, 14,24 s, boucle entière, −12 LUFS. */
+    PATATE_INTRO(null, "gs_explose_intro"),
     /**
      * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
      * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
@@ -872,6 +875,8 @@ enum class Ambiance(
     ILLUSTRE_PRESENTATION(gameShow = mapOf(Lit.ILLUSTRE_INTRO to 0.5f)),
     /** Présentation du Quiz musical (Game Show) : Lady de Modjo, au volume de la boucle « fête ». */
     MUSICAL_PRESENTATION(gameShow = mapOf(Lit.MUSICAL_INTRO to 0.5f)),
+    /** Présentation de Ça va exploser ! (Game Show) : James Bond, au volume de la boucle « fête ». */
+    PATATE_PRESENTATION(gameShow = mapOf(Lit.PATATE_INTRO to 0.5f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -913,7 +918,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }

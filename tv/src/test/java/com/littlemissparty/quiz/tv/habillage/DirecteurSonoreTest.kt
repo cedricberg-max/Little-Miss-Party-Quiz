@@ -1200,7 +1200,7 @@ class DirecteurSonoreTest {
     fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
         val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
         // La boucle « fête » de Digital Love sous les intros, sauf le Duel, le Simon et le Blind test (cedric, 29/10).
-        listOf("juste", "patate", "portes", "pictionary", "").forEach {
+        listOf("juste", "portes", "pictionary", "").forEach {
             assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
         }
         assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
@@ -1440,7 +1440,7 @@ class DirecteurSonoreTest {
         // Une boucle de 16 s (± 250 ms) se cale sur le tempo commun des fonds ; les autres partent de leur début
         // (BouclePcm.ouvrir : periodeMs). Les musiques d'intro doivent toutes partir du début (cedric, 30/10).
         val intros = Lit.entries.filter { it.name.endsWith("_INTRO") }
-        assertTrue(intros.size >= 12)
+        assertTrue(intros.size >= 13)
         intros.forEach { l ->
             val wav = java.io.File("src/main/res/raw/${l.gs}.wav").readBytes()
             val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
@@ -1510,9 +1510,9 @@ class DirecteurSonoreTest {
             d.observer(vf),
         )
         assertTrue(Tempo.INTRO_MUSIQUE >= DELAI_INTRO_JEU_MS + 500)
-        // La boucle « fête » d'un jeu à intro vidéo repart aussi de sa première mesure.
+        // La boucle « fête » d'un jeu à intro vidéo (Pictionary) repart aussi de sa première mesure.
         d.observer(vf.copy(ecran = Ecran.QUESTION))
-        val patate = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 12, equipes = 2, epreuve = "patate|", gameShow = true, famille = "patate")
+        val patate = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 12, equipes = 2, epreuve = "picto|", gameShow = true, famille = "pictionary")
         val o = d.observer(patate)
         assertTrue(Ordre.Caler(Tempo.TRANSITION_MUSIQUE) in o)
         assertEquals(Ordre.Musique(Ambiance.PRESENTATION, Tempo.TRANSITION_MUSIQUE), o.last())
@@ -1562,5 +1562,26 @@ class DirecteurSonoreTest {
         assertEquals(ATTENTE_INTRO_MAX_MS.toInt(), attenteIntro(a = 100_000L, maintenant = 1_000L, latence = 80L))
         // Latence aberrante plafonnée.
         assertEquals(1_700 + BouclePcm.LATENCE_MAX_MS.toInt(), attenteIntro(a = 10_000L, maintenant = 8_300L, latence = 99_999L))
+    }
+
+    @Test
+    fun `presentation de Ca va exploser - James Bond, boucle entiere, depuis le debut`() {
+        val patate = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "patate|", gameShow = true, famille = "patate")
+        assertEquals(Ambiance.PATATE_PRESENTATION, ambiancePresentation(patate))
+        assertEquals("patate", familleType(com.littlemissparty.quiz.engine.QuestionKind.PATATE))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(patate.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(patate.copy(famille = "pictionary")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.PATATE_PRESENTATION.volume(Lit.PATATE_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.PATATE_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.PATATE_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.PATATE_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.PATATE_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.PATATE_PRESENTATION, d.observer(patate).musique())
+        val wav = java.io.File("src/main/res/raw/gs_explose_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(627_940L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 }
