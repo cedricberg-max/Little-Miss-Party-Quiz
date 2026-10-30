@@ -1285,7 +1285,7 @@ class DirecteurSonoreTest {
         val d = DirecteurSonore()
         d.observer(salon.copy(gameShow = true, equipes = 2))
         assertEquals(Ambiance.DISPARU_PRESENTATION, d.observer(disparu).musique())
-        // Le fichier (sans le silence du début, cedric 30/10) : 733 247 images, la boucle repart à l'échantillon 145 547.
+        // Le fichier (sans le silence du début, cedric 30/10) : 728 837 images (boucle D, 30/10), la boucle repart à l'échantillon 145 547.
         val wav = java.io.File("src/main/res/raw/gs_disparu_intro.wav").readBytes()
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
