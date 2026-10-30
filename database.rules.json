@@ -409,6 +409,7 @@
     "library": {
       ".read": "(auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()) || (auth != null && root.child('settings/regie/hash').isString() && root.child('regieProof').child(auth.uid).child('hash').val() === root.child('settings/regie/hash').val())",
       "quizzes": {
+        ".read": "auth != null && root.child('boxes/allowed').child(auth.uid).exists()",
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
           ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('questions').hasChildren() && newData.child('updatedAt').val() === now)",
@@ -434,6 +435,7 @@
         }
       },
       "images": {
+        ".read": "auth != null && root.child('boxes/allowed').child(auth.uid).exists()",
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && (!data.exists() || !newData.exists())",
           ".validate": "!newData.exists() || ($id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length <= 150000)"
@@ -462,12 +464,14 @@
         }
       },
       "sounds": {
+        ".read": "auth != null && root.child('boxes/allowed').child(auth.uid).exists()",
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && (!data.exists() || !newData.exists())",
           ".validate": "!newData.exists() || ($id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:audio/mpeg;base64,') && newData.val().length <= 900000)"
         }
       },
       "playlists": {
+        ".read": "auth != null && root.child('boxes/allowed').child(auth.uid).exists()",
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
           ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('tracks').hasChildren() && newData.child('duration').isNumber() && newData.child('duration').val() >= 10 && (newData.child('duration').val() <= 45 || (newData.child('use').val() === 'statues' && newData.child('duration').val() <= 90)) && newData.child('updatedAt').val() === now)",
@@ -518,6 +522,7 @@
         }
       },
       "entieres": {
+        ".read": "auth != null && root.child('boxes/allowed').child(auth.uid).exists()",
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
           ".validate": "!newData.exists() || $id.matches(/^[A-Za-z0-9_-]{1,40}$/)",
@@ -540,6 +545,7 @@
         }
       },
       "songs": {
+        ".read": "auth != null && root.child('boxes/allowed').child(auth.uid).exists()",
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
           ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 80 && newData.child('audioId').isString() && newData.child('audioId').val().matches(/^[0-9a-f]{16}$/) && newData.child('buzz').isNumber() && newData.child('buzz').val() >= 10 && newData.child('buzz').val() <= 45 && newData.child('updatedAt').val() === now)",
@@ -561,6 +567,7 @@
         }
       },
       "mimes": {
+        ".read": "auth != null && root.child('boxes/allowed').child(auth.uid).exists()",
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
           ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('cards').hasChildren() && newData.child('duration').isNumber() && newData.child('duration').val() >= 15 && newData.child('duration').val() <= 180 && newData.child('updatedAt').val() === now)",
@@ -575,6 +582,7 @@
         }
       },
       "contents": {
+        ".read": "auth != null && root.child('boxes/allowed').child(auth.uid).exists()",
         "$game": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
           ".validate": "!newData.exists() || ($game.matches(/^(chante|quisuis|disparu|pictionary|petits)$/) && newData.child('updatedAt').val() === now)",
@@ -600,6 +608,8 @@
         }
       },
       "shows": {
+        ".read": "auth != null && root.child('boxes/allowed').child(auth.uid).exists()",
+        ".indexOn": ["date"],
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
           ".validate": "!newData.exists() || ((!newData.child('childName').exists() || (newData.child('childName').isString() && newData.child('childName').val().length >= 1 && newData.child('childName').val().length <= 40)) && (newData.child('status').val() !== 'publiee' || newData.child('childName').exists()) && (!newData.child('copieDe').exists() || (newData.child('copieDe').isString() && newData.child('copieDe').val().length <= 120)) && newData.child('status').isString() && newData.child('status').val().matches(/^(brouillon|publiee|archivee)$/) && newData.child('updatedAt').val() === now)"

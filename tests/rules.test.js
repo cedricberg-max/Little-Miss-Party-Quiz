@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { loadRules, seedAdmin, allowBox, adminHash, ADMIN_PASSWORD, ADMIN_SALT } from "./rules-loader.js";
 import { after, before, beforeEach, describe, test } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { ref, get, set, update, serverTimestamp } from "firebase/database";
+import { ref, get, set, update, serverTimestamp, query, orderByChild, equalTo } from "firebase/database";
 
 const HOST = "box";
 const CODE = "ABCDE";
@@ -729,6 +729,44 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     [`games/${code}/show`]: { ...SNAPSHOT(uid), id, prestation },
     [`launches/${prestation}`]: { code, by: uid, at: serverTimestamp() },
     ...extra,
+  });
+
+  test("préchargement (cedric, 30/10) : une box acceptée lit les prestations du jour et leurs médias, rien d'autre", async () => {
+    const AUJOURDHUI = "2026-12-02";
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.database();
+      await set(ref(d, "library/shows/show1"), { ...SHOW, date: AUJOURDHUI, updatedAt: 1 });
+      await set(ref(d, "library/shows/show2"), { ...SHOW, date: "2026-12-03", updatedAt: 1 });
+      await set(ref(d, "library/quizzes/q1"), { ...QUIZ, updatedAt: 1 });
+      await set(ref(d, "library/sounds/aaaaaaaaaaaaaaa1"), "data:audio/mpeg;base64,AAAA");
+      await set(ref(d, "library/images/bbbbbbbbbbbbbbb1"), "data:image/jpeg;base64,AAAA");
+      await set(ref(d, "library/entieres/chanson1"), { n: 1, kbps: 96, length: 180, at: 1, p: { 0: "AAAA" } });
+      await set(ref(d, "library/songs/chanson1"), { title: "Chanson", audioId: "aaaaaaaaaaaaaaa1", buzz: 20, updatedAt: 1 });
+      await set(ref(d, "library/playlists/p1"), { title: "Fête" });
+      await set(ref(d, "library/mimes/m1"), { title: "Animaux" });
+      await set(ref(d, "library/contents/quisuis/images/mario"), "bbbbbbbbbbbbbbb1");
+      await set(ref(d, "library/manches/x1"), { type: "quiz", title: "Série" });
+      await set(ref(d, "library/lyrics/chanson1"), "paroles");
+    });
+    await allowBox(env, "tv1");
+    const tv = db("tv1");
+    const duJour = await get(query(ref(tv, "library/shows"), orderByChild("date"), equalTo(AUJOURDHUI)));
+    assert.deepEqual(Object.keys(duJour.val()), ["show1"], "seulement la prestation du jour");
+    for (const chemin of ["library/quizzes/q1", "library/sounds/aaaaaaaaaaaaaaa1", "library/images/bbbbbbbbbbbbbbb1", "library/entieres/chanson1",
+      "library/songs/chanson1", "library/playlists/p1", "library/mimes/m1", "library/contents/quisuis/images"]) {
+      await assertSucceeds(get(ref(tv, chemin)));
+    }
+    // Ni les séries, ni les paroles, ni l'écriture : la box ne fait que lire ce qu'elle copie.
+    await assertFails(get(ref(tv, "library/manches/x1")));
+    await assertFails(get(ref(tv, "library/lyrics/chanson1")));
+    await assertFails(get(ref(tv, "library")));
+    await assertFails(set(ref(tv, "library/sounds/aaaaaaaaaaaaaaa2"), "data:audio/mpeg;base64,AAAA"));
+    await assertFails(set(ref(tv, "library/shows/show1/date"), "2026-12-03"));
+    // Une box jamais acceptée, une tablette ou un inconnu ne lisent rien de la bibliothèque.
+    for (const qui of ["tv-inconnue", "rose", null]) {
+      await assertFails(get(ref(db(qui), "library/shows/show1")));
+      await assertFails(get(ref(db(qui), "library/sounds/aaaaaaaaaaaaaaa1")));
+    }
   });
 
   test("seul un administrateur enregistre ou supprime un quiz et une prestation", async () => {

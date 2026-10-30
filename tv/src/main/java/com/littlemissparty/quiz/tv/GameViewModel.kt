@@ -1412,6 +1412,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         programSongs(g.quiz).forEach(::prefetchSong)
         // Ménage du cache des médias de la box, au salon d'attente ou à la fin seulement.
         rangerMedias()
+        // Prestations du jour copiées d'avance (cedric, 30/10) : seulement quand le robot dort à l'accueil d'une box
+        // acceptée, avant que Sarah charge une prestation ; ensuite le réseau est à la partie.
+        val db = gameRef?.database
+        if (db != null && s.phase == Phase.LOBBY && g.quiz.id == DEFAULT_QUIZ && boxOk != null) {
+            prechargeur.accueil(viewModelScope, db)
+        } else {
+            prechargeur.arreter()
+        }
     }
 
     private fun blindUi(g: Game): BlindUi {
@@ -1524,7 +1532,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val n = (node.child("n").readWhenPresent(SONG_WAIT_MS)?.value as? Number)?.toInt()?.takeIf { it in 1..24 } ?: return null
         val length = (node.child("length").readWhenPresent(PHOTO_WAIT_MS)?.value as? Number)?.toLong() ?: 0L
         val kbps = (node.child("kbps").readWhenPresent(PHOTO_WAIT_MS)?.value as? Number)?.toLong() ?: 0L
-        val cle = "e_${songId}_${n}_${length}_$kbps"
+        val cle = Prechargeur.cleChanson(songId, n, length, kbps)
         songKeys[songId] = cle
         val file = medias.extrait(cle)
         if (kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { file.isFile && file.length() > 0 }) {
@@ -1651,6 +1659,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Extraits et photos gardés sur la box, retéléchargeables depuis la partie. */
     private val medias by lazy { MediasBox(getApplication<Application>().filesDir) }
+    private val prechargeur by lazy { Prechargeur(medias) }
     /** Un seul ménage ou vidage du cache à la fois. */
     private val mediasLock = Mutex()
     /** Partie dont le cache a déjà été rangé : une seule fois par partie ouverte. */
@@ -2635,6 +2644,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        prechargeur.arreter()
         stopListening()
         boxWatch.forEach { (r, l) -> r.removeEventListener(l) }
         boxWatch.clear()
