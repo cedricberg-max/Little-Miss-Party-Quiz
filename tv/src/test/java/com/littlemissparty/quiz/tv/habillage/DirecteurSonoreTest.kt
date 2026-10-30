@@ -1317,7 +1317,8 @@ class DirecteurSonoreTest {
     fun `presentation du Quiz et du Quiz illustre - Questions pour un champion, les trompettes une fois puis la boucle`() {
         val quiz = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "quiz|Quiz", gameShow = true, famille = "quiz")
         assertEquals(Ambiance.QUIZ_PRESENTATION, ambiancePresentation(quiz))
-        assertEquals(Ambiance.QUIZ_PRESENTATION, ambiancePresentation(quiz.copy(famille = "illustre")))
+        // Le Quiz illustré a sa propre boucle depuis le 30/10 (Des chiffres et des lettres).
+        assertEquals(Ambiance.ILLUSTRE_PRESENTATION, ambiancePresentation(quiz.copy(famille = "illustre")))
         assertEquals(Ambiance.PRESENTATION, ambiancePresentation(quiz.copy(gameShow = false)))
         assertEquals(Ambiance.PRESENTATION, ambiancePresentation(quiz.copy(famille = "musical")))
         assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.QUIZ_PRESENTATION.volume(Lit.QUIZ_INTRO, gs = true), 0f)
@@ -1445,5 +1446,25 @@ class DirecteurSonoreTest {
             assertTrue("${l.name} : ${e.dureeMs} ms", kotlin.math.abs(e.dureeMs - 16_000L) > 250)
             assertTrue("${l.name} : reprise après la fin", l.repriseMs * e.frequence / 1000 < e.images)
         }
+    }
+
+    @Test
+    fun `presentation du Quiz illustre - Des chiffres et des lettres, boucle entiere, le Quiz garde Questions pour un champion`() {
+        val illustre = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "illustre|", gameShow = true, famille = "illustre")
+        assertEquals(Ambiance.ILLUSTRE_PRESENTATION, ambiancePresentation(illustre))
+        assertEquals(Ambiance.QUIZ_PRESENTATION, ambiancePresentation(illustre.copy(famille = "quiz")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(illustre.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.ILLUSTRE_PRESENTATION.volume(Lit.ILLUSTRE_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.ILLUSTRE_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.ILLUSTRE_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.ILLUSTRE_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.ILLUSTRE_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.ILLUSTRE_PRESENTATION, d.observer(illustre).musique())
+        val wav = java.io.File("src/main/res/raw/gs_quizillustre_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(840_186L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 }

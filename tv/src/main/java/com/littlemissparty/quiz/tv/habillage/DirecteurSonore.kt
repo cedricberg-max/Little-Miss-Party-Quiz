@@ -642,7 +642,7 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     // Coffres mystères : leur famille s'appelle « bombe » ([familleType]).
     "bombe" to Ambiance.COFFRES_PRESENTATION,
     "quiz" to Ambiance.QUIZ_PRESENTATION,
-    "illustre" to Ambiance.QUIZ_PRESENTATION,
+    "illustre" to Ambiance.ILLUSTRE_PRESENTATION,
     "quisuis" to Ambiance.QUISUIS_PRESENTATION,
     "express" to Ambiance.VRAIFAUX_PRESENTATION,
     "mimes" to Ambiance.MIMES_PRESENTATION,
@@ -653,7 +653,7 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
 /** Qui a disparu ? : la boucle de Mission Impossible repart de là, après son début (échantillon 162 641 à 44,1 kHz). */
 internal const val DISPARU_INTRO_REPRISE_MS = 3_688L
 
-/** Quiz et Quiz illustré : la boucle de Questions pour un champion repart de là, après les trompettes (échantillon 95 256). */
+/** Quiz : la boucle de Questions pour un champion repart de là, après les trompettes (échantillon 95 256). */
 internal const val QUIZ_INTRO_REPRISE_MS = 2_160L
 
 /**
@@ -744,7 +744,7 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
     /** Game Show, Coffres mystères : la boucle sous sa vidéo d'intro (cedric, 29/10 : « parfaite ») : Pirates des Caraïbes, 13,62 s, −12 LUFS. */
     COFFRES_INTRO(null, "gs_coffres_intro"),
     /**
-     * Game Show, Quiz et Quiz illustré : la boucle sous leur vidéo d'intro (cedric, 29/10 : « meilleur, je valide ») : le
+     * Game Show, Quiz : la boucle sous sa vidéo d'intro (cedric, 29/10 : « meilleur, je valide ») : le
      * générique de Questions pour un champion, les trompettes une fois, puis la boucle depuis l'échantillon 95 256
      * ([repriseMs]), −12 LUFS.
      */
@@ -766,6 +766,8 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
     STATUES_INTRO(null, "gs_statues_intro"),
     /** Game Show, Gonfleur fou : la boucle sous sa vidéo d'intro (cedric, 30/10) : Pump It Up, 4 mesures, 7,44 s, boucle entière, −12 LUFS. */
     GONFLEUR_INTRO(null, "gs_gonfleur_intro"),
+    /** Game Show, Quiz illustré : la boucle sous sa vidéo d'intro (cedric, 30/10) : Des chiffres et des lettres, 19,05 s, boucle entière, −12 LUFS. */
+    ILLUSTRE_INTRO(null, "gs_quizillustre_intro"),
     /**
      * Game Show, fin du podium (cedric, 29/10) : la suite de gs_podium, à enchaîner pile à sa coupe ([Tempo.PODIUM_COUPE],
      * juste avant la note grave de 4:07) : l'écho de la dernière note aiguë (6 s), la boucle « fête » de Digital Love
@@ -832,7 +834,7 @@ enum class Ambiance(
     DISPARU_PRESENTATION(gameShow = mapOf(Lit.DISPARU_INTRO to 0.5f)),
     /** Présentation des Coffres mystères (Game Show) : Pirates des Caraïbes, au volume de la boucle « fête ». */
     COFFRES_PRESENTATION(gameShow = mapOf(Lit.COFFRES_INTRO to 0.5f)),
-    /** Présentation du Quiz et du Quiz illustré (Game Show) : Questions pour un champion, au volume de la boucle « fête ». */
+    /** Présentation du Quiz (Game Show) : Questions pour un champion, au volume de la boucle « fête ». */
     QUIZ_PRESENTATION(gameShow = mapOf(Lit.QUIZ_INTRO to 0.5f)),
     /** Présentation de Qui suis-je ? (Game Show) : Soul Bossa Nova, au volume de la boucle « fête ». */
     QUISUIS_PRESENTATION(gameShow = mapOf(Lit.QUISUIS_INTRO to 0.5f)),
@@ -844,6 +846,8 @@ enum class Ambiance(
     STATUES_PRESENTATION(gameShow = mapOf(Lit.STATUES_INTRO to 0.5f)),
     /** Présentation du Gonfleur fou (Game Show) : Pump It Up, au volume de la boucle « fête ». */
     GONFLEUR_PRESENTATION(gameShow = mapOf(Lit.GONFLEUR_INTRO to 0.5f)),
+    /** Présentation du Quiz illustré (Game Show) : Des chiffres et des lettres, au volume de la boucle « fête ». */
+    ILLUSTRE_PRESENTATION(gameShow = mapOf(Lit.ILLUSTRE_INTRO to 0.5f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -885,7 +889,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }
