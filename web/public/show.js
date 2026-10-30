@@ -78,6 +78,20 @@ export const reglagesSimon = (round) => ({
   reponse: dansLaListe(round?.reponse, SIMON_REPONSES, SIMON_REPONSE_DEFAUT),
   joueurs: dansLaListe(round?.joueurs, DUEL_JOUEURS, DUEL_JOUEURS_DEFAUT),
 });
+/**
+ * « ⏱️ Le Chrono caché » (cedric, 30/10) : le chrono de la TV part, Buzzy le cache sous un drap, chaque équipe buzze
+ * quand elle pense avoir atteint la cible. Réglages de la prestation : la cible (secondes, Sarah peut la changer avant
+ * chaque tour sur son téléphone) et le nombre de tours.
+ */
+export const CHRONO_CIBLES = [10, 15, 20, 25, 30, 40, 45, 60];
+export const CHRONO_CIBLE_DEFAUT = 30;
+export const CHRONO_TOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+export const CHRONO_TOURS_DEFAUT = 3;
+/** Réglages d'une manche du Chrono caché, ramenés dans leurs limites. */
+export const reglagesChrono = (round) => ({
+  cible: dansLaListe(round?.cible, CHRONO_CIBLES, CHRONO_CIBLE_DEFAUT),
+  tours: dansLaListe(round?.tours, CHRONO_TOURS, CHRONO_TOURS_DEFAUT),
+});
 const EN_LETTRES = ["Une", "Deux", "Trois", "Quatre", "Cinq", "Six"];
 /** « Trois bombes par partie », « Une bombe par partie »… */
 export const bombesParPartie = (n = PATATE_BOMBES_DEFAUT) => `${EN_LETTRES[n - 1] ?? n} bombe${n > 1 ? "s" : ""} par partie`;
@@ -90,7 +104,7 @@ export const roundType = (type) => (type === "portes" ? "coffres" : type);
 // Super Finale : au Quiz, au Quiz illustré et au Vrai ou Faux express (cedric, 23/10 : « à l'image du quiz »).
 export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre" || type === "express";
 
-export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots", simon: "Le Simon du Prof" };
+export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots", simon: "Le Simon du Prof", chrono: "Le Chrono caché" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -550,7 +564,7 @@ export const pictoRoundSeries = (round) => {
   return list.length ? list : null;
 };
 
-export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" || round.type === "duel" || round.type === "simon" ? true
+export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" || round.type === "duel" || round.type === "simon" || round.type === "chrono" ? true
   : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length || mimeEquipes(round).some((l) => l.length)
   : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length || chansonsDe(round).length
   : (round.type === "zoom" || round.type === "flou") && roundPicks(round).length ? true
@@ -1423,6 +1437,12 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.simon, kind: "simon", choices: [], correct: -1, double: false, round: ROUND_TYPES.simon, ...reglagesSimon(round) });
       return;
     }
+    if (round.type === "chrono") {
+      // Un seul élément : la box enchaîne les tours (cible réglable avant chaque tour).
+      rounds.push({ title: ROUND_TYPES.chrono, count: 1 });
+      questions.push({ id: `r${i + 1}h`, text: ROUND_TYPES.chrono, kind: "chrono", choices: [], correct: -1, double: false, round: ROUND_TYPES.chrono, ...reglagesChrono(round) });
+      return;
+    }
     if (round.type === "pictionary" && pictoEnSeries(round)) {
       // Préparé par équipe (cedric, 24/10) : les mots dans l'ordre des passages, équipe après équipe dans l'ordre des
       // couleurs (1er passage de chaque équipe, puis le 2e…) ; une TV qui ne lit pas encore `offres` les propose ainsi
@@ -1719,6 +1739,8 @@ export const DUREE_ESTIMEE = {
   apresDuel: 20,
   // Simon du Prof : environ 3 minutes par tour (les suites qui s'allongent, les vérifications, le gagnant).
   simonParTour: 180,
+  // Chrono caché : la cible, plus environ 1 minute 30 par tour (consignes, décompte, révélation).
+  chronoParTour: 90,
   presentation: 60, accueil: 180, podium: 120, pauses: 0.1,
 };
 
@@ -1732,6 +1754,7 @@ function secondesDeJeu(q, equipes, parEquipe = 0) {
   if (q.kind === "coffres" || q.kind === "portes") return equipes * D.coffreParEquipe + D.coffres;
   if (q.kind === "gonfleur") return D.gonfleur;
   if (q.kind === "simon") return (q.tours ?? SIMON_TOURS_DEFAUT) * D.simonParTour;
+  if (q.kind === "chrono") return (q.tours ?? CHRONO_TOURS_DEFAUT) * ((q.cible ?? CHRONO_CIBLE_DEFAUT) + D.chronoParTour);
   if (q.kind === "duel") return duelsPrevus(equipes, q.joueurs ?? DUEL_JOUEURS_DEFAUT) * (((q.faceMin ?? DUEL_DUREE_MIN) + (q.faceMax ?? DUEL_DUREE_MAX)) / 2 + D.apresDuel);
   // Environ 50 s par bombe (mèche, passes, explosion, scores).
   if (q.kind === "patate") return D.bombe * bombesDe(q);

@@ -221,6 +221,7 @@ class Fantome {
       else if (st.mime && st.kind === "pictionary") this.picto(st, actives);
       else if (st.kind === "duel") this.duel(st, actives);
       else if (st.kind === "simon") this.simon(st, actives, now);
+      else if (st.kind === "chrono") this.chrono(st, actives);
       else if (BUZZ_KINDS.includes(st.kind)) this.buzzer(st, actives, now, attente);
       else if (st.phase === "question" && !st.mime && st.kind !== "statues") this.repondre(st, actives, now, attente, v);
     }
@@ -349,6 +350,25 @@ class Fantome {
         await this.ecrire(`duel/${d.key}/${this.teamId}`, { t: this.maintenant(), at: serverTimestamp() });
         journal(`${this.nom} tire au duel${pan != null && this.maintenant() < pan ? " (trop tôt !)" : ""}`);
       });
+    });
+  }
+
+  /**
+   * ⏱️ Chrono caché : le fantôme compte dans sa tête comme un enfant, à environ ±2 s de la cible (une fois sur dix à
+   * ±5 s, et une fois sur vingt il oublie de buzzer). L'heure du 0 est publiée : il buzze à 0 + cible + son erreur.
+   */
+  chrono(st, actives) {
+    const c = st.chrono ?? {};
+    if (!reglages.buzz || st.phase !== "question" || c.step !== "run" || !c.key || typeof c.goAt !== "number" || !liste(c.teams).includes(this.teamId)) return;
+    const cle = `chrono:${c.key}`;
+    actives.add(cle);
+    if (this.faits.has(cle) || this.minuteries.has(cle)) return;
+    if (Math.random() < 0.05) { this.faits.add(cle); return journal(`${this.nom} oublie de buzzer au chrono`); }
+    const erreur = (Math.random() < 0.1 ? hasard(-5000, 5000) : hasard(-2000, 2000)) * reglages.vitesse;
+    const quand = c.goAt + (c.cible ?? 30) * 1000 + erreur;
+    this.prevoir(cle, quand - this.maintenant(), async () => {
+      await this.ecrire(`chrono/${c.key}/${this.teamId}`, { t: this.maintenant(), at: serverTimestamp() });
+      journal(`${this.nom} buzze au chrono (${erreur >= 0 ? "+" : ""}${(erreur / 1000).toFixed(1)} s)`);
     });
   }
 

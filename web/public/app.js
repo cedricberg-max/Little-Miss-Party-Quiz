@@ -576,6 +576,7 @@ function render() {
       if (st.kind === "gonfleur") return renderGonfleur(st);
       if (st.kind === "patate") return renderPatate(st);
       if (st.kind === "duel") return renderDuel(st);
+      if (st.kind === "chrono") return renderChrono(st);
       if (st.kind === "simon") return renderSimon(st);
       return st.mime ? (st.kind === "pictionary" ? renderPicto(st) : renderMime(st)) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
@@ -919,6 +920,67 @@ async function buzzDuel(st, t) {
     await set(ref(db, `games/${code}/duel/${d.key}/${teamId}`), { t, at: serverTimestamp(), ...mesure });
   } catch {
     // Face-à-face arrêté ou déjà jugé : l'écran suit l'état de la TV.
+  }
+}
+
+/**
+ * ⏱️ Le Chrono caché (cedric, 30/10) : la tablette ne montre JAMAIS le temps. Après le décompte de la TV, le gros bouton
+ * s'allume : l'équipe compte dans sa tête et buzze une seule fois, à la cible. Comme au Duel, la tablette envoie l'heure
+ * de l'appui (heure du serveur, horloge fine mesurée pendant que le tour est prêt), et la box juge.
+ */
+let chronoEnvoye = null;
+let chronoMinuterie = null;
+const ecartTexte = (ms) => `${ms > 0 ? "+" : ms < 0 ? "−" : ""}${(Math.abs(ms) / 1000).toFixed(2).replace(".", ",")}\u00a0s`;
+function renderChrono(st) {
+  clearInterval(timerHandle);
+  clearTimeout(chronoMinuterie);
+  show("play");
+  const buzz = $("buzz");
+  const c = st.chrono ?? {};
+  const status = $("play-status");
+  const equipes = Array.isArray(c.teams) ? c.teams : [];
+  const enJeu = c.step === "run" && equipes.includes(teamId);
+  const avantZero = enJeu && typeof c.goAt === "number" && Date.now() + serverOffset < c.goAt;
+  const envoye = chronoEnvoye === c.key || (Array.isArray(c.buzzed) && c.buzzed.includes(teamId));
+  buzz.hidden = c.step !== "run" || !equipes.includes(teamId);
+  buzz.disabled = !enJeu || avantZero || !c.key || envoye || st.paused;
+  if (buzz.textContent !== "BUZZ") buzz.textContent = "BUZZ";
+  const res = c.result ?? {};
+  buzz.classList.toggle("winner", c.step === "result" && (res.winners ?? []).includes(teamId));
+  // Pendant que le tour est prêt : l'horloge de la tablette est calée sur celle du serveur.
+  if (c.step === "ready") mesurerPourLeDuel(`${st.qid}-chrono-${c.tour}`);
+  // Le gros bouton s'allume tout seul au 0 du chrono.
+  if (avantZero) chronoMinuterie = setTimeout(() => game?.state && render(), Math.max(50, c.goAt - (Date.now() + serverOffset)));
+  const cible = `${c.cible ?? 30} secondes`;
+  if (!c.step || c.step === "none") status.textContent = "Le Chrono caché : regardez la TV !";
+  else if (c.step === "ready") status.textContent = `Tour ${c.tour ?? 1} : comptez jusqu'à ${cible} ! Regardez la TV…`;
+  else if (c.step === "run") status.textContent = !equipes.includes(teamId) ? "Ce tour a commencé sans vous : regardez la TV !"
+    : avantZero ? "Prêts ? Le chrono va partir…"
+    : envoye ? "Buzz envoyé ! Regardez la TV…"
+    : `Comptez dans votre tête… Buzzez à ${cible} pile !`;
+  else {
+    const e = res.ecarts?.[teamId];
+    const gagne = (res.winners ?? []).includes(teamId);
+    status.textContent = typeof e !== "number" ? "Pas de buzz pour vous ce tour-ci…"
+      : gagne ? `BRAVO ! La plus proche : ${ecartTexte(e)} ! +${res.points ?? 100} points`
+      : `Votre écart : ${ecartTexte(e)}. Presque !`;
+  }
+}
+
+async function buzzChrono(st, t) {
+  const c = st.chrono ?? {};
+  if (!c.key || c.step !== "run" || !c.teams?.includes(teamId) || chronoEnvoye === c.key) return;
+  if (typeof c.goAt === "number" && t < c.goAt) return;
+  chronoEnvoye = c.key;
+  $("buzz").disabled = true;
+  sonBuzz(() => beep(880, 160));
+  navigator.vibrate?.(120);
+  $("play-status").textContent = "Buzz envoyé ! Regardez la TV…";
+  const mesure = horlogeDuel ? { r: Math.round(horlogeDuel.rtt), o: Math.round(horlogeDuel.offset - performance.timeOrigin) } : {};
+  try {
+    await set(ref(db, `games/${code}/chrono/${c.key}/${teamId}`), { t, at: serverTimestamp(), ...mesure });
+  } catch {
+    // Tour arrêté ou déjà jugé : l'écran suit l'état de la TV.
   }
 }
 
@@ -1743,6 +1805,7 @@ $("buzz").onclick = async () => {
   const buzz = $("buzz");
   if (buzz.disabled) return;
   if (game?.state?.kind === "duel" && game.state.phase === "question") return buzzDuel(game.state, appui);
+  if (game?.state?.kind === "chrono" && game.state.phase === "question") return buzzChrono(game.state, appui);
   if (BUZZ_KINDS.includes(game?.state?.kind) && game.state.phase === "question") return buzzFlou(game.state);
   sonBuzz(funSound);
   navigator.vibrate?.(60);
@@ -1782,7 +1845,7 @@ document.addEventListener("pointerdown", (e) => {
   // Duel des robots : le doigt posé sur le BUZZ compte tout de suite (pas au doigt relevé).
   if (e.target instanceof Element && e.target.closest("#buzz") && buzzAffiche()) {
     dernierAppui = e.timeStamp || performance.now();
-    if (game?.state?.kind === "duel" && !$("buzz").disabled) $("buzz").click();
+    if (["duel", "chrono"].includes(game?.state?.kind) && !$("buzz").disabled) $("buzz").click();
     return;
   }
   if (e.pointerType !== "mouse" || !buzzAffiche()) return;

@@ -160,6 +160,19 @@
             }
           }
         },
+        "chrono": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid && !newData.exists()",
+          "$key": {
+            "$team": {
+              ".write": "auth != null && newData.exists() && !data.exists() && root.child('games').child($code).child('state/kind').val() === 'chrono' && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && root.child('games').child($code).child('state/chrono/step').val() === 'run' && root.child('games').child($code).child('state/chrono/key').val() === $key && (root.child('games').child($code).child('state/chrono/teams/0').val() === $team || root.child('games').child($code).child('state/chrono/teams/1').val() === $team || root.child('games').child($code).child('state/chrono/teams/2').val() === $team || root.child('games').child($code).child('state/chrono/teams/3').val() === $team || root.child('games').child($code).child('state/chrono/teams/4').val() === $team || root.child('games').child($code).child('state/chrono/teams/5').val() === $team || root.child('games').child($code).child('state/chrono/teams/6').val() === $team || root.child('games').child($code).child('state/chrono/teams/7').val() === $team) && root.child('games').child($code).child('teams').child($team).exists() && (root.child('games').child($code).child('teams').child($team).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($team).child('device').exists() && auth.uid === $team))",
+              ".validate": "newData.child('t').isNumber() && newData.child('at').val() === now",
+              "$other": {
+                ".validate": "$other === 't' || $other === 'at' || (($other === 'r' || $other === 'o') && newData.isNumber())"
+              }
+            }
+          }
+        },
         "horloge": {
           ".read": "auth != null",
           "$k": {
@@ -235,7 +248,7 @@
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$cmd": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_skip|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win|statues_stop|statues_play|statues_song|blind_play|blind_unblock|blind_reveal|blind_skip|blind_cut|picto_show|picto_draw|factor|portes_set|chest_random|potato_random|potato_stop|duel_start|duel_next|duel_stop|simon_go|simon_stop|newgame)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_skip|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win|statues_stop|statues_play|statues_song|blind_play|blind_unblock|blind_reveal|blind_skip|blind_cut|picto_show|picto_draw|factor|portes_set|chest_random|potato_random|potato_stop|duel_start|duel_next|duel_stop|simon_go|simon_stop|chrono_go|chrono_cible|chrono_reveal|chrono_stop|newgame)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
             "team": {
               ".validate": "newData.isString() && newData.val().length <= 128"
             },
@@ -276,6 +289,9 @@
             },
             "personne": {
               ".validate": "newData.val() === true"
+            },
+            "cible": {
+              ".validate": "newData.isNumber() && newData.val() >= 10 && newData.val() <= 90 && newData.parent().child('type').val() === 'chrono_cible'"
             },
             "arret": {
               ".validate": "newData.val() === true && newData.parent().child('type').val() === 'newgame'"
