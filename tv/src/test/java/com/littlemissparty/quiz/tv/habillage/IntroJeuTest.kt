@@ -119,24 +119,15 @@ class IntroJeuTest {
     }
 
     @Test
-    fun `intros avec bruitages (Simon, Vrai ou Faux, Qui a disparu, Image floue, Mimes, Pictionary) - leur son sort, les autres muettes`() {
-        assertEquals(1f, volumeIntroJeu("simon"), 0f)
-        assertEquals(1f, volumeIntroJeu("vraifaux"), 0f)
-        assertEquals(1f, volumeIntroJeu("disparu"), 0f)
-        assertEquals(1f, volumeIntroJeu("floue"), 0f)
-        assertEquals(1f, volumeIntroJeu("mimes"), 0f)
-        assertEquals(1f, volumeIntroJeu("picto"), 0f)
-        listOf("quiz", "illustre", "musical", "blind", "zoom", "chante", "quisuisje", "statues",
-            "patate", "coffres", "duel", "gonfleur").forEach { assertEquals(it, 0f, volumeIntroJeu(it), 0f) }
-        // Le fichier du Simon a bien une piste son (une piste « soun ») ; une intro muette n'en a pas.
+    fun `intros avec bruitages - leur son sort, les autres restent muettes`() {
+        val sonores = listOf("simon", "vraifaux", "disparu", "floue", "mimes", "picto", "statues")
+        val muettes = listOf("quiz", "illustre", "musical", "blind", "zoom", "chante", "quisuisje", "patate", "coffres", "duel", "gonfleur")
+        sonores.forEach { assertEquals(it, 1f, volumeIntroJeu(it), 0f) }
+        muettes.forEach { assertEquals(it, 0f, volumeIntroJeu(it), 0f) }
+        // Le fichier a une piste son (une piste « soun ») si et seulement si son son sort : jamais de bruitages perdus,
+        // jamais une intro muette mise en avant pour rien.
         fun aDuSon(nom: String) = String(File("src/main/res/raw/gs_intro_$nom.mp4").readBytes(), Charsets.ISO_8859_1).contains("soun")
-        assertTrue(aDuSon("simon"))
-        assertTrue(aDuSon("vraifaux"))
-        assertTrue(aDuSon("disparu"))
-        assertTrue(aDuSon("floue"))
-        assertTrue(aDuSon("mimes"))
-        assertTrue(aDuSon("picto"))
-        assertFalse(aDuSon("quiz"))
+        (sonores + muettes).forEach { assertEquals(it, volumeIntroJeu(it) > 0f, aDuSon(it)) }
     }
 
     /** Chaque vidéo d'intro a son index (« moov ») en tête : la box la lit tout de suite, sans aller au bout du fichier. */
