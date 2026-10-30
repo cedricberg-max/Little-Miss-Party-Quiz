@@ -216,7 +216,7 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
                         Canvas(Modifier.fillMaxSize()) {
                             val l = if (seul) maxOf(mesureBravo.measure("Bravo à toutes les équipes !", styleBravo(), maxLines = 1).size.width.toFloat(), 200.dp.toPx()) else 200.dp.toPx()
                             val demi = l / 2 + FILIGRANE_MARGE_DP.dp.toPx()
-                            val bas = (if (seul) 109f else 62f).dp.toPx()
+                            val bas = (if (seul) 121f else 76f).dp.toPx()
                             filigrane(Rect(size.width / 2 - demi, 3.dp.toPx(), size.width / 2 + demi, bas), ((ms() - revelation) / 300f).coerceIn(0f, 1f))
                         }
                     }
@@ -229,11 +229,11 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
                             val s = 1f + 0.12f * battement(m - revelation, 700f)
                             scaleX = s; scaleY = s
                         },
-                    ) { LogoGameShow(26.dp, aligne = Alignment.CenterHorizontally) }
+                    ) { LogoGameShow(LOGO_PODIUM_DP.dp, aligne = Alignment.CenterHorizontally) }
                     // « Le grand gagnant est… », qui s'éteint quand les tubes descendent.
                     Text(
                         TITRE_JAUGES, style = styleTitreNeon(30.sp, GS.Cyan), maxLines = 1, softWrap = false,
-                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp).apparition(300, Unit).graphicsLayer {
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = TEXTE_SOUS_LOGO_DP.dp).apparition(300, Unit).graphicsLayer {
                             val m = ms()
                             alpha = (0.8f + 0.2f * kotlin.math.sin(m / 240f)) * (1f - (m - DESCENTE_DEBUT) / 400f).coerceIn(0f, 1f)
                             compositingStrategy = CompositingStrategy.ModulateAlpha
@@ -244,7 +244,7 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
                         val g = gagnants[0]
                         Text(
                             "Bravo à toutes les équipes !", style = styleBravo(),
-                            maxLines = 1, modifier = Modifier.align(Alignment.TopCenter).padding(top = 66.dp).apparition(Tempo.PODIUM_REVELATION + 3_000, Unit),
+                            maxLines = 1, modifier = Modifier.align(Alignment.TopCenter).padding(top = TEXTE_SOUS_LOGO_DP.dp).apparition(Tempo.PODIUM_REVELATION + 3_000, Unit),
                         )
                         NomNerveux(g, ligneNom, ms)
                         PointsNerveux(g.points, g.nom.length, ligneNom + POINTS_SOUS_NOM_DP.dp, ms)
@@ -487,9 +487,16 @@ private fun JaugesCinema(resId: Int, ecouleMs: () -> Int, fetePrend: () -> Boole
     )
 }
 
-/** Le titre des jauges, et le bas de son filigrane (le titre est à 64 dp du haut, en 30 sp). */
+/** Le titre des jauges, et le bas de son filigrane (le titre est à [TEXTE_SOUS_LOGO_DP] du haut, en 30 sp). */
 internal const val TITRE_JAUGES = "LE GRAND GAGNANT EST…"
-internal const val FILIGRANE_TITRE_BAS_DP = 112f
+internal const val FILIGRANE_TITRE_BAS_DP = 126f
+
+/**
+ * Le logo du podium, 25 % plus grand qu'avant (cedric, 30/10 : presque invisible devant la couronne), et la ligne de
+ * texte dessous (« LE GRAND GAGNANT EST… », puis « Bravo à toutes les équipes ! »), descendue pour ne pas le toucher.
+ */
+internal const val LOGO_PODIUM_DP = 32.5f
+internal const val TEXTE_SOUS_LOGO_DP = 78f
 
 /** La vidéo des jauges en plan cinéma (sans elle : le plateau et les clips du robot). */
 internal const val JAUGES_VIDEO = "gs_podium_jauges"

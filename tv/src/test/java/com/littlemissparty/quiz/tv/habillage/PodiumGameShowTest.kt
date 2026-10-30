@@ -220,7 +220,10 @@ class PodiumGameShowTest {
         assertTrue(podium.contains("filigrane(Rect(size.width / 2 - demi, 3.dp.toPx(), size.width / 2 + demi, FILIGRANE_TITRE_BAS_DP.dp.toPx()), part)"))
         assertTrue(podium.contains("(1f - (m - DESCENTE_DEBUT) / 400f).coerceIn(0f, 1f)"))
         // Le filigrane descend sous le titre (64 dp + 30 sp) sans toucher les chiffres des tubes.
-        assertTrue(FILIGRANE_TITRE_BAS_DP in 100f..120f)
+        assertTrue(FILIGRANE_TITRE_BAS_DP in TEXTE_SOUS_LOGO_DP + 40f..TEXTE_SOUS_LOGO_DP + 55f)
+        // Le logo 25 % plus grand, la ligne de texte dessous descendue d'autant (les deux ne se touchent pas).
+        assertEquals(26f * 1.25f, LOGO_PODIUM_DP, 0.01f)
+        assertTrue(TEXTE_SOUS_LOGO_DP >= 8f + LOGO_PODIUM_DP * 2f)
         assertEquals("LE GRAND GAGNANT EST…", TITRE_JAUGES)
     }
 }
