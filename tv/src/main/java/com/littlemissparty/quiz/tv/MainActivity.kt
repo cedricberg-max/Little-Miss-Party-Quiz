@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.em
 import com.littlemissparty.quiz.tv.habillage.AvecPoliceLmp
 import com.littlemissparty.quiz.tv.habillage.BonusMalus
 import com.littlemissparty.quiz.tv.habillage.Design
+import com.littlemissparty.quiz.tv.habillage.Habillage
 import com.littlemissparty.quiz.tv.habillage.Look
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -119,7 +120,13 @@ class MainActivity : ComponentActivity() {
             )
             }
             // BONUS / MALUS de la régie, par-dessus le jeu sans rien arrêter (chrono, musique, pupitres).
-            coup?.let { c -> key(c.id) { BonusMalus(c.nom, c.couleur.toColor(), c.delta, c.avant, c.apres) { viewModel.coupFini(c.id) } } }
+            // Pas sur le podium (test du 30/10 : le BONUS d'une correction faite juste avant la fin restait sur les jauges).
+            coup?.let { c ->
+                key(c.id) {
+                    if (Habillage.podium.value) LaunchedEffect(Unit) { viewModel.coupFini(c.id) }
+                    else BonusMalus(c.nom, c.couleur.toColor(), c.delta, c.avant, c.apres) { viewModel.coupFini(c.id) }
+                }
+            }
             }
             }
         }

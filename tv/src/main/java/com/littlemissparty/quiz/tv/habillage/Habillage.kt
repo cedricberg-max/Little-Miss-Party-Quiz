@@ -78,6 +78,9 @@ object Habillage {
     /** La vidéo de l'écran de fin du Game Show passe : le décor ne lit pas son propre fond vidéo. */
     val finVideo = mutableStateOf(false)
 
+    /** Le podium du Game Show est à l'écran : rien ne passe par-dessus (le BONUS d'une dernière correction de score). */
+    val podium = mutableStateOf(false)
+
     /** Le Duel des robots du Game Show passe ses plans vidéo : le décor ne lit pas son propre fond vidéo. */
     val videoDuel = mutableStateOf(false)
 }

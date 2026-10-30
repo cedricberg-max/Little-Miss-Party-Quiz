@@ -92,6 +92,10 @@ import kotlin.math.roundToInt
 @Composable
 fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, finLancee: Boolean = false) {
     if (finLancee) return OutroPuisFinGameShow(modifier)
+    DisposableEffect(Unit) {
+        Habillage.podium.value = true
+        onDispose { Habillage.podium.value = false }
+    }
     val meilleur = classement.firstOrNull()?.points ?: 0
     val gagnants = if (meilleur > 0) classement.takeWhile { it.points == meilleur } else emptyList()
     val seul = gagnants.size == 1
@@ -120,6 +124,9 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
     val tubesPartis = apres(Tempo.PODIUM_REVELATION + 500, Unit)
     val petitRobot = if (classement.size >= 7) 0.8f else 1f
     var feteEchec by remember { mutableStateOf(false) }
+    // La fête a montré sa première image : jusque-là, la dernière image des jauges reste dessous (jamais d'écran noir
+    // si la box tarde à afficher la fête, vu sur l'émulateur le 30/10).
+    var fetePrete by remember { mutableStateOf(false) }
     // Les jauges en plan cinéma (décor 3D et robot dans la même vidéo, cedric 30/10) ; sans le fichier ou s'il ne se
     // lit pas, le plateau et les clips du robot dans l'arche, comme avant.
     val contexte = LocalContext.current
@@ -142,9 +149,11 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
             }.background(GS.Noir),
         )
         // Les jauges en plan cinéma, de la première image au solo ; leur dernière image reste sous la fête qui arrive.
-        if (jaugesCinema && !tubesPartis) JaugesCinema(jaugesRes, { ms().toInt() }, { robot == 3 && !feteEchec }, { jaugesEchec = true })
+        if (jaugesCinema && !(tubesPartis && (fetePrete || feteEchec))) {
+            JaugesCinema(jaugesRes, { ms().toInt() }, { robot == 3 && !feteEchec }, { jaugesEchec = true })
+        }
         // Au solo, la fête en plan cinéma couvre tout le plateau ; elle part exactement sur le solo.
-        if (robot == 3 && !feteEchec) FeteCinema({ (revelation - ms()).toInt() }, { feteEchec = true })
+        if (robot == 3 && !feteEchec) FeteCinema({ (revelation - ms()).toInt() }, { fetePrete = true }, { feteEchec = true })
         if (gagnants.size > 1) Rayons { (ms() - revelation).coerceAtLeast(0f) }
         // Secousse de caméra quand le nom du gagnant claque (tout le podium bouge, le décor derrière reste).
         Box(
@@ -480,7 +489,7 @@ internal const val JAUGES_VIDEO_FIN_MS = (Tempo.PODIUM_REVELATION - 500).toInt()
  * image. Une seule vidéo à la fois : le décor du dessous ne lit plus son fond pendant ce temps.
  */
 @Composable
-private fun FeteCinema(attenteMs: () -> Int, surEchec: () -> Unit) {
+private fun FeteCinema(attenteMs: () -> Int, surAffiche: () -> Unit, surEchec: () -> Unit) {
     DisposableEffect(Unit) {
         Habillage.finVideo.value = true
         onDispose { Habillage.finVideo.value = false }
@@ -489,7 +498,7 @@ private fun FeteCinema(attenteMs: () -> Int, surEchec: () -> Unit) {
     AndroidView(
         factory = {
             LecteurFond(
-                it, R.raw.gs_podium_fete, surPret = { prete = true }, surEchec = surEchec, boucle = false,
+                it, R.raw.gs_podium_fete, surPret = { prete = true; surAffiche() }, surEchec = surEchec, boucle = false,
                 repriseMs = FETE_BOUCLE_DEBUT_MS, attenteMs = { attenteMs().coerceAtLeast(0) },
             )
         },

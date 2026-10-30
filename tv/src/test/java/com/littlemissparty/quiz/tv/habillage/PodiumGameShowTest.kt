@@ -200,4 +200,16 @@ class PodiumGameShowTest {
             assertTrue(tete.indexOf("moov") in 0 until (tete.indexOf("mdat").takeIf { it >= 0 } ?: Int.MAX_VALUE))
         }
     }
+
+    @Test
+    fun `fete en plan cinema - la derniere image des jauges reste jusqu'a la premiere image de la fete, rien par-dessus le podium`() {
+        // Émulateur, 30/10 : un écran noir entre le solo et la fête quand la box tarde à l'afficher.
+        val podium = File("src/main/java/com/littlemissparty/quiz/tv/habillage/PodiumGameShow.kt").readText()
+        assertTrue(podium.contains("jaugesCinema && !(tubesPartis && (fetePrete || feteEchec))"))
+        assertTrue(podium.contains("surPret = { prete = true; surAffiche() }"))
+        assertTrue(podium.contains("Habillage.podium.value = true"))
+        // Le BONUS d'une correction de score faite juste avant la fin ne reste pas sur les jauges.
+        val activite = File("src/main/java/com/littlemissparty/quiz/tv/MainActivity.kt").readText()
+        assertTrue(activite.contains("if (Habillage.podium.value) LaunchedEffect(Unit) { viewModel.coupFini(c.id) }"))
+    }
 }
