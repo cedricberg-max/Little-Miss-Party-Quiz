@@ -182,6 +182,8 @@ class PodiumGameShowTest {
         assertTrue(corps.contains("drawText(l.mise, couleur, o"))
         assertTrue(!corps.contains("verticalGradient") && !corps.contains("Brush."))
         assertTrue(!source.contains("radialGradient(listOf(GS.Noir"))
+        // Chaque dessin d'une lettre dit s'il est plein ou en trait : le trait du contour ne déteint plus sur la lettre.
+        Regex("""drawText\(l\.mise[^\n]*""").findAll(source).forEach { assertTrue(it.value, it.value.contains("drawStyle = ")) }
     }
 
     @Test

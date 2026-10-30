@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -129,7 +130,7 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                 for ((teinte, dx) in listOf(GS.Cyan to -5f, GS.Rose to 5f)) {
                     lettres.liste.forEachIndexed { i, l ->
                         val e = etatLettre(t, i, ev) ?: return@forEachIndexed
-                        lettre(l, e, base, cap) { drawText(l.mise, teinte, Offset(l.x + dx.dp.toPx() * gl, base - l.mise.firstBaseline), alpha = 0.55f * gl * e.alpha) }
+                        lettre(l, e, base, cap) { drawText(l.mise, teinte, Offset(l.x + dx.dp.toPx() * gl, base - l.mise.firstBaseline), alpha = 0.55f * gl * e.alpha, shadow = Shadow.None, drawStyle = Fill) }
                     }
                 }
             }
@@ -169,19 +170,21 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                         }
                         .drawBehind {
                             val m = 56.dp.toPx()
-                            drawText(l.mise, couleur, Offset(m, m), shadow = Shadow(couleur, Offset.Zero, NOM_LUEUR_LARGE_DP.dp.toPx()))
+                            drawText(l.mise, couleur, Offset(m, m), shadow = Shadow(couleur, Offset.Zero, NOM_LUEUR_LARGE_DP.dp.toPx()), drawStyle = Fill)
                         },
                 )
                 // Corps, néon plein : fin contour sombre, lettre pleine et opaque, sa lueur serrée (plus de reflet blanc
-                // fixe sur le haut des lettres : il faisait comme un trou de transparence, cedric 29/10).
+                // fixe sur le haut des lettres : il faisait comme un trou de transparence, cedric 29/10). Chaque dessin
+                // d'une même lettre dit son style (plein ou trait) et son ombre : sinon le trait du contour restait sur
+                // le dessin suivant, la lettre n'était qu'un contour et son creux laissait voir la lueur (capture du 30/10).
                 Spacer(
                     Modifier.fillMaxSize().debordement(28.dp)
                         .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                         .drawBehind {
                             val m = 28.dp.toPx()
                             val o = Offset(m, m)
-                            drawText(l.mise, GS.Noir.copy(alpha = 0.85f), o, drawStyle = Stroke(NOM_CONTOUR_DP.dp.toPx(), join = StrokeJoin.Round))
-                            drawText(l.mise, couleur, o, shadow = Shadow(couleur.copy(alpha = 0.95f), Offset.Zero, NOM_LUEUR_SERREE_DP.dp.toPx()))
+                            drawText(l.mise, GS.Noir.copy(alpha = 0.85f), o, shadow = Shadow.None, drawStyle = Stroke(NOM_CONTOUR_DP.dp.toPx(), join = StrokeJoin.Round))
+                            drawText(l.mise, couleur, o, shadow = Shadow(couleur.copy(alpha = 0.95f), Offset.Zero, NOM_LUEUR_SERREE_DP.dp.toPx()), drawStyle = Fill)
                         },
                 )
                 // Liseré clair à l'intérieur des lettres : le bord du trait, gardé seulement dans la lettre.
@@ -190,8 +193,8 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                         .graphicsLayer { alpha = 0.35f; compositingStrategy = CompositingStrategy.Offscreen }
                         .drawBehind {
                             val o = Offset(2.dp.toPx(), 2.dp.toPx())
-                            drawText(l.mise, Color.White, o)
-                            drawText(l.mise, Color.White, o, drawStyle = Stroke(2.dp.toPx()), blendMode = BlendMode.SrcIn)
+                            drawText(l.mise, Color.White, o, shadow = Shadow.None, drawStyle = Fill)
+                            drawText(l.mise, Color.White, o, shadow = Shadow.None, drawStyle = Stroke(2.dp.toPx()), blendMode = BlendMode.SrcIn)
                         },
                 )
                 // Flash blanc à l'impact de la lettre et au mot complet.
@@ -202,7 +205,7 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                             alpha = if (e == null) 0f else 0.85f * e.flash
                             compositingStrategy = CompositingStrategy.Offscreen
                         }
-                        .drawBehind { drawText(l.mise, Color.White, Offset(8.dp.toPx(), 8.dp.toPx())) },
+                        .drawBehind { drawText(l.mise, Color.White, Offset(8.dp.toPx(), 8.dp.toPx()), shadow = Shadow.None, drawStyle = Fill) },
                 )
             }
         }
@@ -218,7 +221,7 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                     if (bal >= 1f) return@drawBehind
                     lettres.liste.forEachIndexed { i, l ->
                         val e = etatLettre(t, i, ev) ?: return@forEachIndexed
-                        lettre(l, e, base, cap) { drawText(l.mise, Color.White, Offset(l.x, base - l.mise.firstBaseline)) }
+                        lettre(l, e, base, cap) { drawText(l.mise, Color.White, Offset(l.x, base - l.mise.firstBaseline), shadow = Shadow.None, drawStyle = Fill) }
                     }
                     val bx = size.width / 2 - lettres.largeur / 2 - 100.dp.toPx() + (lettres.largeur + 200.dp.toPx()) * bal
                     val d = 35.dp.toPx()
