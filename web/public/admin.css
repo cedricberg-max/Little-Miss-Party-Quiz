@@ -1289,3 +1289,9 @@ select.q-niveau-choix option { color: var(--ink); background: var(--card); }
 
 /* Quiz illustré complet : une question dont une réponse n'a pas sa photo (cedric, 26/10). */
 .alerte-sans-images { flex: none; padding: 2px 8px; border-radius: 999px; background: #c62828; color: #fff; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+
+/* Mode « carte » (cedric, 30/10) : seule la carte du jeu, dans la page « ＋ Jeu » de la régie téléphone. */
+body.mode-carte > header { display: none; }
+body.mode-carte main { padding: 8px 8px 24px; }
+body.mode-carte .carte-jeu .jeu-bloc { margin: 0; }
+body.mode-carte .blind-ecouter { display: none; }

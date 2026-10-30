@@ -95,6 +95,11 @@ if (emulator) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
   connectDatabaseEmulator(db, "127.0.0.1", 9000);
 }
+/**
+ * Mode « carte » (cedric, 30/10) : la régie téléphone ouvre ici, dans sa page « ＋ Jeu », la carte de réglage d'UN jeu,
+ * la même que dans une prestation. Rien n'est écrit dans la bibliothèque : le jeu réglé repart au téléphone.
+ */
+const MODE_CARTE = ROUND_TYPES[new URLSearchParams(location.search).get("carte")] ? new URLSearchParams(location.search).get("carte") : null;
 // Connexion anonyme : l'identifiant est gardé par le navigateur, comme pour les pupitres.
 const uid = await signIn();
 
@@ -485,7 +490,8 @@ async function refreshRuns() {
   refreshLists();
 }
 
-route();
+if (MODE_CARTE) entrerCarte();
+else route();
 
 function refreshLists() {
   if (!$("screen-home").hidden) renderHome();
@@ -1000,6 +1006,8 @@ let roundCtx = {
   elsewhere: (r) => (editing ? usedElsewhere(editing.rounds, editing.rounds.indexOf(r), { quizzes, mimes, contents }) : new Map()),
 };
 const prestationCtx = roundCtx;
+/** La carte d'un jeu se règle comme dans la prestation : aussi dans la page « ＋ Jeu » du téléphone (cedric, 30/10). */
+const commeEnPrestation = () => roundCtx === prestationCtx || roundCtx.prestation === true;
 
 /** Mots du Pictionary tirés par « Tirer au hasard ». */
 const PICTO_DRAW = 24;
@@ -1629,7 +1637,8 @@ function menuChanson(id) {
  * statues), par identifiant de chanson et par extrait → nom du jeu.
  */
 function chansonsAilleurs(r) {
-  const out = new Map();
+  // Carte du téléphone : les chansons déjà au programme de la partie.
+  const out = roundCtx.chansons?.() ?? new Map();
   (editing?.rounds ?? []).forEach((x) => {
     if (!x || x === r) return;
     const nom = ROUND_TYPES[x.type ?? "quiz"] ?? "une autre manche";
@@ -2300,6 +2309,8 @@ const avecImage = (v, id) => { const { banque: _, ...reste } = v; return { ...re
  * prend l'image recadrée partout dans ce jeu de la prestation, et le cadrage est gardé pour la prochaine fois.
  */
 function imageRecadrable(img, r, o, changer) {
+  // Mode carte (régie téléphone) : rien ne s'écrit dans la bibliothèque, donc pas de recadrage.
+  if (MODE_CARTE) return img;
   const [forme, nomDe] = CADRES_DES_MOTS[r?.type] ?? [];
   if (img?.tagName !== "IMG" || !forme || !sourceImage(o)) return img;
   img.classList.add("recadrable");
@@ -2387,6 +2398,8 @@ function appliquerCadrages(rounds) {
  * peut venir du catalogue de l'appli, jamais modifié). Un émoji n'a rien à recadrer.
  */
 function objetRecadrable(img, r, m, k, changer) {
+  // Mode carte (régie téléphone) : rien ne s'écrit dans la bibliothèque, donc pas de recadrage.
+  if (MODE_CARTE) return img;
   const o = m.objects?.[k];
   if (img?.tagName !== "IMG" || !o || !(IMAGE_ID.test(o.imageId ?? "") || o.banque)) return img;
   img.classList.add("recadrable");
@@ -4300,6 +4313,8 @@ async function imageDeLaBibliotheque(id) {
  * « 🧸 Photos de la banque », une question d'un quiz rappelé en entier dans la Bibliothèque : rien à cliquer ici.
  */
 function recadrable(img, r, x, changer, k = null) {
+  // Mode carte (régie téléphone) : rien ne s'écrit dans la bibliothèque, donc pas de recadrage.
+  if (MODE_CARTE) return img;
   const gardee = img?.tagName === "IMG" ? questionGardee(r, x) : null;
   if (!gardee) return img;
   const reponse = k !== null;
@@ -5153,14 +5168,14 @@ function roundFields(r) {
       roundPicks(r).length || r.byItem ? itemSelection(r, "picks") : quizSelection(r, options))
     : quiz ? null : quizSelection(r, options);
   // Mimes dans une prestation (cedric, 23/10) : le 🎲 seul, une présélection par équipe.
-  if (r.type === "mimes" && roundCtx === prestationCtx) return mancheMimes(r);
+  if (r.type === "mimes" && commeEnPrestation()) return mancheMimes(r);
   // Pictionary dans une prestation (cedric, 24/10) : le 🎲, un passage à la main, une ligne par équipe.
-  if (r.type === "pictionary" && roundCtx === prestationCtx) return mancheDessins(r);
+  if (r.type === "pictionary" && commeEnPrestation()) return mancheDessins(r);
   // Blind test dans une prestation (cedric, 24/10) : « à la manière des quiz », le 🎲 tire les chansons.
   // Blind test et Quiz musical (cedric, 24/10) : en séries de chansons de la bibliothèque des sons.
-  if ((r.type === "blind" || r.type === "musical") && roundCtx === prestationCtx) return mancheBlind(r);
+  if ((r.type === "blind" || r.type === "musical") && commeEnPrestation()) return mancheBlind(r);
   // Chante le mot ! dans une prestation (cedric, 24/10) : le 🎲, un mot écrit à la main, le « complet ».
-  if (estJeuDeMots(r.type) && roundCtx === prestationCtx) return mancheMots(r);
+  if (estJeuDeMots(r.type) && commeEnPrestation()) return mancheMots(r);
   return [
     // Quiz, Quiz illustré (cedric, 23/10) : une seule manche faite de séries (🎲, quiz rappelés, questions écrites, reprises).
     ...(quiz ? mancheQuiz(r) : [content]),
@@ -11359,3 +11374,106 @@ $("manche-delete").onclick = async () => {
   histManche.abandonner();
   openGame(mancheEdit.type);
 };
+
+// ---------- Mode « carte » : la carte d'un jeu pour la régie téléphone (cedric, 30/10) ----------
+
+/** Le jeu réglé dans la carte, le programme de la partie (pour « jamais deux fois ») et ses réglages. */
+const carte = { round: null, programme: [], profil: "MOYENS", equipes: EQUIPES_PAR_DEFAUT, titre: null };
+
+const carteCtx = {
+  prestation: true,
+  refresh: () => peindreCarte(),
+  summary: () => envoyerCarte(),
+  profile: () => carte.profil,
+  teams: () => carte.equipes,
+  // « Jamais deux fois » : ce que montrent les autres jeux du programme (concept → nom du jeu) ; le jeu modifié ne compte pas.
+  elsewhere: () => {
+    const vus = new Map();
+    for (const q of carte.programme) {
+      if (!q || (carte.titre && q.round === carte.titre)) continue;
+      for (const c of questionConcepts(q)) if (!vus.has(c)) vus.set(c, q.round ?? "un autre jeu");
+    }
+    return vus;
+  },
+  // Chansons que jouent déjà les autres jeux du programme (le 🎲 du Blind test les prend en dernier).
+  chansons: () => {
+    const out = new Map();
+    for (const q of carte.programme) {
+      if (!q || (carte.titre && q.round === carte.titre) || !["blind", "musical", "statues"].includes(q.kind)) continue;
+      const noter = (k) => { if (k && !out.has(k)) out.set(k, q.round ?? "un autre jeu"); };
+      [q.audioId, ...(Array.isArray(q.audioIds) ? q.audioIds : [])].forEach(noter);
+      (Array.isArray(q.songs) ? q.songs : []).forEach((x) => { noter(x?.songId); noter(x?.audioId); });
+    }
+    return out;
+  },
+};
+
+/**
+ * Ouvre la carte : lit la bibliothèque (preuve de la régie du téléphone, lecture seule) et le programme de la partie,
+ * puis attend du téléphone le jeu à régler (nouveau, ou un jeu à venir à modifier).
+ */
+async function entrerCarte() {
+  document.body.classList.add("mode-carte");
+  $("screen-login").hidden = true;
+  $("screen-carte").hidden = false;
+  const params = new URLSearchParams(location.search);
+  const code = params.get("g");
+  const lire = (path) => get(ref(db, path)).then((x) => x.val(), (e) => { console.error(path, e); return null; });
+  const [q, sh, mi, pl, co, so, ma, me, ca, conducteur] = await Promise.all([
+    "library/quizzes", "library/shows", "library/mimes", "library/playlists", "library/contents", "library/songs",
+    "library/manches", "library/medias", "library/cadrages", /^[A-Z0-9]{5}$/.test(code ?? "") ? `games/${code}/conducteur` : null,
+  ].map((path) => (path ? lire(path) : null)));
+  quizzes = q ?? {};
+  shows = sh ?? {};
+  mimes = mi ?? {};
+  playlists = pl ?? {};
+  contents = co ?? {};
+  songs = so ?? {};
+  manches = ma ?? {};
+  medias = me ?? {};
+  cadrages = ca ?? {};
+  carte.programme = Array.isArray(conducteur?.questions) ? conducteur.questions : Object.values(conducteur?.questions ?? {});
+  carte.profil = PROFILES[params.get("profil")] ? params.get("profil") : "MOYENS";
+  carte.equipes = Math.max(1, Math.min(8, Number(params.get("equipes")) || EQUIPES_PAR_DEFAUT));
+  window.addEventListener("message", (e) => {
+    if (e.origin !== location.origin || e.source !== parent) return;
+    const m = e.data?.lmpCarte;
+    if (m?.ouvrir) {
+      carte.titre = m.titre ?? null;
+      const depart = m.round && typeof m.round === "object" ? JSON.parse(JSON.stringify(m.round)) : { type: MODE_CARTE };
+      carte.round = versSeriesMots(versSeriesBlind(versSeriesQuiz({ ...depart, type: depart.type ?? MODE_CARTE }, quizzes)));
+      appliquerCadrages([carte.round]);
+      peindreCarte();
+    } else if (m === "donne") envoyerCarte();
+  });
+  parent.postMessage({ lmpCarte: { prete: MODE_CARTE } }, location.origin);
+}
+
+/** Dessine la carte, comme un jeu déplié de la prestation : en-tête, réglages, reprise, alertes. */
+function peindreCarte() {
+  const r = carte.round;
+  if (!r) return;
+  roundCtx = carteCtx;
+  const type = r.type ?? "quiz";
+  const sansManches = estEnSeries(type) || type === "blind" || type === "musical" || estJeuDeMots(type);
+  const champs = roundFields(r).filter(Boolean);
+  const compteur = champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null;
+  const enTete = compteur ? champs.filter((x) => x?.classList?.contains("quiz-en-tete")) : [];
+  const corps = h("div", { class: "round-body" }, ...champs.filter((x) => x !== compteur && !enTete.includes(x)));
+  const reprise = SANS_CONTENU.includes(type) || sansManches || type === "mimes" || type === "pictionary" ? null
+    : reprendreManche(r, (next) => { carte.round = next; peindreCarte(); });
+  $("carte-jeu").replaceChildren(h("div", { class: "jeu-bloc", "data-jeu": type },
+    h("div", { class: "jeu-tete" }, h("span", { class: "jeu-nom", text: `${iconeJeu(type)} ${ROUND_TYPES[type]}`.trim() })),
+    h("div", { class: "round show-round" },
+      compteur ? h("div", { class: "round-head" }, compteur, ...enTete) : null,
+      corps, reprise, alerteManche(r))));
+  envoyerCarte();
+}
+
+/** Le jeu tel qu'il est réglé, envoyé au téléphone (à chaque changement, et quand il le demande). */
+function envoyerCarte() {
+  const r = carte.round;
+  if (!r) return;
+  const round = JSON.parse(JSON.stringify(cleanRound(r, playlists)));
+  parent.postMessage({ lmpCarte: { round, plein: roundFilled(r) || SANS_CONTENU.includes(r.type) } }, location.origin);
+}

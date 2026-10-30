@@ -108,7 +108,27 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .plan-head .state { font-size: 12px; color: var(--ink-soft); }
 .regie .plan-head button { min-width: 48px; height: 44px; border-radius: 12px; border: 1px solid var(--trait); background: var(--panel); color: var(--ink); font-size: 18px; font-weight: 800; padding: 0 10px; }
 .regie .plan-head button.remove { font-size: 14px; color: var(--danger); border-color: rgba(255, 90, 95, .5); }
-.regie .plan-head button.replay { font-size: 14px; color: var(--gold); border-color: rgba(255, 210, 120, .5); }
+.regie .plan-head button.edit { font-size: 14px; }
+/* Conducteur (cedric, 30/10) : jeux repliés, ▸ pour voir les questions, appui long pour déplacer un jeu à venir. */
+.regie .plan-jeu { display: flex; flex-direction: column; gap: 6px; border-radius: 12px; transition: transform .15s ease; }
+.regie .plan-jeu .plan-questions { display: flex; flex-direction: column; gap: 6px; }
+.regie .plan-jeu .plan-questions[hidden] { display: none; }
+.regie .plan-head { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.regie .plan-head button.plan-deplier { flex: 1; min-width: 0; height: auto; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 4px; border: 0; background: none; text-align: left; font-size: inherit; font-weight: inherit; color: inherit; }
+.regie .plan-head .plan-deplier .fleche { flex: none; width: 16px; color: var(--halo); font-size: 14px; }
+.regie .plan-head .plan-deplier .plan-round { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.regie .plan-head button.go { color: var(--gold); border-color: rgba(255, 210, 120, .5); }
+/* Deux couleurs (cedric, 30/10) : joué (éteint) ou pas encore joué (allumé), même au-dessus du jeu en cours ; le jeu en cours encadré. */
+.regie .plan-jeu > .plan-head { padding: 0 6px 0 8px; border-radius: 12px; border-left: 4px solid transparent; }
+.regie .plan-jeu.a-jouer > .plan-head { background: rgba(255, 210, 120, .08); border-left-color: var(--gold); }
+.regie .plan-jeu.joue > .plan-head { opacity: .5; }
+.regie .plan-jeu.joue > .plan-head .plan-round { color: var(--ink-soft); }
+.regie .plan-jeu.en-cours > .plan-head { background: rgba(255, 255, 255, .06); outline: 2px solid var(--halo); border-left-color: var(--halo); }
+.regie .plan-aide { margin: 0; font-size: 13px; }
+.regie .plan-jeu.souleve { position: relative; z-index: 2; transition: none; background: var(--panel); box-shadow: 0 12px 28px rgba(0, 0, 0, .55); outline: 2px solid var(--halo); }
+.regie #panel-plan.en-glisse .plan-jeu:not(.souleve) { pointer-events: none; }
+.regie .conducteur .conducteur-corps { overscroll-behavior: contain; }
+.regie .conducteur #panel-plan { flex: none; overflow: visible; padding: 2px 2px 24px; }
 .regie .plan-head button:disabled { opacity: .35; }
 
 /* Bibliothèque « Ajouter un jeu », plein écran au-dessus de la régie (et du bandeau rouge, qui cachait « Fermer »). */
@@ -597,3 +617,11 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .tuiles .t-astuce { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--ink-soft); text-align: center; }
 .regie .suite-tv { display: flex; flex-direction: column; gap: 10px; }
 .regie .suite-tv .btn { display: grid; place-items: center; text-decoration: none; }
+
+/* « ＋ Jeu » (cedric, 30/10) : la liste des jeux, puis la carte de réglage du jeu en plein écran. */
+.regie .lib-jeu b .icone { display: inline-block; width: 1.6em; }
+.regie .carte .carte-cadre { flex: 1; width: 100%; min-height: 0; border: 0; border-radius: 12px; background: #fff; }
+.regie .carte .carte-actions { display: flex; gap: 8px; padding-top: 8px; }
+.regie .carte .carte-actions .btn { flex: 1; min-height: 56px; }
+.regie .carte .carte-actions #carte-envoyer { flex: 2; }
+.regie .carte #carte-info { margin: 8px 0 0; }

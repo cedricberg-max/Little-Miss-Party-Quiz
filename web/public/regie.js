@@ -8,9 +8,9 @@ import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
-  isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, roundTirees, roundSeriesQuiz, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
+  uniqueRoundTitle, roundQuizIds, roundTirees, roundSeriesQuiz, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
   isArchived, isPhotoTheme, disparuGroup, statuesChoices, quizQuestions, jeuDeLaManche, quizKind,
-  launchStates, launchLabel, jourHeure, isoDay, couleurMimeEquipe, chansonJouable,
+  launchStates, launchLabel, jourHeure, isoDay, couleurMimeEquipe, chansonJouable, couleursEquipes, MIME_RESERVE,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
@@ -164,10 +164,21 @@ function installerCockpit() {
   const grille = $("plus-grille");
   // « ⏭ Terminer » rangé ici aussi (cedric, 30/10 : trop dangereux sur l'écran principal en pleine partie), juste
   // avant « ⛔ Arrêter la partie ».
-  for (const id of ["c-add", "c-replay", "c-recommencer", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-end", "c-arret"]) grille.append($(id));
+  // « 📋 Conducteur » (cedric, 30/10) : à la place de « Changer de jeu », il ouvre le conducteur en plein écran.
+  const conducteur = document.createElement("button");
+  conducteur.id = "c-conducteur";
+  conducteur.className = "btn secondary";
+  conducteur.type = "button";
+  conducteur.innerHTML = '<span class="icone" aria-hidden="true">📋</span>Conducteur';
+  conducteur.onclick = ouvrirConducteur;
+  $("c-recommencer").after(conducteur);
+  for (const id of ["c-add", "c-recommencer", "c-conducteur", "c-points", "c-equipe", "c-tablette", "c-box", "c-end", "c-arret"]) grille.append($(id));
+  $("conducteur-corps").append($("panel-plan"));
+  $("panel-plan").hidden = false;
+  $("tab-plan").hidden = true;
   $("c-end").querySelector(".label").textContent = "⏭ Terminer";
   $("plus-onglets").append($("c-notes"), document.querySelector(".regie .tabs"),
-    $("panel-teams"), $("panel-plan"), $("panel-show"), $("panel-defis"));
+    $("panel-teams"), $("panel-show"), $("panel-defis"));
   // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer » : appui long, elle reste).
   grille.addEventListener("click", (e) => {
     const bouton = e.target.closest("button");
@@ -213,6 +224,16 @@ function ouvrirPlus() {
 function fermerPlus() {
   $("plus").hidden = true;
   $("plus-fond").hidden = true;
+}
+
+function ouvrirConducteur() {
+  fermerPlus();
+  $("conducteur").hidden = false;
+  render();
+}
+
+function fermerConducteur() {
+  $("conducteur").hidden = true;
 }
 
 window.addEventListener("resize", caleSurLeBas);
@@ -738,6 +759,7 @@ function render() {
   if (COCKPIT) renderTuiles(st, teams);
   renderPoints();
   renderPlan(st);
+  renderCarte();
   renderShows(st);
   runTimer(st);
 
@@ -1426,7 +1448,6 @@ function basculerVers(fete) {
     console.warn("Adresse de la page non mise à jour", e);
   }
   wrongShow = false;
-  rescueOpen = false;
   boxOpen = false;
   control();
 }
@@ -2604,7 +2625,6 @@ function lEquipe(text) {
 
 // ---------- Jeux de la prestation : en cours, suivant, secours ----------
 
-let rescueOpen = false;
 
 /** Jeux (manches) du conducteur, celui en cours et le suivant. */
 function gamesOf(st) {
@@ -2668,17 +2688,9 @@ function renderGames(st) {
   // « ＋ Jeu » toujours à portée de main : un jeu oublié s'ajoute sans chercher l'onglet Conducteur.
   $("c-add").hidden = !live.plan?.rev || !rounds.length;
   $("c-add").disabled = editing;
-  // « 🔁 Rejouer » (cedric, 21/10) : dès qu'un jeu a été lancé, la liste des jeux de la fête à rejouer.
-  $("c-replay").hidden = !live.plan?.rev || !rejouables(st).length;
-  $("c-replay").disabled = editing;
-  // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer la fête ! » suffit).
-  $("c-rescue").hidden = st.phase === "lobby" || !rounds.length || !live.plan?.rev;
   // « ↺ Relancer ce jeu » (cedric, 30/10) : le jeu en cours repart à zéro d'un seul geste, pendant un jeu seulement.
   $("c-recommencer").hidden = st.phase === "lobby" || !current || !live.plan?.rev;
   $("c-recommencer").disabled = editing;
-  if (rescueOpen && $("c-rescue").hidden) rescueOpen = false;
-  $("rescue").hidden = !rescueOpen;
-  if (rescueOpen) renderRescue(st);
 }
 
 /** La TV joue son quiz de démonstration : aucune prestation n'a été chargée. */
@@ -2700,59 +2712,18 @@ function renderDemo(st) {
     : "La TV joue son quiz de démonstration, pas une prestation. Pour jouer une prestation : sur la TV, touche Retour → « Terminer et lancer une nouvelle partie », puis choisissez-la dans l'onglet « Prestation » de la régie.";
 }
 
-function renderRescue(st) {
-  const { questions, rounds, index, current, next } = gamesOf(st);
-  const busy = !!pending?.advance;
-  const nextBtn = $("rescue-next");
-  nextBtn.hidden = !next;
-  if (next) {
-    nextBtn.textContent = busy ? "Envoi…" : `▶ Passer au jeu suivant : ${gameName(next, questions)}`;
-    nextBtn.disabled = busy;
-    nextBtn.onclick = () => jumpTo(next, st);
-  }
-  const list = $("rescue-list");
-  list.replaceChildren(...rounds.map((r) => {
-    const row = document.createElement("div");
-    const isCurrent = r === current;
-    const done = played(r, st, index);
-    row.className = `rescue-game${isCurrent ? " current" : ""}`;
-    row.dataset.start = r.start;
-    const name = document.createElement("span");
-    name.className = "name";
-    name.append(gameName(r, questions));
-    const small = document.createElement("small");
-    small.textContent = `${gameDetail(r, questions)} · ${isCurrent ? "en cours" : done ? "joué" : "à venir"}`;
-    name.append(small);
-    const b = document.createElement("button");
-    b.className = done ? "btn secondary" : "btn";
-    // « Recommencer » (mêmes questions, points du jeu retirés), pour ne pas le confondre avec « 🔁 Rejouer » (d'autres questions).
-    b.textContent = done ? "Recommencer" : "Aller à ce jeu";
-    b.disabled = busy;
-    b.onclick = () => jumpTo(r, st);
-    row.append(name, b);
-    return row;
-  }));
-  // Mauvaise prestation lancée (cedric, 21/10) : discret, et seulement tant qu'aucun point n'a été donné.
-  const wrong = $("rescue-wrong");
-  wrong.hidden = !mayReplaceShow(st);
-  wrong.onclick = () => {
-    rescueOpen = false;
-    wrongShow = true;
-    tabChosen = true;
-    switchTab("show");
-  };
-}
-
 /** Saut vers le début du jeu [r], après confirmation adaptée (aller plus loin, ou recommencer). */
 async function jumpTo(r, st) {
   const { questions, index, current } = gamesOf(st);
   const name = gameName(r, questions);
   const replay = played(r, st, index);
-  // Quitter le jeu en cours pour un autre (cedric, 24/10) : la TV montre d'abord le bilan des scores.
-  const bilan = jeuEnCours(st) && r !== current;
+  // Quitter le jeu en cours pour un autre (cedric, 24/10) : la TV montre d'abord le bilan des scores. Pas pour le jeu en
+  // cours qu'on recommence (cedric, 30/10) : ses points sont effacés, il repart directement sur sa présentation.
+  const bilan = jeuEnCours(st) && r.start !== current?.start;
   const ok = await demander(replay
-    ? { title: `Recommencer « ${name} » ?`, attention: "Ce jeu repart à zéro : les points gagnés pendant ce jeu sont effacés.", text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores." : ""}`, ok: "Recommencer ce jeu", alert: true }
-    : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés.${bilan ? ` La TV montre le bilan des scores, puis « ${name} » quand vous appuyez sur « Jeu suivant ».` : ""} Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
+    ? { title: `Recommencer « ${name} » ?`, attention: "Ce jeu repart à zéro : les points gagnés pendant ce jeu sont effacés.", text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores du jeu en cours." : " La TV repart sur la présentation du jeu, puis « ▶ Lancer l'épreuve »."}`, ok: "Recommencer ce jeu", alert: true }
+    // « ▶ Y aller » du Conducteur (cedric, 30/10) : « Êtes-vous sûr ? » Oui / Non.
+    : { ...SUR, line: `Vous allez passer à «\u00a0${name}\u00a0».`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés.${bilan ? ` La TV montre le bilan des scores, puis « ${name} » quand vous appuyez sur « Jeu suivant ».` : ""} Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.` });
   if (!ok) return;
   // Photos et extraits du jeu recopiés dans la partie s'ils y manquent (copies effacées après la fête, partie reprise
   // sur une autre box) : jamais bloquant, une copie déjà là n'est pas refaite.
@@ -2761,21 +2732,19 @@ async function jumpTo(r, st) {
   copySounds(jeu);
   const status = await send("goto", { index: r.start, qid: questions[r.start].id }, { advance: true });
   if (status?.status === "applied") {
-    rescueOpen = false;
+    // Retour à la régie : Sarah voit aussitôt le bouton qui lance le jeu choisi.
+    fermerConducteur();
     toast(bilan ? `Bilan des scores sur la TV, puis « ${name} ».` : replay ? `« ${name} » recommence.` : `C'est parti pour « ${name} » !`);
     render();
   }
 }
 
-$("c-rescue").onclick = () => { rescueOpen = true; render(); };
 $("c-recommencer").onclick = () => {
   const st = live.state ?? {};
   const { current } = gamesOf(st);
   if (current && !pending?.advance) jumpTo(current, st);
 };
 $("c-add").onclick = () => openLibrary();
-$("c-replay").onclick = () => openRejouer();
-$("rescue-close").onclick = () => { rescueOpen = false; render(); };
 
 function renderTeams(st, teams) {
   const box = $("panel-teams");
@@ -2818,12 +2787,29 @@ function renderTeams(st, teams) {
  * Conducteur : le programme en vigueur sur la TV, manche par manche. Pendant la partie, l'animatrice peut
  * ajouter un jeu, déplacer ou retirer une manche pas encore commencée ; la manche en cours ne bouge jamais.
  */
+/**
+ * Jeu déjà commencé pendant la partie (jeu en cours compris). Une TV à jour publie la première question de chaque jeu
+ * commencé (state.jeuxCommences) : un jeu sauté avec ▶ reste « pas encore joué », même au-dessus du jeu en cours.
+ * Sans cette liste (TV d'avant) : tout jeu jusqu'au jeu en cours compte comme commencé.
+ */
+function jeuCommence(r, questions, st) {
+  if (st.phase === "lobby") return false;
+  const index = st.index ?? -1;
+  if (r.start <= index && index <= r.end && st.phase !== "ended") return true;
+  if (Array.isArray(st.jeuxCommences)) return st.jeuxCommences.includes(questions[r.start]?.id);
+  return r.start <= lockedUntil(questions, index);
+}
+
+/** Jeux dépliés dans le conducteur (cedric, 30/10 : tous repliés d'office, ▸ montre les questions). */
+const jeuxDeplies = new Set();
+
 function renderPlan(st) {
   const box = $("panel-plan");
+  if (glisse) return;
   const plan = live.plan;
   const questions = plan?.questions ?? [];
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
-  const key = JSON.stringify([plan?.title, plan?.rev, questions.map((q) => q.id ?? q.text), index, st.phase, editing]);
+  const key = JSON.stringify([plan?.title, plan?.rev, questions.map((q) => q.id ?? q.text), index, st.phase, editing, !!pending?.advance, mayReplaceShow(st), [...jeuxDeplies], st.jeuxCommences ?? null]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   box.innerHTML = "";
@@ -2839,57 +2825,222 @@ function renderPlan(st) {
       add.disabled = editing;
       add.onclick = openLibrary;
       box.appendChild(add);
+      box.insertAdjacentHTML("beforeend", '<p class="hint plan-aide">Appui long sur un jeu à venir pour le déplacer.</p>');
     } else {
       box.insertAdjacentHTML("beforeend", '<p class="hint">Pour ajouter un jeu en cours de partie, mettez à jour l\'appli de la TV.</p>');
     }
   }
   const rounds = programRounds(questions);
-  const future = rounds.filter((r) => questions[r.start].round && isFutureRound(r, questions, index));
+  // Jeux jamais commencés (à venir, ou sautés avec ▶) : ceux-là seulement se modifient, se déplacent, se retirent.
+  const future = rounds.filter((r) => questions[r.start].round && !jeuCommence(r, questions, st));
   rounds.forEach((r) => {
-    if (questions[r.start].round) box.appendChild(roundHead(r, rounds, future, questions, index, editable));
-    for (let i = r.start; i <= r.end; i++) box.appendChild(planItem(questions[i], i, st.index));
+    const items = [];
+    for (let i = r.start; i <= r.end; i++) items.push(planItem(questions[i], i, st.index));
+    // Questions sans jeu (quiz de démonstration) : la liste telle quelle.
+    if (!questions[r.start].round) return box.append(...items);
+    const jeu = document.createElement("div");
+    // Deux couleurs seulement (cedric, 30/10) : joué, ou pas encore joué ; le jeu en cours mis en évidence.
+    const enCours = r.start <= index && index <= r.end && st.phase !== "ended" && st.phase !== "lobby";
+    jeu.className = `plan-jeu${enCours ? " en-cours" : jeuCommence(r, questions, st) ? " joue" : " a-jouer"}`;
+    jeu.dataset.start = r.start;
+    const liste = document.createElement("div");
+    liste.className = "plan-questions";
+    liste.hidden = !jeuxDeplies.has(r.title);
+    // Choix A (cedric, 30/10) : un jeu pas encore joué se modifie avec la carte de « ＋ Jeu » (celle de la Régie PC).
+    if (editable && future.includes(r)) {
+      const qs = questions.slice(r.start, r.end + 1);
+      const modifier = document.createElement("button");
+      modifier.type = "button";
+      modifier.className = "btn secondary edit";
+      modifier.textContent = "✏️ Modifier ce jeu";
+      modifier.disabled = editing;
+      modifier.onclick = () => ouvrirCarte(typeDuJeu(qs), { round: roundDuJeu(qs), titre: r.title });
+      liste.append(modifier);
+    }
+    liste.append(...items);
+    jeu.append(roundHead(r, rounds, future, questions, index, editable), liste);
+    box.appendChild(jeu);
   });
+  // Mauvaise prestation lancée (cedric, 21/10) : discret, et seulement tant qu'aucun point n'a été donné.
+  if (mayReplaceShow(st)) {
+    const wrong = document.createElement("button");
+    wrong.id = "plan-wrong";
+    wrong.className = "link";
+    wrong.textContent = "Mauvaise prestation ?";
+    wrong.onclick = () => {
+      wrongShow = true;
+      tabChosen = true;
+      fermerConducteur();
+      switchTab("show");
+      if (COCKPIT) ouvrirPlus();
+    };
+    box.appendChild(wrong);
+  }
 }
 
 function roundHead(r, rounds, future, questions, index, editable) {
   const head = document.createElement("div");
   head.className = "plan-head";
   head.dataset.round = r.title;
-  const title = document.createElement("p");
-  title.className = "plan-round";
-  title.textContent = r.title;
-  const state = document.createElement("span");
-  state.className = "state";
-  state.textContent = r.end < index ? "jouée" : r.start <= index ? "en cours" : "";
-  head.append(title, state);
+  const deplie = jeuxDeplies.has(r.title);
+  // ▸ / ▾ et le nom : déplient ou replient les questions du jeu.
+  const titre = document.createElement("button");
+  titre.type = "button";
+  titre.className = "plan-deplier";
+  titre.setAttribute("aria-expanded", deplie ? "true" : "false");
+  titre.innerHTML = '<span class="fleche" aria-hidden="true"></span><span class="plan-round"></span>';
+  titre.querySelector(".fleche").textContent = deplie ? "▾" : "▸";
+  titre.querySelector(".plan-round").textContent = r.title;
+  titre.onclick = () => {
+    // Le lâcher d'un jeu déplacé n'est pas un toucher sur son nom.
+    if (Date.now() - glisseFini < 400) return;
+    if (jeuxDeplies.has(r.title)) jeuxDeplies.delete(r.title); else jeuxDeplies.add(r.title);
+    render();
+  };
+  head.append(titre);
   const k = future.indexOf(r);
-  // Jeu déjà commencé ou joué : « 🔁 Rejouer » dans tous les jeux (cedric, 21/10). Tiré d'une collection : avec
-  // d'autres cartes, mots, photos ou titres ; un quiz : avec d'autres questions ; un mini-jeu : le même, tel quel.
-  if (editable && k < 0 && r.start <= index && questionType(questions[r.start])) {
-    const again = document.createElement("button");
-    again.className = "replay";
-    again.textContent = "🔁 Rejouer";
-    again.disabled = editing;
-    again.onclick = () => rejouerJeu(r, questions);
-    head.appendChild(again);
-  }
-  if (!editable || k < 0) return head;
-  const button = (label, cls, disabled, action) => {
+  const button = (label, cls, disabled, action, aria) => {
     const b = document.createElement("button");
+    b.type = "button";
     b.textContent = label;
     b.className = cls;
     b.disabled = disabled || editing;
+    if (aria) b.setAttribute("aria-label", aria);
     b.onclick = action;
     head.appendChild(b);
   };
-  const at = rounds.indexOf(r);
-  button("↑", "up", k === 0, () => sendProgram(moveRound(questions, r.start, -1, index), `« ${r.title} » avancée d'un cran.`));
-  button("↓", "down", k === future.length - 1, () => sendProgram(moveRound(questions, r.start, 1, index), `« ${r.title} » reculée d'un cran.`));
-  button("Retirer", "remove", rounds.length === 1 && at === 0, async () => {
-    if (!await demander({ title: `Retirer « ${r.title} » du programme ?`, text: "Le jeu n'est pas effacé : il reste dans la bibliothèque.", ok: "Retirer du programme", alert: true })) return;
-    sendProgram(removeRound(questions, r.start, index), `« ${r.title} » est retirée du programme.`);
-  });
+  // La ligne (cedric, 30/10) : ▸, le nom, « Retirer » en rouge, puis ▶ ; rien sur le jeu en cours.
+  if (editable && k >= 0) {
+    button("Retirer", "remove", rounds.length === 1, async () => {
+      if (!await demander({ ...SUR, line: `« ${r.title} » sera retiré du programme.` })) return;
+      sendProgram([...questions.slice(0, r.start), ...questions.slice(r.end + 1)], `« ${r.title} » est retirée du programme.`);
+    }, `Retirer « ${r.title} »`);
+  }
+  // ▶ (à la place de « ⏭ Changer de jeu ») : aller à ce jeu en arrêtant le jeu en cours, partie commencée ; « Êtes-vous sûr ? ».
+  const st = live.state ?? {};
+  const enCours = r.start <= index && index <= r.end && st.phase !== "ended";
+  if (editable && index >= 0 && !enCours) button("▶", "go", !!pending?.advance, () => jumpTo(r, live.state ?? {}), `Aller à « ${r.title} »`);
+  // Plus de flèches (cedric, 30/10) : un appui long soulève le jeu, il suit le doigt et se pose quand on lâche.
+  if (editable && k >= 0 && !editing && rounds.every((x) => questions[x.start].round)) head.addEventListener("pointerdown", (e) => soulever(e, head, r, rounds, questions, index));
   return head;
+}
+
+// ---------- Déplacer un jeu au doigt (cedric, 30/10) ----------
+
+/** Jeu soulevé par un appui long : il suit le doigt (ou la souris) jusqu'au lâcher. */
+let glisse = null;
+let glisseFini = 0;
+const APPUI_LONG_MS = 450;
+
+function soulever(e, head, r, rounds, questions, index) {
+  if (e.button > 0 || e.target.closest("button:not(.plan-deplier)")) return;
+  const x0 = e.clientX;
+  const y0 = e.clientY;
+  const annuler = () => {
+    clearTimeout(minuteur);
+    removeEventListener("pointermove", bouge);
+    removeEventListener("pointerup", annuler);
+    removeEventListener("pointercancel", annuler);
+  };
+  // Le doigt bouge avant la fin de l'appui : c'est un défilement, pas un déplacement.
+  const bouge = (m) => { if (Math.abs(m.clientX - x0) > 10 || Math.abs(m.clientY - y0) > 10) annuler(); };
+  const minuteur = setTimeout(() => { annuler(); demarrerGlisse(r, rounds, questions, index, y0); }, APPUI_LONG_MS);
+  addEventListener("pointermove", bouge);
+  addEventListener("pointerup", annuler);
+  addEventListener("pointercancel", annuler);
+}
+
+function demarrerGlisse(r, rounds, questions, index, y) {
+  const box = $("panel-plan");
+  const blocs = rounds.map((x) => box.querySelector(`.plan-jeu[data-start="${x.start}"]`));
+  const depart = rounds.indexOf(r);
+  if (depart < 0 || blocs.some((b) => !b) || rounds.length < 2) return;
+  // Se pose seulement après le jeu en cours (ou le dernier commencé) : avant, il ne serait jamais joué.
+  const st = live.state ?? {};
+  let dernier = -1;
+  rounds.forEach((x, i) => { if (x !== r && x.start <= index && st.phase !== "lobby") dernier = i; });
+  const autres = rounds.filter((x) => x !== r);
+  const min = dernier < 0 ? 0 : autres.indexOf(rounds[dernier]) + 1;
+  navigator.vibrate?.(30);
+  const defile = box.closest(".conducteur-corps") ?? document.scrollingElement;
+  const milieux = blocs.map((b) => { const rect = b.getBoundingClientRect(); return rect.top + rect.height / 2; });
+  glisse = { rounds, r, depart, blocs, milieux, min, questions, index, y0: y, y, defile, scroll0: defile.scrollTop, place: depart, boucle: 0 };
+  blocs[depart].classList.add("souleve");
+  box.classList.add("en-glisse");
+  addEventListener("pointermove", suivreGlisse);
+  addEventListener("pointerup", poserGlisse);
+  addEventListener("pointercancel", poserGlisse);
+  // Le doigt ne fait plus défiler la page pendant le déplacement : c'est la ligne qui bouge.
+  addEventListener("touchmove", bloquerDefilement, { passive: false });
+  placerGlisse();
+  glisse.boucle = requestAnimationFrame(defilerAuBord);
+}
+
+function bloquerDefilement(e) { if (glisse) e.preventDefault(); }
+
+function suivreGlisse(e) {
+  if (!glisse) return;
+  glisse.y = e.clientY;
+  placerGlisse();
+}
+
+/**
+ * La ligne suit le doigt ; les autres jeux s'écartent pour montrer où elle se posera. [place] : son rang parmi les
+ * autres jeux une fois posée (jamais avant le jeu en cours).
+ */
+function placerGlisse() {
+  const g = glisse;
+  const decalage = g.defile.scrollTop - g.scroll0;
+  const dy = g.y - g.y0 + decalage;
+  const souleve = g.blocs[g.depart];
+  souleve.style.transform = `translateY(${dy}px)`;
+  const centre = g.milieux[g.depart] + dy;
+  let place = 0;
+  g.blocs.forEach((b, i) => { if (i !== g.depart && g.milieux[i] < centre) place++; });
+  place = Math.max(place, g.min);
+  g.place = place;
+  const haut = souleve.offsetHeight + 6;
+  let k = 0;
+  g.blocs.forEach((b, i) => {
+    if (i === g.depart) return;
+    b.style.transform = i < g.depart && k >= place ? `translateY(${haut}px)` : i > g.depart && k < place ? `translateY(${-haut}px)` : "";
+    k++;
+  });
+}
+
+/** Près du haut ou du bas de l'écran, la liste défile toute seule. */
+function defilerAuBord() {
+  const g = glisse;
+  if (!g) return;
+  const zone = g.defile === document.scrollingElement ? { top: 0, bottom: innerHeight } : g.defile.getBoundingClientRect();
+  const marge = 64;
+  const vitesse = g.y < zone.top + marge ? -12 : g.y > zone.bottom - marge ? 12 : 0;
+  if (vitesse) {
+    g.defile.scrollTop += vitesse;
+    placerGlisse();
+  }
+  g.boucle = requestAnimationFrame(defilerAuBord);
+}
+
+function poserGlisse() {
+  const g = glisse;
+  if (!g) return;
+  glisse = null;
+  glisseFini = Date.now();
+  cancelAnimationFrame(g.boucle);
+  removeEventListener("pointermove", suivreGlisse);
+  removeEventListener("pointerup", poserGlisse);
+  removeEventListener("pointercancel", poserGlisse);
+  removeEventListener("touchmove", bloquerDefilement);
+  g.blocs.forEach((b) => { b.style.transform = ""; });
+  g.blocs[g.depart].classList.remove("souleve");
+  $("panel-plan").classList.remove("en-glisse");
+  if (g.place === g.depart) return render();
+  const ordre = g.rounds.filter((x) => x !== g.r);
+  ordre.splice(g.place, 0, g.r);
+  const program = ordre.flatMap((x) => g.questions.slice(x.start, x.end + 1));
+  const ecart = Math.abs(g.place - g.depart);
+  sendProgram(program, `« ${g.r.title} » est ${g.place < g.depart ? "avancé" : "reculé"} de ${ecart} place${ecart > 1 ? "s" : ""}.`);
 }
 
 /**
@@ -3164,130 +3315,228 @@ function renderLibrary() {
   const box = $("lib-list");
   box.innerHTML = "";
   const hint = (text) => { const p = document.createElement("p"); p.className = "hint"; p.textContent = text; box.appendChild(p); };
-  const section = (text) => { const p = document.createElement("p"); p.className = "lib-section"; p.textContent = text; box.appendChild(p); };
   if (library?.loading) return hint("Chargement de la bibliothèque…");
   if (library?.denied) return hint("Pour ouvrir la bibliothèque, entrez dans la régie avec le mot de passe (pas avec le code de la TV).");
   if (!library?.games) return hint("Impossible de lire la bibliothèque. Vérifiez la connexion.");
   if (libRejouer) return renderRejouables(box);
-  const entry = (game, detail) => {
+  // « ＋ Jeu » (cedric, 30/10) : une ligne par jeu ; le jeu touché ouvre sa carte de réglage, celle de la Régie PC.
+  for (const [type, icone, detail] of JEUX_AJOUT) {
     const b = document.createElement("button");
-    b.className = "show-item";
-    b.dataset.game = game.key;
+    b.className = "show-item lib-jeu";
+    b.dataset.jeu = type;
     const title = document.createElement("b");
-    title.textContent = game.label;
+    const ic = document.createElement("span");
+    ic.className = "icone";
+    ic.textContent = icone;
+    title.append(ic, ROUND_TYPES[type]);
     const meta = document.createElement("span");
-    if (game.manche || game.size) {
-      meta.textContent = game.manche ? [detail, mancheSummary(game.source, library)].filter(Boolean).join(" · ")
-        : `${game.size} ${COLLECTION_UNIT[game.source.type][game.size > 1 ? 1 : 0]} dans les collections · jamais deux fois le même`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "mimes" && game.source.random) {
-      meta.textContent = `${MIME_PER_TEAM_DEFAULT} cartes par équipe, selon l'âge · jamais une carte déjà jouée`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "mimes") {
-      const deck = library.mimes[game.source.deckId];
-      const count = (deck?.cards ?? []).filter(Boolean).length;
-      meta.textContent = `Mimes · ${count} carte${count > 1 ? "s" : ""} · tour de ${deck?.duration ?? 60} s`;
-      b.append(title, meta);
-      b.disabled = !count;
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.hasardBlind) {
-      meta.textContent = `${BLIND_HASARD} chansons de votre bibliothèque, tirées au hasard · jamais une chanson déjà jouée · ${MUSIC_GAMES.blind.rule}`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (MUSIC_GAMES[game.source.type]) {
-      const pl = library.playlists[game.source.playlistId];
-      const count = playableTracks(pl).length;
-      meta.textContent = `${count} morceau${count > 1 ? "x" : ""} · extraits de ${pl?.duration ?? 25} s · ${MUSIC_GAMES[game.source.type].rule}`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "pictionary") {
-      meta.textContent = `${game.source.duration ?? PICTO_SEC} s de dessin par équipe · un mot par tour · jamais un mot déjà joué`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "coffres") {
-      meta.textContent = "un coffre chacun son tour · bonus, malus, puis la bombe · idéal en dernier jeu";
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "patate") {
-      meta.textContent = "la bombe passe de tablette en tablette · 3 s au plus par équipe · mèche secrète · rien à préparer";
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "gonfleur") {
-      meta.textContent = "chaque équipe tapote sa tablette · le premier ballon qui éclate gagne";
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "statues") {
-      const n = game.source.songs?.length ?? 0;
-      meta.textContent = `${game.source.duration} s de musique (${n ? `${n} chanson${n > 1 ? "s" : ""}` : "musique de la fête"}) · on se fige à l'arrêt · vous désignez l'équipe gagnante`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    const builtin = BUILTIN_GAMES[game.source.type];
-    if (builtin) {
-      meta.textContent = `${game.source.count} ${builtin.unit}s · ${builtin.rule} · au buzzer`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    const quiz = library.quizzes[game.source.quizId];
-    const kind = QUIZ_GAMES[game.source.type];
-    const count = (kind ? kind.questions(quiz) : playable(quiz)).length;
-    const unit = kind?.unit ?? "question";
-    meta.textContent = [detail, count ? `${count} ${unit}${count > 1 ? "s" : ""}` : "aucune question validée"].filter(Boolean).join(" · ");
+    meta.textContent = detail;
     b.append(title, meta);
-    b.disabled = !count;
-    b.onclick = () => pick(game);
+    b.onclick = () => ouvrirCarte(type);
     box.appendChild(b);
-  };
-  if (library.pinned?.length) section("⭐ Prestations épinglées");
-  library.pinned?.forEach((g) => entry(g, g.from));
-  if (library.saved?.length) section("Manches préparées");
-  library.saved?.forEach((g) => entry(g, g.from));
-  section("Quiz de la bibliothèque");
-  if (!library.games.length) hint("Aucun quiz pour l'instant : Sarah les prépare dans l'administration.");
-  library.games.forEach((g) => entry(g, ""));
-  if (library.rounds.length) section("Manches d'anciennes prestations");
-  library.rounds.forEach((g) => entry(g, g.from));
-  section("Mini-jeux et blind tests");
-  library.decks.forEach((g) => entry(g, ""));
-  library.quizGames.forEach((g) => entry(g, g.source.type === "express" ? "enchaînées toutes seules" : g.source.type === "flou" ? "au buzzer" : "dévoilées au fil du chrono"));
-  library.builtins.forEach((g) => entry(g, ""));
-  library.drawn?.forEach((g) => entry(g, ""));
-  if (!library.music.length) hint("Blind test : aucune playlist pour l'instant (administration, Blind test).");
-  library.music.forEach((g) => entry(g, ""));
+  }
 }
+
+/** Les jeux de « ＋ Jeu », dans l'ordre de la Régie PC : type, icône, ce qu'on y règle. */
+const JEUX_AJOUT = [
+  ["quiz", "❓", "🎲, un thème, le nombre de questions, un ancien anniversaire"],
+  ["illustre", "📷", "photos de la banque des tout-petits, 🎲 par thème"],
+  ["mimes", "🎭", "🎲 cartes par équipe, thème, vos séries"],
+  ["blind", "🎵", "🎲 vos chansons, une playlist"],
+  ["musical", "🎶", "🎲 vos chansons, une playlist"],
+  ["statues", "🗿", "vos chansons"],
+  ["express", "✔", "🎲 des affirmations Vrai ou Faux"],
+  ["zoom", "🔍", "🎲 des photos, vos images"],
+  ["flou", "🌫", "🎲 des photos, vos images"],
+  ["chante", "🎤", "🎲 des mots, vos séries"],
+  ["quisuis", "🕵", "🎲 des personnages, vos séries"],
+  ["disparu", "🎩", "🎲 des grilles, émojis ou photos"],
+  ["pictionary", "✏️", "🎲 des mots, le temps de dessin"],
+  ["coffres", "🗝️", "rien à préparer"],
+  ["patate", "💣", "le nombre de bombes"],
+  ["duel", "🤠", "les joueurs, la durée du face-à-face"],
+  ["simon", "🔴", "le nombre de tours"],
+  ["gonfleur", "🎈", "rien à préparer"],
+];
+
+// ---------- La carte d'un jeu (« ＋ Jeu » et « ✏️ Modifier » du Conducteur, cedric, 30/10) ----------
+
+/**
+ * Carte ouverte : le jeu réglé dans la page de la Régie PC (mode « carte », dans le cadre), et, pour un jeu à venir
+ * modifié depuis le Conducteur, son titre (il garde sa place). [round] : le dernier réglage reçu du cadre.
+ */
+let carteJeu = null;
+
+/** Ouvre la carte d'un jeu : nouveau ([round] absent), ou un jeu à venir du programme ([titre]) à modifier. */
+async function ouvrirCarte(type, { round = null, titre = null } = {}) {
+  if (!ROUND_TYPES[type]) return;
+  let profil = null;
+  try {
+    const show = (await get(ref(db, `games/${code}/show`))).val();
+    profil = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
+  } catch { profil = null; }
+  carteJeu = { type, depart: round, titre, round: null, plein: false, envoi: false };
+  const adresse = new URL("admin.html", location.href);
+  adresse.search = "";
+  adresse.searchParams.set("carte", type);
+  adresse.searchParams.set("g", code);
+  if (profil) adresse.searchParams.set("profil", profil);
+  if (teamsNow()) adresse.searchParams.set("equipes", `${teamsNow()}`);
+  const emu = new URLSearchParams(location.search).get("emu");
+  if (emu) adresse.searchParams.set("emu", emu);
+  $("carte-titre").textContent = titre ? `✏️ ${titre}` : ROUND_TYPES[type];
+  $("carte-info").hidden = true;
+  // replace : la page du cadre ne s'ajoute pas à l'historique (le geste « retour » du téléphone ne la rouvre pas).
+  $("carte-cadre").contentWindow.location.replace(adresse.href);
+  $("carte").hidden = false;
+  renderCarte();
+  if (!library?.games) fetchLibrary();
+}
+
+function fermerCarte() {
+  carteJeu = null;
+  $("carte").hidden = true;
+  $("carte-cadre").contentWindow?.location.replace("about:blank");
+}
+
+function renderCarte() {
+  if (!carteJeu) return;
+  $("carte-envoyer").disabled = !carteJeu.round || carteJeu.envoi || editing;
+  $("carte-envoyer").textContent = carteJeu.envoi ? "Envoi…" : carteJeu.titre ? "✓ Enregistrer dans le conducteur" : "✓ Envoyer au conducteur";
+}
+
+/** Messages du cadre : prêt (on lui donne le jeu à régler), puis le jeu réglé à chaque changement. */
+let attenteCarte = null;
+window.addEventListener("message", (e) => {
+  if (e.origin !== location.origin || !carteJeu || e.source !== $("carte-cadre").contentWindow) return;
+  const m = e.data?.lmpCarte;
+  if (!m) return;
+  if (m.prete) {
+    e.source.postMessage({ lmpCarte: { ouvrir: true, round: carteJeu.depart, titre: carteJeu.titre } }, location.origin);
+    return;
+  }
+  if (m.round) {
+    carteJeu.round = m.round;
+    carteJeu.plein = m.plein === true;
+    attenteCarte?.();
+    renderCarte();
+  }
+});
+
+/** Le dernier réglage du cadre, redemandé juste avant l'envoi (une saisie qui n'a encore rien envoyé). */
+function reglageDeLaCarte() {
+  return new Promise((resolve) => {
+    const fini = () => { clearTimeout(t); attenteCarte = null; resolve(carteJeu?.round ?? null); };
+    const t = setTimeout(fini, 1500);
+    attenteCarte = fini;
+    $("carte-cadre").contentWindow?.postMessage({ lmpCarte: "donne" }, location.origin);
+  });
+}
+
+/** Type d'un jeu du programme, d'après ses questions (Quiz illustré : des réponses en images). */
+function typeDuJeu(qs) {
+  const q = qs.find(Boolean);
+  if (q?.kind === "duel" || q?.kind === "simon") return q.kind;
+  if (q && !q.kind?.match?.(/^(express|zoom|flou)$/) && (q.choiceImages || q.choiceBanque)) return "illustre";
+  return questionType(q) ?? "quiz";
+}
+
+/** Une question du programme, gardée telle quelle dans une série « reprise » de la carte (Quiz, Vrai ou Faux…). */
+function questionDeSerie(q, i) {
+  return {
+    id: `c${i + 1}`, text: q.text,
+    ...(q.kind === "number" ? { nombre: true, correct: q.correct } : { choices: q.choices, correct: q.correct }),
+    ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.image ? { emoji: q.image } : {}),
+    ...(Array.isArray(q.choiceBanque) ? { choiceBanque: q.choiceBanque } : {}),
+    ...(q.choiceImages && typeof q.choiceImages === "object" ? { choiceImages: q.choiceImages } : {}),
+  };
+}
+
+/** Le réglage d'un jeu à venir, refait d'après ses questions : la carte s'ouvre sur ce qui est prévu. */
+function roundDuJeu(qs) {
+  const type = typeDuJeu(qs);
+  const deck = qs.find((q) => q?.kind === "mime" || q?.kind === "pictionary");
+  if (["quiz", "illustre", "express", "zoom", "flou"].includes(type)) {
+    const finale = qs.filter((q) => q?.finale === true).length;
+    const facteur = qs.find((q) => q?.facteur)?.facteur;
+    return { type, seriesQuiz: [{ id: "prevu", origine: "reprise", titre: qs[0]?.round ?? ROUND_TYPES[type], questions: qs.filter(Boolean).map(questionDeSerie) }],
+      ...(finale ? { finale } : { finale: null }), ...(facteur ? { facteur } : {}) };
+  }
+  // Mimes par équipe : chaque équipe retrouve ses images sur son 🎲, sans les images de secours ajoutées au bout.
+  const parEquipe = qs.filter((q) => q?.kind === "mime" && q.couleur);
+  if (type === "mimes" && parEquipe.length) {
+    const equipes = couleursEquipes({ teams: teamsNow() || parEquipe.length }).map((c) => {
+      const cartes = parEquipe.find((q) => String(q.couleur).toUpperCase() === c.toUpperCase())?.cards ?? [];
+      return cartes.length > MIME_RESERVE ? cartes.slice(0, cartes.length - MIME_RESERVE) : cartes;
+    });
+    return { type, equipes, duration: parEquipe[0].duration };
+  }
+  if (type === "mimes" && deck) return { type, cards: deck.cards, duration: deck.duration };
+  // Pictionary par équipe : ses passages, les mots dans l'ordre.
+  if (type === "pictionary" && Array.isArray(deck?.offres)) {
+    return { type, tours: deck.offres.map((ps) => (ps ?? []).map((p) => (p ?? []).map((i) => deck.cards?.[i]).filter(Boolean))), duration: deck.duration, ...(deck.propositions ? { propositions: deck.propositions } : {}) };
+  }
+  if (type === "pictionary" && deck) return { type, picks: (deck.cards ?? []).map((c) => c?.word?.toLowerCase()).filter(Boolean), duration: deck.duration };
+  if (type === "chante" || type === "quisuis") return { type, picks: qs.map((q) => q?.choices?.[0]?.toLowerCase()).filter(Boolean), count: qs.length };
+  if (type === "blind" || type === "musical") return { type, tracks: qs.map((q) => q?.audioId).filter(Boolean) };
+  if (type === "disparu") return { type, count: qs.length };
+  return { type };
+}
+
+/** « ✓ Envoyer au conducteur » : le jeu réglé passe juste après le jeu en cours ; modifié, il garde sa place. */
+async function envoyerCarte() {
+  if (!carteJeu || carteJeu.envoi || editing) return;
+  const jeu = carteJeu;
+  const info = (texte) => { $("carte-info").textContent = texte; $("carte-info").hidden = !texte; };
+  info("");
+  jeu.envoi = true;
+  renderCarte();
+  try {
+    const round = await reglageDeLaCarte();
+    if (!library?.games) await fetchLibrary();
+    if (!round || !library?.games) return info("Le jeu n'est pas encore prêt : réessayez dans un instant.");
+    try {
+      const show = (await get(ref(db, `games/${code}/show`))).val();
+      profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
+    } catch { profile = null; }
+    const prefix = `a${Date.now().toString(36)}`;
+    const avoid = alreadyPlayed();
+    const { questions, problems } = gameQuestions(round, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents, { concepts: avoid.concepts }, teamsNow(), library.songs);
+    if (!questions.length) return info(problems?.[0] ?? "Ce jeu est vide : réglez-le d'abord (🎲).");
+    const refuse = tvRefuses(questions);
+    if (refuse) return info(refuse);
+    let chosen;
+    try { chosen = await copyImages(questions); } catch (e) {
+      console.warn("Images non copiées", e);
+      return info("Les images du jeu n'ont pas pu être copiées (connexion ?) : rien n'a été envoyé, réessayez.");
+    }
+    copySounds(chosen);
+    if (carteJeu !== jeu) return;
+    const st = live.state ?? { phase: "lobby" };
+    const current = live.plan?.questions ?? [];
+    const index = st.phase === "lobby" ? -1 : st.index ?? -1;
+    let program;
+    let message;
+    if (jeu.titre) {
+      // Choix A : le jeu à venir est remplacé à sa place, sous le même nom ; commencé entre-temps, il ne change plus.
+      const r = programRounds(current).find((x) => x.title === jeu.titre);
+      if (!r || jeuCommence(r, current, st)) return info(`« ${jeu.titre} » a commencé entre-temps : il ne peut plus changer.`);
+      program = [...current.slice(0, r.start), ...chosen.map((q) => ({ ...q, round: jeu.titre })), ...current.slice(r.end + 1)];
+      message = `« ${jeu.titre} » est modifié dans le conducteur.`;
+    } else {
+      const title = uniqueRoundTitle(current, chosen[0]?.round ?? ROUND_TYPES[jeu.type]);
+      program = insertGame(current, chosen.map((q) => ({ ...q, round: title })), "after", index);
+      message = `« ${title} » est ajouté ${index < 0 ? "au début du programme" : "après le jeu en cours"}.`;
+    }
+    await sendProgram(program, message, false, () => { fermerCarte(); closeLibrary(); });
+  } finally {
+    jeu.envoi = false;
+    renderCarte();
+  }
+}
+
+$("carte-retour").onclick = fermerCarte;
+$("carte-envoyer").onclick = envoyerCarte;
 
 /** Profil d'âge de la prestation chargée : les questions ajoutées prennent le même chrono. */
 let profile = null;
@@ -4633,13 +4882,17 @@ appuiLong($("c-arret"), 1500, { court: () => toast("Gardez le doigt appuyé sur 
 
 $("tab-teams").onclick = () => { tabChosen = true; switchTab("teams"); };
 $("tab-plan").onclick = () => { tabChosen = true; switchTab("plan"); };
+$("conducteur-retour").onclick = fermerConducteur;
 $("tab-show").onclick = () => { tabChosen = true; switchTab("show"); };
 $("tab-defis").onclick = () => { tabChosen = true; switchTab("defis"); };
 function switchTab(name) {
+  // Régie « cockpit » : le conducteur a sa page plein écran (cedric, 30/10).
+  if (COCKPIT && name === "plan") return ouvrirConducteur();
   tab = name;
   // Liste des prestations relue à chaque ouverture de l'onglet : elle reflète toujours l'administration.
   if (name === "show" && !loadingShow) shows = null;
   for (const t of ["teams", "plan", "show", "defis"]) {
+    if (COCKPIT && t === "plan") continue;
     $(`tab-${t}`).classList.toggle("active", tab === t);
     $(`panel-${t}`).hidden = tab !== t;
   }

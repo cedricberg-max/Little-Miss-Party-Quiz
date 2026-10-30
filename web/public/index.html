@@ -196,10 +196,8 @@
         <div class="games-row">
           <p id="c-games" class="games"></p>
           <button id="c-add" class="btn secondary rescue-open" aria-label="Ajouter un jeu" hidden>＋ Jeu</button>
-          <button id="c-replay" class="btn secondary rescue-open" hidden>🔁 Rejouer</button>
           <button id="c-points" class="btn secondary rescue-open">± Points</button>
           <button id="c-equipe" class="btn secondary rescue-open">＋ Ajouter une équipe</button>
-          <button id="c-rescue" class="btn secondary rescue-open" hidden>⏭ Changer de jeu</button>
           <button id="c-recommencer" class="btn secondary rescue-open" hidden>↺ Relancer ce jeu</button>
           <button id="c-box" class="btn secondary rescue-open">📺 Changer de box</button>
         </div>
@@ -371,19 +369,13 @@
       <div id="plus-onglets" class="plus-onglets"></div>
     </section>
 
-    <!-- Secours : voir le jeu en cours et le suivant, passer au suivant, aller à un autre jeu ou le rejouer. -->
-    <section id="rescue" class="lib" hidden aria-label="Jeux de la prestation">
+    <!-- « 📋 Conducteur » (cedric, 30/10) : ouvert depuis « ☰ Plus », en plein écran ; « ← Retour » revient à la régie. -->
+    <section id="conducteur" class="lib conducteur" hidden aria-label="Conducteur">
       <header class="lib-top">
-        <b>Jeux de la prestation</b>
-        <button id="rescue-close" class="btn secondary">Fermer</button>
+        <b>📋 Conducteur</b>
+        <button id="conducteur-retour" class="btn secondary" type="button">← Retour</button>
       </header>
-      <div class="lib-body">
-        <p class="hint">Les équipes et leurs points sont toujours gardés. Un jeu rejoué repart de zéro : ses anciens points sont retirés, jamais comptés deux fois.</p>
-        <button id="rescue-next" class="btn main"></button>
-        <div id="rescue-list" class="rescue-list"></div>
-        <!-- Mauvaise prestation lancée : remplaçable tant qu'aucun point n'a été donné. -->
-        <button id="rescue-wrong" class="link" type="button" hidden>Mauvaise prestation ?</button>
-      </div>
+      <div id="conducteur-corps" class="lib-body conducteur-corps"></div>
     </section>
 
     <!-- « Ajouter un jeu » : bibliothèque ouverte par-dessus la régie, sans quitter la partie. -->
@@ -405,6 +397,19 @@
           <button id="lib-end" class="btn secondary">Ajouter à la fin</button>
           <button id="lib-back" class="link">Choisir un autre jeu</button>
         </div>
+      </div>
+    </section>
+    <!-- « ＋ Jeu » (cedric, 30/10) : la carte de réglage d'un jeu, la même que dans une prestation de la Régie PC,
+         en plein écran ; « ← Retour » ne valide rien, « ✓ Envoyer au conducteur » place le jeu après le jeu en cours. -->
+    <section id="carte" class="lib carte" hidden aria-label="Régler un jeu">
+      <header class="lib-top">
+        <b id="carte-titre">Jeu</b>
+      </header>
+      <iframe id="carte-cadre" class="carte-cadre" title="Réglages du jeu"></iframe>
+      <p id="carte-info" class="hold-info" role="alert" hidden></p>
+      <div class="carte-actions">
+        <button id="carte-retour" class="btn secondary" type="button">← Retour</button>
+        <button id="carte-envoyer" class="btn main" type="button" disabled>✓ Envoyer au conducteur</button>
       </div>
     </section>
     <!-- « Reconnecter une tablette » (cedric, 21/10) : le QR code du menu Retour de la TV, ici sur le téléphone de
