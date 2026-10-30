@@ -15,9 +15,12 @@ const COMPLETE = process.env.QUOI === "complete";
 // MODE=simon une fois la version qui le connaît publiée (la Régie PC d'avant l'enlèverait).
 // QUOI=marco (cedric, 28/10 au soir) : « Anniversaire Marco Mouly », la courte avec le Simon, les questions à images
 // d'abord.
-const MARCO = process.env.QUOI === "marco";
+// QUOI=epstein (cedric, 30/10) : « Anniversaire Epstein », la même pour la TV 0.1.831 (tous les jeux, Simon et Duel
+// compris, le plus possible d'images des packs).
+const EPSTEIN = process.env.QUOI === "epstein";
+const MARCO = process.env.QUOI === "marco" || EPSTEIN;
 const COURTE = process.env.QUOI === "courte" || MARCO;
-const ID = MARCO ? "anniversaire-marco-mouly" : COURTE ? "prestation-test-courte" : COMPLETE ? "prestation-test-complete" : "prestation-test-touki-touki";
+const ID = EPSTEIN ? "anniversaire-epstein" : MARCO ? "anniversaire-marco-mouly" : COURTE ? "prestation-test-courte" : COMPLETE ? "prestation-test-complete" : "prestation-test-touki-touki";
 const base = JSON.parse(readFileSync("firebase-config.json", "utf8")).databaseURL.replace(/\/$/, "");
 // LIBRAIRIE=<fichier JSON { quizzes, contents }> : essai local, sans rien lire ni écrire en ligne.
 const locale = process.env.LIBRAIRIE ? JSON.parse(readFileSync(process.env.LIBRAIRIE, "utf8")) : null;
@@ -57,6 +60,27 @@ if (process.env.MODE === "menage2" && !locale) {
   const manchesEffacees = Object.entries(manches).filter(([, m]) => effacees.includes(m?.showId)).map(([id]) => id);
   console.log(`${effacees.length} prestations et ${manchesEffacees.length} manches à effacer`);
   if (!effacees.length) process.exit(0);
+  const chemins = Object.fromEntries([...effacees.map((id) => [`library/shows/${id}`, null]), ...manchesEffacees.map((id) => [`library/manches/${id}`, null])]);
+  const res = await fetch(`${base}/.json?access_token=${token}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(chemins) });
+  console.log(res.ok ? "Ménage fait." : `Écriture refusée : ${res.status}`);
+  process.exit(res.ok ? 0 : 1);
+}
+// MODE=menage3 (cedric, 30/10 : « il ne doit rester qu'elle ») : liste, SANS RIEN EFFACER, ce qui serait effacé pour
+// ne garder qu'« Anniversaire Epstein » et les fêtes datées du 1er décembre 2026 ou après. MODE=menage3ecrire efface
+// cette liste, seulement après l'accord de cedric. Le journal ne montre ni titre ni prénom.
+if ((process.env.MODE === "menage3" || process.env.MODE === "menage3ecrire") && !locale) {
+  const shows = (await get("library/shows")) ?? {};
+  const manches = (await get("library/manches")) ?? {};
+  if (!shows["anniversaire-epstein"]) { console.log("« Anniversaire Epstein » n'existe pas : rien n'est effacé."); process.exit(1); }
+  const jour = (t) => (typeof t === "number" ? new Date(t).toISOString().slice(0, 16).replace("T", " ") + "Z" : "?");
+  const autres = Object.entries(shows).filter(([id, x]) => x && id !== "anniversaire-epstein");
+  const vraie = ([, x]) => `${x.date ?? ""}` >= "2026-12-01";
+  for (const [id, x] of autres) console.log(`${vraie([id, x]) ? "Gardée (date de vraie fête)" : "À effacer"} : ${id} · date ${x.date ?? "?"} · ${x.status ?? "?"} · ${(Array.isArray(x.rounds) ? x.rounds : Object.values(x.rounds ?? {})).length} jeux · créée ${jour(x.createdAt)} · modifiée ${jour(x.updatedAt)}`);
+  const effacees = autres.filter((e) => !vraie(e)).map(([id]) => id);
+  const manchesEffacees = Object.entries(manches).filter(([, m]) => effacees.includes(m?.showId)).map(([id]) => id);
+  const manchesSeules = Object.entries(manches).filter(([, m]) => m?.showId && !shows[m.showId]).length;
+  console.log(`${effacees.length} prestations et ${manchesEffacees.length} manches à effacer ; ${Object.keys(manches).length} manches en tout (${manchesSeules} sans prestation, gardées)`);
+  if (process.env.MODE === "menage3" || !effacees.length) { console.log("Lecture seule : rien n'est effacé."); process.exit(0); }
   const chemins = Object.fromEntries([...effacees.map((id) => [`library/shows/${id}`, null]), ...manchesEffacees.map((id) => [`library/manches/${id}`, null])]);
   const res = await fetch(`${base}/.json?access_token=${token}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(chemins) });
   console.log(res.ok ? "Ménage fait." : `Écriture refusée : ${res.status}`);
@@ -164,7 +188,10 @@ const rounds = [
 ].filter(Boolean).map((r) => cleanRound(r));
 
 const demain = new Date(Date.now() + 864e5).toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" });
-const show = MARCO
+const show = EPSTEIN
+  ? { childName: "Epstein", age: 9, teams: 4, date: isoDay(), status: "publiee", title: "Anniversaire Epstein", rounds,
+    notes: "Prestation de test (30/10, TV 0.1.831) : tous les jeux, Simon et Duel compris, séries courtes, images des packs d'abord." }
+  : MARCO
   ? { childName: "Marco Mouly", age: 9, teams: 4, date: isoDay(), status: "publiee", title: "Anniversaire Marco Mouly", rounds,
     notes: "Prestation de test (28/10) : tous les jeux, Simon compris, séries courtes, images des packs d'abord." }
   : COURTE
