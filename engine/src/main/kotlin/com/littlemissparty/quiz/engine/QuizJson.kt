@@ -92,7 +92,7 @@ object QuizJson {
             id = q.optString("id", "q${i + 1}"),
             text = q.getString("text"),
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
-            correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.PORTES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE || kind == QuestionKind.DUEL || kind == QuestionKind.SIMON) q.optInt("correct", -1) else q.getInt("correct"),
+            correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.PORTES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE || kind == QuestionKind.DUEL || kind == QuestionKind.SIMON || kind == QuestionKind.CHRONO) q.optInt("correct", -1) else q.getInt("correct"),
             durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else if (kind == QuestionKind.GONFLEUR) 45 else if (kind == QuestionKind.STATUES) 90 else 20),
             kind = kind,
             double = q.optBoolean("double", false),
@@ -129,6 +129,9 @@ object QuizJson {
             // Simon du Prof : réglages hors limites ramenés dans les limites.
             simonTours = q.optInt("tours", SIMON_TOURS).coerceIn(1, SIMON_TOURS_MAX),
             simonSec = q.optInt("reponse", SIMON_REPONSE_SEC).coerceIn(SIMON_REPONSE_MIN_SEC, SIMON_REPONSE_MAX_SEC),
+            // Chrono caché : cible et tours hors limites ramenés dans les limites.
+            chronoCible = q.optInt("cible", CHRONO_CIBLE_DEFAUT).coerceIn(CHRONO_CIBLE_MIN, CHRONO_CIBLE_MAX),
+            chronoTours = q.optInt("tours", CHRONO_TOURS).coerceIn(1, CHRONO_TOURS_MAX),
         )
     }
 }

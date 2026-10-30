@@ -74,6 +74,13 @@ object Codec {
             is DuelSettled -> mapOf("type" to "duel_settle", "qid" to e.qid, "n" to e.n)
             is DuelStopped -> mapOf("type" to "duel_stop", "qid" to e.qid, "n" to e.n)
             is DuelPanShown -> mapOf("type" to "duel_pan", "qid" to e.qid, "n" to e.n, "shownAt" to e.shownAt)
+            is ChronoReady -> mapOf("type" to "chrono_ready", "qid" to e.qid, "tour" to e.tour, "cible" to e.cible)
+            is ChronoTargetSet -> mapOf("type" to "chrono_cible", "qid" to e.qid, "tour" to e.tour, "cible" to e.cible)
+            is ChronoStarted -> mapOf("type" to "chrono_start", "qid" to e.qid, "tour" to e.tour, "goAt" to e.goAt, "cacheMs" to e.cacheMs, "teams" to e.teams)
+            is ChronoBuzzed -> mapOf("type" to "chrono_buzz", "qid" to e.qid, "tour" to e.tour, "team" to e.team, "t" to e.t)
+            is ChronoShown -> mapOf("type" to "chrono_shown", "qid" to e.qid, "tour" to e.tour, "shownAt" to e.shownAt)
+            is ChronoSettled -> mapOf("type" to "chrono_settle", "qid" to e.qid, "tour" to e.tour, "force" to e.force.takeIf { it })
+            is ChronoStopped -> mapOf("type" to "chrono_stop", "qid" to e.qid, "tour" to e.tour)
             is SimonTourReady -> mapOf("type" to "simon_tour", "qid" to e.qid, "tour" to e.tour, "sequence" to e.sequence.joinToString(","), "teams" to e.teams)
             is SimonSuiteStarted -> mapOf("type" to "simon_start", "qid" to e.qid, "tour" to e.tour, "suite" to e.suite)
             // Réponses : les éléments tapés en une chaîne (« rouge,vert,4 »), absents si rien n'a été tapé.
@@ -164,6 +171,15 @@ object Codec {
             "duel_settle" -> DuelSettled(seq, at, m["qid"] as String, m.num("n").toInt())
             "duel_stop" -> DuelStopped(seq, at, m["qid"] as String, m.num("n").toInt())
             "duel_pan" -> DuelPanShown(seq, at, m["qid"] as String, m.num("n").toInt(), m.num("shownAt"))
+            "chrono_ready" -> ChronoReady(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("cible").toInt())
+            "chrono_cible" -> ChronoTargetSet(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("cible").toInt())
+            "chrono_start" -> ChronoStarted(
+                seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("goAt"), m.num("cacheMs"), (m["teams"] as List<*>).map { it as String },
+            )
+            "chrono_buzz" -> ChronoBuzzed(seq, at, m["qid"] as String, m.num("tour").toInt(), m["team"] as String, m.num("t"))
+            "chrono_shown" -> ChronoShown(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("shownAt"))
+            "chrono_settle" -> ChronoSettled(seq, at, m["qid"] as String, m.num("tour").toInt(), m["force"] == true)
+            "chrono_stop" -> ChronoStopped(seq, at, m["qid"] as String, m.num("tour").toInt())
             "simon_tour" -> SimonTourReady(
                 seq, at, m["qid"] as String, m.num("tour").toInt(), (m["sequence"] as String).split(","), (m["teams"] as List<*>).map { it as String },
             )
@@ -289,9 +305,9 @@ object Codec {
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
                 // « Ça va exploser ! » : la mèche reste un secret, même pour les tablettes.
                 // Statues musicales (depuis le 27/10) : plus de chrono, chaque chanson dure ce qu'elle dure.
-                "durationMs" to q.durationMs.takeIf { !q.isPatate && !q.isStatues && !q.isDuel && !q.isSimon },
+                "durationMs" to q.durationMs.takeIf { !q.isPatate && !q.isStatues && !q.isDuel && !q.isSimon && !q.isChrono },
                 "deadline" to game.deadline().takeIf { !q.isPatate },
-                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && !q.isStatues && !q.isDuel && !q.isSimon && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && !q.isStatues && !q.isDuel && !q.isSimon && !q.isChrono && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
                 "correct" to if (revealed && !q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
@@ -306,6 +322,7 @@ object Codec {
             if (q.isStatues) out["statues"] = statuesState(game)
             if (q.isDuel) out["duel"] = duelState(game, teams)
             if (q.isSimon) out["simon"] = simonState(game)
+            if (q.isChrono) out["chrono"] = chronoState(game)
             if (q.isGonfleur) out["pump"] = pumpKey(game)?.let { mapOf("key" to it, "goAt" to game.pumpGoAt, "target" to PUMP_TARGET) }
             if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
@@ -344,6 +361,38 @@ object Codec {
             "result" to d?.result?.let { r -> mapOf("winner" to r.winner, "loser" to r.loser, "early" to r.early, "ms" to r.ms, "points" to r.points) },
             "played" to d?.played?.ifEmpty { null },
             "allPlayed" to game.duelTousPasses(teams),
+        )
+    }
+
+    /** Chrono caché : clé du buzz des tablettes pour le tour en cours (`chrono/<clé>/<équipe>`), ou null. */
+    fun chronoKey(game: Game): String? {
+        val c = game.state.chrono?.takeIf { it.enCours } ?: return null
+        if (game.question?.isChrono != true || game.state.paused) return null
+        return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${c.tour}-${c.startAt}"
+    }
+
+    /**
+     * Chrono caché, pour la TV, la régie et les tablettes : le tour, la cible, l'étape, l'heure du 0 et du drap, les
+     * équipes du tour et celles qui ont déjà buzzé (sans leur heure), puis le bilan (écart de chaque équipe, gagnantes).
+     */
+    fun chronoState(game: Game): Map<String, Any?> {
+        val c = game.state.chrono
+        val q = game.question
+        return mapOf(
+            "tour" to c?.tour,
+            "tours" to (q?.chronoTours ?: CHRONO_TOURS),
+            "cible" to c?.cible,
+            "step" to (c?.step ?: "none"),
+            "key" to chronoKey(game),
+            "goAt" to c?.takeIf { it.enCours }?.goAt,
+            "cacheMs" to c?.takeIf { it.enCours }?.cacheMs,
+            "teams" to c?.teams?.ifEmpty { null },
+            "buzzed" to c?.takeIf { it.enCours }?.buzzes?.map { it.team }?.ifEmpty { null },
+            "result" to c?.result?.let { r ->
+                mapOf("ecarts" to r.ecarts.ifEmpty { null }, "winners" to r.winners.ifEmpty { null }, "points" to r.points, "at" to r.at)
+            },
+            "gagnes" to c?.gagnes?.ifEmpty { null },
+            "last" to game.chronoFini,
         )
     }
 

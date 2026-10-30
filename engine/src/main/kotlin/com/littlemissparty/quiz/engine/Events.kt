@@ -350,6 +350,38 @@ data class SimonJudged(
 /** Le Simon du Prof : Sarah arrête la suite en cours ; elle se relancera telle quelle, sans élimination. */
 data class SimonStopped(override val seq: Int, override val at: Long, val qid: String, val tour: Int, val suite: Int) : GameEvent
 
+/** Le Chrono caché : le tour [tour] est prêt, avec la [cible] (secondes) ; il attend « ▶ Lancer le chrono ». */
+data class ChronoReady(override val seq: Int, override val at: Long, val qid: String, val tour: Int, val cible: Int) : GameEvent
+
+/** Le Chrono caché : Sarah change la [cible] du tour prêt [tour] (− / + du téléphone). */
+data class ChronoTargetSet(override val seq: Int, override val at: Long, val qid: String, val tour: Int, val cible: Int) : GameEvent
+
+/**
+ * Le Chrono caché : le tour [tour] est lancé entre les équipes [teams] ; le 0 du chrono à [goAt] (après le décompte),
+ * le drap de Buzzy tombe [cacheMs] après le 0.
+ */
+data class ChronoStarted(
+    override val seq: Int,
+    override val at: Long,
+    val qid: String,
+    val tour: Int,
+    val goAt: Long,
+    val cacheMs: Long,
+    val teams: List<String>,
+) : GameEvent
+
+/** Le Chrono caché : la tablette de [team] a buzzé, appui à [t] (heure du serveur estimée par la tablette). */
+data class ChronoBuzzed(override val seq: Int, override val at: Long, val qid: String, val tour: Int, val team: String, val t: Long) : GameEvent
+
+/** Le Chrono caché : le 0 du chrono est apparu à l'écran de la TV à [shownAt] (heure du serveur). */
+data class ChronoShown(override val seq: Int, override val at: Long, val qid: String, val tour: Int, val shownAt: Long) : GameEvent
+
+/** Le Chrono caché : plus de buzz à attendre (toutes ont buzzé, ou [CHRONO_ATTENTE_MS] après la cible) : le bilan. */
+data class ChronoSettled(override val seq: Int, override val at: Long, val qid: String, val tour: Int, val force: Boolean = false) : GameEvent
+
+/** Le Chrono caché : Sarah arrête le tour en cours ; il reste prêt, sans points. */
+data class ChronoStopped(override val seq: Int, override val at: Long, val qid: String, val tour: Int) : GameEvent
+
 /**
  * Saut de la régie vers la question [index] (début d'un jeu de la prestation), en avant comme en arrière.
  * Les points des questions [clear] sont retirés : un jeu rejoué ne compte jamais deux fois.
