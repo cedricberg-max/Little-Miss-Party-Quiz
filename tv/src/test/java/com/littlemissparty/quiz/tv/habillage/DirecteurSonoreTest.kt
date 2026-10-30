@@ -1419,7 +1419,7 @@ class DirecteurSonoreTest {
     }
 
     @Test
-    fun `presentation du Gonfleur fou - Pump It Up, boucle entiere`() {
+    fun `presentation du Gonfleur fou - Dont you know, boucle entiere`() {
         val gonfleur = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "gonfleur|", gameShow = true, famille = "gonfleur")
         assertEquals(Ambiance.GONFLEUR_PRESENTATION, ambiancePresentation(gonfleur))
         assertEquals(Ambiance.PRESENTATION, ambiancePresentation(gonfleur.copy(gameShow = false)))

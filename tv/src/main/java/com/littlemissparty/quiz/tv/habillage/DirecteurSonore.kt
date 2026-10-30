@@ -804,7 +804,7 @@ enum class Lit(
     MIMES_INTRO(null, "gs_mimes_intro"),
     /** Game Show, Statues musicales : la boucle sous leur vidéo d'intro dans la rue (cedric, 30/10) : U Can't Touch This, 14,43 s, boucle entière, −12 LUFS. */
     STATUES_INTRO(null, "gs_statues_intro"),
-    /** Game Show, Gonfleur fou : la boucle sous sa vidéo d'intro (cedric, 30/10) : Pump It Up, 4 mesures, 7,44 s, boucle entière, −12 LUFS. */
+    /** Game Show, Gonfleur fou : la boucle sous sa vidéo d'intro (cedric, 30/10) : « Don't you know » (remplace Pump It Up, 30/10), 7,42 s, boucle entière, −12 LUFS. */
     GONFLEUR_INTRO(null, "gs_gonfleur_intro"),
     /** Game Show, Quiz illustré : la boucle sous sa vidéo d'intro (cedric, 30/10) : Des chiffres et des lettres, 19,05 s, boucle entière, −12 LUFS. */
     ILLUSTRE_INTRO(null, "gs_quizillustre_intro"),
@@ -892,7 +892,7 @@ enum class Ambiance(
     MIMES_PRESENTATION(gameShow = mapOf(Lit.MIMES_INTRO to 0.5f)),
     /** Présentation des Statues musicales (Game Show) : U Can't Touch This, au volume de la boucle « fête ». */
     STATUES_PRESENTATION(gameShow = mapOf(Lit.STATUES_INTRO to 0.5f)),
-    /** Présentation du Gonfleur fou (Game Show) : Pump It Up, au volume de la boucle « fête ». */
+    /** Présentation du Gonfleur fou (Game Show) : « Don't you know », au volume de la boucle « fête ». */
     GONFLEUR_PRESENTATION(gameShow = mapOf(Lit.GONFLEUR_INTRO to 0.5f)),
     /** Présentation du Quiz illustré (Game Show) : Des chiffres et des lettres, au volume de la boucle « fête ». */
     ILLUSTRE_PRESENTATION(gameShow = mapOf(Lit.ILLUSTRE_INTRO to 0.5f)),
