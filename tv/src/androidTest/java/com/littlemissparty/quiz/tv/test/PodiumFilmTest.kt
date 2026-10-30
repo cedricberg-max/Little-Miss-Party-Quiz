@@ -112,7 +112,7 @@ class PodiumFilmTest : TestTv() {
             device.executeShellCommand("screencap -p $dossier/film-blanc-%04d.png".format(k))
             surLeFil { blanc.value = false; Snapshot.sendApplyNotifications() }
             // Le podium bouge d'une image à l'autre (logo qui apparaît, titre qui pulse) : l'horloge avance bien.
-            val taille = device.executeShellCommand("stat -c %s $dossier/film-noir-%04d.png".format(k)).trim().toLongOrNull() ?: -1L
+            val taille = device.executeShellCommand("stat -c %%s $dossier/film-noir-%04d.png".format(k)).trim().toLongOrNull() ?: -1L
             if (taille != noirPrecedent) changements++
             noirPrecedent = taille
             if (k % 25 == 0) Log.i(TAG, "Film du podium : ${k * PAS_MS} ms")
