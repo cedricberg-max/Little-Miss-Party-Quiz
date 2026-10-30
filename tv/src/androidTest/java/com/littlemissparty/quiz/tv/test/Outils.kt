@@ -487,7 +487,9 @@ class Ecran(private val nomTest: () -> String) {
      */
     fun capture(nom: String, attente: Long = 0) {
         if (attente > 0) SystemClock.sleep(attente)
-        val fichier = "$DOSSIER_CAPTURES/${nomTest()}-%02d-$nom.png".format(++numero)
+        // Le nom d'un test à paramètres (« tour[3 équipes] ») a des espaces : la commande screencap le couperait.
+        val test = nomTest().replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val fichier = "$DOSSIER_CAPTURES/$test-%02d-$nom.png".format(++numero)
         Log.i(TAG, "Capture $fichier")
         device.executeShellCommand("screencap -p $fichier")
     }
