@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.text
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -119,6 +120,12 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
     val tubesPartis = apres(Tempo.PODIUM_REVELATION + 500, Unit)
     val petitRobot = if (classement.size >= 7) 0.8f else 1f
     var feteEchec by remember { mutableStateOf(false) }
+    // Les jauges en plan cinéma (décor 3D et robot dans la même vidéo, cedric 30/10) ; sans le fichier ou s'il ne se
+    // lit pas, le plateau et les clips du robot dans l'arche, comme avant.
+    val contexte = LocalContext.current
+    val jaugesRes = remember { contexte.resources.getIdentifier(JAUGES_VIDEO, "raw", contexte.packageName) }
+    var jaugesEchec by remember { mutableStateOf(false) }
+    val jaugesCinema = jaugesRes != 0 && !jaugesEchec
     val ligneNom = if (classement.size >= 6) 439.dp else 452.5.dp
     Box(modifier.fillMaxSize()) {
         // Salle un peu assombrie pendant le suspense (l'arche du plateau reste visible), qui se rallume au solo.
@@ -126,12 +133,16 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
             Modifier.fillMaxSize().graphicsLayer {
                 val m = ms()
                 alpha = when {
+                    // Sur la vidéo des jauges, la salle est déjà dans sa lumière : un voile léger seulement.
+                    jaugesCinema && m < revelation -> (m / 800f).coerceAtMost(1f) * 0.2f
                     m < 800f -> m / 800f * 0.45f
                     m < revelation -> 0.45f
                     else -> 0.45f - 0.2f * ((m - revelation) / 600f).coerceIn(0f, 1f)
                 }
             }.background(GS.Noir),
         )
+        // Les jauges en plan cinéma, de la première image au solo ; leur dernière image reste sous la fête qui arrive.
+        if (jaugesCinema && !tubesPartis) JaugesCinema(jaugesRes, { ms().toInt() }, { robot == 3 && !feteEchec }, { jaugesEchec = true })
         // Au solo, la fête en plan cinéma couvre tout le plateau ; elle part exactement sur le solo.
         if (robot == 3 && !feteEchec) FeteCinema({ (revelation - ms()).toInt() }, { feteEchec = true })
         if (gagnants.size > 1) Rayons { (ms() - revelation).coerceAtLeast(0f) }
@@ -161,15 +172,16 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
                         val arche = Modifier
                             .padding(start = (480f - ROBOT_ARCHE_L / 2 * petitRobot).dp, top = (ROBOT_ARCHE_SOL - 0.84f * ROBOT_ARCHE_H * petitRobot).dp)
                             .size((ROBOT_ARCHE_L * petitRobot).dp, (ROBOT_ARCHE_H * petitRobot).dp)
-                        when (robot) {
-                            1 -> ClipRobotEnBoucle(ROBOT_ATTENTE, ROBOT_ATTENTE_BOUCLE_MS, arche)
-                            2 -> ClipRobotEnBoucle(ROBOT_TAMBOUR, -1, arche)
+                        when {
+                            jaugesCinema -> {}
+                            robot == 1 -> ClipRobotEnBoucle(ROBOT_ATTENTE, ROBOT_ATTENTE_BOUCLE_MS, arche)
+                            robot == 2 -> ClipRobotEnBoucle(ROBOT_TAMBOUR, -1, arche)
                             else -> {}
                         }
                     }
                     // Halo de l'arche qui couvre le passage du robot qui attend au robot qui joue du tambour (au solo,
                     // le flash blanc couvre l'arrivée du robot de la fête).
-                    Canvas(Modifier.fillMaxSize()) {
+                    if (!jaugesCinema) Canvas(Modifier.fillMaxSize()) {
                         val m = ms()
                         val a = 0.7f * battement(m - (revelation - ROBOT_TAMBOUR_AVANT_MS) + 200f, 500f)
                         if (a > 0f) {
@@ -424,6 +436,41 @@ internal const val ROBOT_TAMBOUR_AVANT_MS = 4_300L
 private const val ROBOT_ARCHE_L = 237f
 private const val ROBOT_ARCHE_H = 300f
 private const val ROBOT_ARCHE_SOL = 420f
+
+/**
+ * Les jauges en plan cinéma (res/raw/gs_podium_jauges.mp4, cedric 30/10) : le nouveau décor 3D du podium et le robot qui
+ * attend puis joue du tambour, dans une seule vidéo calée sur la musique depuis son début ; les tubes, les compteurs et
+ * les textes sont dessinés par-dessus. Elle part à la position de la musique ([ecouleMs]) quand elle est prête. Une
+ * seule vidéo à la fois : le décor du dessous ne lit plus son fond, et le lecteur est rendu à [JAUGES_VIDEO_FIN_MS],
+ * avant que la fête ne prépare le sien ; sa dernière image reste affichée jusqu'à ce que la fête la couvre.
+ * [fetePrend] : la fête a déjà pris la main sur le décor quand les jauges partent.
+ */
+@Composable
+private fun JaugesCinema(resId: Int, ecouleMs: () -> Int, fetePrend: () -> Boolean, surEchec: () -> Unit) {
+    DisposableEffect(Unit) {
+        Habillage.finVideo.value = true
+        onDispose { if (!fetePrend()) Habillage.finVideo.value = false }
+    }
+    var prete by remember { mutableStateOf(false) }
+    var vue by remember { mutableStateOf<LecteurFond?>(null) }
+    AndroidView(
+        factory = {
+            LecteurFond(
+                it, resId, surPret = { prete = true }, surEchec = surEchec, boucle = false,
+                finMs = JAUGES_VIDEO_FIN_MS, surFin = { vue?.liberer() }, departLu = { ecouleMs().coerceAtLeast(0) },
+            ).also { v -> vue = v }
+        },
+        update = { it.alpha = if (prete) 1f else 0f },
+        onRelease = { it.liberer() },
+        modifier = Modifier.fillMaxSize().clearAndSetSemantics {},
+    )
+}
+
+/** La vidéo des jauges en plan cinéma (sans elle : le plateau et les clips du robot). */
+internal const val JAUGES_VIDEO = "gs_podium_jauges"
+
+/** Le lecteur des jauges est rendu 500 ms avant le solo : la fête prépare le sien 300 ms avant (une vidéo à la fois). */
+internal const val JAUGES_VIDEO_FIN_MS = (Tempo.PODIUM_REVELATION - 500).toInt()
 
 /**
  * La fête du gagnant en plan cinéma, plein écran (res/raw/gs_podium_fete.mp4, calculée à l'avance en 3D sur le plateau) :

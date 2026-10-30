@@ -126,6 +126,7 @@ internal const val MESURES_AVANT_SAUT = 5
  * fin de la vidéo (sans boucle) ou dès [finMs] atteint. [departMs] : la vidéo commence là (plateau qui reprend
  * après un clip du robot, [GelFond]). [repriseMs] : à la fin du fichier, la vidéo repart de là (une arrivée jouée
  * une fois, puis une boucle : écran de fin). [attenteMs] : délai avant de partir, lu quand la vidéo est prête.
+ * [departLu] : comme [departMs], mais lu quand la vidéo est prête (vidéo calée sur une musique déjà partie).
  */
 internal class LecteurFond(
     context: Context,
@@ -137,6 +138,7 @@ internal class LecteurFond(
     private val finMs: Int = Int.MAX_VALUE,
     private val surFin: () -> Unit = {},
     private val departMs: Int = 0,
+    private val departLu: (() -> Int)? = null,
     private val repriseMs: Int? = null,
     private val attenteMs: () -> Int = { 0 },
     /** [volume] > 0 : appelé une fois la vidéo prête, vrai si la box a une piste son à lire (grande intro). */
@@ -217,7 +219,8 @@ internal class LecteurFond(
                 setOnPreparedListener { mp ->
                     if (fini) return@setOnPreparedListener
                     if (volume > 0f) surSon(runCatching { mp.trackInfo.any { it.trackType == MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_AUDIO } }.getOrDefault(true))
-                    if (departMs > 0) runCatching { mp.seekTo(departMs.toLong(), MediaPlayer.SEEK_CLOSEST) }
+                    val depart = departLu?.invoke() ?: departMs
+                    if (depart > 0) runCatching { mp.seekTo(depart.toLong(), MediaPlayer.SEEK_CLOSEST) }
                     val lancer = Runnable {
                         if (fini || lecteur !== mp) return@Runnable
                         mp.start()

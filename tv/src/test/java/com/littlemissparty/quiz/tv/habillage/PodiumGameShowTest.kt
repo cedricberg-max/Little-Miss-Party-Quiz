@@ -183,4 +183,15 @@ class PodiumGameShowTest {
         assertTrue(!corps.contains("verticalGradient") && !corps.contains("Brush."))
         assertTrue(!source.contains("radialGradient(listOf(GS.Noir"))
     }
+
+    @Test
+    fun `jauges en plan cinema - le lecteur est rendu avant que la fete prepare le sien, une seule video a la fois`() {
+        // La fête se prépare 300 ms avant le solo ([PodiumGameShow] : robotFete) ; le lecteur des jauges part avant.
+        assertTrue(JAUGES_VIDEO_FIN_MS < Tempo.PODIUM_REVELATION - 300)
+        assertTrue(JAUGES_VIDEO_FIN_MS > Tempo.PODIUM_REVELATION - 1_000)
+        assertEquals("gs_podium_jauges", JAUGES_VIDEO)
+        // Sans le fichier, le plateau et les clips du robot dans l'arche restent (rien ne casse).
+        val f = File("src/main/res/raw/$JAUGES_VIDEO.mp4")
+        if (f.isFile) assertTrue(String(f.readBytes().copyOf(4096), Charsets.ISO_8859_1).contains("moov"))
+    }
 }
