@@ -144,8 +144,9 @@ private val LARGEUR_TITRE_INTRO = 520.dp
  * Intro d'un jeu, design « The Game Show » (cedric, 24 octobre : l'intro fait office d'emblème) : la vidéo du jeu,
  * rendue à l'avance en 3D (16 s en boucle, muette sauf [volumeIntroJeu] : le robot y joue au jeu), en plein écran, et « PROCHAIN JEU » et le
  * nom du jeu écrits en direct en bas à gauche, sur le sol du plateau, sous le robot et à gauche du bouton de
- * l'animatrice. [video] faux (pause) : la vidéo s'arrête. Elle attend [DELAI_INTRO_JEU_MS] puis apparaît en fondu ;
- * pendant ce temps le décor du dessous ne lit pas son propre fond vidéo ([Habillage.introJeu] : une vidéo à la fois).
+ * l'animatrice. [video] faux (pause) : la vidéo s'arrête. L'écran passe au noir tout de suite, puis la vidéo attend
+ * [DELAI_INTRO_JEU_MS] et apparaît en fondu sur ce noir ; pendant ce temps le décor du dessous ne lit pas son propre
+ * fond vidéo ([Habillage.introJeu] : une vidéo à la fois), et ne se voit pas.
  * Si elle ne se lit pas, l'écran dessiné d'avant revient. Pas de son de l'habillage (la piste de la vidéo seulement, voir [volumeIntroJeu]), rien de focalisable.
  */
 @Composable
@@ -182,6 +183,9 @@ internal fun IntroJeuGameShow(titre: String, famille: String, nom: String, video
     val embleme = emblemeJeu(famille)
     val couleur = if (embleme.couleur == Color(0xFFF0CC92)) GS.Rose else enNeon(embleme.couleur)
     Box(modifier.fillMaxSize()) {
+        // Noir dès que l'intro prend la main (cedric, 30/10 : un saut de l'écran d'avant au début des Mimes) : le fond
+        // vidéo du dessous vient de s'arrêter, on ne le voit jamais figé ; l'intro apparaît ensuite en fondu sur ce noir.
+        if (actif) Box(Modifier.fillMaxSize().background(GS.Noir))
         if (lancee) key(essai) {
             AndroidView(
                 factory = {
