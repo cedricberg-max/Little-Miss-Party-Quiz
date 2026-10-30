@@ -810,7 +810,7 @@ enum class Lit(
     ILLUSTRE_INTRO(null, "gs_quizillustre_intro"),
     /** Game Show, Quiz musical : la boucle sous sa vidéo d'intro (cedric, 30/10) : Lady de Modjo, 15,24 s, boucle entière, −12 LUFS. */
     MUSICAL_INTRO(null, "gs_quizmusical_intro"),
-    /** Game Show, Ça va exploser ! : la boucle sous sa vidéo d'intro (cedric, 30/10, pour ce soir) : thème de James Bond, 14,24 s, boucle entière, −12 LUFS. */
+    /** Game Show, Ça va exploser ! : la boucle sous sa vidéo d'intro (cedric, 30/10, pour ce soir) : thème de James Bond, nouvelle boucle A (30/10), 14,74 s, 8 mesures, boucle entière, −12 LUFS. */
     PATATE_INTRO(null, "gs_explose_intro"),
     /** Game Show, Pictionary : la boucle sous sa vidéo d'intro (cedric, 30/10) : Take On Me, 4 mesures, 5,69 s, boucle entière, −12 LUFS. */
     PICTO_INTRO(null, "gs_picto_intro"),
