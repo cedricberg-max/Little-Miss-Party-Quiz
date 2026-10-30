@@ -1155,7 +1155,7 @@ class DirecteurSonoreTest {
         val simon = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)
         val gs = DirecteurSonore().let { it.observer(salon); it.observer(quiz.copy(gameShow = true)); it.observer(simon.copy(gameShow = true)) }
         assertTrue(Son.TRANSITION in gs.sons())
-        assertTrue(Ordre.Musique(Ambiance.SIMON_ENTRE, Tempo.TRANSITION_MUSIQUE) in gs)
+        assertTrue(Ordre.Musique(Ambiance.SIMON_PRESENTATION, Tempo.TRANSITION_MUSIQUE) in gs)
         val cl = DirecteurSonore().let { it.observer(salon); it.observer(quiz); it.observer(simon) }
         assertTrue(Ordre.Musique(Ambiance.PRESENTATION, Tempo.TRANSITION_MUSIQUE) in cl)
     }
@@ -1204,7 +1204,7 @@ class DirecteurSonoreTest {
             assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
         }
         assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
-        assertEquals(Ambiance.SIMON_ENTRE, ambiancePresentation(blind.copy(famille = "simon", simon = true)))
+        assertEquals(Ambiance.SIMON_PRESENTATION, ambiancePresentation(blind.copy(famille = "simon", simon = true)))
         // Blind test : sa boucle d'Alan Braxe, en Game Show seulement, au volume des autres intros.
         assertEquals(Ambiance.BT_PRESENTATION, ambiancePresentation(blind))
         assertEquals(Ambiance.PRESENTATION, ambiancePresentation(blind.copy(gameShow = false)))
@@ -1285,12 +1285,14 @@ class DirecteurSonoreTest {
         val d = DirecteurSonore()
         d.observer(salon.copy(gameShow = true, equipes = 2))
         assertEquals(Ambiance.DISPARU_PRESENTATION, d.observer(disparu).musique())
-        // Le fichier : 750 341 images, la boucle repart à l'échantillon 162 641 (à un échantillon près, ms entières).
+        // Le fichier (sans le silence du début, cedric 30/10) : 733 247 images, la boucle repart à l'échantillon 145 547.
         val wav = java.io.File("src/main/res/raw/gs_disparu_intro.wav").readBytes()
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
-        assertEquals(750_341L, e.images.toLong())
-        assertEquals(162_641.0, Lit.DISPARU_INTRO.repriseMs * 44_100 / 1000.0, 1.0)
+        assertEquals(733_247L, e.images.toLong())
+        assertEquals(145_547L, repriseEnImages(Lit.DISPARU_INTRO.repriseMs, Lit.DISPARU_INTRO.repriseImage, 44_100))
+        // La reprise en millisecondes (lecture de secours) reste à moins d'une milliseconde.
+        assertEquals(145_547.0, Lit.DISPARU_INTRO.repriseMs * 44.1, 44.1)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 
@@ -1372,8 +1374,8 @@ class DirecteurSonoreTest {
         val wav = java.io.File("src/main/res/raw/gs_vraifaux_intro.wav").readBytes()
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
-        assertEquals(485_448L, e.images)
-        assertEquals(322_812L, Lit.VRAIFAUX_INTRO.repriseMs * 44_100 / 1000)
+        assertEquals(468_342L, e.images)
+        assertEquals(305_706L, repriseEnImages(Lit.VRAIFAUX_INTRO.repriseMs, Lit.VRAIFAUX_INTRO.repriseImage, 44_100))
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 
@@ -1445,7 +1447,7 @@ class DirecteurSonoreTest {
             val wav = java.io.File("src/main/res/raw/${l.gs}.wav").readBytes()
             val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
             assertTrue("${l.name} : ${e.dureeMs} ms", kotlin.math.abs(e.dureeMs - 16_000L) > 250)
-            assertTrue("${l.name} : reprise après la fin", l.repriseMs * e.frequence / 1000 < e.images)
+            assertTrue("${l.name} : reprise après la fin", repriseEnImages(l.repriseMs, l.repriseImage, e.frequence) < e.images)
         }
     }
 
@@ -1521,7 +1523,6 @@ class DirecteurSonoreTest {
             patate.copy(index = 14, epreuve = "juste|", famille = "juste"),
             patate.copy(index = 16, epreuve = "portes|", famille = "portes"),
             patate.copy(index = 18, epreuve = "duel|", famille = "duel", duel = true),
-            patate.copy(index = 20, epreuve = "simon|", famille = "simon", simon = true),
         ).forEach { i ->
             // Après un autre jeu : c'est bien un nouveau jeu, avec son rideau.
             d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = i.index - 1, equipes = 2, epreuve = "quiz|Q${i.index}", gameShow = true, famille = "quiz"))
@@ -1529,6 +1530,11 @@ class DirecteurSonoreTest {
             assertTrue(i.famille, Son.TRANSITION in arrivee.sons() || i.duel)
             assertTrue(i.famille, arrivee.none { it is Ordre.Caler && it.dansMs == Tempo.TRANSITION_MUSIQUE })
         }
+        // Le Simon (cedric, 30/10 : sa vidéo ne partait pas sur le début de sa boucle) : calé lui aussi.
+        d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 21, equipes = 2, epreuve = "quiz|Q22", gameShow = true, famille = "quiz"))
+        val simon = d.observer(patate.copy(index = 22, epreuve = "simon|", famille = "simon", simon = true))
+        assertTrue(Ordre.Caler(Tempo.TRANSITION_MUSIQUE) in simon)
+        assertEquals(Ordre.Musique(Ambiance.SIMON_PRESENTATION, Tempo.TRANSITION_MUSIQUE), simon.last())
         val classique = DirecteurSonore()
         classique.observer(salon.copy(equipes = 2))
         classique.observer(lancee.copy(gameShow = false, ecran = Ecran.QUESTION))
@@ -1539,6 +1545,7 @@ class DirecteurSonoreTest {
     fun `intro d'un jeu - chaque musique de presentation fait attendre la video, chaque musique d'intro part sans fondu`() {
         PRESENTATIONS_PROPRES.values.forEach { assertTrue("$it", it.presentation) }
         assertTrue(Ambiance.PRESENTATION.presentation)
+        assertTrue(Ambiance.SIMON_PRESENTATION.presentation)
         listOf(Ambiance.DUEL_PRESENTATION, Ambiance.SIMON_ENTRE, Ambiance.QUESTION, Ambiance.SALON, Ambiance.SILENCE).forEach { assertFalse("$it", it.presentation) }
         // Toutes les boucles des présentations propres partent franc ; la « fête » (partout ailleurs aussi) garde son fondu.
         PRESENTATIONS_PROPRES.values.forEach { a -> Lit.entries.filter { a.volume(it, gs = true) > 0f }.forEach { assertTrue("$a $it", it.departFranc) } }
@@ -1605,5 +1612,34 @@ class DirecteurSonoreTest {
         assertEquals(44_100, e.frequence)
         assertEquals(250_929L, e.images)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Simon - la douce partie sur son temps fort, seulement sous l'intro, au meme volume`() {
+        val simon = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true, gameShow = true, famille = "simon")
+        assertEquals(Ambiance.SIMON_PRESENTATION, ambiancePresentation(simon))
+        assertEquals(Ambiance.SIMON_PRESENTATION.volume(Lit.SIMON_INTRO, gs = true), Ambiance.SIMON_ENTRE.volume(Lit.SIMON_DOUCE, gs = true), 0f)
+        Lit.entries.filter { it != Lit.SIMON_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.SIMON_PRESENTATION.volume(it, gs = true), 0f) }
+        assertTrue(Lit.SIMON_INTRO.departFranc)
+        assertNull(Lit.SIMON_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.SIMON_INTRO.repriseMs)
+        // Le jeu lui-même garde la douce d'avant entre deux suites.
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true))
+        assertEquals(Ambiance.SIMON_PRESENTATION, d.observer(simon).musique())
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(simon.copy(ecran = Ecran.QUESTION)).musique())
+        val wav = java.io.File("src/main/res/raw/gs_simon_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(662_146L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `reprise d'une boucle - a l'echantillon pres quand elle est donnee, sinon en millisecondes`() {
+        assertEquals(305_706L, repriseEnImages(6_932L, 305_706L, 44_100))
+        assertEquals(95_256L, repriseEnImages(2_160L, 0L, 44_100))
+        assertEquals(0L, repriseEnImages(0L, 0L, 44_100))
+        Lit.entries.filter { it.repriseImage > 0 }.forEach { assertEquals("$it", it.repriseImage.toDouble(), it.repriseMs * 44.1, 44.1) }
     }
 }

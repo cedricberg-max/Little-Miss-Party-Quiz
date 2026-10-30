@@ -187,8 +187,8 @@ internal fun IntroJeuGameShow(titre: String, famille: String, nom: String, video
                 factory = {
                     LecteurFond(
                         it, ressourceIntroJeu(nom), surPret = { prete = true }, repriseMs = repriseIntroJeu(nom), volume = volumeIntroJeu(nom),
-                        // Prête, elle attend que sa musique parte, pour démarrer avec elle (le Duel et le Simon ont leur calage).
-                        attenteMs = { if (nom == "duel" || nom == "simon") 0 else Sons.attenteIntroMs() },
+                        // Prête, elle attend que sa musique parte, pour démarrer avec elle (le Duel a son propre calage).
+                        attenteMs = { if (nom == "duel") 0 else Sons.attenteIntroMs() },
                         surEchec = {
                             Sons.incident("Intro du jeu « $nom » : la vidéo a lâché (${GelFond.fondsOuverts} vidéos ouvertes), essai ${essai + 1}")
                             echec = true

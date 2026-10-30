@@ -63,8 +63,8 @@ class DirecteurSonore {
     /** Une épreuve a changé pendant la pause : la transition sera jouée après le décompte. */
     private var transitionEnAttente = false
 
-    /** Présentation d'un jeu à intro vidéo, Game Show (le Duel et le Simon ont leur propre départ). */
-    private fun introCalee(i: Instant) = i.gameShow && !i.duel && !i.simon && nomIntroJeu(i.famille) != null
+    /** Présentation d'un jeu à intro vidéo, Game Show (le Duel a son propre départ, son air western joué une fois). */
+    private fun introCalee(i: Instant) = i.gameShow && !i.duel && nomIntroJeu(i.famille) != null
 
     private fun changeDEcran(a: Instant, b: Instant) = a.ecran != b.ecran || a.index != b.index || a.partie != b.partie
 
@@ -667,27 +667,33 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
 )
 
 /** Musique d'une présentation de jeu (Game Show) : son intro vidéo part avec elle ([Sons.attenteIntroMs]). */
-internal val Ambiance.presentation: Boolean get() = this == Ambiance.PRESENTATION || this in PRESENTATIONS_PROPRES.values
+internal val Ambiance.presentation: Boolean get() =
+    this == Ambiance.PRESENTATION || this == Ambiance.SIMON_PRESENTATION || this in PRESENTATIONS_PROPRES.values
 
 /** Musique d'intro d'un jeu : elle part d'emblée à son volume, sans fondu d'entrée, du début de son fichier. */
 internal val Lit.departFranc: Boolean get() = name.endsWith("_INTRO")
 
-/** Qui a disparu ? : la boucle de Mission Impossible repart de là, après son début (échantillon 162 641 à 44,1 kHz). */
-internal const val DISPARU_INTRO_REPRISE_MS = 3_688L
+/**
+ * Qui a disparu ? : la boucle de Mission Impossible repart de là, après son début (cedric, 30/10 : sans les 0,388 s de
+ * silence du début) : échantillon [DISPARU_INTRO_REPRISE_IMAGE] à 44,1 kHz.
+ */
+internal const val DISPARU_INTRO_REPRISE_MS = 3_300L
+internal const val DISPARU_INTRO_REPRISE_IMAGE = 145_547L
 
 /** Quiz : la boucle de Questions pour un champion repart de là, après les trompettes (échantillon 95 256). */
 internal const val QUIZ_INTRO_REPRISE_MS = 2_160L
 
 /**
- * Vrai ou Faux express : la boucle de Video Killed the Radio Star repart de là, après le « Oh-a-oh » du début (échantillon
- * 322 812 : le fichier commence par 92 échantillons de silence pour que la reprise tombe pile sur une milliseconde).
+ * Vrai ou Faux express : Video Killed the Radio Star, le « Oh-a-oh » une fois (le fichier part pile dessus, cedric 30/10 :
+ * sans le quart de seconde d'avant), puis la boucle repart de l'échantillon [VRAIFAUX_INTRO_REPRISE_IMAGE].
  */
-internal const val VRAIFAUX_INTRO_REPRISE_MS = 7_320L
+internal const val VRAIFAUX_INTRO_REPRISE_MS = 6_932L
+internal const val VRAIFAUX_INTRO_REPRISE_IMAGE = 305_706L
 
 /** Musique de l'écran de présentation d'un jeu ([propres] : voir [PRESENTATIONS_PROPRES]). */
 internal fun ambiancePresentation(i: Instant, propres: Map<String, Ambiance> = PRESENTATIONS_PROPRES): Ambiance = when {
     i.duel -> Ambiance.DUEL_PRESENTATION
-    i.simon && i.gameShow -> Ambiance.SIMON_ENTRE
+    i.simon && i.gameShow -> Ambiance.SIMON_PRESENTATION
     i.gameShow -> propres[i.famille] ?: Ambiance.PRESENTATION
     else -> Ambiance.PRESENTATION
 }
@@ -704,7 +710,13 @@ enum class Ecran { HORS_PARTIE, SALON, PRESENTATION, QUESTION, MIMES, MIMES_TOUR
  * Les boucles musicales de 16 s (8 mesures à 120 BPM), toujours calées sur le même tempo. [gs] : boucle propre au
  * Game Show, sans équivalent classique ([fichier] null : le Classique ne la charge pas).
  */
-enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long = 0) {
+enum class Lit(
+    val fichier: String?,
+    val gs: String? = null,
+    val repriseMs: Long = 0,
+    /** Reprise à l'échantillon près (44,1 kHz), quand elle ne tombe pas sur une milliseconde entière ; 0 : [repriseMs]. */
+    val repriseImage: Long = 0,
+) {
     COMPLET("lmp_bed_full"),
     LEGER("lmp_bed_light"),
     MIMES("lmp_bed_mimes"),
@@ -736,6 +748,11 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
     SIMON_SUITE(null, "gs_simon_suite"),
     SIMON_FORT(null, "gs_simon_fort"),
     /**
+     * Game Show, le Simon du Prof : sous sa vidéo d'intro seulement (cedric, 30/10), la douce tournée pour partir sur son
+     * temps fort (même boucle de 15,01 s, sans couture) ; le jeu garde [SIMON_DOUCE].
+     */
+    SIMON_INTRO(null, "gs_simon_intro"),
+    /**
      * Game Show, Blind test : la musique d'attente de l'écran « Lancer le morceau » (cedric, 29/10, boucle A) : l'intro
      * seule de « Music Sounds Better With You » (Stardust), mesures 1 à 7, 13,52 s à 124,2 BPM, sans blanc, −12 LUFS
      * comme l'accueil.
@@ -760,9 +777,10 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
     ZOOM_INTRO(null, "gs_zoom_intro"),
     /**
      * Game Show, Qui a disparu ? : la boucle sous sa vidéo d'intro (cedric, 29/10) : Mission Impossible, un début joué
-     * une fois (3,688 s), puis 13,3 s qui tournent à partir de l'échantillon 162 641 ([repriseMs]), −12 LUFS.
+     * une fois (3,30 s, son premier échantillon sur le début de la musique), puis 13,3 s qui tournent à partir de
+     * l'échantillon 145 547 ([repriseImage]), −12 LUFS.
      */
-    DISPARU_INTRO(null, "gs_disparu_intro", repriseMs = DISPARU_INTRO_REPRISE_MS),
+    DISPARU_INTRO(null, "gs_disparu_intro", repriseMs = DISPARU_INTRO_REPRISE_MS, repriseImage = DISPARU_INTRO_REPRISE_IMAGE),
     /** Game Show, Coffres mystères : la boucle sous sa vidéo d'intro (cedric, 29/10 : « parfaite ») : Pirates des Caraïbes, 13,62 s, −12 LUFS. */
     COFFRES_INTRO(null, "gs_coffres_intro"),
     /**
@@ -778,7 +796,7 @@ enum class Lit(val fichier: String?, val gs: String? = null, val repriseMs: Long
      * the Radio Star », à la place de X-Files) : le « Oh-a-oh » joué une fois, puis la boucle depuis l'échantillon 322 812
      * ([repriseMs]), 11,01 s en tout.
      */
-    VRAIFAUX_INTRO(null, "gs_vraifaux_intro", repriseMs = VRAIFAUX_INTRO_REPRISE_MS),
+    VRAIFAUX_INTRO(null, "gs_vraifaux_intro", repriseMs = VRAIFAUX_INTRO_REPRISE_MS, repriseImage = VRAIFAUX_INTRO_REPRISE_IMAGE),
     /**
      * Game Show, Mimes : la boucle sous leur vidéo d'intro (cedric, 30/10 : « parfaite ») : Just Because of You,
      * 4 mesures, 8,34 s, raccord déjà fondu, −12 LUFS.
@@ -840,6 +858,8 @@ enum class Ambiance(
      * sous la voix de Sarah ; Classique : la musique des questions.
      */
     SIMON_ENTRE(legere = 0.7f, gameShow = mapOf(Lit.SIMON_DOUCE to 0.82f)),
+    /** Game Show : la présentation du Simon (sa vidéo d'intro), la douce partie sur son temps fort, au même volume. */
+    SIMON_PRESENTATION(gameShow = mapOf(Lit.SIMON_INTRO to 0.82f)),
     /**
      * Pendant une suite : la boucle aux percussions, assez bas pour que la note de chaque boule passe nettement au-dessus
      * (cedric, 28/10 au soir : « pas assez fort ») ; Classique : silence.
@@ -923,7 +943,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PICTO_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PICTO_INTRO, Lit.SIMON_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }

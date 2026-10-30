@@ -272,7 +272,7 @@ object Sons {
             Lit.FIN -> ({ t -> tourFin = t })
             else -> null
         }
-        val b = boucle(app, nom, surTour, l.repriseMs) ?: return@essayer
+        val b = boucle(app, nom, surTour, l.repriseMs, l.repriseImage) ?: return@essayer
         lits[l] = b
         val v = volumes.getValue(l)
         b.setVolume(v)
@@ -638,11 +638,11 @@ object Sons {
     }
 
     /** [surTour] : appelé au début de chaque tour (instant SystemClock.elapsedRealtime), avec 0 quand elle s'arrête. */
-    private fun boucle(context: Context, nom: String, surTour: ((Long) -> Unit)? = null, repriseMs: Long = 0): LitSonore? {
+    private fun boucle(context: Context, nom: String, surTour: ((Long) -> Unit)? = null, repriseMs: Long = 0, repriseImage: Long = 0): LitSonore? {
         // Fichier en WAV (les fonds du Game Show) : un flux continu, sans relais entre deux lecteurs.
         val res = id(context, nom) ?: return null
         try {
-            BouclePcm.ouvrir(context, res, surTour, BOUCLE_MS, { incident("Boucle « $nom » : $it") }, repriseMs)?.let { return it }
+            BouclePcm.ouvrir(context, res, surTour, BOUCLE_MS, { incident("Boucle « $nom » : $it") }, repriseMs, repriseImage)?.let { return it }
         } catch (e: Exception) {
             incident("Boucle « $nom » : flux impossible (${e.message}), lue par deux lecteurs")
         }

@@ -293,6 +293,7 @@ internal class BouclePcm private constructor(
          */
         fun ouvrir(
             context: Context, res: Int, surTour: ((Long) -> Unit)?, tempoMs: Long, signaler: (String) -> Unit, repriseMs: Long = 0,
+            repriseImage: Long = 0,
         ): BouclePcm? {
             val afd = context.resources.openRawResourceFd(res) ?: return null
             val flux = try { afd.createInputStream() } catch (e: Exception) { afd.close(); return null }
@@ -302,7 +303,7 @@ internal class BouclePcm private constructor(
                 val f = lireEnteteWav(tete.copyOf(maxOf(lu, 0)), afd.length) ?: run { flux.close(); afd.close(); return null }
                 val decale = f.copy(debutDonnees = afd.startOffset + f.debutDonnees)
                 val periode = f.dureeMs.takeIf { kotlin.math.abs(it - tempoMs) > 250 }
-                val reprise = (repriseMs * f.frequence / 1000).takeIf { it in 0 until f.images } ?: 0L
+                val reprise = repriseEnImages(repriseMs, repriseImage, f.frequence).takeIf { it in 0 until f.images } ?: 0L
                 return BouclePcm(flux, { flux.close(); afd.close() }, decale, periode, reprise, surTour, signaler)
             } catch (e: Exception) {
                 runCatching { flux.close() }
@@ -312,3 +313,7 @@ internal class BouclePcm private constructor(
         }
     }
 }
+
+/** Échantillon de reprise d'une boucle : [repriseImage] s'il est donné (> 0), sinon [repriseMs] à [frequence]. */
+internal fun repriseEnImages(repriseMs: Long, repriseImage: Long, frequence: Int): Long =
+    if (repriseImage > 0) repriseImage else repriseMs * frequence / 1000
