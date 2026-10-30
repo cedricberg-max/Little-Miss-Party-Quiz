@@ -95,7 +95,10 @@ jobs:
           [ -n "$premiere" ] || { echo "=== ABSENT film"; exit 0; }
           d=$(dirname "$premiere")
           echo "Images : $(ls "$d" | grep -c '^film-noir-') noires, $(ls "$d" | grep -c '^film-blanc-') blanches"
-          for fond in noir blanc; do
+          # « film » : les deux fonds ; « film-noir » ou « film-blanc » : un seul (journal moins lourd à relire).
+          fonds="noir blanc"
+          case ",$NOMS," in *,film-noir,*) fonds=noir ;; *,film-blanc,*) fonds=blanc ;; esac
+          for fond in $fonds; do
             ffmpeg -loglevel error -framerate 25 -i "$d/film-$fond-%04d.png" -c:v libx264rgb -crf 10 -preset slow -pix_fmt rgb24 "$RUNNER_TEMP/film-$fond.mp4"
             echo "=== VIDEO film-$fond.mp4 $(wc -c < "$RUNNER_TEMP/film-$fond.mp4")"
             base64 -w 4000 "$RUNNER_TEMP/film-$fond.mp4" | sed 's/^/V64 /'
