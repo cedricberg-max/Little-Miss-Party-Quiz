@@ -218,6 +218,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         patate = s.question?.isPatate == true,
         duel = s.question?.isDuel == true,
         duelEtape = if (s.question?.isDuel == true) s.duel?.step.orEmpty() else "",
+        chronoEtape = if (s.question?.isChrono == true) s.chrono?.step.orEmpty() else "",
         simon = s.question?.isSimon == true,
         simonSuite = s.question?.isSimon == true && s.simon?.enCours == true,
         simonChiffres = SIMON_AVEC_CHIFFRES && s.question?.isSimon == true && s.simon?.enCours == true && (s.simon?.suite ?: 0) >= SIMON_CHIFFRES_DES,

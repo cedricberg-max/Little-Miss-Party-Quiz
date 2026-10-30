@@ -961,8 +961,10 @@ function renderChrono(st) {
   else {
     const e = res.ecarts?.[teamId];
     const gagne = (res.winners ?? []).includes(teamId);
+    const gain = res.gains?.[teamId];
     status.textContent = typeof e !== "number" ? "Pas de buzz pour vous ce tour-ci…"
-      : gagne ? `BRAVO ! La plus proche : ${ecartTexte(e)} ! +${res.points ?? 100} points`
+      : gagne ? `BRAVO ! La plus proche : ${ecartTexte(e)} ! +${gain ?? res.points ?? 100} points`
+      : gain ? `Votre écart : ${ecartTexte(e)}. Bien joué : +${gain} points !`
       : `Votre écart : ${ecartTexte(e)}. Presque !`;
   }
 }

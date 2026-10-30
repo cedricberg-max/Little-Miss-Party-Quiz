@@ -58,7 +58,7 @@ class ChronoCacheTest {
     }
 
     @Test
-    fun `decompte puis 0, le drap tombe entre 6 et 12 s, la plus proche gagne 100 points`() {
+    fun `decompte puis 0, le drap tombe entre 6 et 12 s, 100 points a la plus proche, 50 a la 2e, 25 a la 3e`() {
         val g = pret()
         val go = g.lance(t0 + 1_000)
         assertEquals(t0 + 1_000 + CHRONO_DECOMPTE_MS, go)
@@ -76,6 +76,9 @@ class ChronoCacheTest {
         assertEquals(1_200L, r.ecarts["vert"])
         assertEquals(300L, r.ecarts["rose"])
         assertEquals(CHRONO_POINTS, g.state.scores()["rose"])
+        assertEquals(50, g.state.scores()["orange"])
+        assertEquals(25, g.state.scores()["vert"])
+        assertEquals(mapOf("rose" to 100, "orange" to 50, "vert" to 25), r.gains)
         assertEquals(mapOf("rose" to 1), g.chronoGagnes())
         assertEquals(g.state, relu(g).state, "le journal se relit à l'identique")
     }
@@ -112,6 +115,7 @@ class ChronoCacheTest {
         assertEquals(setOf("vert", "rose"), g.state.chrono!!.result!!.winners.toSet())
         assertEquals(CHRONO_POINTS, g.state.scores()["vert"])
         assertEquals(CHRONO_POINTS, g.state.scores()["rose"])
+        assertEquals(25, g.state.scores()["orange"], "deux 1res : la suivante est 3e")
     }
 
     @Test
@@ -206,8 +210,10 @@ class ChronoCacheTest {
         equipes.forEachIndexed { i, t -> g.chronoBuzz(t, go2 + 21_000 - i * 300L, go2 + 21_500) }
         assertTrue(g.chronoFini)
         assertEquals(CommandStatus.REFUSED, g.run("chrono_go", go2 + 25_000).status)
-        assertEquals(CHRONO_POINTS, g.state.scores()["orange"])
-        assertEquals(CHRONO_POINTS, g.state.scores()["rose"])
+        // Tour 1 : orange 100, vert 50, rose 25 ; tour 2 : rose 100, vert 50, orange 25.
+        assertEquals(125, g.state.scores()["orange"])
+        assertEquals(125, g.state.scores()["rose"])
+        assertEquals(100, g.state.scores()["vert"])
         assertNotNull(g.next(go2 + 26_000))
         assertEquals(Phase.ENDED, g.state.phase, "dernier jeu : les résultats finaux")
     }
@@ -244,6 +250,20 @@ class ChronoCacheTest {
         g.chronoShown(go, go)
         equipes.forEachIndexed { i, t -> g.chronoBuzz(t, go + 30_000 + i * 500L, go + 30_000 + i * 500L + 50) }
         assertEquals(2 * CHRONO_POINTS, g.state.scores()["orange"])
+        assertEquals(CHRONO_POINTS, g.state.scores()["vert"])
+    }
+
+    @Test
+    fun `huit equipes, seules les trois plus proches marquent`() {
+        val huit = listOf("orange", "vert", "rose", "jaune", "bleu", "violet", "rouge", "turquoise")
+        val g = pret()
+        val go = g.lance(t0, huit.toSet())
+        g.chronoShown(go, go)
+        huit.forEachIndexed { i, t -> g.chronoBuzz(t, go + 30_000 + i * 700L, go + 30_000 + i * 700L + 50) }
+        val r = g.state.chrono!!.result!!
+        assertEquals(mapOf("orange" to 100, "vert" to 50, "rose" to 25), r.gains)
+        assertEquals(8, r.ecarts.size)
+        assertEquals(0, g.state.scores()["jaune"] ?: 0)
     }
 
     @Test

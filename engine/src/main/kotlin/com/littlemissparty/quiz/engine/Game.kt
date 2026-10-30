@@ -1530,14 +1530,14 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     private fun chronoLibre(s: GameState): Boolean =
         s.phase == Phase.QUESTION && !s.intro && quiz.questions.getOrNull(s.index)?.isChrono == true && s.chrono?.enCours != true
 
-    /** Chrono de Buzzy : [c] avec son bilan [result] (null : on attend encore), les points des gagnantes. */
+    /** Chrono de Buzzy : [c] avec son bilan [result] (null : on attend encore), les points des trois plus proches. */
     private fun chronoJuge(s: GameState, c: ChronoRound, result: ChronoResult?): GameState {
         if (result == null) return s.copy(chrono = c)
         val q = quiz.questions[s.index]
         var awards = s.awards[q.id].orEmpty()
-        if (result.points > 0) result.winners.forEach { w ->
+        result.gains.forEach { (w, pts) ->
             val a = awards[w]
-            awards = awards + (w to Award(null, correct = true, points = (a?.points ?: 0) + result.points, bonus = a?.bonus ?: 0))
+            awards = awards + (w to Award(null, correct = (a?.correct == true) || w in result.winners, points = (a?.points ?: 0) + pts, bonus = a?.bonus ?: 0))
         }
         return s.copy(
             chrono = c.copy(result = result, gagnes = c.gagnes + result.winners.associateWith { (c.gagnes[it] ?: 0) + 1 }),

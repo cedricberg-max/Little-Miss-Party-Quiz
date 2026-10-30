@@ -389,7 +389,7 @@ object Codec {
             "teams" to c?.teams?.ifEmpty { null },
             "buzzed" to c?.takeIf { it.enCours }?.buzzes?.map { it.team }?.ifEmpty { null },
             "result" to c?.result?.let { r ->
-                mapOf("ecarts" to r.ecarts.ifEmpty { null }, "winners" to r.winners.ifEmpty { null }, "points" to r.points, "at" to r.at)
+                mapOf("ecarts" to r.ecarts.ifEmpty { null }, "winners" to r.winners.ifEmpty { null }, "points" to r.points, "gains" to r.gains.ifEmpty { null }, "at" to r.at)
             },
             "gagnes" to c?.gagnes?.ifEmpty { null },
             "last" to game.chronoFini,

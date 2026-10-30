@@ -2353,7 +2353,8 @@ function renderChrono(st) {
     nom.textContent = name(id);
     const etat = document.createElement("span");
     if (c.step === "result") {
-      etat.textContent = typeof ecarts[id] === "number" ? `${gagnantes.includes(id) ? "🏆 " : ""}${chronoEcart(ecarts[id])}` : "pas de buzz";
+      const gain = res.gains?.[id];
+      etat.textContent = typeof ecarts[id] === "number" ? `${gagnantes.includes(id) ? "🏆 " : ""}${chronoEcart(ecarts[id])}${gain ? ` · +${gain}` : ""}` : "pas de buzz";
       li.classList.toggle("eliminee", typeof ecarts[id] !== "number");
     } else {
       etat.textContent = buzzees.includes(id) ? "✅ a buzzé" : "compte…";
@@ -2375,7 +2376,7 @@ function renderChrono(st) {
   if (c.step !== "run") { clearTimeout(chronoStopArme); chronoStopArme = null; }
   $("chrono-fin").hidden = !["ready", "result"].includes(c.step) || (c.step === "result" && c.last === true);
   $("chrono-fin").disabled = busy;
-  $("chrono-points").textContent = `${st.double ? 200 : 100} points pour l'équipe la plus proche de la cible.`;
+  $("chrono-points").textContent = st.double ? "200, 100 et 50 points pour les 3 équipes les plus proches de la cible." : "100, 50 et 25 points pour les 3 équipes les plus proches de la cible.";
   // Le « Révéler » apparaît à l'heure de la cible ; le décompte se met à jour.
   if (c.step === "run") chronoMinuteur = setTimeout(render, 1000);
 }

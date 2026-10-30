@@ -390,6 +390,11 @@ class DirecteurSonore {
             if (i.duel && i.duelEtape != p.duelEtape) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.duelEtape == "standoff") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
+            // Le Chrono de Buzzy : la musique légère au tour prêt ; elle se tait au départ du chrono (on n'entend plus
+            // que son tic-tac, puis rien sous le drap : aucun rythme ne doit aider à compter) et pendant la révélation.
+            if (i.chronoEtape.isNotEmpty() && i.chronoEtape != p.chronoEtape) {
+                o += Ordre.Musique(ambiance(i), fonduMs = if (i.chronoEtape == "run") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
+            }
             // Simon du Prof : la musique change net quand une suite démarre (Classique : elle se tait), revient après.
             if (i.simonSuite != p.simonSuite || i.simonChiffres != p.simonChiffres) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.simonSuite) Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
@@ -488,6 +493,7 @@ class DirecteurSonore {
                 "ready" -> Ambiance.DUEL_ANNONCE
                 else -> Ambiance.DUEL_ENTRE
             }
+            i.chronoEtape.isNotEmpty() -> if (i.chronoEtape == "ready") Ambiance.SUSPENSE else Ambiance.SILENCE
             // Le Simon du Prof : la boucle douce entre deux suites, celle aux percussions pendant une suite (la note de
             // chaque boule passe par-dessus), la partie où tout joue quand les chiffres arrivent.
             i.simon && i.ecran == Ecran.QUESTION -> when {
@@ -589,6 +595,8 @@ data class Instant(
      */
     val duel: Boolean = false,
     val duelEtape: String = "",
+    /** Le Chrono de Buzzy : étape du tour (« ready », « run », « result »), vide pour les autres jeux. */
+    val chronoEtape: String = "",
     /** Le Simon du Prof : sa question est à l'écran ; une suite est en cours (le robot la montre, les équipes la tapent). */
     val simon: Boolean = false,
     val simonSuite: Boolean = false,
@@ -1058,6 +1066,16 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     DUEL_INTRO("gs_duel_intro_debut", true),
     /** Game Show seulement : la grande fin de l'air western sous les affiches WANTED du classement du duel (22,7 s). */
     DUEL_CLASSEMENT("gs_duel_classement", true),
+    /**
+     * Le Chrono de Buzzy (studio_chrono.py) : tic-tac du chrono une fois par seconde, décompte et départ, le drap
+     * fantôme, un buzz sous le drap ; à la révélation, la règle, le drapeau, chaque pastille, la plus proche au ralenti,
+     * puis gagné / pile au centième / personne. Mêmes sons dans les deux looks.
+     */
+    CHRONO_TIC("gs_chrono_tic"), CHRONO_TAC("gs_chrono_tac"), CHRONO_BIP("gs_chrono_bip"), CHRONO_GO("gs_chrono_go"),
+    CHRONO_DRAP("gs_chrono_drap"), CHRONO_BUZZ("gs_chrono_buzz"),
+    CHRONO_REGLE("gs_chrono_regle"), CHRONO_DRAPEAU("gs_chrono_drapeau"), CHRONO_PASTILLE("gs_chrono_pastille"),
+    CHRONO_RALENTI("gs_chrono_ralenti", true), CHRONO_GAGNE("gs_chrono_gagne", true), CHRONO_PILE("gs_chrono_pile", true),
+    CHRONO_PERSONNE("gs_chrono_personne"),
     TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
     PATATE_PASSE("lmp_patate_passe"),
     /** Musique de « Ça va exploser ! » (extrait choisi par cedric) : sa fin tombe sur l'explosion, voir [MusiquePatate]. */

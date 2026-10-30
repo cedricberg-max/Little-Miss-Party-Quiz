@@ -19,6 +19,9 @@ import kotlin.random.Random
 /** Points du tour gagné (× 2 si le jeu est doublé). */
 const val CHRONO_POINTS = 100
 
+/** Part des points du tour (en quarts) de la 1re, 2e et 3e place : 100, 50, 25. */
+val CHRONO_PARTS = listOf(4, 2, 1)
+
 /** Cible (secondes) : bornes et valeur par défaut. */
 const val CHRONO_CIBLE_MIN = 10
 const val CHRONO_CIBLE_MAX = 90
@@ -50,9 +53,17 @@ data class ChronoBuzz(val team: String, val t: Long, val at: Long)
 
 /**
  * Bilan d'un tour : l'écart de chaque équipe qui a buzzé ([ecarts], en ms : négatif = trop tôt, positif = trop tard),
- * les gagnantes ([winners]) et leurs [points] chacune. Les équipes sans buzz n'ont pas d'écart.
+ * les gagnantes ([winners], les plus proches) et leurs [points] chacune ; [gains] : les points de chaque équipe
+ * marquante (choix B de cedric, 30/10 : 100 à la plus proche, 50 à la 2e, 25 à la 3e). Les équipes sans buzz n'ont pas
+ * d'écart.
  */
-data class ChronoResult(val ecarts: Map<String, Long>, val winners: List<String>, val points: Int, val at: Long)
+data class ChronoResult(
+    val ecarts: Map<String, Long>,
+    val winners: List<String>,
+    val points: Int,
+    val at: Long,
+    val gains: Map<String, Int> = winners.associateWith { points },
+)
 
 /**
  * Le tour [tour] du jeu : la [cible] (secondes). [startAt] : « ▶ Lancer le chrono » (null : tour prêt, pas lancé) ;
@@ -102,12 +113,19 @@ data class ChronoRound(
     /** Écart de [b] avec la cible (ms) : négatif trop tôt, positif trop tard. */
     fun ecart(b: ChronoBuzz): Long = b.t - (reference ?: b.t) - cible * 1_000L
 
-    /** Le bilan à l'heure [at] : la plus petite distance à la cible gagne (au centième près : égalité = toutes). */
+    /**
+     * Le bilan à l'heure [at] : la plus petite distance à la cible gagne [points] (au centième près : égalité = toutes),
+     * la 2e place la moitié, la 3e le quart. Places comme aux jeux : deux 1res, puis la suivante est 3e.
+     */
     fun bilan(at: Long, points: Int): ChronoResult {
         val ecarts = buzzes.associate { it.team to ecart(it) }
         val best = ecarts.values.minOfOrNull { centiemes(it) }
         val winners = if (best == null) emptyList() else buzzes.map { it.team }.filter { centiemes(ecarts.getValue(it)) == best }
-        return ChronoResult(ecarts, winners, if (winners.isEmpty()) 0 else points, at)
+        val gains = buzzes.map { it.team }.associateWith { team ->
+            val place = 1 + ecarts.values.count { centiemes(it) < centiemes(ecarts.getValue(team)) }
+            CHRONO_PARTS.getOrNull(place - 1)?.let { points * it / 4 } ?: 0
+        }.filterValues { it > 0 }
+        return ChronoResult(ecarts, winners, if (winners.isEmpty()) 0 else points, at, gains)
     }
 }
 
