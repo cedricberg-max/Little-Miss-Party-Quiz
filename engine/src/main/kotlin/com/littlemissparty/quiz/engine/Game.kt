@@ -1128,6 +1128,19 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return emit(GameLeft(nextSeq, now, quiz.questions[cible].id))
     }
 
+    /**
+     * Un pupitre qui décroche à [now] met-il la partie en pause automatique ? Seulement quand un chrono court pour les
+     * pupitres. Jamais pendant les mimes ni les Statues (les pupitres ne servent pas), ni au blind test en attente de
+     * relance, ni pendant la réponse orale d'une équipe qui a buzzé : le chrono y est déjà arrêté, et la pause
+     * refuserait le verdict de l'animatrice (test du 30/10 au soir : un fantôme décroche après un buzz, le téléphone
+     * reste bloqué sur « Bonne / Mauvaise réponse »).
+     */
+    fun pauseAutoPossible(now: Long): Boolean {
+        val q = question ?: return false
+        return state.phase == Phase.QUESTION && !state.paused && remainingMs(now) > 0 &&
+            !q.isTurns && !q.isStatues && state.buzz?.waiting != true && state.buzz?.team == null
+    }
+
     fun pause(now: Long, reason: String = PAUSE_REGIE, team: String? = null): GameEvent? =
         emit(Paused(nextSeq, now, reason, team))
 

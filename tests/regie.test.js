@@ -1217,6 +1217,16 @@ describe("régie", () => {
     await capture(page, "cockpit-buzz-360x640", { pleinePage: false });
     await page.setViewportSize({ width: 390, height: 780 });
     await capture(page, "cockpit-buzz-390x780", { pleinePage: false });
+    // Une tablette décroche pendant la réponse orale (test du 30/10 au soir) : en pause, le verdict quitte le plein écran,
+    // « Reprendre » est à portée de doigt ; une fois la partie reprise, le verdict revient en plein écran.
+    await box.set({ paused: true, pauseReason: "team", pauseTeam: "bleu" });
+    await page.locator("#flou-verdict:not(.en-bas)").waitFor({ state: "attached" });
+    await page.locator("#flou-info", { hasText: "appuyez sur « Reprendre »" }).waitFor();
+    await page.locator("#c-pause", { hasText: "Reprendre" }).waitFor();
+    assert.ok(await dansLEcran("c-pause"), "« Reprendre » visible pendant la pause");
+    await capture(page, "cockpit-buzz-en-pause-390x780", { pleinePage: false });
+    await box.set({ paused: false, pauseReason: null, pauseTeam: null });
+    await page.locator("#flou-verdict.en-bas").waitFor();
     // Verdict : le bandeau de 2 s le confirme, la scène revient seule.
     await page.click("#flou-ko");
     await page.locator("#c-flash.mauvaise", { hasText: "✕ Mauvaise réponse · Les Roses" }).waitFor();

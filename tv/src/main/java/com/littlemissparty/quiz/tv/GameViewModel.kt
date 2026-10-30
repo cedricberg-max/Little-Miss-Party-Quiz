@@ -2246,10 +2246,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 delay(DROP_GRACE_MS)
                 dropTimers.remove(uid)
                 act { g ->
-                    // Pendant les mimes et les Statues musicales, les pupitres ne servent pas : un pupitre qui décroche ne
-                    // bloque rien. Blind test : seulement pendant la musique (en attente de relance, rien ne court).
-                    val waited = g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) > 0 &&
-                        g.question?.isTurns != true && g.question?.isStatues != true && g.state.buzz?.waiting != true
+                    // Mimes, Statues, blind test en attente, réponse orale après un buzz : pas de pause (voir pauseAutoPossible).
+                    val waited = g.pauseAutoPossible(serverNow())
                     if (waited && uid !in online && uid !in answers && teams().any { it.uid == uid }) {
                         g.pause(serverNow(), PAUSE_TEAM, uid)
                     } else null

@@ -1639,7 +1639,7 @@ function renderBlind(st, teams) {
   const on = blindMode(st) && ["question", "reveal", "scores"].includes(st.phase);
   $("blind").hidden = !on;
   document.querySelector(".regie .control").classList.toggle("blind-mode", on);
-  verdictEnBas("blind-verdict", on && st.phase === "question" && !!st.buzz?.team);
+  verdictEnBas("blind-verdict", on && st.phase === "question" && !!st.buzz?.team && st.paused !== true);
   if (!on) return;
   const b = st.blind;
   const name = (id) => live.teams[id]?.name ?? "Équipe";
@@ -1796,7 +1796,9 @@ function verdictEnBas(id, on) {
 function renderFlou(st) {
   const on = st.phase === "question" && BUZZ_KINDS.includes(st.kind) && !blindMode(st);
   $("flou").hidden = !on;
-  verdictEnBas("flou-verdict", on && !!st.buzz?.team);
+  // En pause, le verdict ne s'affiche pas en plein écran : il cacherait « Reprendre », et la box refuse un verdict en
+  // pause (test du 30/10 au soir : Sarah bloquée sur deux boutons inactifs après la coupure d'une tablette).
+  verdictEnBas("flou-verdict", on && !!st.buzz?.team && st.paused !== true);
   if (!on) return;
   const b = st.buzz ?? {};
   const name = (id) => live.teams[id]?.name ?? "Équipe";
@@ -1807,7 +1809,8 @@ function renderFlou(st) {
     : blind ? `« ${answer} »${q?.artist ? ` (bonus : ${q.artist})` : ""}` : answer;
   const tried = (b.blocked ?? []).filter((id) => live.teams[id]).map(name);
   const memo = st.kind === "disparu" && st.buzzOpen !== true && !b.team && !st.paused;
-  if (b.team) texteBuzz($("flou-info"), name(b.team), expected || "voir la fiche");
+  if (b.team && st.paused === true) $("flou-info").textContent = `Partie en pause : appuyez sur « Reprendre », puis jugez la réponse de ${name(b.team)}.`;
+  else if (b.team) texteBuzz($("flou-info"), name(b.team), expected || "voir la fiche");
   else $("flou-info").textContent = memo ? `Les enfants mémorisent les objets… Celui qui va disparaître : ${answer}.`
     : `En attente d'un buzz…${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
   couleurBuzz($("flou-info"), b.team);

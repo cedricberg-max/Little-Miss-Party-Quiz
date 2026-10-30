@@ -59,4 +59,32 @@ class JeuxAuBuzzerTest {
         assertFailsWith<IllegalArgumentException> { Question("x", "Qui ?", listOf("A"), 0, kind = QuestionKind.QUISUIS, cards = listOf(MimeCard("seul"))) }
         assertFailsWith<IllegalArgumentException> { Question("x", "mot", listOf("a", "b"), 0, kind = QuestionKind.CHANTE) }
     }
+
+    @Test
+    fun `une tablette qui decroche pendant la reponse orale ne met pas en pause, le verdict passe`() {
+        // Test du 30/10 au soir : un fantôme décroche après un buzz, pause automatique, le verdict de Sarah refusé.
+        val g = Game(Quiz("p", "P", listOf(quiSuis))).apply { next(t0) }
+        assertTrue(g.pauseAutoPossible(t0 + 2_000), "chrono qui court : une tablette coupée met en pause")
+        g.buzz("rose", t0 + 3_000)
+        assertEquals(false, g.pauseAutoPossible(t0 + 7_000), "réponse orale : pas de pause automatique")
+        g.judgeBuzz(false, t0 + 8_000)
+        assertTrue(g.pauseAutoPossible(t0 + 9_000), "après une mauvaise réponse le chrono repart : la pause redevient possible")
+        g.buzz("bleu", t0 + 10_000)
+        assertEquals(false, g.pauseAutoPossible(t0 + 11_000))
+        g.judgeBuzz(true, t0 + 12_000)
+        assertEquals(Phase.REVEAL, g.state.phase, "le verdict passe")
+        assertEquals(false, g.pauseAutoPossible(t0 + 13_000), "révélation : rien ne court")
+    }
+
+    @Test
+    fun `en pause, le verdict reste refuse (la regie doit d'abord reprendre)`() {
+        val g = Game(Quiz("p", "P", listOf(chante))).apply { next(t0) }
+        g.buzz("rose", t0 + 3_000)
+        g.pause(t0 + 4_000)
+        assertNull(g.judgeBuzz(true, t0 + 5_000))
+        assertEquals(false, g.pauseAutoPossible(t0 + 5_000), "déjà en pause")
+        g.resume(t0 + 6_000)
+        g.judgeBuzz(true, t0 + 12_000)
+        assertEquals(Phase.REVEAL, g.state.phase)
+    }
 }
