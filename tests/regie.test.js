@@ -1051,7 +1051,9 @@ describe("régie", () => {
       await page.locator("#c-hold", { hasText: "Les Bleus" }).waitFor();
       await page.locator("#flou-judge:not([hidden])").waitFor();
       // Chaque bouton du bas est entièrement dans l'écran et c'est bien lui qu'un doigt touche.
-      for (const id of ["c-pause", "c-plus", "c-next"]) {
+      // Régie « cockpit » : « ☰ Plus » (Terminer y est rangé) ; ancienne régie : « Terminer » sur la ligne du bas.
+      const milieu = await page.evaluate(() => (document.getElementById("c-plus") ? "c-plus" : "c-end"));
+      for (const id of ["c-pause", milieu, "c-next"]) {
         const visible = await page.evaluate((id) => {
           const el = document.getElementById(id);
           const r = el.getBoundingClientRect();

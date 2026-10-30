@@ -165,6 +165,7 @@ function installerCockpit() {
   // « ⏭ Terminer » rangé ici aussi (cedric, 30/10 : trop dangereux sur l'écran principal en pleine partie), juste
   // avant « ⛔ Arrêter la partie ».
   for (const id of ["c-add", "c-replay", "c-recommencer", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-end", "c-arret"]) grille.append($(id));
+  $("c-end").querySelector(".label").textContent = "⏭ Terminer";
   $("plus-onglets").append($("c-notes"), document.querySelector(".regie .tabs"),
     $("panel-teams"), $("panel-plan"), $("panel-show"), $("panel-defis"));
   // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer » : appui long, elle reste).
