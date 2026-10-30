@@ -212,4 +212,15 @@ class PodiumGameShowTest {
         val activite = File("src/main/java/com/littlemissparty/quiz/tv/MainActivity.kt").readText()
         assertTrue(activite.contains("if (Habillage.podium.value) LaunchedEffect(Unit) { viewModel.coupFini(c.id) }"))
     }
+
+    @Test
+    fun `jauges - filigrane A derriere le logo et le grand gagnant est, qui s'eteint avec le titre`() {
+        // cedric, 30/10 : la couronne du nouveau décor délavait les textes du haut.
+        val podium = File("src/main/java/com/littlemissparty/quiz/tv/habillage/PodiumGameShow.kt").readText()
+        assertTrue(podium.contains("filigrane(Rect(size.width / 2 - demi, 3.dp.toPx(), size.width / 2 + demi, FILIGRANE_TITRE_BAS_DP.dp.toPx()), part)"))
+        assertTrue(podium.contains("(1f - (m - DESCENTE_DEBUT) / 400f).coerceIn(0f, 1f)"))
+        // Le filigrane descend sous le titre (64 dp + 30 sp) sans toucher les chiffres des tubes.
+        assertTrue(FILIGRANE_TITRE_BAS_DP in 100f..120f)
+        assertEquals("LE GRAND GAGNANT EST…", TITRE_JAUGES)
+    }
 }

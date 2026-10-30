@@ -198,6 +198,18 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
                             drawCircle(Brush.radialGradient(listOf(GS.Cyan.copy(alpha = a), Color.Transparent), c, 150.dp.toPx()), 150.dp.toPx(), c)
                         }
                     }
+                    // Filigrane A derrière le logo et « LE GRAND GAGNANT EST… » pendant les jauges (cedric, 30/10 : la couronne
+                    // du nouveau décor est juste derrière, les textes s'y délavaient) ; il s'éteint avec le titre.
+                    val mesureTitre = rememberTextMeasurer()
+                    val largeurTitre = remember(mesureTitre) {
+                        mesureTitre.measure(TITRE_JAUGES, styleTitreNeon(30.sp, GS.Cyan), maxLines = 1, softWrap = false).size.width.toFloat()
+                    }
+                    Canvas(Modifier.fillMaxSize()) {
+                        val m = ms()
+                        val demi = largeurTitre / 2 + FILIGRANE_MARGE_DP.dp.toPx()
+                        val part = (m / 600f).coerceIn(0f, 1f) * (1f - (m - DESCENTE_DEBUT) / 400f).coerceIn(0f, 1f)
+                        filigrane(Rect(size.width / 2 - demi, 3.dp.toPx(), size.width / 2 + demi, FILIGRANE_TITRE_BAS_DP.dp.toPx()), part)
+                    }
                     // Filigrane A derrière le logo et « Bravo à toutes les équipes ! », à partir du solo (cedric, 30/10).
                     if (gagnants.isNotEmpty()) {
                         val mesureBravo = rememberTextMeasurer()
@@ -220,7 +232,7 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
                     ) { LogoGameShow(26.dp, aligne = Alignment.CenterHorizontally) }
                     // « Le grand gagnant est… », qui s'éteint quand les tubes descendent.
                     Text(
-                        "LE GRAND GAGNANT EST…", style = styleTitreNeon(30.sp, GS.Cyan), maxLines = 1, softWrap = false,
+                        TITRE_JAUGES, style = styleTitreNeon(30.sp, GS.Cyan), maxLines = 1, softWrap = false,
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp).apparition(300, Unit).graphicsLayer {
                             val m = ms()
                             alpha = (0.8f + 0.2f * kotlin.math.sin(m / 240f)) * (1f - (m - DESCENTE_DEBUT) / 400f).coerceIn(0f, 1f)
@@ -474,6 +486,10 @@ private fun JaugesCinema(resId: Int, ecouleMs: () -> Int, fetePrend: () -> Boole
         modifier = Modifier.fillMaxSize().clearAndSetSemantics {},
     )
 }
+
+/** Le titre des jauges, et le bas de son filigrane (le titre est à 64 dp du haut, en 30 sp). */
+internal const val TITRE_JAUGES = "LE GRAND GAGNANT EST…"
+internal const val FILIGRANE_TITRE_BAS_DP = 112f
 
 /** La vidéo des jauges en plan cinéma (sans elle : le plateau et les clips du robot). */
 internal const val JAUGES_VIDEO = "gs_podium_jauges"
