@@ -39,10 +39,14 @@ export function ecranGonfleur(hote, { surTape }) {
     ev.preventDefault();
     if (!actif) return;
     surTape();
-    pompe.classList.remove("gf-appui");
-    void pompe.offsetWidth;
-    pompe.classList.add("gf-appui");
+    // L'enfoncement du bouton repart à chaque tape, sans forcer la mise en page (void offsetWidth) : sur une tablette
+    // modeste, ce calcul forcé à chaque tape retardait les suivantes.
+    if (pompe.classList.contains("gf-appui")) {
+      pompe.classList.remove("gf-appui");
+      requestAnimationFrame(() => pompe.classList.add("gf-appui"));
+    } else pompe.classList.add("gf-appui");
   });
+  pompe.addEventListener("animationend", () => pompe.classList.remove("gf-appui"));
   // Pas de zoom ni de menu sur un appui long ou un double tap.
   pompe.addEventListener("contextmenu", (ev) => ev.preventDefault());
 

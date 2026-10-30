@@ -440,6 +440,22 @@ describe("pupitre", () => {
     await waitFor(() => page.locator(".gf-pompe").isEnabled(), "nouvelle course");
     await page.locator(".gf-pompe").click();
     await waitFor(async () => (await read(`pumps/gf-2/${uid}`))?.n === 1, "on repart de zéro");
+    // Tapes en rafale (cedric, 30/10 : les premières semblaient sans effet, puis tout d'un coup) : le ballon les montre
+    // toutes dès l'image suivante, sans redessiner toute la page à chaque tape.
+    const rafale = await page.evaluate(() => new Promise((ok) => {
+      const pompe = document.querySelector(".gf-pompe");
+      let pages = 0;
+      const surveille = new MutationObserver((m) => { pages += m.filter((x) => x.target === document.getElementById("paused")).length; });
+      surveille.observe(document.body, { attributes: true, subtree: true });
+      for (let i = 0; i < 5; i++) pompe.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        surveille.disconnect();
+        ok({ p: getComputedStyle(document.querySelector(".gf-ballon")).getPropertyValue("--p").trim(), jauge: document.querySelector(".gf-plein").style.width, pages });
+      }));
+    }));
+    assert.deepEqual({ p: rafale.p, jauge: rafale.jauge }, { p: "0.500", jauge: "50%" }, "6 tapes sur 12 : ballon à moitié, tout de suite");
+    assert.equal(rafale.pages, 0, "la page entière n'est pas redessinée à chaque tape");
+    await waitFor(async () => (await read(`pumps/gf-2/${uid}`))?.n === 6, "rafale envoyée");
     await hostState(question({ qid: "q9", text: "Couleur du ciel ?" }));
     await page.locator(".choice .text", { hasText: "Bleu" }).waitFor();
     assert.equal(await page.locator("#gonfleur-host .gf").count(), 0, "écran du Gonfleur retiré");

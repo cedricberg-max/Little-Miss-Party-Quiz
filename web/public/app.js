@@ -1447,10 +1447,25 @@ function tapeGonfleur() {
   if (!gonfleur || st.kind !== "gonfleur" || st.paused || counting(st) || gonfleur.n >= cible) return;
   gonfleur.n += 1;
   if (gonfleur.n % 5 === 0) navigator.vibrate?.(8);
-  render();
+  redessinerGonfleur();
   // Ballon éclaté : envoi immédiat ; sinon au plus toutes les ENVOI_MS.
   if (gonfleur.n >= cible) { clearTimeout(gonfleur.minuterie); gonfleur.minuterie = null; envoyerTapes(); }
   else gonfleur.minuterie ??= setTimeout(() => { if (gonfleur) { gonfleur.minuterie = null; envoyerTapes(); } }, ENVOI_MS);
+}
+
+/**
+ * Après une tape : seul le ballon est redessiné, une fois par image au plus. Redessiner toute la page à chaque tape
+ * saturait une tablette modeste au départ de la course : les premières tapes semblaient sans effet, puis le ballon
+ * gonflait d'un coup (cedric, 30/10).
+ */
+let imageGonfleur = 0;
+function redessinerGonfleur() {
+  if (imageGonfleur) return;
+  imageGonfleur = requestAnimationFrame(() => {
+    imageGonfleur = 0;
+    const st = game.state;
+    if (gonfleur && st?.kind === "gonfleur" && st.phase === "question") renderGonfleur(st);
+  });
 }
 
 async function envoyerTapes() {
