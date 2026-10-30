@@ -164,10 +164,10 @@ fun ChronoScreen(state: UiState.Playing, actions: TvActions) {
 private fun Objectif(c: ChronoRound, tours: Int, modifier: Modifier) {
     Column(modifier.width(640.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (tours > 1) TexteNeon("TOUR ${c.tour} / $tours", GS.CyanClair, 40f, police = PoliceGsTitre, largeurMax = 640.dp, force = 0.5f)
-        TexteNeon("OBJECTIF", GS.Jaune, 48f, police = PoliceGsTitre, largeurMax = 640.dp, force = 0.7f)
+        TexteNeon("OBJECTIF", Color.White, 52f, police = PoliceGsTitre, largeurMax = 640.dp, force = 0.6f)
         Row(verticalAlignment = Alignment.Bottom) {
-            Text("${c.cible}", style = chiffreStyle(180f, GS.Jaune, Color(0xFFFF9F1C)), maxLines = 1)
-            Text(" S", style = chiffreStyle(80f, GS.Jaune, Color(0xFFFF9F1C)), maxLines = 1, modifier = Modifier.padding(bottom = 26.dp))
+            Text("${c.cible}", style = chiffreStyle(150f, GS.Jaune, Color(0xFFFF9F1C)), maxLines = 1)
+            Text(" SECONDES", style = chiffreStyle(56f, GS.Jaune, Color(0xFFFF9F1C)), maxLines = 1, modifier = Modifier.padding(bottom = 24.dp))
         }
     }
 }
@@ -244,7 +244,7 @@ private fun jouerChrono(son: Son, vitesse: Float = 1f) = Sons.executer(listOf(Or
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.ChronoPret(c: ChronoRound) {
     Cadran(0L, c.cible, null, Modifier.fillMaxSize())
-    Consigne("Comptez dans votre tête et buzzez à ${c.cible} secondes pile !", Modifier.align(Alignment.BottomCenter).padding(bottom = 60.dp))
+    Consigne("Prêts ? Comptez dans votre tête et buzzez à ${c.cible} secondes pile !", Modifier.align(Alignment.BottomCenter).padding(bottom = 60.dp), GS.Rose)
 }
 
 /** Décompte, chrono qui défile, puis le drap de Buzzy ; en bas, les équipes qui ont buzzé. */
@@ -292,12 +292,12 @@ private fun androidx.compose.foundation.layout.BoxScope.ChronoEnCours(state: UiS
 
 /** Une consigne en blanc, posée sur le décor avec un halo (jamais de cadre autour). */
 @Composable
-private fun Consigne(texte: String, modifier: Modifier) {
+private fun Consigne(texte: String, modifier: Modifier, couleur: Color = Color.White) {
     Text(
         texte,
         modifier.padding(horizontal = 120.dp),
         style = TextStyle(
-            fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 50.sp, textAlign = TextAlign.Center, color = Color.White,
+            fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 50.sp, textAlign = TextAlign.Center, color = couleur,
             shadow = Shadow(Color.Black, Offset.Zero, 22f),
         ),
         maxLines = 2,
@@ -411,6 +411,33 @@ private fun Drap(avance: Float, temps: Long, tete: ImageBitmap?, modifier: Modif
     }
 }
 
+/** Le fanion doré : son coin haut gauche [haut] contre le mât, [l] × [h], qui ondule avec le temps [t] ; une étoile blanche. */
+private fun DrawScope.fanion(haut: Offset, l: Float, h: Float, t: Long) {
+    val o = (t % 1_600L) / 1_600f * 2f * Math.PI.toFloat()
+    val v = { x: Float -> sin(o - x * 3f) * h * 0.08f * x }
+    val p = Path().apply {
+        moveTo(haut.x, haut.y)
+        cubicTo(haut.x + l * 0.33f, haut.y + v(0.33f) - h * 0.06f, haut.x + l * 0.66f, haut.y + v(0.66f) + h * 0.06f, haut.x + l, haut.y + v(1f))
+        lineTo(haut.x + l, haut.y + h + v(1f))
+        cubicTo(haut.x + l * 0.66f, haut.y + h + v(0.66f) + h * 0.06f, haut.x + l * 0.33f, haut.y + h + v(0.33f) - h * 0.06f, haut.x, haut.y + h)
+        close()
+    }
+    drawPath(p, Color(0x66FFB000), style = Stroke(h * 0.22f))
+    drawPath(p, Brush.verticalGradient(listOf(Color(0xFFFFE27A), Color(0xFFFFC21A), Color(0xFFE09600)), haut.y, haut.y + h))
+    drawPath(p, Color(0xFFFFF1B8), style = Stroke(2.5f))
+    val c = Offset(haut.x + l * 0.48f, haut.y + h * 0.5f + v(0.48f))
+    val etoile = Path().apply {
+        for (i in 0 until 10) {
+            val r = if (i % 2 == 0) h * 0.36f else h * 0.15f
+            val a = -Math.PI / 2 + i * Math.PI / 5
+            val pt = Offset(c.x + (kotlin.math.cos(a) * r).toFloat(), c.y + (sin(a) * r).toFloat())
+            if (i == 0) moveTo(pt.x, pt.y) else lineTo(pt.x, pt.y)
+        }
+        close()
+    }
+    drawPath(etoile, Color.White)
+}
+
 /** La tête de Buzzy (provisoire) : l'écran-visage cyan, deux yeux, l'antenne. */
 private fun DrawScope.teteBuzzy(bas: Offset, taille: Float) {
     val l = taille * 1.3f
@@ -466,6 +493,8 @@ private fun androidx.compose.foundation.layout.BoxScope.Revelation(state: UiStat
         val ht = lt * 423f / 484f
         if (teteDrapeau != null) drawImage(teteDrapeau, dstOffset = IntOffset((xc - lt / 2).toInt(), (pied - mat + dy - ht * 0.9f).toInt()), dstSize = IntSize(lt.toInt(), ht.toInt()))
         else teteBuzzy(Offset(xc, pied - mat + dy), 70f * k)
+        // Le fanion doré à étoile blanche (choix B de cedric, 30/10), qui flotte au vent sous la tête de Buzzy.
+        fanion(Offset(xc + 4f * k, pied - mat + dy + 30f * k), 120f * k, 78f * k, t)
         // Les pastilles des équipes, la plus loin d'abord.
         ordre.forEachIndexed { i, uid ->
             val debut = arrivee[i]
@@ -480,6 +509,15 @@ private fun androidx.compose.foundation.layout.BoxScope.Revelation(state: UiStat
             drawCircle(coul, 30f * k, Offset(x, y))
             drawCircle(Color.White, 30f * k, Offset(x, y), style = Stroke(4f * k))
         }
+    }
+    // La cible sous le fanion, qui tombe avec lui.
+    run {
+        val tombe = ((t - 200).toFloat() / 500f).coerceIn(0f, 1f)
+        val dy = (1f - tombe * tombe) * -700f
+        Text(
+            "${c.cible}", style = chiffreStyle(56f, GS.Jaune, Color(0xFFFF9F1C)), maxLines = 1,
+            modifier = Modifier.offset((xDe(c.cible.toDouble()) + 6f).dp, (yRegle - 250f + 112f + dy).dp).width(140.dp),
+        )
     }
     // Les noms et écarts sous la règle, sur 4 rangées pour ne jamais se chevaucher à 8 équipes.
     val parPosition = ordre.sortedBy { r.ecarts.getValue(it) }
