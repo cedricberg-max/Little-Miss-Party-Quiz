@@ -36,7 +36,7 @@ permissions:
 jobs:
   captures:
     if: inputs.captures != ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -76,7 +76,7 @@ jobs:
   # le journal étant public, rien que des titres de packs, des comptes et des identifiants d'images.
   audit:
     if: inputs.audit == 'packs'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -117,7 +117,7 @@ jobs:
 
   bombe:
     if: inputs.audit == 'bombe'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -133,7 +133,7 @@ jobs:
 
   lire:
     if: inputs.captures == '' && inputs.audit == '' && inputs.touki == ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       NOMBRE: ${{ inputs.nombre }}
@@ -159,7 +159,7 @@ jobs:
 
   touki:
     if: inputs.touki == 'apercu' || inputs.touki == 'ecrire' || inputs.touki == 'simon' || inputs.touki == 'menage' || inputs.touki == 'menage2' || inputs.touki == 'chiffres'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

@@ -43,7 +43,7 @@ jobs:
   # fait (les photos retenues sont copiées dans web/public/banque/), on les efface du dépôt public.
   nettoyer:
     if: ${{ inputs.nettoyer == 'oui' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Effacer les pré-versions, étiquettes et branches de candidates
@@ -60,7 +60,7 @@ jobs:
           echo "Restant :"; gh api "repos/$REPO/git/matching-refs/heads/banque-photos-candidats" -q '.[].ref'
   candidates:
     if: ${{ inputs.nettoyer != 'oui' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 388 mots × 4 photos de 480 px (moins de 45 Ko chacune) : 70 Mo au plus ; une heure environ avec les pauses (quotas des API).
     timeout-minutes: 120
     steps:

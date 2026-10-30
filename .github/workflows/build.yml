@@ -21,7 +21,7 @@ jobs:
   moteur:
     name: Tests du moteur de jeu
     if: github.event_name != 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -35,7 +35,7 @@ jobs:
   regles-pupitre:
     name: Tests des règles Firebase et du pupitre
     if: github.event_name != 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: tests
@@ -61,7 +61,7 @@ jobs:
     # Aucun APK n'est publié si un test échoue (tests sautés sur main : déjà passés sur la PR).
     needs: [moteur, regles-pupitre]
     if: ${{ !failure() && !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -112,7 +112,7 @@ jobs:
     name: Publication Firebase
     needs: apk
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
     steps:

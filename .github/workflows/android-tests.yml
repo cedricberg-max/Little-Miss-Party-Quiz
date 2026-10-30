@@ -27,7 +27,7 @@ concurrency:
 jobs:
   emulateur-tv:
     name: Émulateur Android TV
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Les tests eux-mêmes prennent de 26 à 50 min (20/10) : 60 min coupait trop près.
     timeout-minutes: 75
     env:
