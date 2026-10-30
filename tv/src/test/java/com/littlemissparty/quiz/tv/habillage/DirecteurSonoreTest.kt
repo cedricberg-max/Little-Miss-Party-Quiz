@@ -1199,7 +1199,7 @@ class DirecteurSonoreTest {
     fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
         val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
         // La boucle « fête » de Digital Love sous les intros, sauf le Duel, le Simon et le Blind test (cedric, 29/10).
-        listOf("juste", "patate", "portes", "musical", "").forEach {
+        listOf("juste", "patate", "portes", "pictionary", "").forEach {
             assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
         }
         assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
@@ -1320,7 +1320,7 @@ class DirecteurSonoreTest {
         // Le Quiz illustré a sa propre boucle depuis le 30/10 (Des chiffres et des lettres).
         assertEquals(Ambiance.ILLUSTRE_PRESENTATION, ambiancePresentation(quiz.copy(famille = "illustre")))
         assertEquals(Ambiance.PRESENTATION, ambiancePresentation(quiz.copy(gameShow = false)))
-        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(quiz.copy(famille = "musical")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(quiz.copy(famille = "juste")))
         assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.QUIZ_PRESENTATION.volume(Lit.QUIZ_INTRO, gs = true), 0f)
         Lit.entries.filter { it != Lit.QUIZ_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.QUIZ_PRESENTATION.volume(it, gs = true), 0f) }
         assertNull(Lit.QUIZ_INTRO.fichierPour(false))
@@ -1439,7 +1439,7 @@ class DirecteurSonoreTest {
         // Une boucle de 16 s (± 250 ms) se cale sur le tempo commun des fonds ; les autres partent de leur début
         // (BouclePcm.ouvrir : periodeMs). Les musiques d'intro doivent toutes partir du début (cedric, 30/10).
         val intros = Lit.entries.filter { it.name.endsWith("_INTRO") }
-        assertTrue(intros.size >= 11)
+        assertTrue(intros.size >= 12)
         intros.forEach { l ->
             val wav = java.io.File("src/main/res/raw/${l.gs}.wav").readBytes()
             val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
@@ -1465,6 +1465,27 @@ class DirecteurSonoreTest {
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
         assertEquals(840_186L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Quiz musical - Lady de Modjo, boucle entiere, depuis le debut`() {
+        val musical = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "quiz|", gameShow = true, famille = "musical")
+        assertEquals(Ambiance.MUSICAL_PRESENTATION, ambiancePresentation(musical))
+        assertEquals(Ambiance.QUIZ_PRESENTATION, ambiancePresentation(musical.copy(famille = "quiz")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(musical.copy(gameShow = false)))
+        assertEquals("musical", familleType(null, musique = true))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.MUSICAL_PRESENTATION.volume(Lit.MUSICAL_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.MUSICAL_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.MUSICAL_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.MUSICAL_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.MUSICAL_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.MUSICAL_PRESENTATION, d.observer(musical).musique())
+        val wav = java.io.File("src/main/res/raw/gs_quizmusical_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(671_940L, e.images)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 }
