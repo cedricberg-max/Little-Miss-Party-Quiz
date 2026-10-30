@@ -47,9 +47,10 @@ const val SIMON_PAS_MS = 1_000L
 /**
  * Le rythme d'un vrai Simon (cedric, 29/10 : « ça manque énormément de rythme ») : la suite se montre de plus en plus
  * vite à chaque boule ajoutée. 1 s par boule pour la toute première, [SIMON_ACCELERE_MS] de moins par boule en plus,
- * jamais moins de [SIMON_PAS_MIN_MS] (suite de 10 et plus).
+ * jamais moins de [SIMON_PAS_MIN_MS] (suite de 6 et plus). cedric, 30/10 : l'accélération (65 ms par boule) n'était
+ * pas assez forte ; vers 4-5 boules ça doit déjà aller nettement plus vite (500 ms à 5 boules au lieu de 740).
  */
-const val SIMON_ACCELERE_MS = 65L
+const val SIMON_ACCELERE_MS = 125L
 const val SIMON_PAS_MIN_MS = 400L
 fun simonPasMs(suite: Int): Long = (SIMON_PAS_MS - SIMON_ACCELERE_MS * (suite - 1).coerceAtLeast(0)).coerceAtLeast(SIMON_PAS_MIN_MS)
 

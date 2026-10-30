@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv
 
+import com.littlemissparty.quiz.engine.SIMON_LONGUEUR_MAX
 import com.littlemissparty.quiz.engine.SIMON_REGARDEZ_MS
 import com.littlemissparty.quiz.engine.SIMON_VERIF_FIN_MS
 import com.littlemissparty.quiz.engine.SIMON_VERIF_PAS_MS
@@ -120,5 +121,16 @@ class SimonEcranTest {
         assertEquals(0, erreurSimon(emptyList(), bonne))
         assertEquals("6,1 s", secondesSimon(6_140))
         assertEquals("0,0 s", secondesSimon(0))
+    }
+
+    @Test
+    fun `jusqu'a la suite la plus longue, les boules tiennent dans la ligne`() {
+        // cedric, 30/10 : « qu'est-ce qui se passe quand le nombre de boules dépasse la ligne ? » Elles rapetissent.
+        for (largeur in listOf(1676f, 1400f)) for (h in listOf(100f, 72f)) for (n in 1..SIMON_LONGUEUR_MAX) {
+            val t = tailleBouleSimon(n, h, largeur)
+            assertTrue("suite de $n, ligne de $h dp, tableau de $largeur dp", n * t + (n - 1) * t * 0.2f <= placeBoulesSimon(largeur) + 0.5f)
+            assertTrue("boules jamais minuscules", t >= 20f)
+        }
+        assertTrue(tailleBouleSimon(20, 100f, 1676f) < tailleBouleSimon(5, 100f, 1676f))
     }
 }

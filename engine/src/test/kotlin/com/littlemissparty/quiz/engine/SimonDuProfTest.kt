@@ -94,8 +94,11 @@ class SimonDuProfTest {
     fun `plus la suite grandit, plus elle defile vite, jamais trop vite`() {
         // cedric, 29/10 : les toutes premières faciles à retenir, puis de plus en plus rapide.
         assertEquals(1_000L, simonPasMs(1))
-        assertEquals(935L, simonPasMs(2))
-        assertEquals(415L, simonPasMs(10))
+        assertEquals(875L, simonPasMs(2))
+        // cedric, 30/10 : nettement plus rapide dès 4-5 boules, le plus vite à partir de 6.
+        assertEquals(625L, simonPasMs(4))
+        assertEquals(500L, simonPasMs(5))
+        assertEquals(400L, simonPasMs(6))
         assertEquals(400L, simonPasMs(11))
         assertEquals(400L, simonPasMs(30))
         assertEquals(1_000L, simonPasMs(0), "jamais plus lent que la première")
