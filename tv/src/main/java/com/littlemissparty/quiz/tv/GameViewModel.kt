@@ -52,6 +52,7 @@ import com.littlemissparty.quiz.engine.gameGains
 import com.littlemissparty.quiz.engine.gameStep
 import com.littlemissparty.quiz.engine.nextGameTitle
 import com.littlemissparty.quiz.engine.withProgram
+import com.littlemissparty.quiz.tv.habillage.portraitDuel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -2056,6 +2057,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     private var sante: Job? = null
     @Volatile private var internet = false
+    private val coupures = Coupures()
 
     /** Bilan de santé de la box dans ses rapports pendant la soirée (voir [SanteBox]) ; un seul suivi par lancement. */
     private fun suivreSante(db: FirebaseDatabase) {
@@ -2102,6 +2104,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 depuisMs = depuisMs,
             )
             CrashReporter.report(db, "sante", bilan.ligne())
+            // Coupures des 5 dernières minutes (cedric, 30/10) : par couleur d'équipe, jamais le nom (journal public).
+            val equipes = partie?.teams.orEmpty().associateBy { it.uid }
+            coupures.releve(System.currentTimeMillis()) { id ->
+                if (id.startsWith(REGIE_COUPURE)) "téléphone" else equipes[id]?.let { "tablette ${portraitDuel(it.color.toColor())}" } ?: "tablette ?"
+            }?.let { CrashReporter.report(db, "connexions", it) }
             // Fluidité des 5 dernières minutes : où la box a accroché (cedric, 25/10 : la Mi Box comme référence).
             Fluidite.releve()?.let { CrashReporter.report(db, "fluidite", it) }
             Reactivite.releve()?.let { CrashReporter.report(db, "fluidite", it) }
@@ -2167,6 +2174,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         online = emptySet()
         observe(ref.child("presence")) { snap ->
+            val maintenant = System.currentTimeMillis()
+            snap.children.forEach { c -> c.key?.let { coupures.vu(it, c.child("online").getValue(Boolean::class.java) == true, maintenant) } }
             val now = snap.children.filter { it.child("online").getValue(Boolean::class.java) == true }
                 .mapNotNull { it.key }.toSet()
             onPresence(online, now)
@@ -2204,6 +2213,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
             updatePlaying { it.copy(requests = list) }
+        }
+        // Le téléphone de la régie signale sa présence : ses coupures vont dans les rapports, comme celles des tablettes.
+        observe(ref.child("regiePresence")) { snap ->
+            val maintenant = System.currentTimeMillis()
+            snap.children.forEach { c -> c.key?.let { coupures.vu(REGIE_COUPURE + it, c.child("online").getValue(Boolean::class.java) == true, maintenant) } }
         }
         observe(ref.child("regie")) { snap ->
             val uids = snap.children.mapNotNull { it.key }.toSet()
@@ -2800,6 +2814,9 @@ private suspend fun DatabaseReference.readWhenPresent(timeoutMs: Long = 60_000L)
 }
 
 private const val PHOTO_WAIT_MS = 30_000L
+
+/** Les coupures du téléphone de la régie, suivies avec celles des tablettes (voir [Coupures]). */
+private const val REGIE_COUPURE = "regie:"
 /** Statues : la régie copie les chansons entières (plusieurs Mo chacune) pendant la fête ; la box les attend longtemps. */
 private const val SONG_WAIT_MS = 20 * 60_000L
 /** Ménage du cache des médias : laissé à la partie qui s'ouvre le temps de démarrer et de lancer ses copies. */
@@ -2886,3 +2903,4 @@ private suspend fun DatabaseReference.readOnce(timeoutMs: Long = 8000L): DataSna
         cont.invokeOnCancellation { removeEventListener(listener) }
     }
 }
+

@@ -1,5 +1,5 @@
 import {
-  ref, get, set, update, push, onValue, serverTimestamp, query, limitToFirst,
+  ref, get, set, update, push, onValue, onDisconnect, serverTimestamp, query, limitToFirst,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { BRACELET_COLORS, CHOICE_LETTERS, MAX_TEAMS, TEAM_COLORS, TEAM_COLOR_NAMES, numeroTablette } from "./theme.js";
 import { writeProof } from "./proof.js";
@@ -457,6 +457,12 @@ function control() {
     live.connected = s.val() === true;
     $("r-offline").hidden = live.connected;
     $("c-dot").classList.toggle("on", live.connected);
+    // Présence du téléphone (cedric, 30/10) : la box compte ses coupures dans ses rapports, comme celles des tablettes.
+    if (!live.connected) return;
+    const presence = ref(db, `games/${code}/regiePresence/${uid}`);
+    onDisconnect(presence).set({ online: false, at: serverTimestamp() })
+      .then(() => set(presence, { online: true, at: serverTimestamp() }))
+      .catch(() => { /* téléphone plus relié à cette partie */ });
   });
   listen(`games/${code}/regie/${uid}`, (s) => {
     if (s.exists()) return;

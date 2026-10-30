@@ -222,6 +222,16 @@
             ".validate": "!newData.exists() || (newData.child('pairedAt').isNumber() && (newData.child('via').val() === 'pin' || (newData.child('via').val() === 'password' && newData.child('pairedAt').val() === now)))"
           }
         },
+        "regiePresence": {
+          ".read": "auth != null && (root.child('games').child($code).child('hostUid').val() === auth.uid || root.child('games').child($code).child('regie').child(auth.uid).exists())",
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('games').child($code).child('regie').child($uid).exists()",
+            ".validate": "newData.hasChildren(['online', 'at']) && newData.child('online').isBoolean() && newData.child('at').isNumber()",
+            "$other": {
+              ".validate": "$other === 'online' || $other === 'at'"
+            }
+          }
+        },
         "regieActive": {
           ".read": "auth != null",
           ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid",

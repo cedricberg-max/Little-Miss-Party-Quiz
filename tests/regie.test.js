@@ -1048,6 +1048,8 @@ describe("régie", () => {
       const page = await openRegie(context);
       await pair(page);
       await inRegie(page);
+      // Le téléphone signale sa présence : la box compte ses coupures dans ses rapports (cedric, 30/10).
+      await waitFor(async () => Object.values((await get(gameRef("regiePresence"))).val() ?? {}).some((p) => p.online === true), "présence du téléphone");
       await page.locator("#c-hold", { hasText: "Les Bleus" }).waitFor();
       await page.locator("#flou-judge:not([hidden])").waitFor();
       // Chaque bouton du bas est entièrement dans l'écran et c'est bien lui qu'un doigt touche.

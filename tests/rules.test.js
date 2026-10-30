@@ -134,6 +134,20 @@ describe("équipes", () => {
     await assertFails(set(ref(db(HOST), `games/${CODE}/regieActive`), "oui"));
     await assertSucceeds(set(ref(db(HOST), `games/${CODE}/regieActive`), true));
   });
+  test("présence du téléphone (cedric, 30/10) : écrite par la régie reliée elle-même, lue par la box et la régie", async () => {
+    await seed({ phase: "question" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/regiePresence/tel`), { online: true, at: serverTimestamp() }));
+    await assertSucceeds(get(ref(db(HOST), `games/${CODE}/regiePresence`)));
+    await assertSucceeds(get(ref(db("tel"), `games/${CODE}/regiePresence`)));
+    // Ni une tablette, ni un téléphone pas relié, ni pour un autre ; rien d'autre que « online » et « at ».
+    await assertFails(get(ref(db("vert"), `games/${CODE}/regiePresence`)));
+    await assertFails(set(ref(db("vert"), `games/${CODE}/regiePresence/vert`), { online: true, at: serverTimestamp() }));
+    await assertFails(set(ref(db("espion"), `games/${CODE}/regiePresence/espion`), { online: true, at: serverTimestamp() }));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/regiePresence/autre`), { online: true, at: serverTimestamp() }));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/regiePresence/tel`), { online: "oui", at: serverTimestamp() }));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/regiePresence/tel`), { online: true, at: serverTimestamp(), nom: "Sarah" }));
+  });
 });
 
 describe("remplacement d'un appareil", () => {
