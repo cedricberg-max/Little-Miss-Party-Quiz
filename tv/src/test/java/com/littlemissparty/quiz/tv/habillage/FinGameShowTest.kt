@@ -65,4 +65,24 @@ class FinGameShowTest {
     fun `la video de fin est bien dans l'appli`() {
         assertTrue(File("src/main/res/raw/gs_fin_video.mp4").isFile)
     }
+
+    @Test
+    fun `la video de fin dure 8 s d'arrivee plus une boucle de 16 s`() {
+        // Durée lue dans l'en-tête mvhd du MP4 : une vidéo livrée plus courte ou plus longue décalerait la boucle.
+        val octets = File("src/main/res/raw/gs_fin_video.mp4").readBytes()
+        val i = (0 until octets.size - 4).first { String(octets, it, 4, Charsets.ISO_8859_1) == "mvhd" }
+        fun entier(at: Int, n: Int) = (0 until n).fold(0L) { acc, k -> (acc shl 8) or (octets[at + k].toLong() and 0xFF) }
+        val v1 = octets[i + 4].toInt() == 1
+        val echelle = entier(i + if (v1) 24 else 16, 4)
+        val duree = entier(i + if (v1) 28 else 20, if (v1) 8 else 4)
+        assertEquals((FIN_BOUCLE_DEBUT_MS + FIN_BOUCLE_MS).toDouble(), duree * 1000.0 / echelle, 50.0)
+    }
+
+    @Test
+    fun `les textes de fin sont dans la video, l'appli n'ecrit rien par-dessus`() {
+        // Vidéo du 29/10 (titre néon et logo dans l'image) : sans ce réglage, « Merci » et « À bientôt » seraient en double.
+        assertTrue(FIN_TEXTES_DANS_LA_VIDEO)
+        val source = File("src/main/java/com/littlemissparty/quiz/tv/habillage/FinGameShow.kt").readText()
+        assertTrue(source.contains("if (FIN_TEXTES_DANS_LA_VIDEO) TextesDeLaVideo() else MessagesFin()"))
+    }
 }

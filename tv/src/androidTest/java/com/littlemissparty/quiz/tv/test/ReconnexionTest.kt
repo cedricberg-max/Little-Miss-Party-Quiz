@@ -24,7 +24,7 @@ class ReconnexionTest : TestTv() {
             ecran.capture("hors-connexion")
             // La télécommande reste utilisable : la box avance seule et enverra tout au retour du réseau.
             ecran.lancerLaFete()
-            ecran.voit("Quiz · question 1 / ")
+            ecran.voit("Quiz question 1 / ")
             // Les tablettes ne reçoivent pas la question : la box la fige d'elle-même, chrono arrêté.
             ecran.voit("on attend le retour d'Internet")
             ecran.voit("Le chrono est arrêté")
@@ -92,7 +92,7 @@ class ReconnexionTest : TestTv() {
             ecran.ok("Révéler la réponse")
             ecran.ok("Voir les scores")
             ecran.ok("Question suivante")
-            ecran.voit("Quiz · question 2 / ")
+            ecran.voit("Quiz question 2 / ")
             Thread.sleep(6_000)
             ecran.neVoitPas("on attend le retour d'Internet")
             ecran.voit("Arrêter le chrono")

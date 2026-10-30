@@ -1,6 +1,5 @@
 package com.littlemissparty.quiz.tv
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,7 +26,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
@@ -37,6 +35,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.res.painterResource
+import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.logoNeonJeu
 import com.littlemissparty.quiz.tv.habillage.BandeauEquipes
 import com.littlemissparty.quiz.tv.habillage.COULEURS_DESSIN
 import com.littlemissparty.quiz.tv.habillage.GOMME_DESSIN
@@ -48,6 +50,7 @@ import com.littlemissparty.quiz.tv.habillage.RevelationPictionary
 import com.littlemissparty.quiz.tv.habillage.ScenePictionary
 import com.littlemissparty.quiz.tv.habillage.Tampon
 import com.littlemissparty.quiz.tv.habillage.apparition
+import com.littlemissparty.quiz.tv.habillage.bandeTitre
 import com.littlemissparty.quiz.tv.habillage.TraitDessin
 import com.littlemissparty.quiz.tv.habillage.rebond
 import kotlinx.coroutines.delay
@@ -131,7 +134,7 @@ fun PictionaryScreen(state: UiState.Playing, actions: TvActions) {
                         val emoji = card.image
                         // Photo du mot (préparée dans l'administration), sinon son émoji.
                         val bytes = card.imageId?.let { state.images[it] }
-                        val photo = remember(bytes) { bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
+                        val photo = rememberPhoto(bytes)
                         RevelationPictionary(
                             mot = card.word,
                             trouve = last.found > 0,
@@ -139,7 +142,7 @@ fun PictionaryScreen(state: UiState.Playing, actions: TvActions) {
                             couleur = lastTeam.color.toColor(),
                             traits = traits,
                             points = if (last.found > 0) last.found * m.points else null,
-                            image = photo?.let { p -> @Composable { Image(p, contentDescription = card.word, contentScale = ContentScale.Crop, modifier = Modifier.size(150.dp).clip(RoundedCornerShape(24.dp))) } }
+                            image = photo?.let { p -> @Composable { Image(p, contentDescription = card.word, contentScale = ContentScale.Crop, alignment = CadrageHaut, modifier = Modifier.size(150.dp).clip(RoundedCornerShape(24.dp))) } }
                                 ?: emoji?.let { e -> @Composable { Text(e, fontSize = 110.sp, lineHeight = 116.sp) } },
                         )
                     }
@@ -187,32 +190,60 @@ private fun Presentation(state: UiState.Playing, m: MimeUi) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         MotPictionary(64.sp, Modifier.apparition(0, "picto"))
         Spacer(Modifier.height(10.dp))
-        Text("✏️", fontSize = 90.sp, lineHeight = 96.sp, modifier = Modifier.rebond(true))
-        Text("Pictionary !", color = Neon.Or, fontSize = 44.sp, fontWeight = FontWeight.Black)
+        // Game Show : le crayon en tube néon (planche du 29/10 validée), à la place de l'émoji.
+        val crayon = if (Look.gs) logoNeonJeu("pictionary") else null
+        if (crayon != null) Image(painterResource(crayon), contentDescription = null, modifier = Modifier.size(120.dp).rebond(true))
+        else Text("✏️", fontSize = 90.sp, lineHeight = 96.sp, modifier = Modifier.rebond(true))
+        // Le nom est déjà en grand au-dessus du crayon : plus de « Pictionary ! » en double (cedric, 28/10).
         Text(
-            "Un enfant dessine sur la tablette de son équipe, le dessin apparaît ici en direct.\n" +
-                "Son équipe a ${(state.question?.durationSec ?: 90)} secondes pour trouver le mot : ${m.points} points !",
+            reglePictionary(state.question?.durationSec ?: 90, m.points, Look.gs),
             color = Palette.Ink, fontSize = 26.sp, lineHeight = 34.sp, textAlign = TextAlign.Center,
+            // Game Show : la bande sombre des titres et règles (choix C, 29/10), jamais de cadre autour.
+            modifier = Modifier.bandeTitre(),
         )
     }
 }
+
+/**
+ * La règle du Pictionary ; Game Show : en trois lignes équilibrées sur la bande sombre (planche du 29/10 validée par
+ * cedric), Classique : en deux lignes comme avant.
+ */
+internal fun reglePictionary(secondes: Int, points: Int, gs: Boolean): String =
+    (if (gs) "Un enfant dessine sur la tablette de son équipe,\nle dessin apparaît ici en direct.\n"
+    else "Un enfant dessine sur la tablette de son équipe, le dessin apparaît ici en direct.\n") +
+        "Son équipe a $secondes secondes pour trouver le mot : $points points !"
 
 @Composable
 private fun PictoChip(team: Team, count: Int, playing: Boolean, passed: Boolean, compacte: Boolean = false, modifier: Modifier = Modifier) {
     val color = team.color.toColor()
     val taille = if (compacte) 14.sp else 16.sp
+    // Game Show (planche du 29/10 validée) : plaque noire au contour néon de l'équipe, le compte à sa couleur ; elle
+    // ressort sur le plateau au lieu de s'y fondre. L'équipe qui joue : sa couleur en fond, contour plus épais.
+    val forme = RoundedCornerShape(16.dp)
     Column(
         modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (playing) color.copy(alpha = 0.45f) else Palette.Panel)
-            .border(if (playing) 3.dp else 2.dp, color, RoundedCornerShape(16.dp))
+            .then(if (Look.gs) Modifier.shadow(10.dp, forme, ambientColor = color, spotColor = color) else Modifier)
+            .clip(forme)
+            .background(
+                when {
+                    playing -> color.copy(alpha = 0.45f)
+                    Look.gs -> Neon.Nuit.copy(alpha = 0.88f)
+                    else -> Palette.Panel
+                },
+            )
+            .border(if (playing || Look.gs) 3.dp else 2.dp, color, forme)
             .padding(horizontal = if (compacte) 8.dp else 12.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(team.name, color = Palette.Ink, fontSize = taille, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(
             "$count dessin${if (count > 1) "s" else ""}" + if (passed && !playing) " ✓" else "",
-            color = if (count > 0) Neon.Or else Palette.InkSoft, fontSize = taille, fontWeight = FontWeight.Bold,
+            color = when {
+                Look.gs && !playing -> color
+                count > 0 -> Neon.Or
+                else -> Palette.InkSoft
+            },
+            fontSize = taille, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }

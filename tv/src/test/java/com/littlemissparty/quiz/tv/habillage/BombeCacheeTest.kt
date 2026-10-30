@@ -9,12 +9,22 @@ import org.junit.Test
 class BombeCacheeTest {
 
     @Test
+    fun `plus de numeros sur les coffres, et un coffre ouvert passe derriere les coffres fermes`() {
+        assertTrue("cedric, 29/10 : plus de numéros", !NUMEROS_COFFRES)
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/BombeCachee.kt").readText()
+        assertTrue(source.contains(".zIndex(if (ouvert) 0f else 1f)"))
+    }
+
+    @Test
     fun `les coffres tiennent sur 1 a 3 rangees, l'avant recoit les coffres en plus`() {
         assertEquals(listOf(5, 5), repartitionCoffres(10))
         assertEquals(listOf(4, 5, 5), repartitionCoffres(14))
         assertEquals(listOf(6, 6, 6), repartitionCoffres(18))
         assertEquals(listOf(4), repartitionCoffres(4))
         assertEquals(emptyList<Int>(), repartitionCoffres(0))
+        // Les mêmes rangées que les tablettes (web/public/coffres.js, testé dans pupitre.test.js) : sans numéros sur les
+        // coffres (cedric, 29/10), c'est la place qui dit quel coffre on ouvre.
+        assertEquals(listOf(listOf(6), listOf(3, 4), listOf(6, 6), listOf(4, 4, 5), listOf(6, 7, 7)), listOf(6, 7, 12, 13, 20).map(::repartitionCoffres))
         for (n in 1..21) {
             val r = repartitionCoffres(n)
             assertEquals(n, r.sum())
@@ -55,5 +65,35 @@ class BombeCacheeTest {
             assertTrue("$ms ms > $CHEST_SHOW_MS ms", ms <= CHEST_SHOW_MS)
         }
         assertTrue(ALERTE_BOMBE_MS <= BOMB_ALERT_MS)
+    }
+
+    /** Planche du 28/10 : les pièces d'or 3D (atlas d'un tour complet, 16 cases) suivent l'angle de l'ancien ovale. */
+    @Test
+    fun `la piece d or tourne case par case, un tour complet, dans les deux sens`() {
+        val tour = 2f * Math.PI.toFloat()
+        assertEquals(0, casePiece(0f))
+        assertEquals(4, casePiece(tour / 4f + 0.001f))
+        assertEquals(8, casePiece(tour / 2f + 0.001f))
+        assertEquals(15, casePiece(tour - 0.001f))
+        assertEquals(0, casePiece(tour + 0.001f))
+        assertEquals(15, casePiece(-0.001f))
+        for (k in -200..200) assertTrue(casePiece(k * 0.37f) in 0..15)
+        // L'atlas fait 4 × 4 cases : largeur et hauteur lues dans l'en-tête WebP étendu (VP8X, 24 bits chacune).
+        val entete = java.io.File("src/main/res/drawable-nodpi/gs_piece_or.webp").readBytes()
+        assertEquals("VP8X", String(entete, 12, 4, Charsets.US_ASCII))
+        fun l24(i: Int) = 1 + ((entete[i].toInt() and 0xFF) or ((entete[i + 1].toInt() and 0xFF) shl 8) or ((entete[i + 2].toInt() and 0xFF) shl 16))
+        assertEquals(4 * CASE_PIECE, l24(24))
+        assertEquals(4 * CASE_PIECE, l24(27))
+        assertTrue("préchargée avec les grandes images", "gs_piece_or" in GRANDES_IMAGES)
+    }
+
+    /** cedric 28/10 : « la 3D du coffre qui change » au moment où il est choisi ; le coffre fermé est lu d'avance. */
+    @Test
+    fun `le coffre choisi garde sa vraie image fermee le temps que sa planche se lise`() {
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/CoffresGs.kt").readText()
+        assertTrue(source.contains("ferme != null -> Quatre(ferme, CASE_OUVERTURE, 0, 1)"))
+        assertTrue(source.indexOf("ferme != null") < source.indexOf("else -> Quatre(sceneLue"))
+        for (m in 0..5) assertTrue(java.io.File("src/main/res/drawable-nodpi/gs_coffre_$m.webp").isFile)
+        assertTrue(java.io.File("src/main/res/drawable-nodpi/gs_coffre_or.webp").isFile)
     }
 }

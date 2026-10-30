@@ -42,7 +42,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -78,10 +77,7 @@ private const val HAUT_VIDE = 0.2f
 internal fun PlatineNeonGs(joue: Boolean, manquant: Boolean, modifier: Modifier = Modifier, secours: @Composable () -> Unit) {
     val context = LocalContext.current
     val disque = remember { context.resources.getIdentifier("gs_bt_disque", "raw", context.packageName) }
-    val planche = remember {
-        val id = context.resources.getIdentifier("gs_bt_bras", "drawable", context.packageName)
-        if (id == 0) null else runCatching { ImageBitmap.imageResource(context.resources, id) }.getOrNull()
-    }
+    val planche = remember { ImagesAppli.lire(context, "gs_bt_bras") }
     var echec by remember { mutableStateOf(false) }
     if (disque == 0 || planche == null || echec) {
         secours()
@@ -147,10 +143,7 @@ internal fun PlatineNeonGs(joue: Boolean, manquant: Boolean, modifier: Modifier 
             // Tant que la vidéo du disque n'a pas sa première image (box chargée : quelques secondes), le disque en image
             // fixe, sa première image : la platine apparaît d'un bloc, jamais le bras seul (cedric, 24/10).
             if (!pret) {
-                val fixe = remember {
-                    val id = context.resources.getIdentifier("gs_bt_disque_poster", "drawable", context.packageName)
-                    if (id == 0) null else runCatching { ImageBitmap.imageResource(context.resources, id) }.getOrNull()
-                }
+                val fixe = remember { ImagesAppli.lire(context, "gs_bt_disque_poster") }
                 if (fixe != null) {
                     Canvas(placeVideo) { drawImage(fixe, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt())) }
                 }

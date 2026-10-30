@@ -521,8 +521,8 @@ describe("Vrai ou Faux express", () => {
     assert.deepEqual(problems, []);
     const express = snapshot.quiz.questions.filter((q) => q.kind === "express");
     assert.deepEqual(express.map((q) => [q.text, q.duration, q.round]), [
-      ["Le Soleil est une étoile", 12, "Vrai ou Faux express"],
-      ["Les poissons volent", 12, "Vrai ou Faux express"],
+      ["Le Soleil est une étoile", 20, "Vrai ou Faux express"],
+      ["Les poissons volent", 20, "Vrai ou Faux express"],
     ]);
     // Le même quiz en manche normale garde ses chronos et son type.
     assert.equal(snapshot.quiz.questions[2].kind, "true_false");

@@ -1,18 +1,23 @@
 package com.littlemissparty.quiz.tv.habillage
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.BitmapRegionDecoder
+import android.graphics.Rect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +46,13 @@ private var sceneLue by mutableStateOf<ImageBitmap?>(null)
 private var sceneEssayee = false
 private var ouvertureLue by mutableStateOf<Pair<Int, ImageBitmap>?>(null)
 
+/**
+ * La première case (couvercle fermé) de chaque planche d'ouverture, lue d'avance dès l'écran des coffres (≈ 2 Mo
+ * chacune) : le coffre choisi arrive tout de suite avec sa vraie image, sans passer par celle des gradins le temps que
+ * sa planche se lise (cedric, 28/10 : « la 3D du coffre qui change » au moment où il est choisi).
+ */
+private val fermesLus = mutableStateMapOf<Int, ImageBitmap>()
+
 /** La planche des coffres sur les gradins, lue une fois (null en Classique ou si elle manque). */
 @Composable
 internal fun ChargerCoffresGs() {
@@ -50,6 +62,10 @@ internal fun ChargerCoffresGs() {
         if (sceneEssayee) return@LaunchedEffect
         sceneEssayee = true
         sceneLue = withContext(Dispatchers.IO) { lire(context, "gs_coffres_scene") }
+        for (cle in 0..OR) {
+            if (cle in fermesLus) continue
+            withContext(Dispatchers.IO) { lireFerme(context, if (cle == OR) "gs_coffre_or" else "gs_coffre_$cle") }?.let { fermesLus[cle] = it }
+        }
     }
 }
 
@@ -66,9 +82,33 @@ internal fun ChargerOuvertureGs(modele: Int, dore: Boolean = false) {
     }
 }
 
+/** Seulement la case 0 (fermé) d'une planche d'ouverture, sans lire le reste. */
+private fun lireFerme(context: Context, nom: String): ImageBitmap? = runCatching {
+    val id = context.resources.getIdentifier(nom, "drawable", context.packageName)
+    if (id == 0) return@runCatching null
+    context.resources.openRawResource(id).use { flux ->
+        @Suppress("DEPRECATION")
+        val decodeur = BitmapRegionDecoder.newInstance(flux, false) ?: return@use null
+        try {
+            decodeur.decodeRegion(Rect(0, 0, CASE_OUVERTURE, CASE_OUVERTURE), null)?.apply { prepareToDraw() }?.asImageBitmap()
+        } finally {
+            decodeur.recycle()
+        }
+    }
+}.getOrNull()
+
+/**
+ * Une planche entière (≈ 16 Mo pour une ouverture), décodée en fond directement dans la mémoire de la carte graphique
+ * (Bitmap.Config.HARDWARE) : test du 28/10 au soir, petit gel quand le couvercle s'ouvre et que les pièces jaillissent ;
+ * la planche lue en fond était encore envoyée à la carte graphique pendant le dessin de l'ouverture. Si la box refuse
+ * ce format, décodage ordinaire, préparé d'avance (prepareToDraw).
+ */
 private fun lire(context: Context, nom: String): ImageBitmap? = runCatching {
     val id = context.resources.getIdentifier(nom, "drawable", context.packageName)
-    if (id == 0) null else ImageBitmap.imageResource(context.resources, id)
+    if (id == 0) return@runCatching null
+    val res = context.resources
+    val carte = runCatching { BitmapFactory.decodeResource(res, id, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.HARDWARE }) }.getOrNull()
+    (carte ?: BitmapFactory.decodeResource(res, id)?.apply { prepareToDraw() })?.asImageBitmap()
 }.getOrNull()
 
 /**
@@ -79,8 +119,11 @@ private fun lire(context: Context, nom: String): ImageBitmap? = runCatching {
 internal fun DrawScope.dessineCoffreGs(modele: Int, ouverture: Float, assombri: Float, dore: Boolean, enScene: Boolean): Boolean {
     val cleOuverture = if (dore) OR else modele
     val planche = ouvertureLue?.takeIf { !enScene && it.first == cleOuverture }?.second
+    // Planche pas encore lue : le coffre reste fermé, avec sa vraie image (jamais celle des gradins ni le dessin).
+    val ferme = if (!enScene && planche == null) fermesLus[cleOuverture] else null
     val (image, case, index, colonnes) = when {
         planche != null -> Quatre(planche, CASE_OUVERTURE, (ouverture.coerceIn(0f, 1f) * 7f).roundToInt(), 3)
+        ferme != null -> Quatre(ferme, CASE_OUVERTURE, 0, 1)
         dore -> return false
         else -> Quatre(sceneLue ?: return false, CASE_SCENE, 3 * modele + if (ouverture >= 0.5f) 2 else 1, 5)
     }

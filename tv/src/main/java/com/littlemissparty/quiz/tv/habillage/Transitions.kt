@@ -41,7 +41,6 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -266,10 +265,9 @@ private fun portesGameShow(): Pair<ImageBitmap, ImageBitmap>? {
     val context = LocalContext.current
     return remember {
         runCatching {
-            val res = context.resources
-            val g = res.getIdentifier("gs_portes_gauche", "drawable", context.packageName)
-            val d = res.getIdentifier("gs_portes_droite", "drawable", context.packageName)
-            if (g == 0 || d == 0) null else ImageBitmap.imageResource(res, g) to ImageBitmap.imageResource(res, d)
+            val g = ImagesAppli.lire(context, "gs_portes_gauche")
+            val d = ImagesAppli.lire(context, "gs_portes_droite")
+            if (g == null || d == null) null else g to d
         }.getOrNull()
     }
 }

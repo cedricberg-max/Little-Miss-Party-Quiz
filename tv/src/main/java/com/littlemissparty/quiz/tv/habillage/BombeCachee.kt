@@ -35,6 +35,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -56,6 +57,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,10 +68,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /*
@@ -116,6 +124,18 @@ const val CLASSEMENT_COFFRE_MS = 2_900L
 
 private const val T_ENTREE = 450f
 private const val T_OUVRE = 1_300f
+/**
+ * Plus de numéros sur les coffres (cedric, 29/10, choix B) : la tablette montre les coffres aux mêmes places que la TV.
+ * true = retour aux numéros.
+ */
+internal const val NUMEROS_COFFRES = false
+/** Le numéro du coffre s'éteint en ~75 ms quand le couvercle s'ouvre (planche du 28/10). */
+private const val NUMERO_EXTINCTION_MS = 75f
+/** Atlas gs_piece_or : 4 × 4 cases de 128 px, case k = la pièce tournée de k/16 de tour. */
+internal const val CASE_PIECE = 128
+
+/** La case de l'atlas des pièces pour un angle (radians) : 16 cases par tour, dans les deux sens. */
+internal fun casePiece(angle: Float): Int = Math.floorMod(floor(angle / (2f * PI.toFloat()) * 16f).toInt(), 16)
 private const val T_TEXTE = 1_550f
 /** Bombe : elle a jailli du coffre et commence à foncer vers l'écran. */
 private const val T_POSE = 1_750f
@@ -448,7 +468,9 @@ fun SceneCoffres(
             val h = m.hauteur * e
             val ouvert = ouverts.containsKey(i)
             val delta = ouverts[i]
-            Box(Modifier.offset(x = (cx - w / 2).dp, y = (base - h).dp).size(w.dp, h.dp)) {
+            // Un coffre ouvert passe derrière les coffres fermés (cedric, 29/10) : son couvercle levé ne recouvre plus le
+            // coffre de la rangée du dessus, qui reste lisible en entier.
+            Box(Modifier.offset(x = (cx - w / 2).dp, y = (base - h).dp).size(w.dp, h.dp).zIndex(if (ouvert) 0f else 1f)) {
                 Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
                     // Ombre au sol : le coffre est posé.
                     drawOval(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent)), Offset(-size.width * 0.08f, size.height - 6f * density * e), Size(size.width * 1.16f, 12f * density * e))
@@ -460,7 +482,7 @@ fun SceneCoffres(
                     )
                 }
                 val p = plaque(m)
-                if (!ouvert) {
+                if (!ouvert && NUMEROS_COFFRES) {
                     Box(
                         Modifier.offset(x = (p.left * w).dp, y = (p.top * h).dp).size((p.width * w).dp, (p.height * h).dp),
                         contentAlignment = Alignment.Center,
@@ -472,7 +494,7 @@ fun SceneCoffres(
                             else styleCentre(maxOf(p.height * h * 0.72f, 15f * e).sp, Color(0xFF3A1C00)),
                         )
                     }
-                } else {
+                } else if (ouvert) {
                     // Coffre ouvert : sa valeur s'affiche sur la face avant.
                     val (fond, encre, texte) = when {
                         delta == null -> Triple(Color(0xFF2A0E1E), MALUS_CORAIL, if (bombe == null) "💣" else if (bombe == 0) "💣 0" else "💣 " + texteValeur(bombe))
@@ -490,8 +512,8 @@ fun SceneCoffres(
                 }
             }
         }
-        if (bandeau) BandeauTour(auTour, Modifier.align(Alignment.TopCenter).padding(top = 14.dp))
-        if (phaseDanger) PastilleDanger(pouls, Modifier.align(Alignment.TopStart).padding(start = 18.dp, top = 18.dp))
+        if (bandeau) BandeauTour(auTour, Modifier.align(Alignment.TopCenter).padding(top = 14.dp).zIndex(2f))
+        if (phaseDanger) PastilleDanger(pouls, Modifier.align(Alignment.TopStart).padding(start = 18.dp, top = 18.dp).zIndex(2f))
     }
 }
 
@@ -624,9 +646,18 @@ fun OuvertureCoffre(
         jusqua(total)
         fini()
     }
+    // Rapport de fluidité : le couvercle qui s'ouvre et les pièces qui jaillissent comptés à part (test du 28/10 au soir).
+    LaunchedEffect(index) {
+        delay(T_OUVRE.toLong())
+        com.littlemissparty.quiz.tv.Fluidite.moment = "ouverture"
+        try { delay(600) } finally { com.littlemissparty.quiz.tv.Fluidite.moment = null }
+    }
     val modele = modeleCoffre(index)
     ChargerOuvertureGs(modele)
     val m = MODELES[modele]
+    // Game Show : les pièces d'or en 3D (atlas d'un tour complet) et le numéro du coffre allumé jusqu'à l'ouverture.
+    val atlasPieces = if (Look.gs) imageAppli("gs_piece_or") else null
+    val mesure = rememberTextMeasurer()
     // Coffre agrandi : assez grand pour le spectacle, assez bas pour laisser le verdict lisible au-dessus.
     val e = min(240f / m.largeur, 170f / m.hauteur)
     val cw = m.largeur * e
@@ -704,6 +735,19 @@ fun OuvertureCoffre(
                 inset(0f, 0f, size.width - cw * d, size.height - ch * d) {
                     dessineCoffre(modele, ouv, if (ouv > 0f) lueur else null, brule)
                 }
+                // Le numéro reste allumé dans la fenêtre, comme sur les gradins, et s'éteint quand le couvercle s'ouvre.
+                val allume = 1f - ((ms - T_OUVRE) / NUMERO_EXTINCTION_MS).coerceIn(0f, 1f)
+                if (Look.gs && NUMEROS_COFFRES && allume > 0f) {
+                    val p = plaque(m)
+                    val texte = mesure.measure(
+                        "${index + 1}",
+                        styleCentre((p.height * ch * 0.66f).sp, Neon.Blanc).copy(fontFamily = PoliceGsChiffres, shadow = Shadow(GS.Cyan, Offset.Zero, 10f)),
+                    )
+                    drawText(
+                        texte, alpha = allume,
+                        topLeft = Offset(p.center.x * cw * d - texte.size.width / 2f, p.center.y * ch * d - texte.size.height / 2f),
+                    )
+                }
             }
             val bouche = Offset(cx, solPx - ch * d * (1f - (if (modele == 4) 0.3f else m.couvercle)) - ch * d * m.couvercle * 0.2f)
             // Le coffre en or : une couronne de rayons dorés qui tourne derrière la pluie d'or.
@@ -734,6 +778,17 @@ fun OuvertureCoffre(
                         val y = bouche.y + (p.vy * tt + 0.5f * 1300f * tt * tt) * d
                         if (y > size.height + 20f * d) return@forEachIndexed
                         val r = 9f * p.taille * d
+                        if (atlasPieces != null) {
+                            // La pièce 3D qui tourne sur elle-même : même trajectoire, même angle que l'ovale du Classique.
+                            val c = casePiece(p.tourne + tt * 9f)
+                            val cote = (2f * r * 1.45f * 256f / 197f).roundToInt()
+                            drawImage(
+                                atlasPieces,
+                                srcOffset = IntOffset((c % 4) * CASE_PIECE, (c / 4) * CASE_PIECE), srcSize = IntSize(CASE_PIECE, CASE_PIECE),
+                                dstOffset = IntOffset((x - cote / 2f).roundToInt(), (y - cote / 2f).roundToInt()), dstSize = IntSize(cote, cote),
+                            )
+                            return@forEachIndexed
+                        }
                         val lg = abs(cos(p.tourne + tt * 9f))
                         drawOval(Brush.verticalGradient(listOf(OR_CLAIR, OR_MOYEN, OR_FONCE), y - r, y + r), Offset(x - r * (0.25f + 0.75f * lg), y - r), Size(2 * r * (0.25f + 0.75f * lg), 2 * r))
                         drawOval(OR_FONCE.copy(alpha = 0.7f), Offset(x - r * (0.25f + 0.75f * lg), y - r), Size(2 * r * (0.25f + 0.75f * lg), 2 * r), style = Stroke(1.2f * d))
@@ -768,7 +823,7 @@ fun OuvertureCoffre(
             equipe to couleur,
             Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
                 .graphicsLayer { alpha = if (carte) 1f - ((t.value - tVerdict) / 220f).coerceIn(0f, 1f) else 1f },
-            suite = " ouvre le coffre n° ${index + 1}", cle = index,
+            suite = if (NUMEROS_COFFRES) " ouvre le coffre n° ${index + 1}" else " ouvre un coffre !", cle = index,
         ) else Row(
             Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
                 .graphicsLayer { alpha = if (carte) 1f - ((t.value - tVerdict) / 220f).coerceIn(0f, 1f) else 1f }
@@ -778,7 +833,7 @@ fun OuvertureCoffre(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(equipe, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false), style = styleBandeau.copy(fontSize = 22.sp, color = couleur))
-            Text(" ouvre le coffre n° ${index + 1}", maxLines = 1, softWrap = false, style = styleBandeau.copy(fontSize = 22.sp, color = Neon.Blanc))
+            Text(if (NUMEROS_COFFRES) " ouvre le coffre n° ${index + 1}" else " ouvre un coffre !", maxLines = 1, softWrap = false, style = styleBandeau.copy(fontSize = 22.sp, color = Neon.Blanc))
         }
         if (carte) {
             // La carte BONUS / MALUS, un peu réduite et au-dessus du coffre ouvert pour le laisser voir.

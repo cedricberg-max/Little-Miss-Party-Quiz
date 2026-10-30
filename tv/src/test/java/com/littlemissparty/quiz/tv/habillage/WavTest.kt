@@ -75,6 +75,31 @@ class WavTest {
         // Un départ au-delà de la fin retombe dans la boucle.
         assertEquals(listOf(30L to 10L), morceauxBoucle(230, 10, 100))
         assertEquals(50L, morceauxBoucle(77, 50, 100).sumOf { it.second })
+        assertEquals(27L, imageApres(80, 47, 100))
+    }
+
+    @Test
+    fun `avec une reprise, l'intro se lit une fois puis la boucle repart de la reprise, a l'image pres`() {
+        // Fin du podium : 100 images dont 40 d'intro (l'écho), puis la boucle de 60 images.
+        assertEquals(listOf(0L to 100L, 40L to 60L, 40L to 10L), morceauxBoucle(0, 170, 100, reprise = 40))
+        assertEquals(listOf(90L to 10L, 40L to 30L), morceauxBoucle(90, 40, 100, reprise = 40))
+        assertEquals(70L, imageApres(90, 40, 100, reprise = 40))
+        assertEquals(50L, imageApres(0, 170, 100, reprise = 40))
+        assertEquals(99L, imageApres(0, 99, 100, reprise = 40))
+        assertEquals(40L, imageApres(0, 100, 100, reprise = 40))
+        // Chaque bloc lu à la suite retombe exactement où un seul long bloc serait arrivé.
+        var p = 0L
+        repeat(37) { p = imageApres(p, 13, 100, reprise = 40) }
+        assertEquals(imageApres(0, 37 * 13, 100, reprise = 40), p)
+    }
+
+    @Test
+    fun `latence des boucles - moyenne glissante, mesures aberrantes ignorees`() {
+        assertEquals(120L, BouclePcm.moyenneLatence(-1, 120))
+        assertEquals(105L, BouclePcm.moyenneLatence(120, 60))
+        assertEquals(120L, BouclePcm.moyenneLatence(120, -3))
+        assertEquals(120L, BouclePcm.moyenneLatence(120, BouclePcm.LATENCE_MAX_MS + 1))
+        assertEquals(-1L, BouclePcm.moyenneLatence(-1, 5_000))
     }
 
     @Test

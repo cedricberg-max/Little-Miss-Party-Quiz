@@ -10,7 +10,7 @@ import {
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, roundTirees, roundSeriesQuiz, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
   isArchived, isPhotoTheme, disparuGroup, statuesChoices, quizQuestions, jeuDeLaManche, quizKind,
-  launchStates, launchLabel, jourHeure, isoDay, couleurMimeEquipe,
+  launchStates, launchLabel, jourHeure, isoDay, couleurMimeEquipe, chansonJouable,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
@@ -33,6 +33,8 @@ const BOX_TIMEOUT_MS = 6000;
 
 let db, uid, code, onExit;
 let serverOffset = 0;
+/** Box d'avant (pas d'outroAt après « ▶ Lancer la fin ») : le bouton s'efface, « Fin de la fête » prend sa place. */
+let finSansOutro = false;
 /** Réaffichage à la fin du décompte de reprise (le bouton principal redevient actif). */
 let countdownTimer = null;
 let unsubscribers = [];
@@ -160,13 +162,16 @@ function installerCockpit() {
   plus.textContent = "☰ Plus";
   $("c-pause").after(plus);
   const grille = $("plus-grille");
-  for (const id of ["c-add", "c-replay", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-end"]) grille.append($(id));
+  // « ⏭ Terminer » rangé ici aussi (cedric, 30/10 : trop dangereux sur l'écran principal en pleine partie), juste
+  // avant « ⛔ Arrêter la partie ».
+  for (const id of ["c-add", "c-replay", "c-recommencer", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-end", "c-arret"]) grille.append($(id));
+  $("c-end").querySelector(".label").textContent = "⏭ Terminer";
   $("plus-onglets").append($("c-notes"), document.querySelector(".regie .tabs"),
     $("panel-teams"), $("panel-plan"), $("panel-show"), $("panel-defis"));
   // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer » : appui long, elle reste).
   grille.addEventListener("click", (e) => {
     const bouton = e.target.closest("button");
-    if (bouton && bouton.id !== "c-end") fermerPlus();
+    if (bouton && bouton.id !== "c-arret") fermerPlus();
   }, true);
   // Le milieu de l'écran (cedric, 25/10) : une tuile par équipe, sous la carte de la question.
   const tuiles = document.createElement("section");
@@ -240,13 +245,13 @@ function questionSuivante(st) {
   const k = (st.index ?? -1) + 1;
   const q = questions[k];
   if (!q || (next && next.start === k) || st.leaveTo != null) return null;
-  if (["portes", "coffres", "gonfleur", "patate", "statues", "duel", "mime", "pictionary", "blind"].includes(q.kind)) return null;
+  if (["portes", "coffres", "gonfleur", "patate", "statues", "duel", "simon", "mime", "pictionary", "blind"].includes(q.kind)) return null;
   if (q.correct == null) return null;
   return { q, correct: q.correct, text: q.choices?.[q.correct] ?? "", number: q.kind === "number", flou: BUZZ_KINDS.includes(q.kind) };
 }
 
 /** Jeux qui ont déjà leur propre écran au milieu de la régie pendant la question (mimes, blind test, statues…). */
-const MILIEU_OCCUPE = ["mime", "blind", "statues", "duel", "coffres", "gonfleur", "patate"];
+const MILIEU_OCCUPE = ["mime", "blind", "statues", "duel", "simon", "coffres", "gonfleur", "patate"];
 
 /**
  * Une tuile par équipe (1 à 8) : sa couleur, ses points, ce qu'elle fait (a répondu, réfléchit, sa réponse et ses
@@ -381,11 +386,13 @@ function stopListening() {
  * elle renvoie un message affiché dans la fenêtre, qui reste ouverte (mot de passe faux…), ou rien si tout va bien.
  * Renvoie une promesse : vrai si l'animatrice confirme (et que l'action a réussi).
  */
-function demander({ title, text = "", ok = "Confirmer", alert = false, line = "", warn = "", danger = "", safe = false, password = false, action = null }) {
+function demander({ title, text = "", ok = "Confirmer", non = "Annuler", alert = false, attention = "", line = "", warn = "", danger = "", safe = false, password = false, action = null }) {
   return new Promise((resolve) => {
     const box = $("ask");
     const show = (id, value) => { $(id).textContent = value; $(id).hidden = !value; };
     $("ask-title").textContent = title;
+    $("ask-attention").hidden = !attention;
+    $("ask-attention").querySelector("span").textContent = attention;
     show("ask-text", text);
     show("ask-line", line);
     show("ask-warn", warn);
@@ -399,7 +406,7 @@ function demander({ title, text = "", ok = "Confirmer", alert = false, line = ""
     okBtn.textContent = ok ?? "";
     okBtn.disabled = false;
     okBtn.classList.toggle("alert", alert);
-    cancelBtn.textContent = ok == null ? "Fermer" : "Annuler";
+    cancelBtn.textContent = ok == null ? "Fermer" : non;
     let busy = false;
     const close = (answer) => {
       if (busy) return;
@@ -585,8 +592,30 @@ function derniere(st) {
   return st.total != null && (st.index ?? 0) + 1 >= st.total;
 }
 
+/**
+ * Vrai ou Faux express : une autre affirmation de la même série suit. La TV enchaîne toute seule et les scores
+ * n'arrivent qu'à la fin de la série (cedric, 28/10) : jamais « Voir les scores » entre deux affirmations.
+ */
+function expressSuivante(st) {
+  if (st.kind !== "express") return false;
+  const questions = live.plan?.questions ?? [];
+  const q = questions[st.index ?? -1];
+  const n = questions[(st.index ?? -1) + 1];
+  return q != null && n != null && n.kind === "express" && (n.round ?? null) === (q.round ?? null);
+}
+
 function versClassement(st, libelle) {
   return derniere(st) ? "Résultats finaux 🏆" : libelle;
+}
+
+/**
+ * Fin des coffres mystères : pas de tableau des scores, chaque coffre a déjà montré le classement (cedric, 28/10) ;
+ * le bouton annonce le jeu suivant, ou les résultats finaux si c'était le dernier jeu.
+ */
+function finCoffresLabel(st) {
+  if (derniere(st)) return "Résultats finaux 🏆";
+  const { next, questions } = gamesOf(st);
+  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Question suivante";
 }
 
 function nextLabel(st, teamCount) {
@@ -599,6 +628,8 @@ function nextLabel(st, teamCount) {
   if (statues) return statuesBoutonPrincipal(statues, st);
   const duel = duelEtape(st);
   if (duel) return duelBoutonPrincipal(duel, st);
+  const simon = simonEtape(st);
+  if (simon) return simonBoutonPrincipal(simon, st);
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
@@ -607,7 +638,7 @@ function nextLabel(st, teamCount) {
     case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : versClassement(st, "Voir le classement")) : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
-    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : versClassement(st, "Voir les scores");
+    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : expressSuivante(st) ? "Affirmation suivante ▶" : st.kind === "coffres" ? finCoffresLabel(st) : versClassement(st, "Voir les scores");
     case "scores": {
       const { next, questions } = gamesOf(st);
       // Bilan d'un jeu quitté en cours de route (cedric, 24/10) : « suivant » ouvre le jeu choisi.
@@ -655,12 +686,13 @@ function render() {
   $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? ""
     : st.phase === "ended" ? (st.leftAt ? "🏁 Fête terminée. La TV est revenue à l'accueil, prête pour la prochaine fête. Merci !"
       : gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre."
+      : finAttendue(st) ? "Bravo à toutes les équipes ! Le podium est sur la TV. Parlez aux enfants, puis « ▶ Lancer la fin » : la fusée part, puis l'écran Merci."
       : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu). Sinon : « 🏁 Fin de la fête ».")
     : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
   const portes = (q?.kind ?? st.kind) === "portes";
   // Portes et coffres mystères : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
-  const correct = portes || ["coffres", "gonfleur", "patate"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
+  const correct = portes || ["coffres", "gonfleur", "patate", "simon"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
   answerBtn.hidden = intro || !inQuestion || (correct == null && !(portes && q?.doors));
   if (portes && q?.doors) {
@@ -686,7 +718,7 @@ function render() {
   }
   answerBtn.classList.toggle("grosse", COCKPIT && !answerBtn.hidden && !(portes && q?.doors));
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
+  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "simon" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
 
   renderGames(st);
   renderRequests(st, teams);
@@ -700,6 +732,7 @@ function render() {
   renderGonfleur(st, teams);
   renderPatate(st);
   renderDuel(st, teams);
+  renderSimon(st);
   renderTeams(st, teams);
   if (COCKPIT) renderTuiles(st, teams);
   renderPoints();
@@ -711,8 +744,14 @@ function render() {
   next.hidden = st.phase === "ended" && (!gamesOf(st).next || !!st.leftAt);
   // Fin de la partie (cedric, 23/10) : sur l'écran « Merci d'avoir participé », un gros bouton pour quitter la fête ;
   // la TV revient à l'accueil. Une fois la TV partie (leftAt), plus rien à piloter ici.
+  // « ▶ Lancer la fin » (cedric, 29/10) : le podium attend Sarah ; la box publie outroAt une fois la fin lancée.
+  // Une box d'avant ne publie rien : après sa réponse, place directement à « Fin de la fête ».
+  if (st.phase !== "ended") finSansOutro = false;
+  const lancer = $("c-lancer-fin");
+  lancer.hidden = !finAttendue(st);
+  lancer.disabled = !!pending?.advance;
   const fin = $("c-fin");
-  fin.hidden = st.phase !== "ended" || !!st.leftAt;
+  fin.hidden = st.phase !== "ended" || !!st.leftAt || !lancer.hidden;
   fin.disabled = !!pending?.advance;
   fin.classList.toggle("secondary", !next.hidden);
   next.textContent = pending?.advance ? "Envoi…" : nextLabel(st, teams.length);
@@ -732,10 +771,13 @@ function render() {
   if (statues) next.disabled = next.disabled || (!!statues.choix && !statues.choix.personne && !statues.choix.equipes.size) || (!!statues.resultat && statues.annonce > 0);
   const duel = duelEtape(st);
   if (duel) next.disabled = next.disabled || duel.d.step === "standoff" || (!!duel.choix && duel.choix.length !== 2);
+  const simon = simonEtape(st);
+  if (simon) next.disabled = next.disabled || simon.s.step === "play" || simon.s.step === "none" || simon.verif > 0;
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
-  $("c-end").hidden = st.phase === "ended";
+  $("c-end").hidden = st.phase === "ended" || st.phase === "lobby";
+  $("c-arret").hidden = st.phase === "lobby" || !!st.leftAt;
   caleSurLeBas();
 }
 
@@ -1910,9 +1952,8 @@ function statuesBoutonPrincipal(e, st) {
   if (c) return c.personne ? "✓ Valider : personne" : c.equipes.size > 1 ? `✓ Valider : ${c.equipes.size} gagnantes` : c.equipes.size ? `✓ Valider : ${live.teams[[...c.equipes][0]]?.name ?? "1 gagnante"}` : "Touchez la ou les gagnantes";
   if (!e.resultat) return e.encore ? "⏭ Chanson suivante" : "⏭ Finir la chanson";
   if (e.annonce > 0) return "Annonce sur la TV…";
-  if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
-  const { next, questions } = gamesOf(st);
-  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Jeu suivant ▶";
+  // Fin du jeu : le tableau des scores sur la TV, comme après chaque jeu (test du 28/10), puis « Jeu suivant ».
+  return versClassement(st, "Voir les scores");
 }
 
 /** Ancienne TV : un gros bouton par équipe pour désigner la gagnante, à la fin ou dès qu'il n'en reste qu'une. */
@@ -2067,10 +2108,9 @@ function duelBoutonPrincipal(e, st) {
   return "🤠 Lancer le duel";
 }
 
+/** Fin du duel ou du Simon : le tableau des scores sur la TV (test du 28/10), puis « Jeu suivant » ; au dernier jeu, les résultats. */
 function finDuelLabel(st) {
-  if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
-  const { next, questions } = gamesOf(st);
-  return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Jeu suivant ▶";
+  return versClassement(st, "Voir les scores");
 }
 
 function duelPrincipal(e) {
@@ -2130,6 +2170,127 @@ $("duel-fin").onclick = async () => {
 };
 
 /**
+ * Le Simon du Prof (cedric, 27/10) : la box tient la suite secrète et juge ; Sarah lance chaque suite, l'arrête si
+ * un enfant n'est pas prêt, puis passe à la suite ou au tour suivant. La TV vérifie colonne par colonne avant le
+ * bandeau : le bouton suivant attend la fin de cette vérification.
+ */
+let simonStopArme = null;
+let simonMinuteur = null;
+const SIMON_COLONNE_MS = 700;
+const SIMON_BANDEAU_MS = 1500;
+const SIMON_BOULES = { rouge: "🔴", vert: "🟢", bleu: "🔵", jaune: "🟡", orange: "🟠", violet: "🟣", rose: "🩷", blanc: "⚪" };
+
+function simonEtape(st) {
+  const s = st.simon;
+  if (st.kind !== "simon" || !s || (st.phase !== "question" && st.phase !== "closed")) return null;
+  const v = s.verdict;
+  const verif = (s.step === "judged" || s.step === "won") && v?.at ? v.at + (v.suite ?? s.suite ?? 0) * SIMON_COLONNE_MS + SIMON_BANDEAU_MS - (Date.now() + serverOffset) : 0;
+  return { s, verif };
+}
+
+const simonListe = (x) => (Array.isArray(x) ? x : Object.values(x ?? {}));
+const simonSuite = (texte) => String(texte ?? "").split(",").filter(Boolean).map((x) => SIMON_BOULES[x.trim()] ?? x.trim()).join(" ");
+
+function renderSimon(st) {
+  const on = (st.phase === "question" || st.phase === "closed") && st.kind === "simon";
+  $("simon").hidden = !on;
+  clearTimeout(simonMinuteur);
+  if (!on) { clearTimeout(simonStopArme); simonStopArme = null; return; }
+  const e = simonEtape(st);
+  const s = e?.s ?? { step: "none" };
+  const busy = !!pending?.advance || st.paused === true;
+  const name = (id) => live.teams[id]?.name ?? "Une équipe";
+  const v = s.verdict;
+  const tour = (s.tours ?? 1) > 1 ? `Tour ${s.tour ?? 1} sur ${s.tours}. ` : "";
+  const reste = s.step === "play" && s.finAt ? Math.ceil((s.finAt - (Date.now() + serverOffset)) / 1000) : 0;
+  $("simon-info").textContent = s.step === "none" ? "Le robot prof prépare sa première suite…"
+    : s.step === "ready" ? `${tour}Suite de ${s.suite ?? 1} : appelez le joueur de chaque équipe.`
+      : s.step === "play" ? `${tour}🔴 Suite de ${s.suite ?? 1} en cours${reste > 0 ? ` : fin du chrono dans ${reste} s` : ""}.`
+        : e.verif > 0 ? "Vérification sur la TV…"
+          : s.step === "won" ? `${tour}🏆 ${simonListe(v?.winners).map(name).join(", ") || "Personne"} ${simonListe(v?.winners).length > 1 ? "gagnent" : "gagne"} le tour.`
+            : v?.bahAlors ? "Bah alors ! Toutes les équipes se sont trompées : la même suite se rejoue."
+              : `${tour}Suite réussie : la suivante aura ${s.suite ?? ""} éléments.`;
+  // Bilan de la suite jugée : la bonne suite, et qui s'est trompé.
+  const verdict = $("simon-verdict");
+  const voir = (s.step === "judged" || s.step === "won") && v && e.verif <= 0;
+  verdict.hidden = !voir;
+  if (voir) {
+    const faux = simonListe(v.wrong);
+    verdict.textContent = `Bonne suite : ${simonSuite(v.solution)}${faux.length ? ` · Erreur : ${faux.map(name).join(", ")}` : ""}`;
+  }
+  // Les équipes du tour : en jeu ou éliminée, et le joueur appelé.
+  const out = s.out ?? {};
+  const gagnantes = s.step === "won" ? simonListe(v?.winners) : [];
+  const lignes = simonListe(s.teams).map((id) => {
+    const li = document.createElement("li");
+    li.style.setProperty("--team", live.teams[id]?.color ?? "#fff");
+    li.classList.toggle("eliminee", out[id] != null);
+    const nom = document.createElement("b");
+    nom.textContent = name(id);
+    const etat = document.createElement("span");
+    etat.textContent = gagnantes.includes(id) ? "🏆 gagne le tour"
+      : out[id] != null ? `éliminée (suite de ${out[id]})`
+        : `en jeu${s.players?.[id] ? ` · joueur n°${s.players[id]}` : ""}`;
+    li.append(nom, etat);
+    return li;
+  });
+  const liste = $("simon-equipes");
+  const cle = lignes.map((li) => li.textContent + li.className).join("|");
+  if (liste.dataset.key !== cle) { liste.dataset.key = cle; liste.replaceChildren(...lignes); }
+  // Arrêter une suite (enfant pas prêt, tablette en panne) : deux appuis, personne n'est éliminé.
+  const stop = $("simon-stop");
+  stop.hidden = s.step !== "play";
+  stop.disabled = busy;
+  stop.textContent = simonStopArme ? "Touchez encore : arrêter, personne n'est éliminé" : "✋ Arrêter la suite";
+  if (s.step !== "play") { clearTimeout(simonStopArme); simonStopArme = null; }
+  $("simon-fin").hidden = !["ready", "judged", "won"].includes(s.step) || (s.step === "won" && s.last === true);
+  $("simon-fin").disabled = busy;
+  $("simon-points").textContent = `${st.double ? 600 : 300} points pour l'équipe qui gagne le tour.`;
+  // Chrono qui défile, puis bouton suivant à la fin de la vérification à la TV.
+  if (s.step === "play" && reste > 0) simonMinuteur = setTimeout(render, 1000);
+  else if (e && e.verif > 0) simonMinuteur = setTimeout(render, e.verif + 50);
+}
+
+function simonBoutonPrincipal(e, st) {
+  const s = e.s;
+  if (s.step === "none") return "Le robot prof se prépare…";
+  if (s.step === "play") return "Suite en cours… 🔴";
+  if (e.verif > 0) return "Vérification à la TV…";
+  if (s.step === "ready") return `▶ Lancer la suite de ${s.suite ?? 1}`;
+  if (s.step === "judged") return s.verdict?.bahAlors ? "▶ Relancer la suite" : `▶ Suite suivante (${s.suite ?? ""} éléments)`;
+  if (s.step === "won") return s.last === true ? finDuelLabel(st) : `▶ Tour suivant (${(s.tour ?? 1) + 1} / ${s.tours ?? 1})`;
+  return finDuelLabel(st);
+}
+
+function simonPrincipal(e) {
+  const s = e.s;
+  if (s.step === "play" || s.step === "none" || e.verif > 0) return;
+  navigator.vibrate?.(60);
+  if (s.step === "won" && s.last === true) return send("next", {}, { advance: true });
+  return send("simon_go", {}, { advance: true });
+}
+
+$("simon-stop").onclick = () => {
+  if (!simonStopArme) {
+    simonStopArme = setTimeout(() => { simonStopArme = null; render(); }, 4000);
+    return render();
+  }
+  clearTimeout(simonStopArme);
+  simonStopArme = null;
+  send("simon_stop", {}, { advance: true }).then((r) => { if (r?.status === "applied") toast("Suite arrêtée, personne n'est éliminé : relancez quand les joueurs sont prêts."); });
+};
+$("simon-fin").onclick = async () => {
+  const s = live.state?.simon ?? {};
+  const restent = Math.max(0, (s.tours ?? 1) - (s.tour ?? 1) + (s.step === "won" ? 0 : 1));
+  const ok = await demander({
+    title: "Arrêter le Simon du Prof ?",
+    text: restent ? `${restent} tour${restent > 1 ? "s" : ""} pas encore gagné${restent > 1 ? "s" : ""}.` : "",
+    ok: "⏭ Jeu suivant",
+  });
+  if (ok && simonEtape(live.state ?? {})) send("next", {}, { advance: true });
+};
+
+/**
  * Les coffres mystères : à qui le tour, combien de coffres sans danger, ce qui est sorti. Secours : ouvrir un coffre au
  * hasard pour l'équipe qui joue (deux appuis). Jamais de contenu à l'avance : il est tiré par la box à l'ouverture.
  */
@@ -2147,7 +2308,7 @@ function renderCoffres(st) {
       + (!c.danger ? `Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`
         : `💣 La bombe est cachée dans un des coffres !${c.goldLeft === true ? " ⭐ Le coffre en or (+500) aussi." : ""}`);
   $("coffres-opened").textContent = opened.length
-    ? opened.slice(-4).map((o) => `${name(o.team)} : coffre ${o.chest + 1} ${o.bomb ? "💣" : `${o.gold === true ? "⭐ " : ""}${o.delta < 0 ? "−" : "+"}${Math.abs(o.delta)}`}`).join(" · ")
+    ? opened.slice(-4).map((o) => `${name(o.team)} : ${o.bomb ? "💣" : `${o.gold === true ? "⭐ " : ""}${o.delta < 0 ? "−" : "+"}${Math.abs(o.delta)}`}`).join(" · ")
     : `${c.count ?? 0} coffres fermés.`;
   const btn = $("coffres-random");
   const wait = (c.readyAt ?? 0) - (Date.now() + serverOffset);
@@ -2155,6 +2316,12 @@ function renderCoffres(st) {
   clearTimeout(coffresPret);
   if (wait > 0) coffresPret = setTimeout(render, wait + 50);
   btn.textContent = coffresArme ? `Touchez encore : coffre au hasard pour ${name(c.team)}` : `🎲 Ouvrir un coffre au hasard pour ${name(c.team)}`;
+  // Le gros bouton attend la bombe ; celui-ci passe au jeu suivant tout de suite, après confirmation (points gardés).
+  const { next } = gamesOf(st);
+  const fin = $("coffres-fin");
+  fin.hidden = !next;
+  fin.disabled = !!pending?.advance;
+  if (next) fin.onclick = () => jumpTo(next, live.state ?? st);
 }
 $("coffres-random").onclick = () => {
   if (!coffresArme) {
@@ -2399,6 +2566,9 @@ function renderGames(st) {
   $("c-replay").disabled = editing;
   // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer la fête ! » suffit).
   $("c-rescue").hidden = st.phase === "lobby" || !rounds.length || !live.plan?.rev;
+  // « ↺ Relancer ce jeu » (cedric, 30/10) : le jeu en cours repart à zéro d'un seul geste, pendant un jeu seulement.
+  $("c-recommencer").hidden = st.phase === "lobby" || !current || !live.plan?.rev;
+  $("c-recommencer").disabled = editing;
   if (rescueOpen && $("c-rescue").hidden) rescueOpen = false;
   $("rescue").hidden = !rescueOpen;
   if (rescueOpen) renderRescue(st);
@@ -2474,7 +2644,7 @@ async function jumpTo(r, st) {
   // Quitter le jeu en cours pour un autre (cedric, 24/10) : la TV montre d'abord le bilan des scores.
   const bilan = jeuEnCours(st) && r !== current;
   const ok = await demander(replay
-    ? { title: `Recommencer « ${name} » ?`, text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores." : ""}`, ok: "Recommencer ce jeu", alert: true }
+    ? { title: `Recommencer « ${name} » ?`, attention: "Ce jeu repart à zéro : les points gagnés pendant ce jeu sont effacés.", text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores." : ""}`, ok: "Recommencer ce jeu", alert: true }
     : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés.${bilan ? ` La TV montre le bilan des scores, puis « ${name} » quand vous appuyez sur « Jeu suivant ».` : ""} Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
   if (!ok) return;
   // Photos et extraits du jeu recopiés dans la partie s'ils y manquent (copies effacées après la fête, partie reprise
@@ -2491,6 +2661,11 @@ async function jumpTo(r, st) {
 }
 
 $("c-rescue").onclick = () => { rescueOpen = true; render(); };
+$("c-recommencer").onclick = () => {
+  const st = live.state ?? {};
+  const { current } = gamesOf(st);
+  if (current && !pending?.advance) jumpTo(current, st);
+};
 $("c-add").onclick = () => openLibrary();
 $("c-replay").onclick = () => openRejouer();
 $("rescue-close").onclick = () => { rescueOpen = false; render(); };
@@ -2627,8 +2802,10 @@ function openRejouer() {
   picked = null;
   libRejouer = true;
   $("lib").hidden = false;
-  if (!library || library.denied || library.error) fetchLibrary();
-  else renderLibrary();
+  // Toujours relue (cedric, 27/10 en direct) : un jeu préparé dans la Régie PC pendant la fête apparaît aussitôt ;
+  // la liste déjà lue reste affichée le temps de la relire.
+  if (!library?.games) library = null;
+  fetchLibrary();
 }
 
 /** Liste « Rejouer un jeu » : un bouton par jeu déjà lancé. */
@@ -2742,8 +2919,10 @@ const sourceEnSeries = (round) => ({
 
 /** Quiz de la bibliothèque et manches des prestations déjà préparées, lus sans rien modifier. */
 async function fetchLibrary() {
-  library = { loading: true };
-  renderLibrary();
+  if (!library?.games) {
+    library = { loading: true };
+    renderLibrary();
+  }
   try {
     const [s, q, m, p, c, sm, so] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents", "manches", "songs"].map((k) => get(ref(db, `library/${k}`))));
     const quizzes = q.val() ?? {};
@@ -2803,6 +2982,9 @@ async function fetchLibrary() {
       { key: "builtin/coffres", label: ROUND_TYPES.coffres, source: { type: "coffres" } },
       { key: "builtin/gonfleur", label: ROUND_TYPES.gonfleur, source: { type: "gonfleur" } },
       { key: "builtin/patate", label: ROUND_TYPES.patate, source: { type: "patate" } },
+      // Blind test au hasard (cedric, 27/10, en pleine fête) : sans rien préparer, des chansons de la bibliothèque des
+      // sons tirées à l'ajout, jamais une chanson déjà au programme de la fête.
+      ...(Object.values(songs).some(chansonJouable) ? [{ key: "builtin/blind", label: "Blind test : vos chansons au hasard", hasardBlind: true, source: { type: "blind", chansons: [] } }] : []),
     ];
     // Prestations épinglées (modèles) : chacun de leurs jeux, dans leur ordre, proposé en premier.
     const pinned = Object.entries(s.val() ?? {})
@@ -2843,7 +3025,8 @@ async function fetchLibrary() {
     library = { quizzes, mimes, playlists, contents, songs, games, rounds, decks, quizGames, builtins, music, pinned, saved, drawn };
   } catch (e) {
     console.error(e);
-    library = { denied: /permission/i.test(String(e?.message ?? e)) };
+    // Relecture ratée (réseau) : la liste déjà lue reste.
+    if (!library?.games) library = { denied: /permission/i.test(String(e?.message ?? e)) };
   }
   renderLibrary();
 }
@@ -2852,12 +3035,15 @@ function openLibrary() {
   picked = null;
   libRejouer = false;
   $("lib").hidden = false;
-  if (!library || library.denied || library.error) fetchLibrary();
-  else renderLibrary();
+  // Toujours relue (cedric, 27/10 en direct) : un jeu préparé dans la Régie PC pendant la fête apparaît aussitôt ;
+  // la liste déjà lue reste affichée le temps de la relire.
+  if (!library?.games) library = null;
+  fetchLibrary();
 }
 
 function closeLibrary() {
   picked = null;
+  refusAjout = null;
   libRejouer = false;
   $("lib").hidden = true;
 }
@@ -2904,6 +3090,13 @@ function renderLibrary() {
       meta.textContent = `Mimes · ${count} carte${count > 1 ? "s" : ""} · tour de ${deck?.duration ?? 60} s`;
       b.append(title, meta);
       b.disabled = !count;
+      b.onclick = () => pick(game);
+      box.appendChild(b);
+      return;
+    }
+    if (game.hasardBlind) {
+      meta.textContent = `${BLIND_HASARD} chansons de votre bibliothèque, tirées au hasard · jamais une chanson déjà jouée · ${MUSIC_GAMES.blind.rule}`;
+      b.append(title, meta);
       b.onclick = () => pick(game);
       box.appendChild(b);
       return;
@@ -2997,7 +3190,9 @@ async function pick(game) {
     const show = (await get(ref(db, `games/${code}/show`))).val();
     profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
   } catch { profile = null; }
+  refusAjout = null;
   picked = { game, source: { ...game.source } };
+  if (game.hasardBlind) picked.source.chansons = tirerChansons();
   searchText = "";
   if (game.random) picked.random = randomSettings(game.source.type, { count: game.source.count, base: game.base });
   drawPicked();
@@ -3012,6 +3207,20 @@ function randomSettings(type, { count = null, base = null } = {}) {
 
 /** Équipes de la partie (pour les cartes de mimes par équipe), null tant qu'il n'y en a aucune. */
 const teamsNow = () => Object.keys(live.teams ?? {}).length || null;
+
+/** Blind test au hasard : combien de chansons, tirées dans la bibliothèque des sons. */
+const BLIND_HASARD = 10;
+
+/** Chansons du « Blind test au hasard » : jouables, jamais une déjà au programme de la fête (même extrait), mélangées. */
+function tirerChansons(n = BLIND_HASARD) {
+  const deja = new Set((live.plan?.questions ?? []).flatMap((q) => [q?.audioId, q?.refrainId]).filter(Boolean));
+  const ids = Object.entries(library?.songs ?? {}).filter(([, x]) => chansonJouable(x) && !deja.has(x.audioId)).map(([id]) => id);
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  return ids.slice(0, n);
+}
 
 /** Ce qui est déjà au programme de la fête (joué ou prévu) : jamais tiré une deuxième fois. */
 const alreadyPlayed = () => playedKeys(live.plan?.questions ?? [], library?.contents);
@@ -3320,6 +3529,7 @@ function renderPreview() {
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
     if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; une équipe qui la garde plus de 2 secondes la voit exploser. À l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
+    if (q.kind === "simon") { li.textContent = "Le robot prof montre une suite de boules qui s'allument ; un joueur de chaque équipe la retape sur sa tablette. Une erreur élimine l'équipe du tour."; list.appendChild(li); return; }
     if (q.kind === "duel") { li.textContent = "Deux équipes face à face, un joueur de chaque : la première qui buzze après le PAN gagne, trop tôt elle perd."; list.appendChild(li); return; }
     if (q.kind === "gonfleur") { li.textContent = "Chaque équipe tapote sa tablette pour gonfler son ballon : le premier qui éclate gagne."; list.appendChild(li); return; }
     if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
@@ -3345,13 +3555,14 @@ function renderPreview() {
     li.append(q.kind === "quisuis" ? `${q.image ?? ""} ${q.cards?.[0]?.word ?? ""}…`.trim() : q.text, answer);
     list.appendChild(li);
   });
-  $("lib-problems").hidden = !problems.length;
-  $("lib-problems").textContent = problems.join(" ");
+  const soucis = [...(refusAjout ? [refusAjout] : []), ...problems];
+  $("lib-problems").hidden = !soucis.length;
+  $("lib-problems").textContent = soucis.join(" ");
   const lobby = st.phase === "lobby";
   const rejeu = enRejeu();
   const after = $("lib-after");
-  after.textContent = editing ? "Envoi à la TV…" : rejeu ? "Après le jeu en cours" : lobby ? "Ajouter au début" : "Ajouter après la manche actuelle";
-  after.disabled = editing || !questions.length;
+  after.textContent = editing ? "Envoi à la TV…" : adding ? "Préparation des images…" : rejeu ? "Après le jeu en cours" : lobby ? "Ajouter au début" : "Ajouter après la manche actuelle";
+  after.disabled = editing || adding || !questions.length;
   // Rejeu : « ▶ Rejouer maintenant » en premier, « Après le jeu en cours » ensuite (rien à attendre une fois la fête finie).
   after.classList.toggle("main", !rejeu);
   after.classList.toggle("secondary", rejeu);
@@ -3359,9 +3570,9 @@ function renderPreview() {
   const now = $("lib-now");
   now.hidden = !rejeu;
   now.textContent = editing ? "Envoi à la TV…" : "▶ Rejouer maintenant";
-  now.disabled = editing || !questions.length;
+  now.disabled = editing || adding || !questions.length;
   $("lib-end").hidden = rejeu;
-  $("lib-end").disabled = editing || !questions.length;
+  $("lib-end").disabled = editing || adding || !questions.length;
 }
 
 /**
@@ -3381,6 +3592,7 @@ const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : s
 const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer aux Coffres mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à « Ça va exploser ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_SIMON = "La TV doit être mise à jour pour jouer au Simon du Prof : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DUEL = "La TV doit être mise à jour pour jouer au Duel des robots : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
@@ -3402,6 +3614,7 @@ function tvRefuses(questions) {
   if (live.plan.gonfleur !== true && questions.some((q) => q?.kind === "gonfleur")) return OLD_TV_GONFLEUR;
   if (live.plan.patate !== true && questions.some((q) => q?.kind === "patate")) return OLD_TV_PATATE;
   if (live.plan.duel !== true && questions.some((q) => q?.kind === "duel")) return OLD_TV_DUEL;
+  if (live.plan.simon !== true && questions.some((q) => q?.kind === "simon")) return OLD_TV_SIMON;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
   if (live.plan.blindPlay !== true && questions.some((q) => q?.kind === "blind")) return OLD_TV_BLIND;
   if (live.plan.blind !== true && questions.some((q) => q?.audioId)) return OLD_TV_BLIND;
@@ -3409,27 +3622,52 @@ function tvRefuses(questions) {
 }
 
 let adding = false;
+/** Refus de la TV au dernier ajout du jeu choisi : montré dans la fenêtre du jeu, effacé au prochain essai. */
+let refusAjout = null;
 async function addPicked(where) {
   if (!picked || editing || adding) return;
+  refusAjout = null;
   const rejeuEnCours = enRejeu();
   const refused = tvRefuses(picked.questions);
   if (refused) { toast(refused); return; }
+  // « ▶ Rejouer maintenant » pendant un jeu : « Êtes-vous sûr ? » avant d'arrêter le jeu en cours (cedric, 30/10).
+  const enJeu = !["lobby", "ended"].includes(live.state?.phase ?? "lobby");
+  if (where === "now" && enJeu) {
+    const nom = picked.game?.label ? `«\u00a0${picked.game.label}\u00a0»` : "ce jeu";
+    if (!await demander({ ...SUR, line: `Vous allez lancer ${nom} tout de suite.`, text: "Le jeu en cours s'arrête là. Les points déjà gagnés sont gardés." })) return;
+    if (!picked || editing || adding) return;
+  }
+  // Le jeu choisi est gardé : fenêtre fermée pendant la copie des images, l'ajout part quand même (test du 27/10 :
+  // la copie des pochettes d'un blind test prenait du temps sans rien montrer, et l'ajout se perdait).
+  const choix = picked;
   // Photos copiées avant l'envoi : la TV les cherche dès qu'elle accepte le programme. Les extraits,
   // plus lourds, suivent ; la TV les attend.
   adding = true;
+  renderLibrary();
   let chosen;
-  try { chosen = await copyImages(picked.questions); } finally { adding = false; }
+  try {
+    chosen = await copyImages(choix.questions);
+  } catch (e) {
+    console.warn("Images non copiées", e);
+    refusAjout = "⚠ Les images du jeu n'ont pas pu être copiées (connexion ?) : rien n'a été ajouté, réessayez.";
+    toast(refusAjout);
+    return;
+  } finally {
+    adding = false;
+    renderLibrary();
+  }
   copySounds(chosen);
-  if (!picked || editing) return;
+  if (editing) { toast("Un autre changement part vers la TV : réessayez dans un instant."); return; }
+  if (picked !== choix) picked = null;
   const st = live.state ?? { phase: "lobby" };
   const current = live.plan?.questions ?? [];
-  const title = uniqueRoundTitle(current, chosen[0]?.round ?? picked.game.label);
+  const title = uniqueRoundTitle(current, chosen[0]?.round ?? choix.game.label);
   const added = chosen.map((q) => ({ ...q, round: title }));
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
   const now = where === "now";
   const program = insertGame(current, added, now ? "after" : where, index);
   const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : now || rejeuEnCours ? "après le jeu en cours" : "après la manche en cours";
-  const keep = picked.random ? liveManche(picked, title) : null;
+  const keep = choix.random ? liveManche(choix, title) : null;
   // « ▶ Rejouer maintenant » : le jeu en cours s'arrête là (ses points sont gardés) et la TV ouvre le jeu rejoué.
   const lancer = now ? async () => {
     const start = program.findIndex((q) => q.id === added[0]?.id);
@@ -3486,8 +3724,15 @@ async function sendProgram(questions, success, fromLibrary = false, onApplied = 
   const done = (message, applied) => {
     editing = false;
     if (applied) onApplied?.();
-    if (applied || fromLibrary) closeLibrary();
-    toast(message);
+    // Refus pendant un ajout (test du 27/10 : Sarah n'avait rien vu, la fenêtre se fermait sur un petit message) :
+    // le jeu choisi reste ouvert avec la raison bien visible, pour réessayer ou l'ajouter à la fin.
+    if (applied || !fromLibrary || !picked) {
+      if (applied || fromLibrary) closeLibrary();
+      toast(message);
+    } else {
+      refusAjout = `⚠ ${message} Vous pouvez réessayer, ou « Ajouter à la fin ».`;
+      renderLibrary();
+    }
     render();
   };
   let stop = () => {};
@@ -3920,6 +4165,8 @@ const STATUS_MESSAGES = {
   gone: "Cette demande n'existe plus : l'appareil a peut-être quitté la page.",
   stale_program: "Le programme venait de changer : rien n'a été fait, la liste des jeux est à jour.",
   countdown: "La partie reprend (3, 2, 1) : attendez la fin du décompte.",
+  just_started: "Le chrono vient de partir : rien n'a été arrêté. Touchez à nouveau pour l'arrêter.",
+  scores_just_shown: "Les scores viennent de s'afficher : laissez-les quelques secondes à l'écran, puis touchez à nouveau.",
   bad_factor: "Valeur de points inconnue.",
   not_ended: "La partie n'est pas encore terminée : appuyez d'abord longtemps sur « Terminer ».",
   no_name: "Tapez d'abord le nom de l'équipe.",
@@ -3937,7 +4184,11 @@ function toast(message) {
  * Envoie une commande avec le numéro d'étape affiché (expectSeq). La box refuse une commande
  * d'avancement si la partie a bougé entre-temps : un double appui n'avance jamais de deux étapes.
  */
-async function send(type, extra = {}, { advance = false } = {}) {
+/**
+ * [repli] : un refus « not_ended » ou une écriture refusée (règles d'avant) ne s'affiche pas ; l'appelant se replie
+ * (« Arrêter la partie » sur une TV ou un site d'avant).
+ */
+async function send(type, extra = {}, { advance = false, repli = false } = {}) {
   const st = live.state;
   if (!st || (advance && pending?.advance)) return null;
   const cmdRef = push(ref(db, `games/${code}/commands`));
@@ -3962,11 +4213,12 @@ async function send(type, extra = {}, { advance = false } = {}) {
       const status = s.val();
       if (!status) return;
       tvRepond();
-      if (status.status !== "applied") toast(STATUS_MESSAGES[status.reason] ?? STATUS_MESSAGES[status.status] ?? "Commande refusée.");
+      if (status.status !== "applied" && !(repli && status.reason === "not_ended")) toast(STATUS_MESSAGES[status.reason] ?? STATUS_MESSAGES[status.status] ?? "Commande refusée.");
       done(status);
     });
     set(cmdRef, { type, expectSeq: st.seq ?? 0, by: uid, at: serverTimestamp(), ...extra }).catch((e) => {
       console.error(e);
+      if (repli) return done({ status: "refused", reason: "write_denied" });
       toast("Commande refusée : ce téléphone n'est peut-être plus relié.");
       done(null);
     });
@@ -4082,6 +4334,21 @@ function showUndo(text, seq) {
   undoTimer = setTimeout(() => { $("undo").hidden = true; }, 10000);
 }
 
+/** « ▶ Lancer la fin » à faire : podium sur la TV, fin pas encore lancée (outroAt), TV toujours sur la fête. */
+function finAttendue(st) {
+  return st.phase === "ended" && !st.leftAt && st.outroAt == null && !finSansOutro;
+}
+
+$("c-lancer-fin").onclick = async () => {
+  const st = live.state;
+  if (!st || !finAttendue(st) || pending?.advance) return;
+  const status = await send("next", {}, { advance: true });
+  // La box a répondu sans publier outroAt : box d'avant, « Fin de la fête » prend la place. Sans réponse : réessayer.
+  if (status && live.state?.outroAt == null) finSansOutro = true;
+  if (status?.status === "applied") toast("▶ Fin lancée : la fusée part sur la TV.");
+  render();
+};
+
 $("c-factor").querySelectorAll("[data-factor]").forEach((b) => {
   b.onclick = () => send("factor", { factor: Number(b.dataset.factor) });
 });
@@ -4121,6 +4388,8 @@ $("c-next").onclick = async () => {
   if (statues?.choix) return validerGagnantes();
   const duel = st ? duelEtape(st) : null;
   if (duel) return duelPrincipal(duel, st);
+  const simon = st ? simonEtape(st) : null;
+  if (simon) return simonPrincipal(simon);
   if (statues && !statues.resultat) { $("statues-choisir").click(); return; }
   if (statues) { send("next", {}, { advance: true }); return; }
   // Blind test : « next » lance, relance ou arrête la musique (la box décide selon l'état du morceau).
@@ -4138,20 +4407,106 @@ $("c-fin").onclick = async () => {
 };
 $("c-answer").onclick = () => { answerMasked = !answerMasked; render(); };
 
-// « Terminer la partie » : appui long d'une seconde, pour ne jamais finir une partie par erreur.
-(() => {
-  const btn = $("c-end");
+/**
+ * Bouton à appui long (cedric, 29/10) : la jauge se remplit pendant [ms] ; lâché avant, c'est un appui court.
+ * [court] et [long] sont appelés au lâcher et à la fin de la jauge ; aucun des deux ne part sans « Êtes-vous sûr ? ».
+ */
+function appuiLong(btn, ms, { court, long }) {
   let hold = null;
   let fired = false;
+  btn.style.setProperty("--jauge", `${ms}ms`);
   const cancel = () => { clearTimeout(hold); btn.classList.remove("pressing"); };
   btn.addEventListener("pointerdown", () => {
     fired = false;
     btn.classList.add("pressing");
-    hold = setTimeout(() => { fired = true; cancel(); send("end", {}, { advance: true }); }, 1000);
+    hold = setTimeout(() => { fired = true; cancel(); navigator.vibrate?.(80); long(); }, ms);
   });
   ["pointerup", "pointerleave", "pointercancel"].forEach((e) => btn.addEventListener(e, cancel));
-  btn.onclick = () => { if (!fired) toast("Gardez le doigt appuyé une seconde pour terminer la partie."); fired = false; };
-})();
+  btn.onclick = () => { if (!fired) court(); fired = false; };
+}
+
+// Les trois confirmations ne s'affichent que sur ce téléphone, jamais sur la TV (cedric, 29/10).
+const SUR = { title: "Êtes-vous sûr ?", ok: "Oui", non: "Non" };
+
+/** « ⏭ Terminer », appui court : le jeu en cours s'arrête, la suite démarre (jeu suivant, ou podium au dernier jeu). */
+async function terminerLeJeu() {
+  const st = live.state ?? {};
+  if (st.phase === "lobby" || st.phase === "ended" || pending?.advance) return;
+  const { questions, current, next } = gamesOf(st);
+  const nom = current ? `« ${gameName(current, questions)} »` : "Le jeu en cours";
+  if (!next) {
+    if (!await demander({ ...SUR, line: "Vous allez passer au podium final.", text: `${nom} est le dernier jeu.` })) return;
+    return send("end", {}, { advance: true });
+  }
+  const suivant = gameName(next, questions);
+  if (!await demander({ ...SUR, line: `Vous allez passer au jeu suivant : «\u00a0${suivant}\u00a0».`, text: `${nom} s'arrête ici. Les points déjà gagnés sont gardés.` })) return;
+  const jeu = questions.slice(next.start, next.end + 1);
+  copyImages(jeu).catch((e) => console.warn("Illustrations non recopiées", e));
+  copySounds(jeu);
+  const status = await send("goto", { index: next.start, qid: questions[next.start].id }, { advance: true });
+  if (status?.status === "applied") toast(jeuEnCours(st) ? `Bilan des scores sur la TV, puis « ${suivant} ».` : `C'est parti pour « ${suivant} » !`);
+}
+
+/** « ⏭ Terminer », appui long : directement les résultats finaux (podium), quel que soit le jeu en cours. */
+async function allerAuPodium() {
+  const st = live.state ?? {};
+  if (st.phase === "lobby" || st.phase === "ended" || pending?.advance) return;
+  if (!await demander({ ...SUR, line: "Vous allez passer au podium final.", text: "Les jeux qui restent ne seront pas joués." })) return;
+  send("end", {}, { advance: true });
+}
+
+/**
+ * « ⛔ Arrêter la partie » (cedric, 29/10) : tout s'arrête tout de suite, sans podium ; la TV revient à l'accueil et
+ * la régie la suit. Une TV ou un site d'avant refuse « arret » : la partie est alors terminée puis quittée.
+ */
+async function arreterLaPartie() {
+  const st = live.state ?? {};
+  if (st.phase === "lobby" || st.leftAt || pending?.advance) return;
+  if (!await demander({
+    ...SUR, alert: true,
+    attention: "Ce bouton va mettre fin définitivement à la partie.",
+    text: "Pas de podium : la TV revient tout de suite à l'accueil.",
+  })) return;
+  let r = await send("newgame", { arret: true }, { advance: true, repli: true });
+  if (r?.status === "refused" && (r.reason === "not_ended" || r.reason === "write_denied")) {
+    const fin = live.state?.phase === "ended" ? { status: "applied" } : await send("end", {}, { advance: true });
+    if (fin?.status === "applied") r = await send("newgame", {}, { advance: true });
+  }
+  if (r?.status === "applied") toast("⛔ Partie arrêtée : la TV revient à l'accueil.");
+}
+
+/** Le choix de l'appui long sur « ⏭ Terminer » (cedric, 30/10) : « podium », « arret », ou null (annulé). */
+function choisirLaFin() {
+  return new Promise((resolve) => {
+    const box = $("fin-choix");
+    const close = (choix) => {
+      box.hidden = true;
+      $("fin-podium").onclick = $("fin-arret").onclick = $("fin-annuler").onclick = box.onclick = null;
+      resolve(choix);
+    };
+    $("fin-podium").onclick = () => close("podium");
+    $("fin-arret").onclick = () => close("arret");
+    $("fin-annuler").onclick = () => close(null);
+    // Toucher à côté de la fenêtre = annuler.
+    box.onclick = (e) => { if (e.target === box) close(null); };
+    box.hidden = false;
+    $("fin-annuler").focus();
+  });
+}
+
+/** « ⏭ Terminer », appui long : aller au podium ou terminer complètement, puis « Êtes-vous sûr ? » (cedric, 30/10). */
+async function finAuChoix() {
+  const st = live.state ?? {};
+  if (st.phase === "lobby" || st.phase === "ended" || st.leftAt || pending?.advance) return;
+  fermerPlus(); // le doigt est encore sur « ⏭ Terminer » : « ☰ Plus » se referme derrière le choix
+  const choix = await choisirLaFin();
+  if (choix === "podium") return allerAuPodium();
+  if (choix === "arret") return arreterLaPartie();
+}
+
+appuiLong($("c-end"), 1000, { court: terminerLeJeu, long: finAuChoix });
+// Arrêter la partie : seulement en appui long (1,5 s), jamais d'un simple toucher.
+appuiLong($("c-arret"), 1500, { court: () => toast("Gardez le doigt appuyé sur « Arrêter la partie » jusqu'au bout de la jauge."), long: arreterLaPartie });
 
 $("tab-teams").onclick = () => { tabChosen = true; switchTab("teams"); };
 $("tab-plan").onclick = () => { tabChosen = true; switchTab("plan"); };

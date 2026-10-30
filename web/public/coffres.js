@@ -1,6 +1,6 @@
 /**
- * Les coffres mystères sur la tablette : les coffres de la TV, chacun son tour. L'équipe qui joue choisit un coffre fermé
- * et l'ouvre ; les autres regardent qui joue et ce qui sort. Module autonome, sans Firebase : la page pupitre envoie
+ * Les coffres mystères sur la tablette : les coffres de la TV, chacun son tour. L'équipe qui joue touche un coffre fermé
+ * et il s'ouvre ; les autres regardent qui joue et ce qui sort. Module autonome, sans Firebase : la page pupitre envoie
  * le choix et passe l'état de la partie à maj().
  */
 
@@ -11,13 +11,26 @@ export const modeleCoffre = (i) => MODELES[i % MODELES.length];
 /** Plaque dorée de chaque dessin (img/coffres/coffre-N.svg) : centre vertical et hauteur, en % de l'image. */
 const PLAQUES = [[64.6, 26.6], [56.1, 26.9], [64.8, 25.3], [60.4, 25.6], [60.8, 26.5], [63.6, 26.5]];
 
+/**
+ * Les rangées de coffres, comme les gradins de la TV (BombeCachee.kt, repartitionCoffres) : 1 rangée jusqu'à 6, 2 jusqu'à
+ * 12, 3 au-delà, les rangées du devant un coffre de plus. Sans numéros sur les coffres (cedric, 29/10, choix B), la
+ * tablette montre les coffres à la même place que la TV : la rangée du fond en haut, de gauche à droite.
+ */
+export function repartitionCoffres(nombre) {
+  if (nombre <= 0) return [];
+  const rangees = nombre <= 6 ? 1 : nombre <= 12 ? 2 : 3;
+  const base = Math.floor(nombre / rangees);
+  const reste = nombre % rangees;
+  return Array.from({ length: rangees }, (_, r) => base + (r >= rangees - reste ? 1 : 0));
+}
+
 /** Le contenu d'un coffre ne s'affiche sur la tablette qu'une fois montré par la TV (pas de suspense gâché). */
 export const REVELATION_MS = 1800;
 
 /** « +150 », « −100 » (vrai signe moins), comme sur la TV. */
 export const signe = (v) => `${v < 0 ? "−" : "+"}${Math.abs(v)}`;
 
-/** Game Show : les coffres 3D de la TV (img/coffres/gs-coffre-N.webp), numéro dans leur fenêtre noire. */
+/** Game Show : les coffres 3D de la TV (img/coffres/gs-coffre-N.webp), fenêtre noire sans numéro (cedric, 29/10). */
 const PLAQUES_GS = [[67.6, 23.4], [60, 23.4], [68.4, 23.4], [64.2, 23.4], [64.2, 23.4], [66.8, 23.4]];
 
 const coffreHTML = (i) => {
@@ -28,7 +41,7 @@ const coffreHTML = (i) => {
   <span class="bc-coffre bc-m${m}">
     <span class="bc-lueur"></span>
     <img class="bc-image" src="img/coffres/${gs ? `gs-coffre-${m + 1}.webp` : `coffre-${m + 1}.svg`}" alt="" draggable="false">
-    <span class="bc-plaque" style="top:${y}%;height:${h}%">${i + 1}</span>
+    <span class="bc-plaque" style="top:${y}%;height:${h}%"></span>
     <span class="bc-contenu"></span>
   </span>`;
 };
@@ -47,23 +60,16 @@ export function ecranCoffres(hote, { surChoix }) {
       <div class="bc-tete"><span class="bc-titre"></span><span class="bc-danger" hidden>💣 La bombe est cachée !</span></div>
       <p class="bc-texte"></p>
       <div class="bc-grille"></div>
-      <button class="bc-ouvrir" type="button" hidden>Ouvrir ce coffre !</button>
       <div class="bc-bilan" hidden></div>
       <p class="bc-total"></p>
     </div>`;
   const q = (s) => hote.querySelector(s);
   const grille = q(".bc-grille");
-  const bouton = q(".bc-ouvrir");
   let count = -1;
   let cle = null;
-  let choix = null;
   let dernier = null;
-
-  bouton.onclick = () => {
-    if (choix == null || bouton.disabled || !dernier?.peutOuvrir) return;
-    bouton.disabled = true;
-    surChoix(choix);
-  };
+  // Clé de l'ouverture déjà envoyée par un toucher : un double toucher n'envoie jamais deux coffres.
+  let envoyee = null;
 
   function maj(v) {
     dernier = v;
@@ -74,37 +80,48 @@ export function ecranCoffres(hote, { surChoix }) {
     tete.style.setProperty("--eq", v.joue?.couleur ?? "#fff3d1");
     tete.classList.toggle("bc-equipe", !!v.joue && !v.bilan);
 
-    // Une nouvelle ouverture : la sélection repart à zéro.
-    if (v.cle !== cle) { cle = v.cle; choix = null; }
+    // Une nouvelle ouverture, ou un envoi refusé (plus rien d'envoyé) : on peut toucher un coffre de nouveau.
+    if (v.cle !== cle) cle = v.cle;
+    if (v.envoye == null) envoyee = null;
     if (v.count !== count) {
       count = v.count ?? 0;
       grille.innerHTML = "";
       grille.style.setProperty("--n", `${count}`);
+      const rangees = repartitionCoffres(count);
+      grille.style.setProperty("--par-rangee", `${Math.max(1, ...rangees)}`);
+      let rangee = null;
+      let reste = 0;
       for (let i = 0; i < count; i++) {
+        if (reste === 0) {
+          rangee = document.createElement("div");
+          rangee.className = "bc-rangee";
+          grille.appendChild(rangee);
+          reste = rangees[grille.children.length - 1];
+        }
+        reste--;
         const b = document.createElement("button");
         b.type = "button";
         b.className = "bc-case";
-        b.setAttribute("aria-label", `Coffre ${i + 1}`);
+        b.setAttribute("aria-label", "Coffre");
         b.innerHTML = coffreHTML(i);
+        // Toucher un coffre l'ouvre tout de suite, sans bouton à confirmer (cedric, 27/10 au soir).
         b.onclick = () => {
-          if (b.disabled) return;
-          choix = i;
-          navigator.vibrate?.(20);
-          maj(dernier);
+          if (b.disabled || !dernier?.peutOuvrir || dernier.envoye != null || envoyee === cle) return;
+          envoyee = cle;
+          surChoix(i);
         };
-        grille.appendChild(b);
+        rangee.appendChild(b);
       }
     }
     const ouverts = new Map((v.ouverts ?? []).map((o) => [o.chest, o]));
     const actif = v.aMoi && v.envoye == null;
-    if (choix != null && ouverts.has(choix)) choix = null;
     grille.classList.toggle("bc-a-moi", actif);
-    grille.classList.toggle("bc-une-choisie", actif && choix != null);
+    grille.classList.toggle("bc-une-choisie", v.envoye != null);
     grille.querySelectorAll(".bc-case").forEach((b, i) => {
       const o = ouverts.get(i);
       const visible = o?.visible === true;
-      b.disabled = !actif || !!o;
-      b.setAttribute("aria-pressed", `${(actif && choix === i) || v.envoye === i}`);
+      b.disabled = !actif || !!o || !v.peutOuvrir;
+      b.setAttribute("aria-pressed", `${v.envoye === i}`);
       b.classList.toggle("bc-envoye", v.envoye === i);
       b.classList.toggle("bc-ouvert", !!o);
       b.classList.toggle("bc-attente", !!o && !visible);
@@ -118,9 +135,6 @@ export function ecranCoffres(hote, { surChoix }) {
       if (contenu.textContent !== texte) contenu.textContent = texte;
       b.title = o ? `${o.nom ?? ""}${visible ? ` : ${o.bomb ? "la bombe" : o.gold === true ? `le coffre en or, ${signe(o.delta)}` : signe(o.delta)}` : ""}` : "";
     });
-    bouton.hidden = !actif;
-    bouton.disabled = choix == null || !v.peutOuvrir;
-    bouton.textContent = choix == null ? "Touchez un coffre" : `Ouvrir le coffre ${choix + 1} !`;
 
     const bilan = q(".bc-bilan");
     bilan.hidden = !v.bilan;

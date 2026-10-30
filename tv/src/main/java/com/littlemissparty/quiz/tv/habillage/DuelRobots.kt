@@ -286,12 +286,17 @@ private fun VideoDuel(nomEtBoucle: Pair<String, Boolean>?, surImage: (Boolean) -
 /**
  * Lecteur des plans du duel : une seule surface, un plan après l'autre. Entre deux plans, la dernière image reste à
  * l'écran jusqu'à la première du suivant (pas d'écran noir), et jamais deux décodeurs vidéo à la fois (Mi Box).
+ * L'ancien lecteur est rendu hors du fil de l'écran ([Liberation]) et le suivant ne part qu'après : sur la Mi Box,
+ * stop() et release() bloquaient l'image à chaque plan et au PAN (test du 27/10 au soir : saccades, PAN figé, affiché
+ * jusqu'à 278 ms en retard).
  */
 internal class LecteurDuel(context: Context, private val surImage: (Boolean) -> Unit) : TextureView(context), TextureView.SurfaceTextureListener {
     private var surface: Surface? = null
     private var lecteur: MediaPlayer? = null
     private var demande: Pair<Int, Boolean>? = null
     private var fini = false
+    /** Change à chaque plan demandé : un lecteur rendu en retard ne lance jamais un plan dépassé. */
+    private var generation = 0
 
     init {
         surfaceTextureListener = this
@@ -306,9 +311,17 @@ internal class LecteurDuel(context: Context, private val surImage: (Boolean) -> 
 
     private fun lancer() {
         val s = surface ?: return
+        if (demande == null || fini) return
+        val jeton = ++generation
+        val ancien = lecteur
+        lecteur = null
+        if (ancien == null) creer(s) else Liberation.lecteur(ancien, stop = true) {
+            post { if (jeton == generation && !fini && surface === s) creer(s) }
+        }
+    }
+
+    private fun creer(s: Surface) {
         val (resId, boucle) = demande ?: return
-        if (fini) return
-        arreter()
         try {
             lecteur = MediaPlayer().apply {
                 context.resources.openRawResourceFd(resId).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
@@ -341,9 +354,10 @@ internal class LecteurDuel(context: Context, private val surImage: (Boolean) -> 
     override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, largeur: Int, hauteur: Int) = Unit
 
     override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
-        arreter()
-        surface?.release()
+        val s = surface
         surface = null
+        // La surface ne part qu'après le lecteur qui dessine dedans.
+        arreter { s?.release() }
         if (!fini) surImage(false)
         return true
     }
@@ -355,11 +369,11 @@ internal class LecteurDuel(context: Context, private val surImage: (Boolean) -> 
         arreter()
     }
 
-    private fun arreter() {
-        val l = lecteur ?: return
+    private fun arreter(apres: () -> Unit = {}) {
+        generation++
+        val l = lecteur
         lecteur = null
-        runCatching { l.stop() }
-        runCatching { l.release() }
+        if (l != null) Liberation.lecteur(l, stop = true, apres) else apres()
     }
 }
 

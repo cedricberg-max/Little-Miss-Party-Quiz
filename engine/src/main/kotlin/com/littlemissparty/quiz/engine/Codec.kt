@@ -37,6 +37,7 @@ object Codec {
             is ScoreAdjusted -> mapOf("type" to "adjust", "team" to e.team, "delta" to e.delta, "reason" to e.reason)
             is Undone -> mapOf("type" to "undo", "target" to e.target)
             is GameEnded -> mapOf("type" to "end")
+            is OutroLaunched -> mapOf("type" to "outro")
             is MimeTurnStarted -> mapOf("type" to "mime_start", "team" to e.team)
             is PictoShown -> mapOf("type" to "picto_show", "team" to e.team)
             is PictoChosen -> mapOf("type" to "picto_choose", "choice" to e.choice)
@@ -73,6 +74,14 @@ object Codec {
             is DuelSettled -> mapOf("type" to "duel_settle", "qid" to e.qid, "n" to e.n)
             is DuelStopped -> mapOf("type" to "duel_stop", "qid" to e.qid, "n" to e.n)
             is DuelPanShown -> mapOf("type" to "duel_pan", "qid" to e.qid, "n" to e.n, "shownAt" to e.shownAt)
+            is SimonTourReady -> mapOf("type" to "simon_tour", "qid" to e.qid, "tour" to e.tour, "sequence" to e.sequence.joinToString(","), "teams" to e.teams)
+            is SimonSuiteStarted -> mapOf("type" to "simon_start", "qid" to e.qid, "tour" to e.tour, "suite" to e.suite)
+            // Réponses : les éléments tapés en une chaîne (« rouge,vert,4 »), absents si rien n'a été tapé.
+            is SimonJudged -> mapOf(
+                "type" to "simon_judge", "qid" to e.qid, "tour" to e.tour, "suite" to e.suite,
+                "answers" to e.answers.mapValues { (_, a) -> mapOf("items" to a.items.joinToString(",").ifEmpty { null }, "ms" to a.ms) }.ifEmpty { null },
+            )
+            is SimonStopped -> mapOf("type" to "simon_stop", "qid" to e.qid, "tour" to e.tour, "suite" to e.suite)
             is Jumped -> mapOf("type" to "goto", "index" to e.index, "qid" to e.qid, "clear" to e.clear.ifEmpty { null })
             is ProgramReset -> mapOf("type" to "reset")
         }
@@ -112,6 +121,7 @@ object Codec {
             "adjust" -> ScoreAdjusted(seq, at, m["team"] as String, m.num("delta").toInt(), m["reason"] as? String ?: "")
             "undo" -> Undone(seq, at, m.num("target").toInt())
             "end" -> GameEnded(seq, at)
+            "outro" -> OutroLaunched(seq, at)
             "mime_start" -> MimeTurnStarted(seq, at, m["team"] as String)
             "picto_show" -> PictoShown(seq, at, m["team"] as String)
             "picto_choose" -> PictoChosen(seq, at, m.num("choice").toInt())
@@ -154,6 +164,18 @@ object Codec {
             "duel_settle" -> DuelSettled(seq, at, m["qid"] as String, m.num("n").toInt())
             "duel_stop" -> DuelStopped(seq, at, m["qid"] as String, m.num("n").toInt())
             "duel_pan" -> DuelPanShown(seq, at, m["qid"] as String, m.num("n").toInt(), m.num("shownAt"))
+            "simon_tour" -> SimonTourReady(
+                seq, at, m["qid"] as String, m.num("tour").toInt(), (m["sequence"] as String).split(","), (m["teams"] as List<*>).map { it as String },
+            )
+            "simon_start" -> SimonSuiteStarted(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("suite").toInt())
+            "simon_judge" -> SimonJudged(
+                seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("suite").toInt(),
+                (m["answers"] as? Map<*, *>).orEmpty().entries.associate { (team, v) ->
+                    val a = v as Map<*, *>
+                    team as String to SimonAnswer((a["items"] as? String)?.split(",")?.filter { it.isNotEmpty() }.orEmpty(), (a["ms"] as? Number)?.toLong())
+                },
+            )
+            "simon_stop" -> SimonStopped(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("suite").toInt())
             "goto" -> Jumped(seq, at, m.num("index").toInt(), m["qid"] as String, (m["clear"] as? List<*>).orEmpty().map { it as String })
             "reset" -> ProgramReset(seq, at)
             else -> null
@@ -238,6 +260,7 @@ object Codec {
         )
         // Partie terminée : son heure de fin (serveur), pour le ménage des copies des médias par la Régie PC.
         if (s.phase == Phase.ENDED) s.endedAt?.let { out["endedAt"] = it }
+        if (s.phase == Phase.ENDED) s.outroAt?.let { out["outroAt"] = it }
         // Un point a déjà été donné : la régie ne propose plus « Mauvaise prestation ? » (la box la refuserait).
         if (s.scored) out["scored"] = true
         // Bilan d'un jeu quitté en cours de route : la régie annonce le jeu choisi (première question).
@@ -266,9 +289,9 @@ object Codec {
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
                 // « Ça va exploser ! » : la mèche reste un secret, même pour les tablettes.
                 // Statues musicales (depuis le 27/10) : plus de chrono, chaque chanson dure ce qu'elle dure.
-                "durationMs" to q.durationMs.takeIf { !q.isPatate && !q.isStatues && !q.isDuel },
+                "durationMs" to q.durationMs.takeIf { !q.isPatate && !q.isStatues && !q.isDuel && !q.isSimon },
                 "deadline" to game.deadline().takeIf { !q.isPatate },
-                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && !q.isStatues && !q.isDuel && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && !q.isStatues && !q.isDuel && !q.isSimon && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
                 "correct" to if (revealed && !q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
@@ -282,6 +305,7 @@ object Codec {
             if (q.isPatate) out["potato"] = potatoState(game)
             if (q.isStatues) out["statues"] = statuesState(game)
             if (q.isDuel) out["duel"] = duelState(game, teams)
+            if (q.isSimon) out["simon"] = simonState(game)
             if (q.isGonfleur) out["pump"] = pumpKey(game)?.let { mapOf("key" to it, "goAt" to game.pumpGoAt, "target" to PUMP_TARGET) }
             if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
@@ -320,6 +344,61 @@ object Codec {
             "result" to d?.result?.let { r -> mapOf("winner" to r.winner, "loser" to r.loser, "early" to r.early, "ms" to r.ms, "points" to r.points) },
             "played" to d?.played?.ifEmpty { null },
             "allPlayed" to game.duelTousPasses(teams),
+        )
+    }
+
+    /** Simon du Prof : clé des réponses des tablettes pour la suite en cours (`simon/<clé>/<équipe>`), ou null. */
+    fun simonKey(game: Game): String? {
+        val r = game.state.simon?.takeIf { it.enCours } ?: return null
+        if (game.question?.isSimon != true || game.state.paused) return null
+        return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${r.tour}-${r.suite}-${r.startAt}"
+    }
+
+    /**
+     * Simon du Prof, pour la TV, la régie et les tablettes : le tour, la suite (sa longueur), ses heures (montrée, chrono,
+     * fin), les équipes du tour et les éliminées, le joueur appelé dans chaque équipe, et le bilan une fois jugée. La suite
+     * secrète n'y est jamais avant le bilan (seule la box la connaît) ; ensuite, la bonne suite pour la vérification.
+     */
+    fun simonState(game: Game): Map<String, Any?> {
+        val r = game.state.simon
+        val q = game.question
+        val joueurs = q?.joueurs ?: DUEL_JOUEURS
+        val v = r?.verdict
+        return mapOf(
+            "tour" to r?.tour,
+            "tours" to (q?.simonTours ?: SIMON_TOURS),
+            "suite" to (r?.let { if (it.enCours) it.suite else it.prochaine }),
+            "step" to when {
+                r == null -> "none"
+                r.enCours -> "play"
+                r.fini -> "won"
+                v != null -> "judged"
+                else -> "ready"
+            },
+            "key" to simonKey(game),
+            "startAt" to r?.startAt?.takeIf { r.enCours },
+            "chiffresAt" to r?.takeIf { it.enCours && it.annonceChiffres }?.startAt,
+            "montreAt" to r?.takeIf { it.enCours }?.montreAt,
+            "reponseAt" to r?.takeIf { it.enCours }?.reponseAt,
+            "finAt" to r?.takeIf { it.enCours }?.finAt(q?.simonSec ?: SIMON_REPONSE_SEC),
+            // Le pavé des chiffres des tablettes : dès la première suite à chiffres, une fois annoncés.
+            "chiffres" to (SIMON_AVEC_CHIFFRES && r != null && (r.chiffresVus || (r.enCours && r.suite >= SIMON_CHIFFRES_DES))),
+            "teams" to r?.teams,
+            "out" to r?.out?.ifEmpty { null },
+            "players" to r?.let { rr -> rr.teams.associateWith { rr.joueur(it, joueurs) } },
+            "last" to game.simonFini,
+            "verdict" to v?.let {
+                mapOf(
+                    "suite" to it.suite,
+                    "solution" to r!!.sequence.take(it.suite).joinToString(","),
+                    "answers" to it.answers.mapValues { (_, a) -> mapOf("items" to a.items.joinToString(",").ifEmpty { null }, "ms" to a.ms) }.ifEmpty { null },
+                    "wrong" to it.wrong.ifEmpty { null },
+                    "winners" to it.winners.ifEmpty { null },
+                    "points" to it.points,
+                    "bahAlors" to it.bahAlors.takeIf { b -> b },
+                    "at" to it.at,
+                )
+            },
         )
     }
 

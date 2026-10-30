@@ -16,6 +16,7 @@ import { choisirPorte, ecranPorteOuverte } from "./portes.js";
 import { ecranCoffres, REVELATION_MS } from "./coffres.js";
 import { ecranGonfleur, ENVOI_MS, plafond } from "./gonfleur.js";
 import { ecranPatate } from "./patate.js";
+import { ecranSimon, noteSimon } from "./simon.js";
 import { afficherMotsDePasse } from "./oeil.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
@@ -140,7 +141,7 @@ function maybeReload() {
 watchVersion(() => { newVersion = true; maybeReload(); });
 
 /** Écrans où l'équipe joue (salon compris) : la tablette reste allumée, même si personne ne la touche. */
-const AWAKE_SCREENS = new Set(["waiting", "play", "question", "coffres", "gonfleur", "patate", "result", "pick", "draw", "watch"]);
+const AWAKE_SCREENS = new Set(["waiting", "play", "question", "coffres", "gonfleur", "patate", "simon", "result", "pick", "draw", "watch"]);
 /** Écrans où la partie est finie pour cet appareil : la veille normale d'Android reprend. */
 const SLEEP_SCREENS = new Set(["gate", "ended", "replaced"]);
 
@@ -559,6 +560,7 @@ function render() {
   if (st.kind !== "coffres" || !["question", "closed", "reveal", "scores"].includes(st.phase)) stopCoffres();
   if (st.kind !== "gonfleur" || st.phase !== "question") stopGonfleur();
   if (st.kind !== "patate" || st.phase !== "question") stopPatate();
+  if (simon && (st.kind !== "simon" || st.phase !== "question")) clearTimeout(simon.minuterie);
   // Duel des robots : l'habillage du gros bouton (néon western) seulement pendant un duel de l'équipe.
   if (st.kind !== "duel" || st.phase !== "question") {
     delete document.body.dataset.duel;
@@ -574,6 +576,7 @@ function render() {
       if (st.kind === "gonfleur") return renderGonfleur(st);
       if (st.kind === "patate") return renderPatate(st);
       if (st.kind === "duel") return renderDuel(st);
+      if (st.kind === "simon") return renderSimon(st);
       return st.mime ? (st.kind === "pictionary" ? renderPicto(st) : renderMime(st)) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
     case "scores":
@@ -673,7 +676,8 @@ function showChoicePhoto(button, id, text) {
   img.hidden = true;
   button.prepend(img);
   button.classList.add("with-photo");
-  const set_ = (data) => { if (typeof data === "string" && data.startsWith("data:image/")) { img.src = data; img.hidden = false; } };
+  // Photo lue : elle seule dit la réponse, le nom disparaît (test du 27/10 : « Super Sonic » écrit sous l'image).
+  const set_ = (data) => { if (typeof data === "string" && data.startsWith("data:image/")) { img.src = data; img.hidden = false; button.classList.add("photo-seule"); } };
   if (choicePhotos.has(id)) return set_(choicePhotos.get(id));
   get(ref(db, `games/${code}/choiceImages/${id}`)).then((snap) => {
     if (typeof snap.val() === "string") choicePhotos.set(id, snap.val());
@@ -1346,12 +1350,12 @@ function renderCoffres(st) {
   let titre; let texte;
   if (!pret) { titre = "Les Coffres mystères"; texte = "Les coffres arrivent sur la TV…"; }
   else if (fini) { titre = "BOUM ! Le bilan"; texte = `${equipe(dernier?.team).nom} a trouvé la bombe !`; }
-  else if (suspense) { titre = `Coffre ${dernier.chest + 1}…`; texte = `${dernier.nom} ouvre son coffre : regardez la TV !`; }
+  else if (suspense) { titre = "Le coffre s'ouvre…"; texte = `${dernier.nom} ouvre son coffre : regardez la TV !`; }
   else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
   else if (aMoi) {
     titre = `À vous, ${joue.nom} !`;
-    texte = coffres.envoi != null ? `Coffre ${coffres.envoi + 1} choisi : regardez la TV !`
-      : attente > 0 ? "Préparez-vous, la TV termine…" : "Choisissez un coffre, puis ouvrez-le !";
+    texte = coffres.envoi != null ? "Coffre choisi : regardez la TV !"
+      : attente > 0 ? "Préparez-vous, la TV termine…" : "Touchez un coffre pour l'ouvrir !";
   } else if (joue) { titre = `Au tour de l'équipe ${joue.nom}`; texte = "Quel coffre va-t-elle choisir ? Regardez bien !"; }
   else { titre = "Les Coffres mystères"; texte = "Regardez la TV !"; }
   if (pret && !fini && !suspense && !st.paused) {
@@ -1385,10 +1389,10 @@ async function chooseChest(i) {
   try {
     await set(ref(db, `games/${code}/chestChoice/${key}`), { i, at: serverTimestamp() });
   } catch {
-    // Refusé (connexion, pause, animation pas finie) : on peut choisir et ouvrir de nouveau.
+    // Refusé (connexion, pause, animation pas finie) : on peut toucher un coffre de nouveau.
     if (coffres && game.state?.chests?.key === key) {
       coffres.envoi = null;
-      coffres.message = "Le coffre ne s'est pas ouvert : touchez encore « Ouvrir » dans un instant.";
+      coffres.message = "Le coffre ne s'est pas ouvert : touchez-le de nouveau dans un instant.";
     }
     render();
   }
@@ -1570,6 +1574,100 @@ async function envoyerPatate(to) {
     }
     render();
   }
+}
+
+/**
+ * 🔴 Le Simon du Prof (écran simon.js) : { ctl, cle, saisie, envoye, minuterie } de la suite en cours. Les étapes se
+ * calculent à l'heure du serveur : annonce des chiffres, le robot montre la suite (« Regarde bien la TV… »), le chrono
+ * (on tape), puis la vérification de la TV avant de dire « éliminés » ou « gagné » (jamais avant la TV).
+ */
+let simon = null;
+/** Vérification colonne par colonne à la TV (SIMON_VERIF_PAS_MS du moteur par élément, puis le bandeau). */
+const SIMON_VERIF_PAS_MS = 700;
+const SIMON_VERIF_FIN_MS = 1_500;
+const SIMON_REGARDEZ_MS = 2_000;
+
+function renderSimon(st) {
+  clearInterval(timerHandle);
+  show("simon");
+  const sm = st.simon ?? {};
+  simon ??= { ctl: ecranSimon($("simon-host"), { surTouche: toucheSimon, surEffacer: effacerSimon, surValider: validerSimon }), cle: null, saisie: [], envoye: false, minuterie: null };
+  if (simon.cle !== (sm.key ?? null)) { simon.cle = sm.key ?? null; simon.saisie = []; simon.envoye = false; }
+  const now = Date.now() + serverOffset;
+  const joueur = sm.players?.[teamId];
+  const duTour = joueur != null;
+  const sorti = sm.out?.[teamId] != null;
+  const v = sm.verdict;
+  // La TV vérifie colonne par colonne avant d'annoncer : la tablette attend la fin pour ne rien dévoiler.
+  const verifFin = v ? (v.at ?? 0) + (v.suite ?? 1) * SIMON_VERIF_PAS_MS + SIMON_VERIF_FIN_MS : 0;
+  const nom = (id) => game.teams[id]?.name ?? "une équipe";
+  let etat; let titre; let texte = ""; let chrono = null; let prochain = null;
+  const joueurTexte = duTour && !sorti ? `C'est au tour du joueur ${joueur}` : "";
+  if (st.paused) { etat = "attente"; titre = "Pause"; texte = "La partie reprend bientôt."; }
+  else if (sm.step === "play") {
+    if (sm.chiffresAt != null && now < sm.montreAt - SIMON_REGARDEZ_MS) { etat = "chiffres"; titre = "Attention, les chiffres débarquent !"; prochain = sm.montreAt - SIMON_REGARDEZ_MS; }
+    else if (now < sm.reponseAt) { etat = "regarde"; titre = "Regarde bien la TV…"; texte = `Suite n° ${sm.suite}`; prochain = sm.reponseAt; }
+    else if (!duTour || sorti) { etat = "spectateur"; titre = "Les autres équipes jouent…"; texte = sorti ? "Éliminés de ce tour : vous rejouerez au prochain." : "Vous jouerez au prochain tour."; }
+    else if (simon.envoye) { etat = "envoye"; titre = "Suite envoyée !"; texte = "Regardez la TV : vérification à la fin du chrono."; }
+    else if (now <= sm.finAt) {
+      etat = "joue"; titre = "À toi ! Tape la suite";
+      chrono = (sm.finAt - now) / Math.max(1, sm.finAt - sm.reponseAt);
+      prochain = now + 250;
+    } else { etat = "envoye"; titre = "Temps écoulé !"; texte = "Regardez la TV."; }
+  } else if (v && now < verifFin) { etat = "regarde"; titre = "Vérification…"; texte = "Regardez la TV !"; prochain = verifFin; }
+  else if (v && (v.winners ?? []).includes(teamId)) { etat = "gagne"; titre = "Bravo, vous gagnez le tour !"; texte = v.points ? `+${v.points} points` : ""; }
+  else if (v && (v.wrong ?? []).includes(teamId)) { etat = "elimine"; titre = "Éliminés du tour…"; texte = sm.step === "won" ? "Le tour est fini." : "Vous rejouerez au prochain tour."; }
+  else if (v?.bahAlors) { etat = "attente"; titre = "Bah alors ?!"; texte = "Personne n'a trouvé : on recommence la même suite."; }
+  else if (sm.step === "won") {
+    const gagnants = (v?.winners ?? []).map(nom);
+    etat = "attente"; titre = gagnants.length ? `${gagnants.join(" et ")} ${gagnants.length > 1 ? "gagnent" : "gagne"} le tour !` : "Tour terminé";
+    texte = sm.last ? "C'était le dernier tour !" : "Le tour suivant arrive…";
+  } else if (v && duTour && !sorti) { etat = "attente"; titre = "Bravo, vous continuez !"; texte = "La prochaine suite aura un élément de plus."; }
+  else if (sm.step === "ready" || sm.step === "judged") {
+    etat = "attente"; titre = "Le Simon du Prof";
+    texte = !duTour ? "Vous jouerez au prochain tour." : sorti ? "Éliminés de ce tour : vous rejouerez au prochain." : `Prochaine suite : joueur ${joueur}, prépare-toi !`;
+  } else { etat = "attente"; titre = "Le Simon du Prof"; texte = "Regardez la TV !"; }
+  simon.ctl.maj({
+    etat, titre, texte, chrono, joueur: etat === "joue" || etat === "regarde" ? joueurTexte : "",
+    chiffres: sm.chiffres === true, saisie: simon.saisie, longueur: sm.suite ?? 0,
+  });
+  clearTimeout(simon.minuterie);
+  if (prochain != null) simon.minuterie = setTimeout(render, Math.max(50, Math.min(1_000, prochain - now + 20)));
+}
+
+/** Simon du Prof : envoie ce que l'équipe a tapé (à chaque appui, pour la TV en direct), [ok] = « Valider ». */
+async function envoyerSimon(ok = false) {
+  const key = game.state?.simon?.key;
+  if (!key || !simon || simon.cle !== key || simon.envoye) return;
+  if (ok) simon.envoye = true;
+  render();
+  try {
+    await set(ref(db, `games/${code}/simon/${key}/${teamId}`), { items: simon.saisie.join(","), ok, at: serverTimestamp() });
+  } catch {
+    // Refusé (chrono fini, pause, réseau) : on peut revalider tant que la suite joue.
+    if (ok && simon?.cle === key) simon.envoye = false;
+    render();
+  }
+}
+
+function toucheSimon(item) {
+  const sm = game.state?.simon;
+  if (!simon || simon.envoye || simon.saisie.length >= (sm?.suite ?? 0)) return;
+  simon.saisie = [...simon.saisie, item];
+  beep(noteSimon(item), 160);
+  envoyerSimon(false);
+}
+
+function effacerSimon() {
+  if (!simon || simon.envoye || !simon.saisie.length) return;
+  simon.saisie = simon.saisie.slice(0, -1);
+  envoyerSimon(false);
+}
+
+function validerSimon() {
+  if (!simon || simon.envoye || simon.saisie.length < (game.state?.simon?.suite ?? 0)) return;
+  beep(1046, 120);
+  envoyerSimon(true);
 }
 
 /**

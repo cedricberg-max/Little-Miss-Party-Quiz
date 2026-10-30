@@ -7,8 +7,10 @@
 @keyframes bc-braise { 50% { box-shadow: 0 0 0 2px rgba(255, 140, 90, .7), 0 0 18px rgba(255, 120, 60, .55); } }
 .bc-texte { margin: 0; font-size: clamp(16px, 3.6vw, 21px); font-weight: 700; opacity: .92; line-height: 1.35; max-width: 640px; }
 
-/* Grille : 4 à 7 coffres par ligne selon la largeur, jamais plus haut que l'écran. */
-.bc-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(clamp(66px, 17vw, 112px), 1fr)); gap: 14px 10px; width: min(100%, 860px); padding: 8px 4px 14px; }
+/* Les rangées de la TV (sans numéros, cedric 29/10) : tous les coffres de la même taille, chaque rangée centrée. */
+.bc-grille { display: flex; flex-direction: column; gap: 14px; width: min(100%, 860px); padding: 8px 4px 14px; }
+.bc-rangee { display: flex; justify-content: center; gap: 10px; }
+.bc-rangee .bc-case { flex: 0 0 calc((100% - (var(--par-rangee, 6) - 1) * 10px) / var(--par-rangee, 6)); max-width: 112px; }
 .bc-case { position: relative; padding: 0; border: 0; background: none; color: #fff; font: inherit; cursor: pointer; container-type: inline-size; transition: transform .2s, opacity .2s, filter .2s; }
 .bc-case:disabled { cursor: default; }
 .bc-case:focus-visible { outline: 3px solid #ffd166; outline-offset: 4px; border-radius: 14px; }
@@ -49,11 +51,8 @@
 
 /* Tailles un peu différentes selon le modèle (les dessins ont déjà leurs proportions). */
 .bc-m0 { --t: 1; } .bc-m1 { --t: .86; } .bc-m2 { --t: .8; } .bc-m3 { --t: 1; } .bc-m4 { --t: .84; } .bc-m5 { --t: .9; }
-.bc-grille { align-items: end; }
+.bc-rangee { align-items: end; }
 
-.bc-ouvrir { min-height: 58px; padding: 0 28px; border: 0; border-radius: 999px; font: 900 clamp(19px, 4.2vw, 24px) system-ui, sans-serif; cursor: pointer;
-  background: linear-gradient(180deg, #fff3d1, #e9c27a); color: #24103d; box-shadow: 0 6px 16px rgba(233, 194, 122, .45); }
-.bc-ouvrir:disabled { opacity: .5; cursor: default; }
 
 /* Bilan : ce que chaque équipe a gagné ou perdu dans ce jeu. */
 .bc-bilan { display: flex; flex-direction: column; gap: 8px; width: min(100%, 520px); }
@@ -80,8 +79,6 @@
 .look-gs .bc-case[aria-pressed="true"] { filter: drop-shadow(0 0 14px var(--gs-cyan)); }
 .look-gs .bc-ouvert .bc-image { filter: brightness(.45) saturate(.6); }
 .look-gs .bc-danger { font-family: "GS Bungee"; font-weight: 400; color: #ffd0d6; background: rgba(40, 6, 18, .85); box-shadow: 0 0 0 2px #ff5a6e, 0 0 16px rgba(255, 60, 90, .6); }
-.look-gs .bc-ouvrir { font-family: "GS Bungee"; font-weight: 400; letter-spacing: .02em; color: #fff; background: rgba(10, 6, 24, .9);
-  box-shadow: 0 0 0 2px #fff, 0 0 0 5px var(--gs-cyan), 0 0 26px var(--gs-cyan); text-shadow: 0 0 10px var(--gs-cyan); }
 .look-gs .bc-ligne { background: rgba(10, 6, 24, .8); }
 .look-gs .bc-contenu { font-family: "GS Orbitron"; font-weight: 900; font-size: 15cqw; }
 .look-gs .bc-plus .bc-contenu { color: #06200c; background: #39ff14; box-shadow: 0 0 12px #39ff14; }

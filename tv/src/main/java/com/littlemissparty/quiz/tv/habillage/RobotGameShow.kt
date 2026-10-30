@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.habillage
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -15,6 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -193,7 +197,9 @@ internal val CATALOGUE: List<ClipRobot> = listOf(
     // Suspense : au bord droit seulement, les réponses (texte à gauche des cartes) restent lisibles. Jamais d'air
     // inquiet ni triste ici (cedric, 23 octobre : les expressions négatives sont réservées aux moments négatifs) :
     // il guette, roule du tambour, scrute aux jumelles.
-    ClipRobot("gs_robot_suspense", MomentRobot.SUSPENSE, auBord(0.92f, 3_000, echelle = 0.8f, entreeMs = 500)),
+    // Bouche bée (cedric, 29/10, choix A) : il se fige, se penche vers les enfants, l'antenne clignote de plus en
+    // plus vite, petit sursaut vers 3,5 s. 4 s de clip, sortie comprise il tient dans les 5 dernières secondes.
+    ClipRobot("gs_robot_suspense", MomentRobot.SUSPENSE, auBord(0.92f, 4_000, echelle = 0.8f, entreeMs = 500)),
     ClipRobot("gs_robot_batterie", MomentRobot.SUSPENSE, auBord(0.92f, 3_300, echelle = 0.8f, entreeMs = 500)),
     ClipRobot("gs_robot_groove", MomentRobot.SUSPENSE, auBord(0.92f, 3_500, echelle = 0.8f, entreeMs = 500)),
     ClipRobot("gs_robot_jumelles", MomentRobot.SUSPENSE, auBord(0.92f, 3_300, echelle = 0.8f, entreeMs = 500)),
@@ -406,6 +412,33 @@ private fun PauseRobot(code: String) {
     key(cle) { JouerClip(clip, cle, attente) { if (tourPause.value == tour) tourPause.value = tour + 1 } }
 }
 
+/**
+ * Clips refaits plus larges (1040 × 1060 par moitié au lieu de 848) : le robot ne se coupe plus la main au bord
+ * de l'image quand il tend les bras (cedric, 27/10 au soir). Même robot, même taille, juste plus de marge.
+ */
+private val CLIPS_LARGES = setOf(
+    "gs_robot_confettis", "gs_robot_coucou", "gs_robot_danse", "gs_robot_descente", "gs_robot_dort", "gs_robot_energie",
+    "gs_robot_ola", "gs_robot_podium", "gs_robot_robotdance", "gs_robot_tete", "gs_robot_tourne", "gs_robot_traverse",
+    "gs_robot_vole", "gs_robot_batterie", "gs_robot_bravo", "gs_robot_coeur", "gs_robot_fusee", "gs_robot_guitare", "gs_robot_salto",
+    "gs_robot_suspense",
+)
+
+/** La lueur sous le robot : largeur (part de la hauteur du clip), ellipse aplatie, hauteur du socle dans le clip, force. */
+private const val LUEUR_LARGEUR = 0.32f
+private const val LUEUR_APLATI = 0.2f
+private const val LUEUR_HAUT = 0.08f
+private const val LUEUR_ALPHA = 0.55f
+
+/**
+ * Force de la lueur au sol selon la hauteur du socle ([EtapeRobot.bas], 1 = posé au bas de l'écran) : pleine quand il
+ * est posé, elle s'éteint dès qu'il s'élève (vol, tête en bas, piqué) et quand il plonge sous l'écran.
+ */
+internal fun lueurSol(bas: Float): Float =
+    if (bas <= 1f) ((bas - 0.86f) / 0.12f).coerceIn(0f, 1f) else (1f - (bas - 1f) / 0.08f).coerceIn(0f, 1f)
+
+/** Largeur / hauteur d'une moitié du clip (couleur au-dessus, transparence au-dessous). */
+internal fun formatClip(fichier: String): Float = if (fichier in CLIPS_LARGES) 1040f / 1060f else 0.8f
+
 @Composable
 private fun JouerClip(clip: ClipRobot, cle: String, attenteMs: Long, serre: Resserre? = null, onFini: () -> Unit) {
     // Trajet fixé à l'arrivée du clip : il ne change pas de place en cours de route.
@@ -433,17 +466,35 @@ private fun JouerClip(clip: ClipRobot, cle: String, attenteMs: Long, serre: Ress
     BoxWithConstraints(Modifier.fillMaxSize().clearAndSetSemantics {}) {
         val largeur = constraints.maxWidth.toFloat()
         val hauteur = constraints.maxHeight.toFloat()
-        // 90 % de la hauteur de l'écran, au format des clips (4:5).
+        // 90 % de la hauteur de l'écran, au format du clip (4:5, ou plus large pour les clips refaits avec de la marge).
         val h = maxHeight * 0.9f
         val hauteurPx = hauteur * 0.9f
+        val format = formatClip(clip.fichier)
+        // Lueur douce sur le sol brillant du studio, sous le socle, seulement quand il est posé (pas en vol) : un seul
+        // dégradé gardé en cache, déplacé comme le robot par le calque (cedric, 28/10 : il ne flotte plus).
+        val lueur = h * LUEUR_LARGEUR
+        val lueurPx = hauteurPx * LUEUR_LARGEUR
+        Box(
+            Modifier.size(lueur).graphicsLayer {
+                val (x, bas, echelle) = trajet.a(temps.value)
+                scaleX = echelle
+                scaleY = echelle * LUEUR_APLATI
+                translationX = x * largeur - lueurPx / 2
+                translationY = bas * hauteur - hauteurPx * echelle * LUEUR_HAUT - lueurPx / 2
+                alpha = if (lecture == 1) (temps.value / 150f).coerceIn(0f, 1f) * lueurSol(bas) * LUEUR_ALPHA else 0f
+            }.drawWithCache {
+                val degrade = Brush.radialGradient(0f to Color(0xFFF4ECFF), 0.35f to Color(0x99B48CFF), 1f to Color.Transparent)
+                onDrawBehind { drawCircle(degrade) }
+            },
+        )
         AndroidView(
             factory = { LecteurAlpha(it, resId, surDebut = { lecture = 1 }, surEchec = { lecture = -1 }) },
             onRelease = { it.liberer() },
-            modifier = Modifier.size(h * 0.8f, h).graphicsLayer {
+            modifier = Modifier.size(h * format, h).graphicsLayer {
                 val (x, bas, echelle) = trajet.a(temps.value)
                 scaleX = echelle
                 scaleY = echelle
-                translationX = x * largeur - hauteurPx * 0.4f
+                translationX = x * largeur - hauteurPx * format / 2
                 translationY = bas * hauteur - hauteurPx / 2 - hauteurPx * echelle / 2
                 alpha = if (lecture == 1) (temps.value / 150f).coerceIn(0f, 1f) else 0f
             },

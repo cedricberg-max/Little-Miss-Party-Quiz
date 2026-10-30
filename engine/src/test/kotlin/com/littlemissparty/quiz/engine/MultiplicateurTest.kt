@@ -131,7 +131,7 @@ class MultiplicateurTest {
         val g = Game(quiz)
         assertNull(g.gameStep())
         var t = jouer(g, t0)
-        assertEquals("Quiz animaux · question 1 / 3", g.gameStep()!!.label)
+        assertEquals("Quiz animaux question 1 / 3", g.gameStep()!!.label)
         t = jouer(g, t); t = jouer(g, t)
         g.next(t)
         assertEquals("Image floue", g.gameStep()!!.label)

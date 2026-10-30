@@ -65,9 +65,9 @@ data class Classee(val nom: String, val couleur: Color, val points: Int)
  * opacité bougent (calques en cache) : léger pour la Mi Box.
  */
 @Composable
-fun Victoire(classement: List<Classee>, modifier: Modifier = Modifier) {
+fun Victoire(classement: List<Classee>, modifier: Modifier = Modifier, finLancee: Boolean = false) {
     // Design « The Game Show » : le podium sur Digital Love, avec ses jauges et son robot (PodiumGameShow.kt).
-    if (Look.gs) return PodiumGameShow(classement, modifier)
+    if (Look.gs) return PodiumGameShow(classement, modifier, finLancee)
     val meilleur = classement.firstOrNull()?.points ?: 0
     val gagnants = if (meilleur > 0) classement.takeWhile { it.points == meilleur } else emptyList()
     val autres = classement.drop(gagnants.size)

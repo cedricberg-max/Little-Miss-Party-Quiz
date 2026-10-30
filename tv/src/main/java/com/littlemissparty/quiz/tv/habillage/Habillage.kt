@@ -14,6 +14,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.littlemissparty.quiz.engine.SIMON_AVEC_CHIFFRES
+import com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.QuestionKind
@@ -76,6 +78,9 @@ object Habillage {
     /** La vidéo de l'écran de fin du Game Show passe : le décor ne lit pas son propre fond vidéo. */
     val finVideo = mutableStateOf(false)
 
+    /** Le podium du Game Show est à l'écran : rien ne passe par-dessus (le BONUS d'une dernière correction de score). */
+    val podium = mutableStateOf(false)
+
     /** Le Duel des robots du Game Show passe ses plans vidéo : le décor ne lit pas son propre fond vidéo. */
     val videoDuel = mutableStateOf(false)
 }
@@ -120,7 +125,9 @@ fun HabillageTv(state: UiState) {
     val dore = (state as? UiState.Playing)?.let { it.question?.double == true && it.phase in listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL) } == true
     // Accueil du Game Show : le robot qui dort, sous Get Lucky ; pendant la grande intro, aucune autre vidéo.
     val salon = (state as? UiState.Playing)?.phase == Phase.LOBBY
-    DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || Habillage.introJeu.value || Habillage.finVideo.value || Habillage.videoDuel.value)
+    val introJeu = Habillage.introJeu.value ||
+        (state as? UiState.Playing)?.let { s -> introJeuEnVue(Look.gs, s.phase, s.intro, s.paused, familleJeu(s.question)) } == true
+    DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || introJeu || Habillage.finVideo.value || Habillage.videoDuel.value)
 }
 
 /** « question zoom », « presentation gonfleur », « scores », « accueil »… : l'écran, tel que le compte la fluidité. */
@@ -140,6 +147,14 @@ internal fun etiquetteFluidite(state: UiState): String {
 /** Voir [Habillage.lancementEnVue] : la présentation du premier jeu, lancée depuis l'accueil de cette box, en Game Show. */
 internal fun lancementEnVue(gameShow: Boolean, phase: Phase, presentation: Boolean, enPause: Boolean, introAttendue: Boolean) =
     gameShow && introAttendue && phase == Phase.QUESTION && presentation && !enPause
+
+/**
+ * L'écran de présentation va montrer l'intro vidéo de son jeu ([IntroJeuGameShow]) : dès la même image, le décor ne
+ * relance pas son propre fond (test du 28/10 au soir : entre la fin de l'éveil du robot et l'intro du Quiz, l'image
+ * fixe du plateau passait une image, puis du noir, avant l'intro). Le passage reste noir jusqu'au fondu de l'intro.
+ */
+internal fun introJeuEnVue(gameShow: Boolean, phase: Phase, presentation: Boolean, enPause: Boolean, famille: String) =
+    gameShow && phase == Phase.QUESTION && presentation && !enPause && nomIntroJeu(famille) != null
 
 /**
  * [presentation] : la TV montre l'écran de présentation du jeu (avant sa première question, en attendant que
@@ -203,10 +218,15 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         patate = s.question?.isPatate == true,
         duel = s.question?.isDuel == true,
         duelEtape = if (s.question?.isDuel == true) s.duel?.step.orEmpty() else "",
+        simon = s.question?.isSimon == true,
+        simonSuite = s.question?.isSimon == true && s.simon?.enCours == true,
+        simonChiffres = SIMON_AVEC_CHIFFRES && s.question?.isSimon == true && s.simon?.enCours == true && (s.simon?.suite ?: 0) >= SIMON_CHIFFRES_DES,
+        tempsEcoule = s.phase == Phase.CLOSED && s.tempsEcoule,
         disparu = if (s.question?.isDisparu == true) disparu else 0,
         // Blind test : présentation du 1er morceau, chanson qui joue, points doublés, révélation raccourcie, bilan.
         blind = blind != null,
         blindPresentation = blind != null && s.phase == Phase.QUESTION && blind.numero == 1 && !blind.played && blind.waiting && s.buzzTeam == null,
+        blindAttente = blind != null && s.phase == Phase.QUESTION && !blind.played && blind.waiting && s.buzzTeam == null,
         blindLecture = blind != null && s.phase == Phase.QUESTION && !blind.waiting && s.buzzTeam == null,
         blindDouble = blind?.doubled == true,
         blindCoupe = blind?.cut == true,
@@ -215,7 +235,10 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         pile = s.phase == Phase.REVEAL && s.question?.isNumber == true && s.awards.values.any { it.choice == s.question?.correct },
         epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
         gameShow = Look.gs,
+        outro = Look.gs && Outro.disponible,
+        finLancee = s.phase == Phase.ENDED && s.outroAt != null,
         lancement = lancement,
+        famille = familleJeu(s.question),
     )
 }
 

@@ -4,7 +4,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,7 +40,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.ContentScale
@@ -58,6 +56,8 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.MotsNeon
 import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.ConfettisLegers
+import com.littlemissparty.quiz.tv.habillage.EnseigneQuiSuis
 import com.littlemissparty.quiz.tv.habillage.selonLook
 import com.littlemissparty.quiz.tv.habillage.ANNONCE_MULTIPLICATEUR_MS
 import com.littlemissparty.quiz.tv.habillage.AnnonceMultiplicateur
@@ -73,6 +73,7 @@ import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.LogoLmp
 import com.littlemissparty.quiz.tv.habillage.Victoire
 import com.littlemissparty.quiz.tv.habillage.Tempo
+import com.littlemissparty.quiz.tv.habillage.Tampon
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.apres
 import com.littlemissparty.quiz.tv.habillage.rebond
@@ -89,6 +90,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
     // Blind test ou quiz musical : l'extrait joue depuis le cache de la box, calé sur le chrono.
     ExtraitMusical(q, state)
     Box(Modifier.fillMaxSize()) {
+        // Qui suis-je ? du Game Show : des confettis légers tombent derrière les indices (planche du 28/10).
+        if (Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION) ConfettisLegers(Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (Look.gs) EtapeGs(state.etape ?: "Question ${state.index + 1}", Modifier.weight(1f, fill = false))
@@ -97,7 +100,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
-                if (q.isExpress) {
+                // Game Show : le nom du jeu est déjà dans l'étape ; la pastille en double serrait l'étape sur deux lignes.
+                if (q.isExpress && !Look.gs) {
                     Spacer(Modifier.width(16.dp))
                     Text(
                         "VRAI OU FAUX EXPRESS",
@@ -132,11 +136,13 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             // Blind test : pas de question écrite (« Quel est ce titre ? »), la scène prend la place.
             // Statues : le panneau porte déjà l'étiquette « STATUES MUSICALES », le titre en double lui volerait sa place.
             // Chante le mot en Game Show : le mot est déjà sur l'enseigne néon, en double il lui volerait sa hauteur.
-            if (!q.isBlind && !q.isStatues && !(Look.gs && q.isChante)) {
+            if (!q.isBlind && !q.isStatues && !(Look.gs && q.isChante) && !(Look.gs && q.isDisparu && PropositionDisparu.sansEnseigne)) {
                 // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène). Qui a
                 // disparu ? y a droit aussi, lettres de couleur comme « Quel est ce titre ? » (cedric, 25/10 au soir).
                 val panneau = planchesQuiz3d()?.takeIf { !q.isBuzz || q.isDisparu }
-                if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index), festif = q.isMusical || q.isDisparu)
+                // Qui suis-je ? du Game Show : l'enseigne de fête à ampoules (planche du 28/10, version A).
+                if (Look.gs && q.isQuiSuis) Box(Modifier.fillMaxWidth().apparition(0, state.index), contentAlignment = Alignment.Center) { EnseigneQuiSuis() }
+                else if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index), festif = q.isMusical || q.isDisparu)
                 else if (Look.gs && q.isMusical && q.text.length <= 24) MotsNeon(q.text, 40.sp, Modifier.apparition(0, state.index))
                 else Text(
                     q.text,
@@ -152,6 +158,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 // Sinon, à la révélation, l'illustration facultative (photo ou émoji) apparaît à gauche des propositions.
                 if (revealed && q.isMusical && apres(MUSICAL_GRILLE_MS, q.id)) {
                     RevelationMusicale(q, state, Modifier.weight(1f).fillMaxWidth())
+                } else if (revealed && Look.gs && q.isNumber) {
+                    // Juste Chiffre du Game Show : la machine à sous, puis la règle des écarts (planche du 28/10, « A puis B »).
+                    RevelationJusteChiffreGs(state, Modifier.weight(1f).fillMaxWidth())
                 } else Row(Modifier.weight(1f)) {
                     // Zoom mystère : la photo est la question, elle se dévoile pendant tout le chrono.
                     if (q.isFlou) {
@@ -234,6 +243,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
         // Jeux au buzzer : « La parole est à … » en grand, puis en bandeau tant que l'équipe répond
         // (le blind test a sa propre scène au buzz).
         if (q.isBuzz && !q.isBlind) key(state.index) { AnnonceParole(state) }
+        // Quiz : chrono à zéro et une équipe sans réponse, « TEMPS ÉCOULÉ ! » claque au centre avant la révélation
+        // automatique (cedric, 27/10).
+        if (state.phase == Phase.CLOSED && state.tempsEcoule) Tampon("TEMPS ÉCOULÉ !", cle = state.index, couleur = Neon.Halo, tailleSp = 96, dureeMs = 2_300)
     }
 }
 
@@ -422,7 +434,7 @@ private fun ChoiceCard(
     val forme = RoundedCornerShape(24.dp)
     // Palette A (audit du 19 octobre) : vert plein = juste, corail = faux ; ✓ et ✗ disent la même chose sans la couleur.
     // Une photo pas encore chargée ou illisible : la proposition s'affiche en texte, la partie ne l'attend pas.
-    val image = photo?.let { remember(it) { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
+    val image = rememberPhoto(photo)
     val cadre = modifier
         .rebond(juste)
         // Fond plein sous la carte image : en s'éteignant, l'image fond dans la nuit, jamais dans les néons du décor
@@ -438,7 +450,9 @@ private fun ChoiceCard(
         .border(if (juste) 5.dp else 3.dp, if (juste) Color.White else if (eteinte) Neon.Faux else color, forme)
         .reflet(juste)
     if (image != null) {
-        CarteImage(i, text, tous, image, juste, eteinte, color, imageDessus, cadre)
+        // Quiz illustré : seule l'image dit la réponse ; le nom n'apparaît qu'à la révélation (test du 27/10 : « Super
+        // Sonic » écrit sous l'image donnait la réponse).
+        CarteImage(i, text, tous, image, juste, eteinte, color, imageDessus, cadre, nom = correct != null)
         return
     }
     if (Look.gs) return ChoiceCardGs(i, text, correct, modifier, express, compacte)
@@ -480,12 +494,16 @@ private fun ChoiceCard(
 
 /** Carte d'une réponse en image : l'image en grand (recadrée comme dans la Régie PC), la lettre et le mot dessous ou à côté. */
 @Composable
-private fun CarteImage(i: Int, text: String, tous: List<String>, image: ImageBitmap, juste: Boolean, eteinte: Boolean, color: Color, dessus: Boolean, modifier: Modifier) {
+private fun CarteImage(
+    i: Int, text: String, tous: List<String>, image: ImageBitmap, juste: Boolean, eteinte: Boolean, color: Color, dessus: Boolean, modifier: Modifier,
+    nom: Boolean = true,
+) {
     val lettre = Palette.ChoiceLetters[i]
     val encre = if (juste) Neon.JusteTexte else Palette.Ink
     @Composable
     fun Image() = androidx.compose.foundation.Image(
-        image, contentDescription = "Réponse $lettre en image : $text", contentScale = ContentScale.Crop,
+        image, contentDescription = if (nom) "Réponse $lettre en image : $text" else "Réponse $lettre en image", contentScale = ContentScale.Crop,
+        alignment = CadrageHaut,
         modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(percent = 18)).background(Color.White),
     )
     @Composable
@@ -509,8 +527,7 @@ private fun CarteImage(i: Int, text: String, tous: List<String>, image: ImageBit
                 // Lettre, mot et verdict sur la ligne sous l'image : rien ne se pose sur l'image.
                 Row(Modifier.height(34.dp), verticalAlignment = Alignment.CenterVertically) {
                     Pastille(30.dp)
-                    Spacer(Modifier.width(8.dp))
-                    MotQuiTient(text, tous, encre, 26.sp, Modifier.weight(1f, fill = false))
+                    if (nom) { Spacer(Modifier.width(8.dp)); MotQuiTient(text, tous, encre, 26.sp, Modifier.weight(1f, fill = false)) }
                     if (juste || eteinte) { Spacer(Modifier.width(8.dp)); Verdict(30.dp) }
                 }
             }
@@ -528,7 +545,7 @@ private fun CarteImage(i: Int, text: String, tous: List<String>, image: ImageBit
                         if (juste || eteinte) { Spacer(Modifier.width(8.dp)); Verdict(28.dp) }
                     }
                     Spacer(Modifier.height(2.dp))
-                    MotQuiTient(text, tous, encre, 26.sp, Modifier.fillMaxWidth())
+                    if (nom) MotQuiTient(text, tous, encre, 26.sp, Modifier.fillMaxWidth())
                 }
             }
             }
@@ -544,7 +561,9 @@ private fun TeamStatus(
 ) {
     val color = team.color.toColor()
     // Les points tombent comme des tampons, une équipe gagnante après l'autre, juste après la bonne réponse.
-    val delai = if (rangGagnant >= 0) Tempo.tampon(rangGagnant, express) else Tempo.revelationOr(express)
+    val delai = (if (rangGagnant >= 0) Tempo.tampon(rangGagnant, express) else Tempo.revelationOr(express)) +
+        // Juste Chiffre du Game Show : les points arrivent avec la règle des écarts, pas sous la machine à sous.
+        (if (Look.gs && isNumber) Tempo.JUSTE_GS_RETARD else 0L)
     val montre = apres(delai, points != null, actif = points != null)
     val revealedPoints = points.takeIf { montre }
     val taille = if (compacte) 14.sp else 16.sp
@@ -672,7 +691,7 @@ internal fun suiteLabel(state: UiState.Playing): String = when {
 @Composable
 fun FinalScreen(state: UiState.Playing, actions: TvActions) {
     // Célébration de fin (de 1 à 8 équipes, égalité, personne n'a marqué) : habillage/Victoire.kt.
-    Victoire(state.ranking.map { (team, score) -> Classee(team.name, team.color.toColor(), score) })
+    Victoire(state.ranking.map { (team, score) -> Classee(team.name, team.color.toColor(), score) }, finLancee = state.outroAt != null)
 }
 
 @Composable

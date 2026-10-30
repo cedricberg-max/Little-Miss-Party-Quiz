@@ -6,12 +6,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebas
 import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import {
   getDatabase, ref, get, set, push, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator, goOffline, goOnline,
+  query, orderByKey, limitToLast,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
+import { SIMON_COULEURS, SIMON_CHIFFRES } from "./simon.js";
 import { envoyeurDessin } from "./picto.js";
 import { plafond, ENVOI_MS } from "./gonfleur.js";
 import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import { numeroTablette, MAX_TEAMS } from "./theme.js";
+import { afficherMotsDePasse } from "./oeil.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -86,6 +89,9 @@ class Fantome {
     this.faits = new Set();
     this.dessin = null;
     this.gonfleur = null;
+    // Duel ou Simon en attente du journal de la box ; la bonne suite du Simon vue au dernier bilan.
+    this.attente = null;
+    this.simonVu = null;
     this.statut = "connexion…";
     this.ligne = null;
   }
@@ -178,6 +184,7 @@ class Fantome {
     }
     if (!garder.has("gonfleur") && this.gonfleur) { clearInterval(this.gonfleur.h); this.gonfleur = null; }
     if (![...garder].some((c) => c.startsWith("dessin:")) && this.dessin) { clearInterval(this.dessin.h); this.dessin = null; }
+    if (this.attente && !garder.has(this.attente)) this.attente = null;
   }
 
   /** Action [cle] dans [ms] (une seule fois). Refusée par la base : elle pourra être retentée à l'état suivant. */
@@ -212,6 +219,8 @@ class Fantome {
       else if (st.kind === "patate") this.patate(st, actives, now, attente);
       else if (st.kind === "coffres") this.coffre(st, actives, now, attente);
       else if (st.mime && st.kind === "pictionary") this.picto(st, actives);
+      else if (st.kind === "duel") this.duel(st, actives);
+      else if (st.kind === "simon") this.simon(st, actives, now);
       else if (BUZZ_KINDS.includes(st.kind)) this.buzzer(st, actives, now, attente);
       else if (st.phase === "question" && !st.mime && st.kind !== "statues") this.repondre(st, actives, now, attente, v);
     }
@@ -313,6 +322,69 @@ class Fantome {
       const i = auHasard(libres);
       await this.ecrire(`chestChoice/${c.key}`, { i, at: serverTimestamp() });
       journal(`${this.nom} ouvre le coffre ${i + 1}`);
+    });
+  }
+
+  /**
+   * 🤠 Duel des robots : le fantôme du duel buzze peu après le PAN, comme un enfant qui regarde la TV ; une fois sur
+   * huit trop tôt. L'heure du PAN est secrète : seule la page ouverte avec le mot de passe régie la lit dans le journal
+   * de la box (comme le téléphone) ; sans lui, le fantôme tente sa chance entre 22 et 38 s.
+   */
+  duel(st, actives) {
+    const d = st.duel ?? {};
+    if (!reglages.buzz || st.phase !== "question" || d.step !== "standoff" || !d.key || !liste(d.teams).includes(this.teamId)) return;
+    const cle = `duel:${d.key}`;
+    actives.add(cle);
+    if (this.faits.has(cle) || this.minuteries.has(cle) || this.attente === cle) return;
+    this.attente = cle;
+    const vu = this.maintenant();
+    journalRegie(this.code, "duel_start").then((e) => {
+      if (this.attente !== cle) return;
+      this.attente = null;
+      const pan = typeof e?.panAt === "number" && e.panAt > vu - 60_000 ? e.panAt : null;
+      const tropTot = Math.random() < 0.125;
+      const quand = tropTot ? (pan ?? vu + 20_000) - hasard(1500, 6000)
+        : (pan ?? vu + hasard(22_000, 38_000)) + hasard(250, 900) * reglages.vitesse;
+      this.prevoir(cle, quand - this.maintenant(), async () => {
+        await this.ecrire(`duel/${d.key}/${this.teamId}`, { t: this.maintenant(), at: serverTimestamp() });
+        journal(`${this.nom} tire au duel${pan != null && this.maintenant() < pan ? " (trop tôt !)" : ""}`);
+      });
+    });
+  }
+
+  /**
+   * 🔴 Simon du Prof : le joueur fantôme du tour tape la suite, élément par élément (la TV les montre en direct), puis
+   * valide avant la fin du chrono ; une fois sur dix il se trompe d'un élément. La suite est secrète : avec le mot de
+   * passe régie, la page la lit dans le journal de la box (elle y est dès le début du tour) ; sans lui, le fantôme se
+   * souvient de la bonne suite montrée au bilan d'avant et devine le reste.
+   */
+  simon(st, actives, now) {
+    const sm = st.simon ?? {};
+    if (sm.verdict?.solution) this.simonVu = String(sm.verdict.solution).split(",");
+    if (st.phase !== "question" || sm.step !== "play" || !sm.key || sm.players?.[this.teamId] == null || sm.out?.[this.teamId] != null) return;
+    const cle = `simon:${sm.key}`;
+    actives.add(cle);
+    if (this.faits.has(cle) || this.minuteries.has(cle) || this.attente === cle) return;
+    this.attente = cle;
+    journalRegie(this.code, "simon_tour").then((e) => {
+      if (this.attente !== cle) return;
+      this.attente = null;
+      const n = sm.suite ?? 0;
+      const vocabulaire = [...SIMON_COULEURS.map(([c]) => c), ...(sm.chiffres ? SIMON_CHIFFRES : [])];
+      const secret = e && e.tour === sm.tour && e.qid === st.qid ? String(e.sequence ?? "").split(",") : [];
+      const suite = Array.from({ length: n }, (_, k) => secret[k] ?? this.simonVu?.[k] ?? auHasard(vocabulaire));
+      if (n && Math.random() < 0.1) { const k = Math.floor(Math.random() * n); suite[k] = auHasard(vocabulaire.filter((x) => x !== suite[k])); }
+      const debut = Math.max(sm.reponseAt ?? now, this.maintenant()) + hasard(600, 1500) * reglages.vitesse;
+      const fin = (sm.finAt ?? debut + 10_000) - 400;
+      const pas = Math.max(80, Math.min(hasard(350, 900) * reglages.vitesse, (fin - debut) / (n + 1)));
+      this.prevoir(cle, debut - this.maintenant(), async () => {
+        for (let k = 1; k <= n; k++) {
+          await this.ecrire(`simon/${sm.key}/${this.teamId}`, { items: suite.slice(0, k).join(","), ok: false, at: serverTimestamp() });
+          await new Promise((r) => setTimeout(r, pas));
+        }
+        await this.ecrire(`simon/${sm.key}/${this.teamId}`, { items: suite.join(","), ok: true, at: serverTimestamp() });
+        journal(`${this.nom} valide sa suite (${n})`);
+      });
     });
   }
 
@@ -448,6 +520,13 @@ const entrees = {
   },
 };
 
+/** Dernier événement [type] du journal de la box, lu par la régie des fantômes (mot de passe régie), sinon null. */
+async function journalRegie(code, type) {
+  if (!entrees.regie || entrees.code !== code) return null;
+  const s = await get(query(ref(entrees.regie.db, `games/${code}/log`), orderByKey(), limitToLast(60))).catch(() => null);
+  return liste(s?.val()).filter((e) => e?.type === type).at(-1) ?? null;
+}
+
 // ---------- La page ----------
 
 let fantomes = [];
@@ -526,6 +605,8 @@ $("arreter").onclick = arreterTout;
 $("vitesse").onchange = () => { reglages.vitesse = VITESSES[$("vitesse").value] ?? 1; };
 $("buzz").onchange = () => { reglages.buzz = $("buzz").checked; fantomes.forEach((f) => f.reagir()); };
 $("auto").onchange = () => { $("mdp-ligne").hidden = !$("auto").checked; };
+// Petit œil sur le mot de passe régie, comme dans la Régie PC : voir ce qu'on tape (cedric, 27/10).
+afficherMotsDePasse();
 if (params.get("g")) $("code").value = params.get("g").toUpperCase();
 // Pour les tests automatiques : les fantômes de la page.
 window.fantomes = () => fantomes;

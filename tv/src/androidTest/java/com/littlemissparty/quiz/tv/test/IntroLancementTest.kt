@@ -25,7 +25,7 @@ class IntroLancementTest : TestTv() {
     @Before
     fun gameShow() {
         RegieSimulee.definirMotDePasse()
-        Boite.choisirDesign("gs")
+        Boite.choisirDesign(Boite.designDesTests)
     }
 
     @After

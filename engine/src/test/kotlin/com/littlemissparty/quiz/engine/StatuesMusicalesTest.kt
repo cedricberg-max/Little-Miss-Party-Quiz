@@ -124,11 +124,15 @@ class StatuesMusicalesTest {
     }
 
     @Test
-    fun `du récap, Jeu suivant ouvre le jeu suivant, au dernier jeu les résultats finaux`() {
+    fun `du récap, les scores puis le jeu suivant, au dernier jeu les résultats finaux`() {
         val g = Game(Quiz("p", "P", listOf(jeu, quiz))).apply { next(t0) }
         assertEquals(CommandStatus.REFUSED, g.run("next", t0 + 5_000).status, "pendant la chanson, il faut d'abord les gagnantes")
         g.run("statues_win", t0 + 10_000, "teams" to listOf("vert"))
+        // Test du 28/10 : le tableau des scores à la fin du jeu, comme partout ailleurs.
         assertEquals(CommandStatus.APPLIED, g.run("next", t0 + 20_000).status)
+        assertEquals(Phase.SCORES, g.state.phase)
+        assertEquals(null, g.state.statues)
+        assertEquals(CommandStatus.APPLIED, g.run("next", t0 + 25_000).status)
         assertEquals("q1", g.state.qid)
         assertEquals(null, g.state.statues)
         assertEquals(mapOf("rose" to 150, "bleu" to 150, "vert" to 300), g.state.scores())

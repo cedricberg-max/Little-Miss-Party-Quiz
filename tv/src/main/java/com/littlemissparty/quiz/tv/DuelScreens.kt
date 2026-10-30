@@ -160,7 +160,7 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
         }
         val enPlus = d != null && (d.extra || d.n > state.duelTotal)
         val textes = TextesDuel(
-            pastille = "🤠 LE DUEL DES ROBOTS · " + if (enPlus) "EN PLUS" else "${d?.n} / ${state.duelTotal}",
+            pastille = "🤠 LE DUEL DES ROBOTS " + if (enPlus) "EN PLUS" else "${d?.n} / ${state.duelTotal}",
             annonce = if (enPlus) "DUEL EN PLUS" else "DUEL N° ${d?.n}",
             consigne = when (etape) {
                 EtapeDuel.PRET -> "Les deux joueurs, la main au-dessus du buzzer !"

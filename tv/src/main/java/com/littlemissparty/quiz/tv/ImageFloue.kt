@@ -1,10 +1,9 @@
 package com.littlemissparty.quiz.tv
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -22,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -40,11 +41,14 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.GS
+import com.littlemissparty.quiz.tv.habillage.AppelBuzzQuiSuis
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.RevelationNeon
+import com.littlemissparty.quiz.tv.habillage.revelationAvecMot
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /**
  * Largeurs successives de la photo, de la plus floue à la plus nette. Le flou vient de l'agrandissement
@@ -52,6 +56,19 @@ import kotlinx.coroutines.delay
  * n'existe pas, et ne coûte presque rien.
  */
 private val NIVEAUX = listOf(5, 8, 12, 18, 26, 38, 56, 80, 120, 170)
+
+/**
+ * Les deux niveaux de la pile (flous de [NIVEAUX], puis la photo nette) fondus l'un dans l'autre pour [niveau]. Avant la
+ * révélation, jamais la photo nette : le niveau le plus net reste une petite image agrandie.
+ */
+internal fun niveauxAffiches(niveau: Float, revealed: Boolean): Pair<Int, Int> {
+    val max = if (revealed) NIVEAUX.size else NIVEAUX.size - 1
+    val bas = niveau.toInt().coerceIn(0, max)
+    return bas to (bas + 1).coerceAtMost(max)
+}
+
+/** Nombre de niveaux flous avant la photo nette. */
+internal val NIVEAUX_FLOUS: Int get() = NIVEAUX.size
 
 /**
  * Temps restant du chrono de la question, mis à jour en continu ; figé pendant une pause, pendant le
@@ -76,6 +93,13 @@ fun chronoRestant(q: Question, state: UiState.Playing): Long {
     return remaining
 }
 
+/** Les photos de plus en plus nettes de l'Image floue ([NIVEAUX] pixels de large), calculées hors de l'écran. */
+private fun niveauxDeFlou(p: Bitmap): List<ImageBitmap> = NIVEAUX.map { w ->
+    val largeur = w.coerceAtMost(p.width)
+    val hauteur = (p.height * largeur / p.width.toFloat()).toInt().coerceAtLeast(1)
+    Bitmap.createScaledBitmap(p, largeur, hauteur, true).asImageBitmap()
+}
+
 /**
  * Image floue : la photo devient de plus en plus nette au fil du chrono ; elle se fige quand une équipe
  * buzze (le chrono attend le verdict de l'animatrice) et apparaît enfin nette à la révélation.
@@ -83,29 +107,27 @@ fun chronoRestant(q: Question, state: UiState.Playing): Long {
 @Composable
 fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
     val bytes = q.imageId?.let { state.images[it] }
-    val photo: Bitmap? = remember(bytes) {
-        bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size) }.getOrNull() }
+    // Photo et niveaux de flou préparés en fond (test du 27/10 au soir : petits blocages au début des questions) ;
+    // la photo nette, décodée d'avance par la box, sert de base.
+    val nette = rememberPhoto(bytes)
+    val pile by produceState<Pair<ImageBitmap?, List<ImageBitmap>>>(null to emptyList(), nette) {
+        val p = nette ?: return@produceState
+        value = p to withContext(Photos.fil) { niveauxDeFlou(p.asAndroidBitmap()) }
     }
-    val niveaux: List<ImageBitmap> = remember(photo) {
-        val p = photo ?: return@remember emptyList()
-        NIVEAUX.map { w ->
-            val largeur = w.coerceAtMost(p.width)
-            val hauteur = (p.height * largeur / p.width.toFloat()).toInt().coerceAtLeast(1)
-            Bitmap.createScaledBitmap(p, largeur, hauteur, true).asImageBitmap()
-        }
-    }
-    val nette = remember(photo) { photo?.asImageBitmap() }
+    val niveaux = pile.second.takeIf { pile.first === nette && nette != null }.orEmpty()
     val total = q.durationMs.coerceAtLeast(1)
     val remaining = chronoRestant(q, state)
     val revealed = state.phase == Phase.REVEAL || state.phase == Phase.SCORES
     val progress = (1f - remaining.toFloat() / total).coerceIn(0f, 1f)
     // Lent au début, plus rapide vers la fin : l'image reste mystérieuse un bon moment.
     val cible = if (revealed) NIVEAUX.size.toFloat() else (NIVEAUX.size - 1) * progress * progress
-    val niveau by animateFloatAsState(
-        cible,
-        animationSpec = if (revealed) tween(1_200, easing = FastOutSlowInEasing) else tween(120, easing = LinearEasing),
-        label = "flou",
-    )
+    // Une animation par question : partie de la photo nette de la révélation d'avant, elle repassait une fraction de
+    // seconde par les niveaux nets sur la nouvelle photo (test du 27/10 au soir : « on l'a vue une fraction de seconde »).
+    val anim = remember(q.id) { Animatable(cible) }
+    LaunchedEffect(q.id, cible, revealed) {
+        anim.animateTo(cible, if (revealed) tween(1_200, easing = FastOutSlowInEasing) else tween(120, easing = LinearEasing))
+    }
+    val niveau = anim.value
     Box(
         modifier.clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.12f)),
         contentAlignment = Alignment.Center,
@@ -113,16 +135,15 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
         if (nette != null && niveaux.isNotEmpty()) {
             // Fondu entre deux niveaux voisins : la photo se précise en douceur, sans à-coups.
             val pile = niveaux + nette
-            val bas = niveau.toInt().coerceIn(0, pile.size - 1)
-            val haut = (bas + 1).coerceAtMost(pile.size - 1)
+            val (bas, haut) = niveauxAffiches(niveau, revealed)
             val t = (niveau - bas).coerceIn(0f, 1f)
             Image(
-                pile[bas], contentDescription = "Image floue", contentScale = ContentScale.Crop,
+                pile[bas], contentDescription = "Image floue", contentScale = ContentScale.Crop, alignment = CadrageHaut,
                 filterQuality = FilterQuality.Low, modifier = Modifier.fillMaxSize(),
             )
             if (haut != bas && t > 0.01f) {
                 Image(
-                    pile[haut], contentDescription = null, contentScale = ContentScale.Crop,
+                    pile[haut], contentDescription = null, contentScale = ContentScale.Crop, alignment = CadrageHaut,
                     filterQuality = FilterQuality.Low, alpha = t, modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -166,6 +187,7 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 teinte = gagnant?.color?.toColor() ?: GS.Rose,
                 cle = state.question?.id,
                 modifier = Modifier.fillMaxSize(),
+                avecMot = revelationAvecMot(q.isChante),
             )
             state.phase == Phase.REVEAL || state.phase == Phase.SCORES -> {
                 Text(if (q.isChante) "Le mot :" else "C'était :", color = Palette.InkSoft, fontSize = 26.sp, fontWeight = FontWeight.Bold)
@@ -201,6 +223,8 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 if (q.isFlou) "Temps écoulé ! Voyons ce qui se cachait…" else if (q.isBlind) "Temps écoulé ! Écoutons la réponse…" else "Temps écoulé !",
                 color = Palette.Gold, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
             )
+            // Qui suis-je ? du Game Show (planche du 28/10) : « BUZZEZ ! » en néon, sans buzzer dessiné, et les essais ratés.
+            Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION -> AppelBuzzQuiSuis(passees.map { it.name })
             q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Text(
                 "Mémorisez bien tous les objets !",
                 color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
@@ -216,7 +240,7 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
             )
         }
-        if (passees.isNotEmpty() && state.phase == Phase.QUESTION) {
+        if (passees.isNotEmpty() && state.phase == Phase.QUESTION && !(Look.gs && q.isQuiSuis && buzzer == null)) {
             Spacer(Modifier.height(24.dp))
             Text(
                 "Déjà essayé : " + passees.joinToString(", ") { it.name },

@@ -25,8 +25,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import com.littlemissparty.quiz.tv.R
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
@@ -92,8 +90,9 @@ fun DecorGameShow(chaud: Boolean, dore: Boolean = false, accueil: Boolean = fals
                 photo != null && ((fige && !sansVideo) || video != 0) ->
                     Image(photo, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
                 sansVideo -> Box(Modifier.fillMaxSize().background(Color.Black))
-                accueil -> Image(painterResource(R.drawable.gs_accueil_poster), contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
-                Look.fond3d -> Image(painterResource(R.drawable.gs_fond_poster), contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
+                // Affiches décodées d'avance ([ImagesAppli]) : le passage d'une intro au décor ne les attend plus.
+                accueil -> imageAppli("gs_accueil_poster")?.let { Image(it, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize()) }
+                Look.fond3d -> imageAppli("gs_fond_poster")?.let { Image(it, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize()) }
                 else -> DecorDessine(temps::longValue, paillettes)
             }
         }

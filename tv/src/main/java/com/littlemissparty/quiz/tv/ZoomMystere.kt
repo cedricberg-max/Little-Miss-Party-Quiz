@@ -1,7 +1,6 @@
 package com.littlemissparty.quiz.tv
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -26,7 +25,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -49,9 +47,7 @@ private const val ZOOM_FIN = 1.6f
 @Composable
 fun ZoomPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
     val bytes = q.imageId?.let { state.images[it] }
-    val photo: ImageBitmap? = remember(bytes) {
-        bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() }
-    }
+    val photo: ImageBitmap? = rememberPhoto(bytes)
     val total = q.durationMs.coerceAtLeast(1)
     var remaining by remember(q.id) { mutableLongStateOf(state.remainingMs) }
     LaunchedEffect(q.id, state.deadline, state.paused, state.phase) {

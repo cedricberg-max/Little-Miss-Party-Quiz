@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -26,6 +27,9 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
@@ -55,8 +59,9 @@ import kotlin.math.sin
 
 /**
  * Nom du gagnant du podium, version « nerveuse » (cedric, 24/10 : « un tout petit peu plus nerveuse ») : maquette de
- * référence podmock/mock.html, nomNerveux(). Bungee à la couleur de l'équipe, contour sombre, deux lueurs, reflet
- * blanc sur le haut des lettres ; les lettres claquent une à une (×2,4 → 1 avec ressort, flash blanc), le mot complet
+ * référence podmock/mock.html, nomNerveux(). « Néon plein » (cedric, 30/10) : Bungee pleine et saturée à la couleur de
+ * l'équipe, nette de haut en bas, fin contour sombre, liseré clair à l'intérieur, deux fortes lueurs autour ; derrière
+ * le nom et ses points, le filigrane A ([filigrane]). Plus de reflet blanc fixe sur le haut des lettres (cedric 29/10) ; les lettres claquent une à une (×2,4 → 1 avec ressort, flash blanc), le mot complet
  * fait une onde de choc et un glitch cyan / magenta, puis le nom bat sur les temps de Digital Love (accent sur chaque
  * mesure), un reflet le balaie toutes les 4 battues et des étincelles en jaillissent ; « 900 POINTS » défile puis éclate.
  * Le nombre affiché à la fin est le vrai score ([Classee.points]) : rien ici ne compte de points.
@@ -88,6 +93,8 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
             largeur = total,
         )
     }
+    // Le filigrane couvre le nom et « 900 POINTS » : la largeur du plus long des deux.
+    val largeurPoints = remember(g.points, densite) { mesure.measure("${g.points} POINTS", stylePoints(), maxLines = 1, softWrap = false).size.width.toFloat() }
     val n = texte.length
     val ev = remember(n) { evenementsNerveux(n) }
     // La bande du nom : de 140 dp au-dessus de la ligne de base à 90 dp dessous ; les lettres y sont placées en px.
@@ -104,10 +111,9 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
             val t = u()
             if (t < 0f) return@Canvas
             val c = Offset(size.width / 2, base - cap)
-            val voile = 0.6f * lisse((t - NV_D0) / 0.3f)
-            if (voile > 0f) {
-                drawRect(Brush.radialGradient(listOf(GS.Noir.copy(alpha = voile), Color.Transparent), c, (lettres.largeur * 0.7f).coerceAtLeast(1f)))
-            }
+            // Filigrane A : du haut des capitales au bas des points, 45 dp de plus de chaque côté.
+            val demi = maxOf(lettres.largeur, largeurPoints) / 2 + FILIGRANE_MARGE_DP.dp.toPx()
+            filigrane(Rect(c.x - demi, base - 2 * cap - 5.dp.toPx(), c.x + demi, base + (POINTS_SOUS_NOM_DP + 14f).dp.toPx()), lisse((t - NV_D0) / 0.3f))
             val dM = t - ev.tMot
             if (dM in 0f..0.45f) {
                 val k = dM / 0.45f
@@ -124,7 +130,7 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                 for ((teinte, dx) in listOf(GS.Cyan to -5f, GS.Rose to 5f)) {
                     lettres.liste.forEachIndexed { i, l ->
                         val e = etatLettre(t, i, ev) ?: return@forEachIndexed
-                        lettre(l, e, base, cap) { drawText(l.mise, teinte, Offset(l.x + dx.dp.toPx() * gl, base - l.mise.firstBaseline), alpha = 0.55f * gl * e.alpha) }
+                        lettre(l, e, base, cap) { drawText(l.mise, teinte, Offset(l.x + dx.dp.toPx() * gl, base - l.mise.firstBaseline), alpha = 0.55f * gl * e.alpha, shadow = Shadow.None, drawStyle = Fill) }
                     }
                 }
             }
@@ -159,30 +165,36 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                     Modifier.fillMaxSize().debordement(56.dp)
                         .graphicsLayer {
                             val e = etatLettre(u(), i, ev)
-                            alpha = if (e == null) 0f else minOf(1f, 0.3f + 0.55f * e.pouls + 0.5f * e.flash)
+                            alpha = if (e == null) 0f else minOf(1f, 0.55f + 0.45f * e.pouls + 0.5f * e.flash)
                             compositingStrategy = CompositingStrategy.Offscreen
                         }
                         .drawBehind {
                             val m = 56.dp.toPx()
-                            drawText(l.mise, couleur, Offset(m, m), shadow = Shadow(couleur, Offset.Zero, 34.dp.toPx()))
+                            drawText(l.mise, couleur, Offset(m, m), shadow = Shadow(couleur, Offset.Zero, NOM_LUEUR_LARGE_DP.dp.toPx()), drawStyle = Fill)
                         },
                 )
-                // Corps : contour sombre, lettre néon et sa lueur serrée, reflet blanc sur le haut.
+                // Corps, néon plein : fin contour sombre, lettre pleine et opaque, sa lueur serrée (plus de reflet blanc
+                // fixe sur le haut des lettres : il faisait comme un trou de transparence, cedric 29/10). Chaque dessin
+                // d'une même lettre dit son style (plein ou trait) et son ombre : sinon le trait du contour restait sur
+                // le dessin suivant, la lettre n'était qu'un contour et son creux laissait voir la lueur (capture du 30/10).
                 Spacer(
                     Modifier.fillMaxSize().debordement(28.dp)
                         .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                         .drawBehind {
                             val m = 28.dp.toPx()
                             val o = Offset(m, m)
-                            drawText(l.mise, GS.Noir.copy(alpha = 0.68f), o, drawStyle = Stroke(7.dp.toPx(), join = StrokeJoin.Round))
-                            drawText(l.mise, couleur, o, shadow = Shadow(couleur.copy(alpha = 0.95f), Offset.Zero, 14.dp.toPx()))
-                            val b = l.mise.firstBaseline
-                            val t = lettres.tailleTexte
-                            drawText(
-                                l.mise,
-                                Brush.verticalGradient(0f to Color.White.copy(alpha = 0.8f), 0.55f to Color.White.copy(alpha = 0.12f), 1f to Color.Transparent, startY = b - 0.805f * t, endY = b - 0.17f * t),
-                                o,
-                            )
+                            drawText(l.mise, GS.Noir.copy(alpha = 0.85f), o, shadow = Shadow.None, drawStyle = Stroke(NOM_CONTOUR_DP.dp.toPx(), join = StrokeJoin.Round))
+                            drawText(l.mise, couleur, o, shadow = Shadow(couleur.copy(alpha = 0.95f), Offset.Zero, NOM_LUEUR_SERREE_DP.dp.toPx()), drawStyle = Fill)
+                        },
+                )
+                // Liseré clair à l'intérieur des lettres : le bord du trait, gardé seulement dans la lettre.
+                Spacer(
+                    Modifier.fillMaxSize().debordement(2.dp)
+                        .graphicsLayer { alpha = 0.35f; compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawBehind {
+                            val o = Offset(2.dp.toPx(), 2.dp.toPx())
+                            drawText(l.mise, Color.White, o, shadow = Shadow.None, drawStyle = Fill)
+                            drawText(l.mise, Color.White, o, shadow = Shadow.None, drawStyle = Stroke(2.dp.toPx()), blendMode = BlendMode.SrcIn)
                         },
                 )
                 // Flash blanc à l'impact de la lettre et au mot complet.
@@ -193,7 +205,7 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                             alpha = if (e == null) 0f else 0.85f * e.flash
                             compositingStrategy = CompositingStrategy.Offscreen
                         }
-                        .drawBehind { drawText(l.mise, Color.White, Offset(8.dp.toPx(), 8.dp.toPx())) },
+                        .drawBehind { drawText(l.mise, Color.White, Offset(8.dp.toPx(), 8.dp.toPx()), shadow = Shadow.None, drawStyle = Fill) },
                 )
             }
         }
@@ -209,7 +221,7 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                     if (bal >= 1f) return@drawBehind
                     lettres.liste.forEachIndexed { i, l ->
                         val e = etatLettre(t, i, ev) ?: return@forEachIndexed
-                        lettre(l, e, base, cap) { drawText(l.mise, Color.White, Offset(l.x, base - l.mise.firstBaseline)) }
+                        lettre(l, e, base, cap) { drawText(l.mise, Color.White, Offset(l.x, base - l.mise.firstBaseline), shadow = Shadow.None, drawStyle = Fill) }
                     }
                     val bx = size.width / 2 - lettres.largeur / 2 - 100.dp.toPx() + (lettres.largeur + 200.dp.toPx()) * bal
                     val d = 35.dp.toPx()
@@ -247,8 +259,11 @@ internal fun PointsNerveux(points: Int, longueurNom: Int, ligneDeBase: Dp, ms: (
             if (d <= 0f) 0 else if (d >= 0.6f) points else (points * (1 - (1 - d / 0.6f).pow(3))).roundToInt()
         }
     }
-    // Chiffres espacés : en Black, « 1217 » se touchait (« 1 » collés, Mi Box, cedric 26/10).
-    val style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = 28.sp, color = GS.Jaune, letterSpacing = 2.5.sp, shadow = Shadow(GS.Jaune.copy(alpha = 0.8f), Offset.Zero, 22f))
+    // Néon plein comme le nom (cedric, 30/10) : grande lueur, fin contour sombre, chiffres pleins et leur lueur serrée.
+    val densite = LocalDensity.current
+    val style = stylePoints().copy(shadow = Shadow(GS.Jaune.copy(alpha = 0.9f), Offset.Zero, with(densite) { 8.dp.toPx() }))
+    val lueur = stylePoints().copy(shadow = Shadow(GS.Jaune, Offset.Zero, with(densite) { 22.dp.toPx() }))
+    val contour = stylePoints().copy(color = GS.Noir.copy(alpha = 0.85f), drawStyle = Stroke(with(densite) { NOM_CONTOUR_DP.dp.toPx() }, join = StrokeJoin.Round))
     Box(
         Modifier.fillMaxSize().clearAndSetSemantics {}.graphicsLayer {
             val t = u()
@@ -264,6 +279,8 @@ internal fun PointsNerveux(points: Int, longueurNom: Int, ligneDeBase: Dp, ms: (
         },
     ) {
         val texte = "$valeur POINTS"
+        Text(texte, style = lueur, maxLines = 1, softWrap = false, modifier = Modifier.surLigneDeBase(ligneDeBase))
+        Text(texte, style = contour, maxLines = 1, softWrap = false, modifier = Modifier.surLigneDeBase(ligneDeBase))
         Text(texte, style = style, maxLines = 1, softWrap = false, modifier = Modifier.surLigneDeBase(ligneDeBase))
         Text(
             texte, style = style.copy(color = Color(0xFFFFF7B0)), maxLines = 1, softWrap = false,
@@ -274,6 +291,41 @@ internal fun PointsNerveux(points: Int, longueurNom: Int, ligneDeBase: Dp, ms: (
         )
     }
 }
+
+/** « 900 POINTS » : chiffres espacés, car en Black « 1217 » se touchait (« 1 » collés, Mi Box, cedric 26/10). */
+internal fun stylePoints() = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = 28.sp, color = GS.Jaune, letterSpacing = 2.5.sp)
+
+/**
+ * Filigrane A (cedric, 30/10) : une ombre sombre et floue, sans bord, derrière un groupe de textes posé sur une vidéo
+ * chargée (le logo et « Bravo… », le nom et ses points) : un rectangle arrondi #06020E à 80 %, flou de 45 px en 1080p.
+ * Flou calculé par la puce graphique (rectangle arrondi), rien n'est recalculé à la main à chaque image.
+ */
+internal fun DrawScope.filigrane(zone: Rect, part: Float) {
+    if (part <= 0f) return
+    val p = peintureFiligrane ?: android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).also { peintureFiligrane = it }
+    p.color = android.graphics.Color.argb((255 * FILIGRANE_OPACITE * part.coerceAtMost(1f)).roundToInt(), 6, 2, 14)
+    val flou = FILIGRANE_FLOU_DP.dp.toPx()
+    if (flou != flouFiligrane) {
+        p.maskFilter = android.graphics.BlurMaskFilter(flou, android.graphics.BlurMaskFilter.Blur.NORMAL)
+        flouFiligrane = flou
+    }
+    val r = 30.dp.toPx()
+    drawIntoCanvas { it.nativeCanvas.drawRoundRect(zone.left, zone.top, zone.right, zone.bottom, r, r, p) }
+}
+
+/** Peinture et flou du filigrane, faits une fois (fil principal seulement). */
+private var peintureFiligrane: android.graphics.Paint? = null
+private var flouFiligrane = -1f
+internal const val FILIGRANE_OPACITE = 0.8f
+/** Rayon du flou (dp sur 960) : un écart type d'environ 22 dp, les 45 px en 1080p de la maquette. */
+internal const val FILIGRANE_FLOU_DP = 38f
+/** Le filigrane dépasse le texte de 45 dp de chaque côté (90 px en 1080p). */
+internal const val FILIGRANE_MARGE_DP = 45f
+/** Ligne de base des points sous celle du nom ([PodiumGameShow]). */
+internal const val POINTS_SOUS_NOM_DP = 42f
+internal const val NOM_CONTOUR_DP = 4f
+internal const val NOM_LUEUR_SERREE_DP = 17f
+internal const val NOM_LUEUR_LARGE_DP = 38f
 
 /** Les autres équipes sous le gagnant, « 2  Les Dragons 770      3  … », sur une ou deux lignes, jamais coupées. */
 @Composable

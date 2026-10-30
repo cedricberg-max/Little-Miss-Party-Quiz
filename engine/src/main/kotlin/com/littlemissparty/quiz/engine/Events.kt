@@ -137,6 +137,12 @@ data class Undone(override val seq: Int, override val at: Long, val target: Int)
 data class GameEnded(override val seq: Int, override val at: Long) : GameEvent
 
 /**
+ * Game Show : après le podium, la musique attend en boucle pendant que l'animatrice parle aux enfants ; son « ▶ Lancer
+ * la fin » (le bouton « suivant » de la fin de partie) lance l'outro du robot en fusée puis l'écran de fin (cedric, 29/10).
+ */
+data class OutroLaunched(override val seq: Int, override val at: Long) : GameEvent
+
+/**
  * Mauvaise prestation lancée (cedric, 21/10) : la régie en a choisi une autre alors que la partie avait commencé, mais
  * qu'aucun point n'avait encore été donné ([Game.mayReplaceProgram]). La partie repart du salon d'attente avec le
  * nouveau programme ; tout ce qui précède dans le journal est ignoré (progression, réglages), la numérotation continue.
@@ -314,6 +320,35 @@ data class DuelSettled(override val seq: Int, override val at: Long, val qid: St
 
 /** Le Duel des robots : Sarah arrête le face-à-face ; la même paire reste prête, sans points. */
 data class DuelStopped(override val seq: Int, override val at: Long, val qid: String, val n: Int) : GameEvent
+
+/**
+ * Le Simon du Prof : le tour [tour] est prêt entre les équipes [teams], avec sa suite secrète [sequence] (tirée par la
+ * box) ; la suite n° 1 attend le lancement de Sarah.
+ */
+data class SimonTourReady(
+    override val seq: Int,
+    override val at: Long,
+    val qid: String,
+    val tour: Int,
+    val sequence: List<String>,
+    val teams: List<String>,
+) : GameEvent
+
+/** Le Simon du Prof : la suite n° [suite] du tour [tour] commence (le robot la montre, puis le chrono part). */
+data class SimonSuiteStarted(override val seq: Int, override val at: Long, val qid: String, val tour: Int, val suite: Int) : GameEvent
+
+/** Le Simon du Prof : la suite n° [suite] est jugée d'après ce que chaque équipe a tapé ([answers]). */
+data class SimonJudged(
+    override val seq: Int,
+    override val at: Long,
+    val qid: String,
+    val tour: Int,
+    val suite: Int,
+    val answers: Map<String, SimonAnswer>,
+) : GameEvent
+
+/** Le Simon du Prof : Sarah arrête la suite en cours ; elle se relancera telle quelle, sans élimination. */
+data class SimonStopped(override val seq: Int, override val at: Long, val qid: String, val tour: Int, val suite: Int) : GameEvent
 
 /**
  * Saut de la régie vers la question [index] (début d'un jeu de la prestation), en avant comme en arrière.

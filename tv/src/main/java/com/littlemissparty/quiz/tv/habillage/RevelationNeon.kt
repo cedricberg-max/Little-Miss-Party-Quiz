@@ -66,6 +66,11 @@ private const val MOT_MAX = 96f
 private const val MOT_MIN = 26f
 private const val PHRASE_MAX = 34f
 private const val PHRASE_MIN = 16f
+/** Félicitations seules (Chante le mot : le mot est déjà à gauche), en grand au centre du panneau. */
+internal const val PHRASE_SEULE_MAX = 64f
+
+/** Chante le mot : le mot reste à gauche ; à droite, seulement « Bravo …, quelle voix ! » (cedric, 28/10 : répétition). */
+internal fun revelationAvecMot(chante: Boolean) = !chante
 
 /** Étincelles autour du mot : position (fraction de la zone) et décalage de phase, de gauche à droite. */
 private val ETINCELLES = listOf(
@@ -79,10 +84,12 @@ private val TEINTES_ETINCELLES = listOf(GS.Jaune, GS.Cyan, GS.Rose, GS.Jaune, GS
 
 /**
  * [etiquette] : « C'était : » ou « Le mot : » ; [mot] : la réponse ; [phrase] : félicitations ou consolation, écrite en
- * [teinte] ; [cle] relance l'animation (une nouvelle question).
+ * [teinte] ; [cle] relance l'animation (une nouvelle question). [avecMot] faux : la phrase seule, en grand.
  */
 @Composable
-internal fun RevelationNeon(etiquette: String, mot: String, phrase: String, teinte: Color, cle: Any?, modifier: Modifier = Modifier) {
+internal fun RevelationNeon(
+    etiquette: String, mot: String, phrase: String, teinte: Color, cle: Any?, modifier: Modifier = Modifier, avecMot: Boolean = true,
+) {
     val boucle = rememberInfiniteTransition(label = "revelation")
     // Une mesure à 120 BPM (2 s) : le halo du mot respire, les étincelles scintillent.
     val t by boucle.animateFloat(0f, 1f, infiniteRepeatable(tween(2_000, easing = LinearEasing), RepeatMode.Restart), label = "t")
@@ -107,59 +114,64 @@ internal fun RevelationNeon(etiquette: String, mot: String, phrase: String, tein
                 mot, styleNeon(PoliceGsTitre), MOT_MAX, MOT_MIN, (largeur * 0.84f - margeH).toInt(), (hauteur * 0.38f - margeV).toInt(), 2,
             )
         }
-        val taillePhrase = remember(phrase, largeur, hauteur) {
-            mesure.tailleQuiTient(phrase, styleNeon(PoliceGsTitre), PHRASE_MAX, PHRASE_MIN, (largeur * 0.92f).toInt(), (hauteur * 0.26f).toInt(), 2)
+        val lignesPhrase = if (avecMot) 2 else 3
+        val taillePhrase = remember(phrase, largeur, hauteur, avecMot) {
+            if (avecMot) mesure.tailleQuiTient(phrase, styleNeon(PoliceGsTitre), PHRASE_MAX, PHRASE_MIN, (largeur * 0.92f).toInt(), (hauteur * 0.26f).toInt(), 2)
+            else mesure.tailleQuiTient(phrase, styleNeon(PoliceGsTitre), PHRASE_SEULE_MAX, PHRASE_MIN, (largeur * 0.88f).toInt(), (hauteur * 0.7f).toInt(), 3)
         }
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text(
-                etiquette, maxLines = 1, softWrap = false, modifier = Modifier.apparition(0, cle),
-                style = TextStyle(
-                    fontFamily = PoliceGsChiffres, fontSize = 22.sp, letterSpacing = 6.sp, color = GS.CyanClair,
-                    shadow = Shadow(GS.Cyan, Offset.Zero, 16f),
-                ),
-            )
-            Spacer(Modifier.height(10.dp))
-            Box(contentAlignment = Alignment.Center) {
-                Etincelles({ t }, { allume.value }, Modifier.matchParentSize())
-                // Le mot dans son tube de néon, comme « Quel est ce titre ? » (cedric, 25/10 : « très joli »).
-                Box(
-                    Modifier.graphicsLayer { scaleX = surgit.value; scaleY = surgit.value; alpha = allume.value }
-                        .drawBehind {
-                            val respire = 0.5f + 0.5f * sin(t * 2f * PI.toFloat() * 2f)
-                            val e = 3.dp.toPx()
-                            val r = CornerRadius(size.height / 2f)
-                            drawRoundRect(GS.Cyan.copy(alpha = 0.10f + 0.06f * respire), cornerRadius = r, style = Stroke(e * 9f))
-                            drawRoundRect(GS.Cyan.copy(alpha = 0.30f + 0.08f * respire), cornerRadius = r, style = Stroke(e * 4f))
-                            drawRoundRect(GS.CyanClair, cornerRadius = r, style = Stroke(e * 1.6f))
-                            drawRoundRect(Color.White.copy(alpha = 0.75f), cornerRadius = r, style = Stroke(e * 0.5f))
-                        }
-                        .padding(horizontal = TUBE_MARGE_H, vertical = TUBE_MARGE_V),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    // Une couleur de néon par lettre, lettres au cœur blanc ; le halo respire sur son propre calque.
-                    Text(
-                        arcEnCiel(mot, tailleMot * 0.9f), maxLines = 2, style = styleMot(tailleMot, Color.White.copy(alpha = 0.7f)),
-                        modifier = Modifier.clearAndSetSemantics {}.graphicsLayer { alpha = 0.6f + 0.4f * sin(t * PI.toFloat()) * sin(t * PI.toFloat()) },
-                    )
-                    Text(arcEnCiel(mot, tailleMot * 0.3f), maxLines = 2, style = styleMot(tailleMot, Color.White), modifier = Modifier.clearAndSetSemantics {})
-                    Text(mot, maxLines = 2, style = styleMot(tailleMot, Color.White).copy(shadow = Shadow(Color.White.copy(alpha = 0.9f), Offset.Zero, tailleMot * 0.06f)))
+            if (avecMot) {
+                Text(
+                    etiquette, maxLines = 1, softWrap = false, modifier = Modifier.apparition(0, cle),
+                    style = TextStyle(
+                        fontFamily = PoliceGsChiffres, fontSize = 22.sp, letterSpacing = 6.sp, color = GS.CyanClair,
+                        shadow = Shadow(GS.Cyan, Offset.Zero, 16f),
+                    ),
+                )
+                Spacer(Modifier.height(10.dp))
+                Box(contentAlignment = Alignment.Center) {
+                    Etincelles({ t }, { allume.value }, Modifier.matchParentSize())
+                    // Le mot dans son tube de néon, comme « Quel est ce titre ? » (cedric, 25/10 : « très joli »).
+                    Box(
+                        Modifier.graphicsLayer { scaleX = surgit.value; scaleY = surgit.value; alpha = allume.value }
+                            .drawBehind {
+                                val respire = 0.5f + 0.5f * sin(t * 2f * PI.toFloat() * 2f)
+                                val e = 3.dp.toPx()
+                                val r = CornerRadius(size.height / 2f)
+                                drawRoundRect(GS.Cyan.copy(alpha = 0.10f + 0.06f * respire), cornerRadius = r, style = Stroke(e * 9f))
+                                drawRoundRect(GS.Cyan.copy(alpha = 0.30f + 0.08f * respire), cornerRadius = r, style = Stroke(e * 4f))
+                                drawRoundRect(GS.CyanClair, cornerRadius = r, style = Stroke(e * 1.6f))
+                                drawRoundRect(Color.White.copy(alpha = 0.75f), cornerRadius = r, style = Stroke(e * 0.5f))
+                            }
+                            .padding(horizontal = TUBE_MARGE_H, vertical = TUBE_MARGE_V),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        // Une couleur de néon par lettre, lettres au cœur blanc ; le halo respire sur son propre calque.
+                        Text(
+                            arcEnCiel(mot, tailleMot * 0.9f), maxLines = 2, style = styleMot(tailleMot, Color.White.copy(alpha = 0.7f)),
+                            modifier = Modifier.clearAndSetSemantics {}.graphicsLayer { alpha = 0.6f + 0.4f * sin(t * PI.toFloat()) * sin(t * PI.toFloat()) },
+                        )
+                        Text(arcEnCiel(mot, tailleMot * 0.3f), maxLines = 2, style = styleMot(tailleMot, Color.White), modifier = Modifier.clearAndSetSemantics {})
+                        Text(mot, maxLines = 2, style = styleMot(tailleMot, Color.White).copy(shadow = Shadow(Color.White.copy(alpha = 0.9f), Offset.Zero, tailleMot * 0.06f)))
+                    }
                 }
+                Spacer(Modifier.height(12.dp))
+                // Le trait de néon se dessine de gauche à droite sous le mot.
+                Canvas(Modifier.width(with(LocalDensity.current) { (largeur * 0.6f).toDp() }).height(10.dp).clearAndSetSemantics {}) {
+                    val y = size.height / 2f
+                    val fin = size.width * trait.value
+                    if (fin <= 0f) return@Canvas
+                    val degrade = Brush.horizontalGradient(listOf(GS.Cyan, GS.Rose, GS.Jaune), endX = size.width)
+                    drawLine(degrade, Offset(0f, y), Offset(fin, y), strokeWidth = size.height, cap = StrokeCap.Round, alpha = 0.25f)
+                    drawLine(degrade, Offset(0f, y), Offset(fin, y), strokeWidth = size.height * 0.45f, cap = StrokeCap.Round)
+                    drawLine(Color.White.copy(alpha = 0.8f), Offset(0f, y), Offset(fin, y), strokeWidth = size.height * 0.12f, cap = StrokeCap.Round)
+                }
+                Spacer(Modifier.height(16.dp))
             }
-            Spacer(Modifier.height(12.dp))
-            // Le trait de néon se dessine de gauche à droite sous le mot.
-            Canvas(Modifier.width(with(LocalDensity.current) { (largeur * 0.6f).toDp() }).height(10.dp).clearAndSetSemantics {}) {
-                val y = size.height / 2f
-                val fin = size.width * trait.value
-                if (fin <= 0f) return@Canvas
-                val degrade = Brush.horizontalGradient(listOf(GS.Cyan, GS.Rose, GS.Jaune), endX = size.width)
-                drawLine(degrade, Offset(0f, y), Offset(fin, y), strokeWidth = size.height, cap = StrokeCap.Round, alpha = 0.25f)
-                drawLine(degrade, Offset(0f, y), Offset(fin, y), strokeWidth = size.height * 0.45f, cap = StrokeCap.Round)
-                drawLine(Color.White.copy(alpha = 0.8f), Offset(0f, y), Offset(fin, y), strokeWidth = size.height * 0.12f, cap = StrokeCap.Round)
-            }
-            Spacer(Modifier.height(16.dp))
-            Box(Modifier.fillMaxWidth().apparition(450, cle), contentAlignment = Alignment.Center) {
-                TexteNeon(phrase, taillePhrase, teinte.copy(alpha = 0.85f), taillePhrase * 0.45f, teinte, 2, Modifier.clearAndSetSemantics {})
-                TexteNeon(phrase, taillePhrase, Color.White, taillePhrase * 0.1f, teinte, 2)
+            Box(Modifier.fillMaxWidth().apparition(if (avecMot) 450 else 0, cle), contentAlignment = Alignment.Center) {
+                if (!avecMot) Etincelles({ t }, { 1f }, Modifier.matchParentSize())
+                TexteNeon(phrase, taillePhrase, teinte.copy(alpha = 0.85f), taillePhrase * 0.45f, teinte, lignesPhrase, Modifier.clearAndSetSemantics {})
+                TexteNeon(phrase, taillePhrase, Color.White, taillePhrase * 0.1f, teinte, lignesPhrase)
             }
         }
     }

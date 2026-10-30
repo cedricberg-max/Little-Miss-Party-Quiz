@@ -13,10 +13,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -60,19 +60,26 @@ private const val FONDU_FIN_MS = 500
 private const val MERCI_MS = 5_000
 private const val A_BIENTOT_MS = 6_000
 private const val APPARITION_TEXTE_MS = 1_200
+/**
+ * Depuis le 29/10 (validé par cedric), les textes de fin sont dans la vidéo elle-même : le titre néon « MERCI D'AVOIR
+ * PARTICIPÉ ! » en haut, « À BIENTÔT SUR » et le logo THE GAME SHOW en bas. L'appli n'écrit plus rien par-dessus
+ * (sinon les textes seraient en double). false = retour aux textes écrits par l'appli, avec la vidéo d'avant le 29/10
+ * (sans textes, dans l'historique git).
+ */
+internal const val FIN_TEXTES_DANS_LA_VIDEO = true
 
 /**
  * Écran de fin cinéma du Game Show (choix de cedric du 24 octobre), après le podium, sur le dernier groove
  * d'Aerodynamic : la vidéo res/raw/gs_fin_video.mp4, calculée à l'avance en 3D sur le plateau (gros plan du robot qui
  * fait un clin d'œil, la caméra recule, le logo s'allume avec « by Little Miss Party »), puis le robot qui dit au revoir
  * dans l'arche, en boucle aussi longtemps qu'il faut. La vidéo part sur un temps de la musique et sa boucle reste calée
- * sur les tours de gs_bed_fin ([Sons.tourFin]). L'appli écrit en direct l'enseigne « MERCI ! » et « À bientôt
- * sur The Game Show ! » dans le bas, resté calme dans la vidéo. Une seule vidéo à la fois : pendant ce temps le décor
+ * sur les tours de gs_bed_fin ([Sons.tourFin]). Les textes sont dans la vidéo ([FIN_TEXTES_DANS_LA_VIDEO]).
+ * Une seule vidéo à la fois : pendant ce temps le décor
  * du dessous ne lit pas son fond ([Habillage.finVideo]) et aucun clip du robot ne passe. Si la vidéo ne se lit pas,
  * l'écran de fin dessiné d'avant revient ([AuRevoirGameShow]). Rien ici ne touche à la partie.
  */
 @Composable
-fun FinCinemaGameShow(modifier: Modifier = Modifier) {
+fun FinCinemaGameShow(modifier: Modifier = Modifier, fonduMs: Int = FONDU_FIN_MS) {
     var echec by remember { mutableStateOf(false) }
     if (echec) return AuRevoirGameShow(modifier)
     DisposableEffect(Unit) {
@@ -82,7 +89,7 @@ fun FinCinemaGameShow(modifier: Modifier = Modifier) {
     var prete by remember { mutableStateOf(false) }
     var lecteur by remember { mutableStateOf<LecteurFond?>(null) }
     val opacite = remember { Animatable(0f) }
-    LaunchedEffect(prete) { if (prete) opacite.animateTo(1f, tween(FONDU_FIN_MS)) }
+    LaunchedEffect(prete) { if (prete) opacite.animateTo(1f, tween(fonduMs)) }
     Box(modifier.fillMaxSize()) {
         AndroidView(
             factory = {
@@ -98,7 +105,7 @@ fun FinCinemaGameShow(modifier: Modifier = Modifier) {
             onRelease = { it.liberer() },
             modifier = Modifier.fillMaxSize(),
         )
-        if (prete) MessagesFin()
+        if (prete) { if (FIN_TEXTES_DANS_LA_VIDEO) TextesDeLaVideo() else MessagesFin() }
     }
     // La boucle de la vidéo suit les tours de la musique, en accélérant ou ralentissant un peu ([SuiviMusique]).
     LaunchedEffect(lecteur) {
@@ -119,6 +126,18 @@ fun FinCinemaGameShow(modifier: Modifier = Modifier) {
             val ecart = ecartSigne(attendu - FIN_BOUCLE_DEBUT_MS, pos - FIN_BOUCLE_DEBUT_MS, FIN_BOUCLE_MS)
             suivi.suivre(v, attendu, ecart)
         }
+    }
+}
+
+/**
+ * Rien à l'image : seulement la place des deux textes de la vidéo (titre en haut, y 0-280 px sur 1080 ; « À bientôt »
+ * et logo en bas, y 755-1040 px), pour les lecteurs d'écran et les tests de l'écran de fin.
+ */
+@Composable
+private fun TextesDeLaVideo() {
+    Echelle(960.dp, 540.dp, Modifier.fillMaxSize()) {
+        Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(140.dp).semantics { contentDescription = "Merci d'avoir participé !" })
+        Box(Modifier.align(Alignment.TopCenter).padding(top = 377.dp).fillMaxWidth().height(143.dp).semantics { contentDescription = "À BIENTÔT SUR THE GAME SHOW !" })
     }
 }
 
@@ -147,18 +166,29 @@ private fun MessagesFin() {
                 .graphicsLayer { alpha = voile.value }
                 .background(Brush.verticalGradient(0f to Color.Transparent, 0.45f to VOILE_FIN.copy(alpha = 0.72f), 1f to VOILE_FIN.copy(alpha = 0.85f))),
         )
-        // Enseigne « MERCI ! » qui grésille en s'allumant puis respire (cedric, planche du 27/10, option B).
-        EnseigneMerci(allumee, Modifier.align(Alignment.TopCenter).offset(y = 391.dp))
-        Text(
-            "★ À BIENTÔT SUR THE GAME SHOW ★", maxLines = 1, softWrap = false,
-            style = TextStyle(
-                fontFamily = PoliceGsTitre, fontSize = 16.5.sp, color = GS.CyanClair, textAlign = TextAlign.Center, letterSpacing = 0.6.sp,
-                shadow = Shadow(GS.Cyan, Offset.Zero, 20f),
-            ),
-            modifier = Modifier.align(Alignment.TopCenter).offset(y = 496.dp).graphicsLayer { alpha = bientot.value },
-        )
+        // Enseigne « MERCI ! » qui grésille en s'allumant puis respire (cedric, planche du 27/10, option B), et dessous,
+        // dans la même colonne, « À bientôt » : jamais l'un sur l'autre, quelle que soit la hauteur de l'enseigne
+        // (cedric, 27/10 au soir : la ligne mordait le bas de l'enseigne et ne se lisait pas).
+        Column(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            EnseigneMerci(allumee, Modifier)
+            Spacer(Modifier.height(ECART_ENSEIGNE_BIENTOT))
+            Text(
+                "★ À BIENTÔT SUR THE GAME SHOW ★", maxLines = 1, softWrap = false,
+                style = TextStyle(
+                    fontFamily = PoliceGsTitre, fontSize = 16.5.sp, color = GS.CyanClair, textAlign = TextAlign.Center, letterSpacing = 0.6.sp,
+                    shadow = Shadow(GS.Cyan, Offset.Zero, 20f),
+                ),
+                modifier = Modifier.graphicsLayer { alpha = bientot.value },
+            )
+        }
     }
 }
+
+/** Entre le bas de l'enseigne et « À bientôt » : plus que son halo rose (27,75 dp), pour que la ligne reste nette. */
+private val ECART_ENSEIGNE_BIENTOT = 30.dp
 
 private val RoseEnseigne = Color(0xFFFF2D95)
 private val FondEnseigne = Color(0xDB0C061C)

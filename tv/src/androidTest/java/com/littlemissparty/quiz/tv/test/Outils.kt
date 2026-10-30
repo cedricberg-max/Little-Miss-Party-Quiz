@@ -120,6 +120,12 @@ object Boite {
     /** Design choisi dans le menu Retour (« gs3d », « gs » ou « classique ») ; null = celui de la box par défaut (plateau 3D). */
     fun choisirDesign(cle: String?) = design.edit().apply { if (cle == null) clear() else putString("design-v3", cle) }.commit()
 
+    /**
+     * Décor des tests : « gs », le décor dessiné (pas de vidéo de fond à décoder pendant tout le test), sauf relance à
+     * la main avec « gs3d » pour des captures sur l'affiche du plateau, comme sur la TV (argument « design »).
+     */
+    val designDesTests: String get() = InstrumentationRegistry.getArguments().getString("design") ?: "gs"
+
     fun codeActif(): String? = prefs.getString("active_game", null)
 
     fun lancer(): ActivityScenario<MainActivity> = ActivityScenario.launch(MainActivity::class.java)
@@ -274,11 +280,11 @@ class Ecran(private val nomTest: () -> String) {
 
     /**
      * Un texte de l'interface Compose, lu dans l'arbre sémantique de l'appli ; [centreX] : milieu de sa boîte dans la
-     * fenêtre, de largeur [largeurFenetre] (pixels).
+     * fenêtre, de largeur [largeurFenetre] (pixels) ; [haut] et [bas] : bords haut et bas de sa boîte (pixels).
      */
     data class Element(
         val texte: String, val focus: Boolean, val visible: Boolean, val entier: Boolean = false,
-        val centreX: Float = -1f, val largeurFenetre: Int = 0,
+        val centreX: Float = -1f, val largeurFenetre: Int = 0, val haut: Float = -1f, val bas: Float = -1f, val hauteurFenetre: Int = 0,
     )
 
     /**
@@ -323,7 +329,7 @@ class Ecran(private val nomTest: () -> String) {
             // boundsInWindow est rognée par les parents : plus petite que le texte, il est coupé.
             val entier = visible && b.top >= 0 && b.left >= 0 && b.bottom <= fenetre.height && b.right <= fenetre.width &&
                 b.height >= n.size.height - 1 && b.width >= n.size.width - 1
-            liste += Element(textes.joinToString(" "), n.config.getOrNull(SemanticsProperties.Focused) == true, visible, entier, b.center.x, fenetre.width)
+            liste += Element(textes.joinToString(" "), n.config.getOrNull(SemanticsProperties.Focused) == true, visible, entier, b.center.x, fenetre.width, b.top, b.bottom, fenetre.height)
         }
         n.children.forEach { parcourir(it, fenetre, liste) }
     }
@@ -519,6 +525,18 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
                 .setValue(mapOf("t" to t, "at" to ServerValue.TIMESTAMP)).await()
         }
     }.onFailure { Log.i(TAG, "Buzz du duel refusé : ${it.message}") }.isSuccess
+
+    /**
+     * Le Simon du Prof : la tablette envoie la suite tapée ([items], codes du moteur), validée ou non ([ok]) ; false
+     * si le serveur refuse (pas de suite en cours, équipe éliminée, chrono pas parti ou fini, déjà validé).
+     */
+    fun repondreSimon(code: String, items: List<String>, ok: Boolean = true): Boolean = runCatching {
+        val cle = etat(code).child("simon/key").value?.toString() ?: error("pas de suite en cours")
+        bloquer {
+            base.getReference("games/$code/simon/$cle/$uid")
+                .setValue(mapOf("items" to items.joinToString(","), "ok" to ok, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Suite du Simon refusée : ${it.message}") }.isSuccess
 
     /** « Ça va exploser ! » : la tablette de l'équipe qui tient la bombe l'envoie à [vers] ; false si le serveur refuse. */
     fun envoyerPatate(code: String, vers: String): Boolean = runCatching {

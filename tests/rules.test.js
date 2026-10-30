@@ -562,6 +562,12 @@ describe("régie", () => {
     await assertSucceeds(gagnantes("w1", { teams: ["rose", "bleu"] }));
     await assertSucceeds(gagnantes("w2", { personne: true }));
     await assertFails(gagnantes("w3", { personne: false }));
+    // « ⛔ Arrêter la partie » (cedric, 29/10) : un « newgame » qui arrête tout, même partie en cours ; rien d'autre.
+    const arret = (id, body) => set(ref(db(REGIE), `games/${CODE}/commands/${id}`), { expectSeq: 3, by: REGIE, at: serverTimestamp(), ...body });
+    await assertSucceeds(arret("a1", { type: "newgame", arret: true }));
+    await assertFails(arret("a2", { type: "newgame", arret: false }));
+    await assertFails(arret("a3", { type: "next", arret: true }));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/commands/a4`), { type: "newgame", arret: true, expectSeq: 3, by: "rose", at: serverTimestamp() }));
     await assertFails(gagnantes("w4", { teams: ["x".repeat(129)] }));
     await assertFails(gagnantes("w5", { teams: { a: "rose" } }));
     for (const type of ["statues_stop", "statues_play", "statues_song"]) await assertSucceeds(command(REGIE, { type }));
@@ -1581,6 +1587,65 @@ describe("Le Duel des robots", () => {
     await assertSucceeds(buzz("tablette2", "bleu"));
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
     for (const [id, cmd] of [["d1", { type: "duel_start" }], ["d2", { type: "duel_start", teams: ["bleu", "rose"] }], ["d3", { type: "duel_next" }], ["d4", { type: "duel_stop" }]]) {
+      await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/${id}`), { ...cmd, expectSeq: 3, by: "tel", at: serverTimestamp() }), cmd.type);
+    }
+  });
+});
+
+describe("Le Simon du Prof", () => {
+  const suite = (simon = {}, extra = {}) => seed({
+    kind: "simon", qid: "r9s", choices: null, deadline: null,
+    simon: {
+      tour: 1, suite: 3, step: "play", key: "r9s-1-3-100", players: { bleu: 1, rose: 2 },
+      reponseAt: Date.now() - 2_000, finAt: Date.now() + 8_000, ...simon,
+    }, ...extra,
+  });
+  const envoie = (uid, team = uid, data = {}, key = "r9s-1-3-100") =>
+    set(ref(db(uid), `games/${CODE}/simon/${key}/${team}`), { items: "rouge,vert", ok: false, at: serverTimestamp(), ...data });
+  const troisEquipes = () => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#7CFF3A" }));
+
+  test("chaque équipe en jeu envoie ce qu'elle tape pendant le chrono, puis valide une fois", async () => {
+    await suite();
+    await troisEquipes();
+    await assertSucceeds(envoie("bleu", "bleu", { items: "" }), "rien tapé encore");
+    await assertSucceeds(envoie("bleu", "bleu", { items: "rouge" }), "chaque appui");
+    await assertSucceeds(envoie("bleu", "bleu", { items: "rouge,vert,4", ok: true }), "« Valider »");
+    await assertFails(envoie("bleu", "bleu", { items: "rouge" }), "plus rien après « Valider »");
+    await assertFails(envoie("vert"), "pas de ce tour");
+    await assertFails(envoie("bleu", "rose"), "jamais pour une autre équipe");
+    await assertFails(envoie("rose", "rose", {}, "r9s-1-2-90"), "ancienne suite");
+    await assertFails(envoie("rose", "rose", { at: 5 }), "heure du serveur obligatoire");
+    await assertFails(envoie("rose", "rose", { items: "rouge;drop" }), "seulement des éléments");
+    await assertFails(envoie("rose", "rose", { ok: "oui" }));
+    await assertFails(envoie("rose", "rose", { triche: true }));
+    await assertSucceeds(envoie("rose"));
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/simon`), null));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/simon`), null));
+  });
+
+  test("ni pendant que le robot montre la suite, ni après le chrono, ni éliminée, ni en pause, ni dans un autre jeu", async () => {
+    await suite({ reponseAt: Date.now() + 5_000 });
+    await assertFails(envoie("bleu"), "le robot montre encore la suite");
+    await suite({ reponseAt: Date.now() - 20_000, finAt: Date.now() - 10_000 });
+    await assertFails(envoie("bleu"), "chrono fini");
+    await suite({ out: { bleu: 2 } });
+    await assertFails(envoie("bleu"), "éliminée du tour");
+    await assertSucceeds(envoie("rose"));
+    await suite({ step: "judged" });
+    await assertFails(envoie("bleu"), "suite jugée");
+    await suite({}, { paused: true });
+    await assertFails(envoie("bleu"), "pause");
+    await seed({ kind: "quiz", simon: { step: "play", key: "r9s-1-3-100", players: { bleu: 1 }, reponseAt: 0, finAt: Date.now() + 8_000 } });
+    await assertFails(envoie("bleu"), "pas dans ce jeu");
+  });
+
+  test("tablette remplacée : seul le nouvel appareil envoie ; la régie lance et arrête les suites", async () => {
+    await suite();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/bleu/device`), "tablette2"));
+    await assertFails(envoie("bleu"));
+    await assertSucceeds(envoie("tablette2", "bleu"));
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    for (const [id, cmd] of [["s1", { type: "simon_go" }], ["s2", { type: "simon_stop" }]]) {
       await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/${id}`), { ...cmd, expectSeq: 3, by: "tel", at: serverTimestamp() }), cmd.type);
     }
   });

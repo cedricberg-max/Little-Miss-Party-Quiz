@@ -209,4 +209,59 @@ class RobotGameShowTest {
         assertNull(momentRobot(partie(Phase.QUESTION), 8, null))
         assertNull(momentRobot(partie(Phase.QUESTION), 0, null))
     }
+
+    /** Bouche bée (29/10) : il reste jusqu'au sursaut de 3,5 s, et repart avant la fin des 5 secondes. */
+    @Test
+    fun `le robot bouche bee reste jusqu'a son sursaut et repart avant la fin du temps`() {
+        val trajet = CATALOGUE.single { it.fichier == "gs_robot_suspense" }.trajet
+        assertTrue("reste au bord jusqu'à 4 s", trajet.etapes[trajet.etapes.size - 2].ms >= 4_000)
+        assertTrue("sorti avant la fin des 5 s, ${trajet.totalMs}", trajet.totalMs <= 5_000)
+        assertEquals(1040f / 1060f, formatClip("gs_robot_suspense"), 0f)
+    }
+
+    /**
+     * Chaque clip est dessiné dans une boîte à son format (cedric, 27/10 au soir : main coupée au bord ; 13 clips refaits
+     * plus larges) : la largeur lue dans le fichier vaut celle que l'appli prévoit, sinon le robot serait écrasé.
+     */
+    @Test
+    fun `chaque clip du robot est dessine a son vrai format, jamais ecrase`() {
+        for (c in CATALOGUE) {
+            val (largeur, hauteur) = tailleVideo(File("src/main/res/raw/${c.fichier}.mp4"))
+            assertEquals("${c.fichier} : hauteur", 2144, hauteur)
+            assertEquals("${c.fichier} : largeur prévue ${formatClip(c.fichier) * 1060f}, fichier $largeur", largeur.toFloat(), formatClip(c.fichier) * 1060f, 1f)
+        }
+        assertEquals(0.8f, formatClip("gs_robot_inconnu"), 0f)
+    }
+
+    /** Largeur et hauteur de la piste vidéo d'un MP4, lues dans sa boîte « tkhd » (nombres 16.16). */
+    private fun tailleVideo(f: File): Pair<Int, Int> {
+        val o = f.readBytes()
+        fun entier(i: Int) = ((o[i].toInt() and 0xff) shl 24) or ((o[i + 1].toInt() and 0xff) shl 16) or ((o[i + 2].toInt() and 0xff) shl 8) or (o[i + 3].toInt() and 0xff)
+        var i = 0
+        while (i < o.size - 100) {
+            if (o[i] == 't'.code.toByte() && o[i + 1] == 'k'.code.toByte() && o[i + 2] == 'h'.code.toByte() && o[i + 3] == 'd'.code.toByte()) {
+                val debut = i + 4 + if (o[i + 4].toInt() == 1) 88 else 76
+                val l = entier(debut) ushr 16
+                val h = entier(debut + 4) ushr 16
+                if (l > 0 && h > 0) return l to h
+            }
+            i++
+        }
+        throw AssertionError("${f.name} : pas de piste vidéo")
+    }
+    @Test
+    fun `lueur au sol sous le robot seulement quand il est pose, jamais en vol`() {
+        assertEquals(1f, lueurSol(1f), 0f)
+        assertEquals(0f, lueurSol(0.6f), 0f)
+        // Il plonge sous l'écran : la lueur s'en va avec lui.
+        assertEquals(0f, lueurSol(1.2f), 0f)
+        // Clips en vol ou tête en bas : jamais de lueur pendant tout le trajet.
+        for (c in CATALOGUE.filter { it.fichier == "gs_robot_vole" || it.fichier == "gs_robot_envers" }) {
+            for (ms in 0..c.trajet.totalMs step 100) assertEquals("$c à $ms ms", 0f, lueurSol(c.trajet.a(ms.toFloat()).second), 0f)
+        }
+        // Posé au bord (applaudit, robot dance) : pleine lueur au milieu du numéro.
+        for (c in CATALOGUE.filter { it.fichier == "gs_robot_applaudit" || it.fichier == "gs_robot_robotdance" }) {
+            assertEquals("$c", 1f, lueurSol(c.trajet.a(2_000f).second), 0f)
+        }
+    }
 }

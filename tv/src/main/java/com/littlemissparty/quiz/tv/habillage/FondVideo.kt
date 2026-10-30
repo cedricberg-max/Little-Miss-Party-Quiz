@@ -16,8 +16,10 @@ import com.littlemissparty.quiz.tv.R
 import kotlin.math.abs
 
 /**
- * Plateau 3D « The Game Show » en fond : une vidéo 1080p de 16 s (res/raw/gs_fond_plateau.mp4, calculée à l'avance
- * en vraie 3D, 8 mesures à 120 BPM) qui tourne en boucle derrière l'écran du jeu. La box ne fait que la lire avec sa
+ * Plateau 3D « The Game Show » en fond : une vidéo 1080p de 13,4 s (res/raw/gs_fond_plateau.mp4, le studio du décor
+ * Gemini n°4 validé par cedric le 28/10, stabilisé, en aller-retour sans raccord et ralenti × 0,6 au choix de cedric
+ * le 29/10 ; l'affiche gs_fond_poster est sa première image ; l'ancien plateau est gardé dans
+ * tv/sauvegarde/) qui tourne en boucle derrière l'écran du jeu, sans calage sur la musique. La box ne fait que la lire avec sa
  * puce vidéo : aucune 3D calculée en direct. [surPret] : la première image est à l'écran (le décor dessiné peut
  * s'effacer) ; [surEchec] : vidéo illisible, le décor dessiné reste. Rien ici ne touche à la partie.
  */
@@ -32,7 +34,7 @@ internal fun FondVideo3d(surPret: () -> Unit, surEchec: () -> Unit) {
 }
 
 /**
- * Accueil du Game Show : le robot qui dort sur le plateau (res/raw/gs_accueil_video.mp4, 24,8 s, muette, calculée à
+ * Accueil du Game Show : le robot qui dort sur le plateau (res/raw/gs_accueil_video.mp4, 22 s à 24 i/s, muette, calculée à
  * l'avance). Elle tourne seule en boucle, sans calage sur la boucle de Get Lucky (cedric, 24/10 : à l'accueil, la
  * continuité de la musique compte, pas quelle image tombe sur quel temps ; chaque recalage faisait une micro-saccade).
  * Même contrat que [FondVideo3d].
@@ -124,6 +126,7 @@ internal const val MESURES_AVANT_SAUT = 5
  * fin de la vidéo (sans boucle) ou dès [finMs] atteint. [departMs] : la vidéo commence là (plateau qui reprend
  * après un clip du robot, [GelFond]). [repriseMs] : à la fin du fichier, la vidéo repart de là (une arrivée jouée
  * une fois, puis une boucle : écran de fin). [attenteMs] : délai avant de partir, lu quand la vidéo est prête.
+ * [departLu] : comme [departMs], mais lu quand la vidéo est prête (vidéo calée sur une musique déjà partie).
  */
 internal class LecteurFond(
     context: Context,
@@ -135,6 +138,7 @@ internal class LecteurFond(
     private val finMs: Int = Int.MAX_VALUE,
     private val surFin: () -> Unit = {},
     private val departMs: Int = 0,
+    private val departLu: (() -> Int)? = null,
     private val repriseMs: Int? = null,
     private val attenteMs: () -> Int = { 0 },
     /** [volume] > 0 : appelé une fois la vidéo prête, vrai si la box a une piste son à lire (grande intro). */
@@ -215,7 +219,8 @@ internal class LecteurFond(
                 setOnPreparedListener { mp ->
                     if (fini) return@setOnPreparedListener
                     if (volume > 0f) surSon(runCatching { mp.trackInfo.any { it.trackType == MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_AUDIO } }.getOrDefault(true))
-                    if (departMs > 0) runCatching { mp.seekTo(departMs.toLong(), MediaPlayer.SEEK_CLOSEST) }
+                    val depart = departLu?.invoke() ?: departMs
+                    if (depart > 0) runCatching { mp.seekTo(depart.toLong(), MediaPlayer.SEEK_CLOSEST) }
                     val lancer = Runnable {
                         if (fini || lecteur !== mp) return@Runnable
                         mp.start()

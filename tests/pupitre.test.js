@@ -292,7 +292,9 @@ describe("pupitre", () => {
     await waitFor(async () => (await page.locator(".choice.with-photo img.photo:not([hidden])").count()) === 3, "3 photos affichées");
     assert.equal(await page.locator(".choice").nth(1).locator("img").count(), 0, "Baleine reste en texte");
     await page.locator(".choice").nth(1).locator(".text", { hasText: "Baleine" }).waitFor();
-    await page.locator(".choice").nth(2).locator(".text", { hasText: "Chien" }).waitFor();
+    // Une réponse en photo ne dit pas son nom : seule l'image permet de reconnaître la réponse (test du 27/10).
+    assert.equal(await page.locator(".choice").nth(2).locator(".text").isVisible(), false, "« Chien » n'est pas écrit sous sa photo");
+    assert.equal(await page.locator(".choice").nth(2).locator(".letter").isVisible(), true, "la lettre C reste");
     await page.locator(".choice").nth(2).click();
     await waitFor(async () => (await read(`answers/q1/${uid}`))?.choice === 2, "réponse C enregistrée");
     await page.locator("#q-status", { hasText: "Réponse C envoyée" }).waitFor();
@@ -351,14 +353,22 @@ describe("pupitre", () => {
     await bleus.locator("#coffres-host .bc-titre", { hasText: "Au tour de l'équipe Les Roses" }).waitFor();
     await bleus.locator(".bc-texte", { hasText: "Encore 6 coffres sans danger" }).waitFor();
     assert.equal(await roses.locator(".bc-case").count(), 10);
-    assert.equal(await bleus.locator(".bc-ouvrir").isVisible(), false, "seule l'équipe qui joue ouvre");
-    assert.equal(await bleus.locator(".bc-case:not([disabled])").count(), 0);
-    // Les Roses choisissent le coffre 3, puis l'ouvrent.
-    assert.equal(await roses.locator(".bc-ouvrir").isDisabled(), true, "d'abord choisir un coffre");
-    await roses.locator(".bc-case").nth(2).click();
-    await roses.locator(".bc-ouvrir", { hasText: "Ouvrir le coffre 3 !" }).click();
+    // Sans numéros (cedric, 29/10) : les coffres aux mêmes places que sur la TV, 2 rangées de 5 pour 10 coffres.
+    assert.deepEqual(await roses.locator(".bc-rangee").evaluateAll((rs) => rs.map((r) => r.querySelectorAll(".bc-case").length)), [5, 5]);
+    assert.equal((await roses.locator(".bc-plaque").allTextContents()).join(""), "", "aucun numéro sur les coffres");
+    const { repartitionCoffres } = await import("../web/public/coffres.js");
+    assert.deepEqual([6, 7, 12, 13, 20].map(repartitionCoffres), [[6], [3, 4], [6, 6], [4, 4, 5], [6, 7, 7]], "mêmes rangées que la TV");
+    assert.equal(await bleus.locator(".bc-case:not([disabled])").count(), 0, "seule l'équipe qui joue ouvre");
+    // Plus de bouton « Ouvrir » (cedric, 27/10 au soir) : toucher le coffre 3 l'ouvre tout de suite.
+    assert.equal(await roses.locator(".bc-ouvrir").count(), 0);
+    await roses.locator(".bc-texte", { hasText: "Touchez un coffre pour l'ouvrir !" }).waitFor();
+    // Double toucher (deux coffres très vite) : un seul coffre part, le premier.
+    await roses.evaluate(() => { const c = document.querySelectorAll(".bc-case"); c[2].click(); c[4].click(); });
     await waitFor(async () => (await read("chestChoice/bc-1-0"))?.i === 2, "coffre 3 envoyé à la box");
-    await roses.locator(".bc-texte", { hasText: "Coffre 3 choisi : regardez la TV !" }).waitFor();
+    await roses.locator(".bc-texte", { hasText: "Coffre choisi : regardez la TV !" }).waitFor();
+    assert.equal(await roses.locator(".bc-case:not([disabled])").count(), 0, "plus rien à toucher une fois le coffre envoyé");
+    await new Promise((res) => setTimeout(res, 500));
+    assert.equal((await read("chestChoice/bc-1-0"))?.i, 2, "le deuxième toucher n'a rien changé");
     // La box l'ouvre : +150 pour les Roses, montré sur la tablette seulement quand la TV l'a montré.
     const at = Date.now();
     const ouvert = { team: r, chest: 2, delta: 150, bomb: false, at };
@@ -366,16 +376,15 @@ describe("pupitre", () => {
     await hostState(question({ ...base, chests: chests({ team: b, turn: 1, safeLeft: 0, danger: true, goldLeft: true, key: "bc-1-1", readyAt: at + 4000, opened: [ouvert], gains: { [r]: 150, [b]: 0 } }) }));
     await bleus.locator(".bc-case.bc-attente").waitFor();
     assert.equal(await bleus.locator(".bc-case").nth(2).locator(".bc-contenu").textContent(), "?", "suspense pendant l'animation de la TV");
-    await bleus.locator(".bc-titre", { hasText: "Coffre 3…" }).waitFor();
+    await bleus.locator(".bc-titre", { hasText: "Le coffre s'ouvre…" }).waitFor();
     await bleus.locator(".bc-case.bc-plus .bc-contenu", { hasText: "+150" }).waitFor({ timeout: 5000 });
     // Au tour des Bleus : le bouton attend la fin de l'animation sur la TV.
     await bleus.locator(".bc-titre", { hasText: "À vous, Les Bleus !" }).waitFor();
     await roses.locator(".bc-texte", { hasText: "la bombe peut être dans n'importe quel coffre… et le coffre en or (+500) aussi !" }).waitFor();
-    await bleus.locator(".bc-case").nth(5).click();
+    if (Date.now() < at + 3500) assert.equal(await bleus.locator(".bc-case").nth(5).isDisabled(), true, "pas avant la fin de l'animation");
+    await waitFor(() => bleus.locator(".bc-case").nth(5).isEnabled(), "coffres prêts après l'animation", 8000);
     assert.equal(await bleus.locator(".bc-case").nth(2).isDisabled(), true, "un coffre ouvert ne se rouvre pas");
-    if (Date.now() < at + 3500) assert.equal(await bleus.locator(".bc-ouvrir").isDisabled(), true, "pas avant la fin de l'animation");
-    await waitFor(() => bleus.locator(".bc-ouvrir").isEnabled(), "bouton prêt après l'animation", 8000);
-    await bleus.locator(".bc-ouvrir").click();
+    await bleus.locator(".bc-case").nth(5).click();
     await waitFor(async () => (await read("chestChoice/bc-1-1"))?.i === 5, "coffre 6 envoyé à la box");
     // Le coffre 6 était le coffre en or : +500 pour les Bleus, une pastille dorée sur toutes les tablettes.
     const or = { team: b, chest: 5, delta: 500, bomb: false, gold: true, at: Date.now() - 3000 };
@@ -682,6 +691,81 @@ describe("pupitre", () => {
     await hostState(question({ qid: "f1", kind: "flou", choices: null, text: "Qu'est-ce qui se cache sous le flou ?", round: "f1-1000-1", buzzOpen: true }));
     await waitFor(async () => (await roses.locator("#buzz").textContent()) === "BUZZ", "bouton « BUZZ » de retour");
     assert.equal(await roses.locator("#duel-titre").isVisible(), false);
+    for (const p of [roses, bleus, verts]) await p.context().close();
+  });
+
+  test("Le Simon du Prof (cedric, 27/10) : on regarde la TV, puis le joueur appelé tape la suite et valide ; éliminés ou gagné après la vérification", async () => {
+    const roses = await openPupitre();
+    await joinTeam(roses, "Les Roses");
+    const bleus = await openPupitre();
+    await joinTeam(bleus, "Les Bleus");
+    const verts = await openPupitre();
+    await joinTeam(verts, "Les Verts");
+    const teams = await read("teams");
+    const id = (name) => Object.keys(teams).find((t) => teams[t].name === name);
+    const [r, b, v] = [id("Les Roses"), id("Les Bleus"), id("Les Verts")];
+    const simon = (sm) => question({ qid: "s1", kind: "simon", text: "Le Simon du Prof", choices: null, deadline: null, durationMs: null,
+      simon: { tour: 1, tours: 3, suite: 4, step: "ready", key: null, teams: [r, b], players: { [r]: 2, [b]: 1 }, chiffres: false, ...sm } });
+    await hostState(simon({}));
+    await roses.locator(".sm-texte", { hasText: "Prochaine suite : joueur 2, prépare-toi !" }).waitFor();
+    await verts.locator(".sm-texte", { hasText: "Vous jouerez au prochain tour." }).waitFor();
+    // Les chiffres débarquent, puis le robot montre la suite : on regarde la TV, rien à toucher.
+    const t = Date.now();
+    await hostState(simon({ step: "play", key: "s1-1-4-100", startAt: t, chiffresAt: t, montreAt: t + 2_500, reponseAt: t + 4_500, finAt: t + 60_000, chiffres: true }));
+    await roses.locator(".sm-titre", { hasText: "Attention, les chiffres débarquent !" }).waitFor();
+    await roses.locator(".sm-titre", { hasText: "Regarde bien la TV…" }).waitFor({ timeout: 5_000 });
+    assert.equal(await roses.locator(".sm-pave").isVisible(), false, "rien à toucher pendant que le robot montre");
+    // Le chrono part : le joueur appelé tape, chaque appui part en direct vers la TV.
+    await roses.locator(".sm-titre", { hasText: "À toi ! Tape la suite" }).waitFor({ timeout: 5_000 });
+    await roses.locator(".sm-joueur", { hasText: "C'est au tour du joueur 2" }).waitFor();
+    assert.equal(await roses.locator(".sm-chiffres").isVisible(), true, "les chiffres sont là");
+    assert.equal(await verts.locator(".sm-pave").isVisible(), false, "pas du tour : on regarde");
+    await verts.locator(".sm-titre", { hasText: "Les autres équipes jouent…" }).waitFor();
+    assert.equal(await roses.locator(".sm-valider").isDisabled(), true, "suite pas complète");
+    await roses.locator(".sm-boule[data-item=rouge]").dispatchEvent("pointerdown");
+    await waitFor(async () => (await read(`simon/s1-1-4-100/${r}`))?.items === "rouge", "premier appui envoyé");
+    await roses.locator(".sm-boule[data-item=bleu]").dispatchEvent("pointerdown");
+    await roses.locator(".sm-effacer").dispatchEvent("pointerdown");
+    for (const item of ["vert", "jaune", "4"]) await roses.locator(`.sm-touche[data-item="${item}"]`).dispatchEvent("pointerdown");
+    await roses.locator(".sm-compte", { hasText: "Ta suite (4/4)" }).waitFor();
+    assert.equal(await roses.locator(".sm-touche[data-item=orange]").isDisabled(), true, "suite complète : plus d'appui");
+    await roses.locator(".sm-valider").dispatchEvent("pointerdown");
+    await waitFor(async () => (await read(`simon/s1-1-4-100/${r}`))?.ok === true, "suite validée");
+    const envoi = await read(`simon/s1-1-4-100/${r}`);
+    assert.equal(envoi.items, "rouge,vert,jaune,4");
+    assert.equal(typeof envoi.at, "number");
+    await roses.locator(".sm-titre", { hasText: "Suite envoyée !" }).waitFor();
+    // Jugée : la TV vérifie colonne par colonne, la tablette attend avant de dire le résultat.
+    const verdict = { suite: 4, solution: "rouge,vert,jaune,4", wrong: [b], winners: [r], points: 300, at: Date.now() };
+    await hostState(simon({ step: "won", out: { [b]: 4 }, verdict }));
+    await bleus.locator(".sm-titre", { hasText: "Vérification…" }).waitFor();
+    await roses.locator(".sm-titre", { hasText: "Bravo, vous gagnez le tour !" }).waitFor({ timeout: 8_000 });
+    await roses.locator(".sm-texte", { hasText: "+300 points" }).waitFor();
+    await bleus.locator(".sm-titre", { hasText: "Éliminés du tour…" }).waitFor();
+    await verts.locator(".sm-titre", { hasText: "Les Roses gagne le tour !" }).waitFor();
+    // Toutes en erreur dès la première suite : « Bah alors ?! ».
+    await hostState(simon({ step: "judged", suite: 1, verdict: { suite: 1, bahAlors: true, points: 0, at: Date.now() - 10_000 } }));
+    await roses.locator(".sm-titre", { hasText: "Bah alors ?!" }).waitFor();
+    // Nouvelle suite : nouvelle clé, la saisie repart de zéro.
+    const t2 = Date.now();
+    await hostState(simon({ step: "play", suite: 1, key: "s1-1-1-200", startAt: t2 - 4_000, montreAt: t2 - 2_000, reponseAt: t2 - 1_000, finAt: t2 + 60_000 }));
+    await roses.locator(".sm-compte", { hasText: "Ta suite (0/1)" }).waitFor();
+    // Que des couleurs (cedric, 29/10) : pas de chiffres, les 8 boules prennent la place, entières, droit comme couché.
+    assert.equal(await roses.locator(".sm-chiffres").isVisible(), false, "plus de chiffres");
+    const FORMATS = { "téléphone droit": [390, 844, 70], "téléphone couché": [844, 390, 60], "tablette posée": [1280, 800, 150], "tablette droite": [800, 1280, 150] };
+    for (const [format, [width, height, mini]] of Object.entries(FORMATS)) {
+      await roses.setViewportSize({ width, height });
+      await roses.waitForTimeout(300);
+      if (process.env.LMP_SHOTS) await roses.screenshot({ path: `${process.env.LMP_SHOTS}/simon-couleurs-${width}x${height}.png` });
+      const cadres = await roses.evaluate(() => [...document.querySelectorAll(".sm-boules .sm-boule, .sm-effacer, .sm-valider")].map((el) => {
+        const r = el.getBoundingClientRect();
+        return { c: el.className, l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width };
+      }));
+      assert.equal(cadres.length, 10, format);
+      for (const k of cadres) assert.ok(k.l >= -1 && k.t >= -1 && k.r <= width + 1 && k.b <= height + 1, `${format} : ${JSON.stringify(k)} dépasse`);
+      const boule = Math.min(...cadres.filter((k) => k.c.includes("sm-boule")).map((k) => k.w));
+      assert.ok(boule >= mini, `${format} : boules de ${Math.round(boule)} px (au moins ${mini})`);
+    }
     for (const p of [roses, bleus, verts]) await p.context().close();
   });
 

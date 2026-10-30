@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.habillage
 import com.littlemissparty.quiz.engine.Phase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -489,6 +490,39 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `juste chiffre du Game Show, tampons et points attendent la regle des ecarts, le Classique ne change pas`() {
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 2, nombre = true, propositions = 0)
+        val gs = DirecteurSonore().let { d -> d.observer(question.copy(gameShow = true)); d.observer(question.copy(gameShow = true, ecran = Ecran.REVELATION, gagnants = 1)) }
+        // Le son de la bonne réponse reste avec la machine à sous ; les points viennent avec le « +100 ».
+        assertTrue(Ordre.Jouer(Son.BONNE_REPONSE, Tempo.REVELATION_OR) in gs)
+        assertTrue(Ordre.Jouer(Son.TAMPON, Tempo.tampon(0) + Tempo.JUSTE_GS_RETARD) in gs)
+        assertTrue(Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS + Tempo.JUSTE_GS_RETARD) in gs)
+        assertFalse(Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS) in gs)
+        // Personne de proche : aucun point, aucun son de points, même en retard.
+        val rien = DirecteurSonore().let { d -> d.observer(question.copy(gameShow = true)); d.observer(question.copy(gameShow = true, ecran = Ecran.REVELATION, gagnants = 0)) }
+        assertFalse(Son.POINTS in rien.sons())
+        val classique = DirecteurSonore().let { d -> d.observer(question); d.observer(question.copy(ecran = Ecran.REVELATION, gagnants = 1)) }
+        assertTrue(Ordre.Jouer(Son.TAMPON, Tempo.tampon(0)) in classique)
+        assertTrue(Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS) in classique)
+    }
+
+    @Test
+    fun `chrono à zéro sans toutes les réponses, le signal temps écoulé sous le verrou, jamais quand Sarah arrête le chrono`() {
+        val d = DirecteurSonore()
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 3, reponses = 2)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 2, equipes = 3))
+        d.observer(question)
+        val temps = d.observer(question.copy(ecran = Ecran.VERROUILLEE, tempsEcoule = true))
+        assertTrue(Son.VERROU in temps.sons())
+        assertTrue(Son.MIME_FIN in temps.sons())
+        d.observer(question.copy(index = 4, ecran = Ecran.CLASSEMENT))
+        d.observer(question.copy(index = 5))
+        val main = d.observer(question.copy(index = 5, ecran = Ecran.VERROUILLEE))
+        assertTrue(Son.VERROU in main.sons())
+        assertFalse(Son.MIME_FIN in main.sons())
+    }
+
+    @Test
     fun `vrai ou faux express, musique continue, verdict ding ou pouet, ni roulement ni tension`() {
         val d = DirecteurSonore()
         val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 6, equipes = 2, propositions = 2, express = true, reponseVraie = true)
@@ -720,6 +754,55 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `blind test Game Show, musique d'attente sous Lancer le morceau, coupee net au lancement, Classique inchange`() {
+        val bt = Instant(Ecran.QUESTION, partie = "ABCD", index = 12, equipes = 2, propositions = 0, jeuBuzz = true, musical = true,
+            blind = true, epreuve = "manche|Blind test", gameShow = true)
+        val d = DirecteurSonore()
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 11, equipes = 2, gameShow = true))
+        // Premier morceau : le générique, puis la musique d'attente à sa fin.
+        val presentation = d.observer(bt.copy(blindPresentation = true, blindAttente = true))
+        assertEquals(listOf(Son.BT_GENERIQUE), presentation.sons())
+        assertEquals(Ordre.Musique(Ambiance.BT_ATTENTE, Tempo.BT_ATTENTE_APRES_GENERIQUE), presentation.filterIsInstance<Ordre.Musique>().last())
+        assertTrue(Tempo.BT_ATTENTE_APRES_GENERIQUE in 4_000L..4_800L)
+        // Sarah lance le morceau : tout ce qui était prévu est annulé, la musique se coupe net, le diamant se pose.
+        val lance = d.observer(bt.copy(blindLecture = true))
+        assertEquals(Ordre.Couper, lance.first())
+        assertEquals(Ordre.Musique(Ambiance.SILENCE, fonduMs = Tempo.FONDU_RELAIS), lance.filterIsInstance<Ordre.Musique>().single())
+        assertEquals(listOf(Son.BT_DIAMANT), lance.sons())
+        // Buzz puis mauvaise réponse : « Relancer la musique » garde le silence (pas de musique d'attente).
+        d.observer(bt.copy(buzzEquipe = 1))
+        assertEquals(Ambiance.SILENCE, d.observer(bt.copy(ratees = 1)).musique())
+        // Morceau suivant : directement la musique d'attente, sans générique.
+        d.observer(bt.copy(ecran = Ecran.REVELATION, ratees = 1))
+        val suivant = d.observer(bt.copy(index = 13, blindAttente = true))
+        assertFalse(Son.BT_GENERIQUE in suivant.sons())
+        assertEquals(Ordre.Musique(Ambiance.BT_ATTENTE), suivant.filterIsInstance<Ordre.Musique>().last())
+        // Une box qui redémarre sur cet écran retrouve la musique d'attente.
+        assertEquals(listOf(Ordre.Musique(Ambiance.BT_ATTENTE)), DirecteurSonore().observer(bt.copy(index = 13, blindAttente = true)))
+        // Le volume : celui de l'accueil ; la boucle n'existe qu'en Game Show.
+        assertEquals(Ambiance.SALON.volume(Lit.ACCUEIL, gs = true), Ambiance.BT_ATTENTE.volume(Lit.BT_ATTENTE, gs = true))
+        assertEquals("gs_bt_attente", Lit.BT_ATTENTE.fichierPour(true))
+        assertNull(Lit.BT_ATTENTE.fichierPour(false))
+        // Classique : le silence d'avant.
+        val c = DirecteurSonore()
+        c.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 11, equipes = 2))
+        val classique = c.observer(bt.copy(gameShow = false, blindPresentation = true, blindAttente = true))
+        assertFalse(classique.any { it is Ordre.Musique && it.ambiance == Ambiance.BT_ATTENTE })
+        assertFalse(Ordre.Couper in c.observer(bt.copy(gameShow = false, blindLecture = true)))
+    }
+
+    @Test
+    fun `la musique d'attente du blind test boucle sans blanc, 13,5 s en WAV 44,1 kHz stereo`() {
+        val f = java.io.File("src/main/res/raw/gs_bt_attente.wav")
+        val octets = f.readBytes()
+        val e = lireEnteteWav(octets.copyOf(512), octets.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(2, e.canaux)
+        val secondes = e.octetsDonnees / (44_100.0 * 2 * 2)
+        assertEquals(13.52, secondes, 0.02)
+    }
+
+    @Test
     fun `blind test, une box qui se reconnecte ne rejoue ni le generique ni les points doubles`() {
         val d = DirecteurSonore()
         val o = d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 14, equipes = 2, jeuBuzz = true, musical = true,
@@ -854,25 +937,87 @@ class DirecteurSonoreTest {
         val classique = DirecteurSonore().apply { observer(q2) }.observer(Instant(Ecran.FIN, partie = "ABCD", index = 1))
         assertTrue(Son.FANFARE in classique.sons())
         assertFalse(Son.PODIUM in classique.sons())
-        // Game Show : la chanson du podium seule, puis le dernier groove d'Aerodynamic quand elle s'éteint.
+        // Game Show : la chanson du podium seule ; à sa coupe, la boucle d'attente enchaîne (cedric, 29/10), sans fin.
         val d = DirecteurSonore()
         d.observer(q2.copy(gameShow = true))
         val fin = Instant(Ecran.FIN, partie = "ABCD", index = 1, gameShow = true)
         val o = d.observer(fin)
         assertEquals(listOf(Son.PODIUM), o.sons())
-        assertTrue(Ordre.Musique(Ambiance.AU_REVOIR, Tempo.PODIUM_FIN, Tempo.FONDU_AU_REVOIR) in o)
+        assertTrue(Ordre.Enchainer(Son.PODIUM, Tempo.PODIUM_COUPE, Ambiance.PODIUM_ATTENTE) in o)
+        assertTrue("plus de fin toute seule", o.none { it is Ordre.Musique && it.ambiance == Ambiance.AU_REVOIR })
         assertTrue(d.observer(fin).isEmpty())
-        assertTrue(Tempo.PODIUM_REVELATION < Tempo.PODIUM_FIN)
+        assertTrue(Tempo.PODIUM_REVELATION < Tempo.PODIUM_COUPE)
         // Une box qui revient sur le podium le rejoue, comme l'écran.
         assertEquals(listOf(Son.PODIUM), DirecteurSonore().observer(fin).sons())
-        // Après une pause sur le podium : l'écran de fin.
+        // Après une pause sur le podium : la boucle d'attente.
         d.observer(fin.copy(enPause = true))
-        assertEquals(Ambiance.AU_REVOIR, d.observer(fin).musique())
+        assertEquals(Ambiance.PODIUM_ATTENTE, d.observer(fin).musique())
+        // « ▶ Lancer la fin » (sans la vidéo de l'outro) : le podium s'éteint en fondu, l'écran de fin et son groove.
+        val lancee = d.observer(fin.copy(finLancee = true))
+        assertTrue(Ordre.Couper in lancee)
+        assertTrue(Ordre.Musique(Ambiance.SILENCE, fonduMs = Tempo.FONDU_LANCER_FIN) in lancee)
+        assertEquals(Ambiance.AU_REVOIR, lancee.musique())
+        assertTrue(lancee.sons().isEmpty())
+        assertTrue("un second appui ne relance rien", d.observer(fin.copy(finLancee = true)).isEmpty())
+        // Une box qui revient après le lancement : l'écran de fin et son groove, sans rejouer le podium.
+        val retour = DirecteurSonore().observer(fin.copy(finLancee = true))
+        assertTrue(retour.sons().isEmpty())
+        assertEquals(Ambiance.AU_REVOIR, retour.musique())
         // La boucle de fin n'existe qu'en Game Show ; en Classique, cette ambiance est la musique de fête.
         assertEquals(0.75f, Ambiance.AU_REVOIR.volume(Lit.FIN, gs = true), 0f)
         assertEquals(0f, Ambiance.AU_REVOIR.volume(Lit.COMPLET, gs = true), 0f)
         assertEquals(Ambiance.FETE.volume(Lit.COMPLET), Ambiance.AU_REVOIR.volume(Lit.COMPLET), 0f)
         assertNull(Lit.FIN.fichierPour(false))
+    }
+
+    @Test
+    fun `Game Show avec l'outro, le podium puis le silence jusqu'a la fin de la video`() {
+        val d = DirecteurSonore()
+        d.observer(q2.copy(gameShow = true, outro = true))
+        val fin = Instant(Ecran.FIN, partie = "ABCD", index = 1, gameShow = true, outro = true)
+        val o = d.observer(fin)
+        // La chanson du podium, puis rien : le son de l'outro est dans la vidéo, l'écran lance le groove de fin après.
+        assertEquals(listOf(Son.PODIUM), o.sons())
+        assertTrue(o.none { it is Ordre.Musique && it.ambiance == Ambiance.AU_REVOIR })
+        assertTrue(d.observer(fin).isEmpty())
+        // Une box qui revient sur le podium le rejoue de la même façon.
+        val retour = DirecteurSonore().observer(fin)
+        assertEquals(listOf(Son.PODIUM), retour.sons())
+        assertTrue(retour.none { it is Ordre.Musique && it.ambiance == Ambiance.AU_REVOIR })
+        assertTrue(Ordre.Enchainer(Son.PODIUM, Tempo.PODIUM_COUPE, Ambiance.PODIUM_ATTENTE) in o)
+        // « ▶ Lancer la fin » : le podium (ou sa boucle d'attente) s'éteint sous l'outro, qui a son propre son.
+        val lancee = d.observer(fin.copy(finLancee = true))
+        assertEquals(listOf(Ordre.Couper, Ordre.Musique(Ambiance.SILENCE, fonduMs = Tempo.FONDU_LANCER_FIN)), lancee)
+        // Box qui revient pendant l'outro : rien ne rejoue le podium.
+        assertEquals(listOf(Ordre.Couper, Ordre.Musique(Ambiance.SILENCE)), DirecteurSonore().observer(fin.copy(finLancee = true)))
+    }
+
+    @Test
+    fun `fin du podium - la boucle d'attente suit pile la coupe de gs_podium et reboucle sans son intro`() {
+        // Seule sa boucle, à plein volume (le niveau est réglé dans le fichier), et aucune autre ambiance ne la joue.
+        assertEquals(1f, Ambiance.PODIUM_ATTENTE.volume(Lit.PODIUM_ATTENTE, gs = true), 0f)
+        Lit.entries.filter { it != Lit.PODIUM_ATTENTE }.forEach { assertEquals("$it", 0f, Ambiance.PODIUM_ATTENTE.volume(it, gs = true), 0f) }
+        Ambiance.entries.filter { it != Ambiance.PODIUM_ATTENTE }.forEach { assertEquals("$it", 0f, it.volume(Lit.PODIUM_ATTENTE, gs = true), 0f) }
+        assertNull(Lit.PODIUM_ATTENTE.fichierPour(false))
+        // Le fichier : 44,1 kHz stéréo 16 bits ; l'écho et la descente (11,54 s, un nombre rond d'images), puis
+        // 8 mesures de Digital Love à son tempo d'origine (124,73 BPM), qui tournent sans fin.
+        val wav = java.io.File("src/main/res/raw/gs_podium_attente.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(2, e.canaux)
+        val reprise = Lit.PODIUM_ATTENTE.repriseMs * 44_100 / 1000
+        assertEquals("reprise à l'image près", 0L, Lit.PODIUM_ATTENTE.repriseMs * 44_100 % 1000)
+        assertEquals(8 * 4 * 0.481050, (e.images - reprise) / 44_100.0, 0.001)
+        // Raccord de la boucle : la dernière image enchaîne sur celle de la reprise sans saut.
+        fun image(i: Long) = java.nio.ByteBuffer.wrap(wav, (e.debutDonnees + i * 4).toInt(), 4).order(java.nio.ByteOrder.LITTLE_ENDIAN).let { it.short.toInt() to it.short.toInt() }
+        val (g1, d1) = image(e.images - 1)
+        val (g2, d2) = image(reprise)
+        assertTrue("raccord $g1/$d1 → $g2/$d2", kotlin.math.abs(g1 - g2) < 600 && kotlin.math.abs(d1 - d2) < 600)
+        // gs_podium s'arrête à la coupe (fin de la dernière page Ogg = nombre d'images décodées).
+        val ogg = java.io.File("src/main/res/raw/gs_podium.ogg").readBytes()
+        val derniere = (ogg.size - 4 downTo 0).first { ogg[it] == 'O'.code.toByte() && ogg[it + 1] == 'g'.code.toByte() && ogg[it + 2] == 'g'.code.toByte() && ogg[it + 3] == 'S'.code.toByte() }
+        val images = java.nio.ByteBuffer.wrap(ogg, derniere + 6, 8).order(java.nio.ByteOrder.LITTLE_ENDIAN).long
+        assertEquals(Tempo.PODIUM_COUPE.toDouble(), images * 1000.0 / 44_100, 2.0)
     }
 
     @Test
@@ -956,6 +1101,66 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `simon du prof - silence pendant une suite pour entendre les notes, musique entre deux suites`() {
+        val d = DirecteurSonore()
+        d.observer(salon)
+        val entre = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(entre).musique())
+        assertEquals(Ambiance.SIMON_SUITE, d.observer(entre.copy(simonSuite = true)).musique())
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(entre).musique())
+    }
+
+    @Test
+    fun `simon du prof - trois boucles de Prix choc en Game Show, la musique des questions ou le silence en Classique`() {
+        val d = DirecteurSonore()
+        d.observer(salon)
+        val gs = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true, gameShow = true)
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(gs).musique())
+        assertEquals(Ambiance.SIMON_SUITE, d.observer(gs.copy(simonSuite = true)).musique())
+        // Les chiffres débarquent pendant la suite suivante : la partie où tout joue.
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(gs).musique())
+        assertEquals(Ambiance.SIMON_FORT, d.observer(gs.copy(simonSuite = true, simonChiffres = true)).musique())
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(gs).musique())
+        // Chaque ambiance ne fait jouer que sa boucle ; aucune autre ambiance ne joue celles du Simon.
+        val boucles = mapOf(Ambiance.SIMON_ENTRE to Lit.SIMON_DOUCE, Ambiance.SIMON_SUITE to Lit.SIMON_SUITE, Ambiance.SIMON_FORT to Lit.SIMON_FORT)
+        for ((a, l) in boucles) {
+            assertTrue("$a", a.volume(l, gs = true) in 0.3f..1f)
+            Lit.entries.filter { it != l }.forEach { assertEquals("$a / $it", 0f, a.volume(it, gs = true), 0f) }
+        }
+        Ambiance.entries.filter { it !in boucles }.forEach { a -> boucles.values.forEach { assertEquals("$a", 0f, a.volume(it, gs = true), 0f) } }
+        // Classique : la douce devient la musique des questions, les suites restent silencieuses (comme avant).
+        assertEquals(Ambiance.QUESTION.volume(Lit.LEGER), Ambiance.SIMON_ENTRE.volume(Lit.LEGER), 0f)
+        Lit.entries.forEach { assertEquals(0f, Ambiance.SIMON_SUITE.volume(it), 0f); assertEquals(0f, Ambiance.SIMON_FORT.volume(it), 0f) }
+        // Les notes des boules passent nettement au-dessus de la musique (cedric, 28/10 au soir : « pas assez fort ») :
+        // notes presque à fond, musique des suites baissée par rapport à avant (0,84 et 0,55).
+        assertTrue(NotesSimon.VOLUME >= 0.9f && NotesSimon.VOLUME <= 1f)
+        assertTrue(Ambiance.SIMON_SUITE.volume(Lit.SIMON_SUITE, gs = true) <= 0.6f)
+        assertTrue(Ambiance.SIMON_FORT.volume(Lit.SIMON_FORT, gs = true) <= 0.45f)
+        // Les fichiers : WAV 44,1 kHz stéréo, 8 ou 16 mesures à 127,87 BPM (à quelques échantillons près, raccord calé).
+        for ((nom, mesures) in listOf("gs_simon_douce" to 8, "gs_simon_suite" to 16, "gs_simon_fort" to 16)) {
+            assertEquals(nom, Lit.entries.single { it.fichierPour(true) == nom }.fichierPour(true))
+            assertNull(Lit.entries.single { it.fichierPour(true) == nom }.fichierPour(false))
+            val wav = java.io.File("src/main/res/raw/$nom.wav")
+            assertEquals("$nom : 4 octets par image stéréo 16 bits", 0L, (wav.length() - 44) % 4)
+            assertEquals(nom, mesures * 4 * 60 / 127.87, (wav.length() - 44) / (44_100.0 * 4), 0.01)
+        }
+        // Hors du Simon, rien ne change.
+        assertEquals(Ambiance.QUESTION, DirecteurSonore().let { it.observer(salon); it.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 4)).musique() })
+    }
+
+    @Test
+    fun `simon du prof - la presentation joue la douce en Game Show, la presentation habituelle en Classique`() {
+        // Un quiz, puis le Simon : nouveau jeu, jingle du rideau puis la musique de présentation (sous la vidéo d'intro).
+        val quiz = Instant(Ecran.QUESTION, partie = "ABCD", index = 2, equipes = 4, epreuve = "quiz|")
+        val simon = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)
+        val gs = DirecteurSonore().let { it.observer(salon); it.observer(quiz.copy(gameShow = true)); it.observer(simon.copy(gameShow = true)) }
+        assertTrue(Son.TRANSITION in gs.sons())
+        assertTrue(Ordre.Musique(Ambiance.SIMON_PRESENTATION, Tempo.TRANSITION_MUSIQUE) in gs)
+        val cl = DirecteurSonore().let { it.observer(salon); it.observer(quiz); it.observer(simon) }
+        assertTrue(Ordre.Musique(Ambiance.PRESENTATION, Tempo.TRANSITION_MUSIQUE) in cl)
+    }
+
+    @Test
     fun `duel des robots, Classique - presentation habituelle, sans l'air western`() {
         val d = DirecteurSonore()
         d.observer(salon)
@@ -974,5 +1179,467 @@ class DirecteurSonoreTest {
         Son.entries.filter { it.long }.map { it.fichierLong(true) }.filter { it.startsWith("gs_") }.forEach { n ->
             assertTrue("$n manquant", java.io.File("src/main/res/raw").listFiles().orEmpty().any { it.nameWithoutExtension == n })
         }
+    }
+
+    @Test
+    fun `Game Show, au buzz le mot de l equipe part tout de suite comme sur la tablette, le Classique garde son petit temps`() {
+        for (gs in listOf(true, false)) {
+            for (blind in listOf(false, true)) {
+                val d = DirecteurSonore()
+                val q = Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, jeuBuzz = true,
+                    flou = !blind, blind = blind, musical = blind, gameShow = gs)
+                d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 8, equipes = 3, gameShow = gs))
+                d.observer(q)
+                val mot = d.observer(q.copy(buzzEquipe = 2)).filterIsInstance<Ordre.Jouer>().single { it.son == Son.EQUIPE_3 }
+                assertEquals("Game Show $gs, blind $blind", if (gs) 0L else Tempo.FLOU_EQUIPE, mot.dansMs)
+            }
+        }
+    }
+
+    @Test
+    fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
+        val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
+        // La boucle « fête » de Digital Love sous les intros, sauf le Duel, le Simon et le Blind test (cedric, 29/10).
+        listOf("juste", "portes", "").forEach {
+            assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
+        }
+        assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
+        assertEquals(Ambiance.SIMON_PRESENTATION, ambiancePresentation(blind.copy(famille = "simon", simon = true)))
+        // Blind test : sa boucle d'Alan Braxe, en Game Show seulement, au volume des autres intros.
+        assertEquals(Ambiance.BT_PRESENTATION, ambiancePresentation(blind))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(blind.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.BT_PRESENTATION.volume(Lit.BT_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.BT_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.BT_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.BT_INTRO.fichierPour(false))
+        // Une autre table : seul le jeu nommé change.
+        val propres = mapOf("zoom" to Ambiance.BT_ATTENTE)
+        assertEquals(Ambiance.BT_ATTENTE, ambiancePresentation(blind.copy(famille = "zoom"), propres))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(blind, propres))
+        // Le directeur suit la table, à l'arrivée sur l'intro.
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.BT_PRESENTATION, d.observer(blind).musique())
+        assertEquals(Ambiance.PRESENTATION, DirecteurSonore().also { it.observer(salon.copy(gameShow = true, equipes = 2)) }.observer(blind.copy(famille = "juste")).musique())
+        // Le fichier : 4 mesures à 123,91 BPM, 44,1 kHz stéréo, données jusqu'au bout du fichier.
+        val wav = java.io.File("src/main/res/raw/gs_bt_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(4 * 4 * 60 / 123.91, e.images / 44_100.0, 0.001)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation de Chante le mot - sa boucle de La Vie en rose, au volume des autres intros`() {
+        val chante = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "chante|", gameShow = true, famille = "chante")
+        assertEquals("chante", familleType(com.littlemissparty.quiz.engine.QuestionKind.CHANTE))
+        assertEquals(Ambiance.CHANTE_PRESENTATION, ambiancePresentation(chante))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(chante.copy(gameShow = false)))
+        assertEquals(Ambiance.BT_PRESENTATION, ambiancePresentation(chante.copy(famille = "blind")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(chante.copy(famille = "juste")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.CHANTE_PRESENTATION.volume(Lit.CHANTE_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.CHANTE_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.CHANTE_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.CHANTE_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.CHANTE_PRESENTATION, d.observer(chante).musique())
+        // Le fichier : 11,90 s, 44,1 kHz, données jusqu'au bout du fichier (pas de bloc ajouté après).
+        val wav = java.io.File("src/main/res/raw/gs_chante_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(11.903, e.images / 44_100.0, 0.001)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Zoom mystere et de l'Image floue - la meme boucle de La Panthere rose`() {
+        val zoom = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "zoom|", gameShow = true, famille = "zoom")
+        assertEquals("zoom", familleType(com.littlemissparty.quiz.engine.QuestionKind.ZOOM))
+        assertEquals("flou", familleType(com.littlemissparty.quiz.engine.QuestionKind.FLOU))
+        assertEquals(Ambiance.ZOOM_PRESENTATION, ambiancePresentation(zoom))
+        assertEquals(Ambiance.ZOOM_PRESENTATION, ambiancePresentation(zoom.copy(famille = "flou")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(zoom.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(zoom.copy(famille = "juste")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.ZOOM_PRESENTATION.volume(Lit.ZOOM_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.ZOOM_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.ZOOM_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.ZOOM_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.ZOOM_PRESENTATION, d.observer(zoom).musique())
+        // Le fichier : 16,67 s, 44,1 kHz, données jusqu'au bout du fichier (pas de bloc ajouté après).
+        val wav = java.io.File("src/main/res/raw/gs_zoom_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(16.67, e.images / 44_100.0, 0.01)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation de Qui a disparu - Mission Impossible, son debut une fois puis la boucle`() {
+        val disparu = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "disparu|", gameShow = true, famille = "disparu")
+        assertEquals("disparu", familleType(com.littlemissparty.quiz.engine.QuestionKind.DISPARU))
+        assertEquals(Ambiance.DISPARU_PRESENTATION, ambiancePresentation(disparu))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(disparu.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.DISPARU_PRESENTATION.volume(Lit.DISPARU_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.DISPARU_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.DISPARU_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.DISPARU_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.DISPARU_PRESENTATION, d.observer(disparu).musique())
+        // Le fichier (sans le silence du début, cedric 30/10) : 728 837 images (boucle D, 30/10), la boucle repart à l'échantillon 145 547.
+        val wav = java.io.File("src/main/res/raw/gs_disparu_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(728_837L, e.images.toLong())
+        assertEquals(145_547L, repriseEnImages(Lit.DISPARU_INTRO.repriseMs, Lit.DISPARU_INTRO.repriseImage, 44_100))
+        // La reprise en millisecondes (lecture de secours) reste à moins d'une milliseconde.
+        assertEquals(145_547.0, Lit.DISPARU_INTRO.repriseMs * 44.1, 44.1)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation des Coffres mysteres - Pirates des Caraibes`() {
+        val coffres = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "coffres|", gameShow = true, famille = "bombe")
+        assertEquals("bombe", familleType(com.littlemissparty.quiz.engine.QuestionKind.COFFRES))
+        assertEquals(Ambiance.COFFRES_PRESENTATION, ambiancePresentation(coffres))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(coffres.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(coffres.copy(famille = "juste")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.COFFRES_PRESENTATION.volume(Lit.COFFRES_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.COFFRES_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.COFFRES_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.COFFRES_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.COFFRES_PRESENTATION, d.observer(coffres).musique())
+        val wav = java.io.File("src/main/res/raw/gs_coffres_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(13.62, e.images / 44_100.0, 0.01)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Quiz et du Quiz illustre - Questions pour un champion, les trompettes une fois puis la boucle`() {
+        val quiz = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "quiz|Quiz", gameShow = true, famille = "quiz")
+        assertEquals(Ambiance.QUIZ_PRESENTATION, ambiancePresentation(quiz))
+        // Le Quiz illustré a sa propre boucle depuis le 30/10 (Des chiffres et des lettres).
+        assertEquals(Ambiance.ILLUSTRE_PRESENTATION, ambiancePresentation(quiz.copy(famille = "illustre")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(quiz.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(quiz.copy(famille = "juste")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.QUIZ_PRESENTATION.volume(Lit.QUIZ_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.QUIZ_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.QUIZ_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.QUIZ_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.QUIZ_PRESENTATION, d.observer(quiz).musique())
+        val wav = java.io.File("src/main/res/raw/gs_quiz_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(562_998L, e.images)
+        assertEquals(95_256L, Lit.QUIZ_INTRO.repriseMs * 44_100 / 1000)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation de Qui suis-je - Soul Bossa Nova`() {
+        val quiSuis = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "quisuis|", gameShow = true, famille = "quisuis")
+        assertEquals("quisuis", familleType(com.littlemissparty.quiz.engine.QuestionKind.QUISUIS))
+        assertEquals(Ambiance.QUISUIS_PRESENTATION, ambiancePresentation(quiSuis))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(quiSuis.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.QUISUIS_PRESENTATION.volume(Lit.QUISUIS_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.QUISUIS_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.QUISUIS_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.QUISUIS_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.QUISUIS_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.QUISUIS_PRESENTATION, d.observer(quiSuis).musique())
+        val wav = java.io.File("src/main/res/raw/gs_quisuisje_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(827_536L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Vrai ou Faux express - Video Killed the Radio Star, le Oh-a-oh une fois puis la boucle`() {
+        val vf = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "express|", gameShow = true, famille = "express")
+        assertEquals("express", familleType(com.littlemissparty.quiz.engine.QuestionKind.EXPRESS))
+        assertEquals(Ambiance.VRAIFAUX_PRESENTATION, ambiancePresentation(vf))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(vf.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(vf.copy(famille = "juste")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.VRAIFAUX_PRESENTATION.volume(Lit.VRAIFAUX_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.VRAIFAUX_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.VRAIFAUX_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.VRAIFAUX_INTRO.fichierPour(false))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.VRAIFAUX_PRESENTATION, d.observer(vf).musique())
+        val wav = java.io.File("src/main/res/raw/gs_vraifaux_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(468_342L, e.images)
+        assertEquals(305_706L, repriseEnImages(Lit.VRAIFAUX_INTRO.repriseMs, Lit.VRAIFAUX_INTRO.repriseImage, 44_100))
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation des Mimes - Just Because of You, boucle entiere`() {
+        val mimes = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "mimes|", gameShow = true, famille = "mimes")
+        assertEquals("mimes", familleType(com.littlemissparty.quiz.engine.QuestionKind.MIME))
+        assertEquals(Ambiance.MIMES_PRESENTATION, ambiancePresentation(mimes))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(mimes.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.MIMES_PRESENTATION.volume(Lit.MIMES_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.MIMES_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.MIMES_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.MIMES_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.MIMES_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.MIMES_PRESENTATION, d.observer(mimes).musique())
+        val wav = java.io.File("src/main/res/raw/gs_mimes_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(367_927L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation des Statues musicales - U Can't Touch This, boucle entiere`() {
+        val statues = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "statues|", gameShow = true, famille = "statues")
+        assertEquals(Ambiance.STATUES_PRESENTATION, ambiancePresentation(statues))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(statues.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.STATUES_PRESENTATION.volume(Lit.STATUES_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.STATUES_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.STATUES_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.STATUES_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.STATUES_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.STATUES_PRESENTATION, d.observer(statues).musique())
+        val wav = java.io.File("src/main/res/raw/gs_statues_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(636_307L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Gonfleur fou - Dont you know une fois, puis la boucle au raccord adouci`() {
+        val gonfleur = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "gonfleur|", gameShow = true, famille = "gonfleur")
+        assertEquals(Ambiance.GONFLEUR_PRESENTATION, ambiancePresentation(gonfleur))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(gonfleur.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.GONFLEUR_PRESENTATION.volume(Lit.GONFLEUR_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.GONFLEUR_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.GONFLEUR_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.GONFLEUR_INTRO.fichierPour(false))
+        assertEquals(327_222L, repriseEnImages(Lit.GONFLEUR_INTRO.repriseMs, Lit.GONFLEUR_INTRO.repriseImage, 44_100))
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.GONFLEUR_PRESENTATION, d.observer(gonfleur).musique())
+        val wav = java.io.File("src/main/res/raw/gs_gonfleur_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(654_444L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `chaque musique d'intro part du tout debut de son fichier, jamais calee au milieu sur le tempo commun`() {
+        // Une boucle de 16 s (± 250 ms) se cale sur le tempo commun des fonds ; les autres partent de leur début
+        // (BouclePcm.ouvrir : periodeMs). Les musiques d'intro doivent toutes partir du début (cedric, 30/10).
+        val intros = Lit.entries.filter { it.name.endsWith("_INTRO") }
+        assertTrue(intros.size >= 14)
+        intros.forEach { l ->
+            val wav = java.io.File("src/main/res/raw/${l.gs}.wav").readBytes()
+            val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+            assertTrue("${l.name} : ${e.dureeMs} ms", kotlin.math.abs(e.dureeMs - 16_000L) > 250)
+            assertTrue("${l.name} : reprise après la fin", repriseEnImages(l.repriseMs, l.repriseImage, e.frequence) < e.images)
+        }
+    }
+
+    @Test
+    fun `presentation du Quiz illustre - Des chiffres et des lettres, boucle entiere, le Quiz garde Questions pour un champion`() {
+        val illustre = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "illustre|", gameShow = true, famille = "illustre")
+        assertEquals(Ambiance.ILLUSTRE_PRESENTATION, ambiancePresentation(illustre))
+        assertEquals(Ambiance.QUIZ_PRESENTATION, ambiancePresentation(illustre.copy(famille = "quiz")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(illustre.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.ILLUSTRE_PRESENTATION.volume(Lit.ILLUSTRE_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.ILLUSTRE_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.ILLUSTRE_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.ILLUSTRE_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.ILLUSTRE_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.ILLUSTRE_PRESENTATION, d.observer(illustre).musique())
+        val wav = java.io.File("src/main/res/raw/gs_quizillustre_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(840_186L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Quiz musical - Lady de Modjo, boucle entiere, depuis le debut`() {
+        val musical = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "quiz|", gameShow = true, famille = "musical")
+        assertEquals(Ambiance.MUSICAL_PRESENTATION, ambiancePresentation(musical))
+        assertEquals(Ambiance.QUIZ_PRESENTATION, ambiancePresentation(musical.copy(famille = "quiz")))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(musical.copy(gameShow = false)))
+        assertEquals("musical", familleType(null, musique = true))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.MUSICAL_PRESENTATION.volume(Lit.MUSICAL_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.MUSICAL_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.MUSICAL_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.MUSICAL_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.MUSICAL_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.MUSICAL_PRESENTATION, d.observer(musical).musique())
+        val wav = java.io.File("src/main/res/raw/gs_quizmusical_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(671_940L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `intro d'un jeu - sa musique part du debut de son fichier, sans fondu, en meme temps que la video qui l'attend`() {
+        // cedric, 30/10 : « tout commencera précisément au début de la boucle », et le petit début joué une fois part avec la vidéo.
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        val lancee = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true, famille = "quiz")
+        d.observer(lancee.copy(lancement = true))
+        // Premier jeu, juste après la grande intro (pas de rideau) : la musique attend que la vidéo soit prête.
+        assertEquals(
+            listOf(Ordre.Couper, Ordre.Jouer(Son.WHOOSH), Ordre.Musique(Ambiance.SILENCE), Ordre.Caler(Tempo.INTRO_MUSIQUE), Ordre.Musique(Ambiance.QUIZ_PRESENTATION, Tempo.INTRO_MUSIQUE)),
+            d.observer(lancee),
+        )
+        d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true, famille = "quiz"))
+        // Jeu suivant : le jingle du rideau, puis la musique d'intro, repartie de sa première mesure.
+        val vf = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 8, equipes = 2, epreuve = "express|", gameShow = true, famille = "express")
+        assertEquals(
+            listOf(Ordre.Couper, Ordre.Jouer(Son.TRANSITION), Ordre.Musique(Ambiance.SILENCE), Ordre.Caler(Tempo.TRANSITION_MUSIQUE), Ordre.Musique(Ambiance.VRAIFAUX_PRESENTATION, Tempo.TRANSITION_MUSIQUE)),
+            d.observer(vf),
+        )
+        assertTrue(Tempo.INTRO_MUSIQUE >= DELAI_INTRO_JEU_MS + 500)
+        // Le Pictionary (Take On Me) : même départ calé.
+        d.observer(vf.copy(ecran = Ecran.QUESTION))
+        val patate = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 12, equipes = 2, epreuve = "picto|", gameShow = true, famille = "pictionary")
+        val o = d.observer(patate)
+        assertTrue(Ordre.Caler(Tempo.TRANSITION_MUSIQUE) in o)
+        assertEquals(Ordre.Musique(Ambiance.PICTO_PRESENTATION, Tempo.TRANSITION_MUSIQUE), o.last())
+        // Sans intro vidéo (Juste Chiffre, Portes), en Classique, au Duel et au Simon : comme avant, sans calage.
+        listOf(
+            patate.copy(index = 14, epreuve = "juste|", famille = "juste"),
+            patate.copy(index = 16, epreuve = "portes|", famille = "portes"),
+            patate.copy(index = 18, epreuve = "duel|", famille = "duel", duel = true),
+        ).forEach { i ->
+            // Après un autre jeu : c'est bien un nouveau jeu, avec son rideau.
+            d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = i.index - 1, equipes = 2, epreuve = "quiz|Q${i.index}", gameShow = true, famille = "quiz"))
+            val arrivee = d.observer(i)
+            assertTrue(i.famille, Son.TRANSITION in arrivee.sons() || i.duel)
+            assertTrue(i.famille, arrivee.none { it is Ordre.Caler && it.dansMs == Tempo.TRANSITION_MUSIQUE })
+        }
+        // Le Simon (cedric, 30/10 : sa vidéo ne partait pas sur le début de sa boucle) : calé lui aussi.
+        d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 21, equipes = 2, epreuve = "quiz|Q22", gameShow = true, famille = "quiz"))
+        val simon = d.observer(patate.copy(index = 22, epreuve = "simon|", famille = "simon", simon = true))
+        assertTrue(Ordre.Caler(Tempo.TRANSITION_MUSIQUE) in simon)
+        assertEquals(Ordre.Musique(Ambiance.SIMON_PRESENTATION, Tempo.TRANSITION_MUSIQUE), simon.last())
+        val classique = DirecteurSonore()
+        classique.observer(salon.copy(equipes = 2))
+        classique.observer(lancee.copy(gameShow = false, ecran = Ecran.QUESTION))
+        assertTrue(classique.observer(vf.copy(gameShow = false)).none { it is Ordre.Caler })
+    }
+
+    @Test
+    fun `intro d'un jeu - chaque musique de presentation fait attendre la video, chaque musique d'intro part sans fondu`() {
+        PRESENTATIONS_PROPRES.values.forEach { assertTrue("$it", it.presentation) }
+        assertTrue(Ambiance.PRESENTATION.presentation)
+        assertTrue(Ambiance.SIMON_PRESENTATION.presentation)
+        listOf(Ambiance.DUEL_PRESENTATION, Ambiance.SIMON_ENTRE, Ambiance.QUESTION, Ambiance.SALON, Ambiance.SILENCE).forEach { assertFalse("$it", it.presentation) }
+        // Toutes les boucles des présentations propres partent franc ; la « fête » (partout ailleurs aussi) garde son fondu.
+        PRESENTATIONS_PROPRES.values.forEach { a -> Lit.entries.filter { a.volume(it, gs = true) > 0f }.forEach { assertTrue("$a $it", it.departFranc) } }
+        assertFalse(Lit.COMPLET.departFranc)
+        assertFalse(Lit.BT_ATTENTE.departFranc)
+        // Toutes les familles qui ont une musique propre ont une intro vidéo (sinon personne ne l'attendrait).
+        PRESENTATIONS_PROPRES.keys.forEach { assertNotNull(it, nomIntroJeu(it)) }
+    }
+
+    @Test
+    fun `intro d'un jeu - l'attente de la video jusqu'au depart de sa musique`() {
+        // Musique prévue dans 1,7 s, entendue 80 ms après son départ : la vidéo attend 1,78 s.
+        assertEquals(1_780, attenteIntro(a = 10_000L, maintenant = 8_300L, latence = 80L))
+        // Latence pas encore mesurée : on ne compte qu'à partir du départ.
+        assertEquals(1_700, attenteIntro(a = 10_000L, maintenant = 8_300L, latence = -1L))
+        // Musique déjà partie (vidéo lente, ou relancée) : elle démarre tout de suite.
+        assertEquals(0, attenteIntro(a = 10_000L, maintenant = 12_000L, latence = 80L))
+        // Aucune musique prévue (coupée) : aucune attente.
+        assertEquals(0, attenteIntro(a = 0L, maintenant = 12_000L, latence = 80L))
+        // Jamais plus de 3 s, même avec une horloge folle.
+        assertEquals(ATTENTE_INTRO_MAX_MS.toInt(), attenteIntro(a = 100_000L, maintenant = 1_000L, latence = 80L))
+        // Latence aberrante plafonnée.
+        assertEquals(1_700 + BouclePcm.LATENCE_MAX_MS.toInt(), attenteIntro(a = 10_000L, maintenant = 8_300L, latence = 99_999L))
+    }
+
+    @Test
+    fun `presentation de Ca va exploser - James Bond, boucle entiere, depuis le debut`() {
+        val patate = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "patate|", gameShow = true, famille = "patate")
+        assertEquals(Ambiance.PATATE_PRESENTATION, ambiancePresentation(patate))
+        assertEquals("patate", familleType(com.littlemissparty.quiz.engine.QuestionKind.PATATE))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(patate.copy(gameShow = false)))
+        assertEquals(Ambiance.PICTO_PRESENTATION, ambiancePresentation(patate.copy(famille = "pictionary")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.PATATE_PRESENTATION.volume(Lit.PATATE_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.PATATE_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.PATATE_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.PATATE_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.PATATE_INTRO.repriseMs)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.PATATE_PRESENTATION, d.observer(patate).musique())
+        val wav = java.io.File("src/main/res/raw/gs_explose_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(649_968L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Pictionary - Take On Me, boucle entiere, depuis le debut`() {
+        val picto = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "picto|", gameShow = true, famille = "pictionary")
+        assertEquals(Ambiance.PICTO_PRESENTATION, ambiancePresentation(picto))
+        assertEquals("picto", nomIntroJeu("pictionary"))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(picto.copy(gameShow = false)))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(picto.copy(famille = "juste")))
+        assertEquals(Ambiance.PRESENTATION.volume(Lit.COMPLET, gs = true), Ambiance.PICTO_PRESENTATION.volume(Lit.PICTO_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.PICTO_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.PICTO_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.PICTO_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.PICTO_INTRO.repriseMs)
+        assertTrue(Lit.PICTO_INTRO.departFranc)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.PICTO_PRESENTATION, d.observer(picto).musique())
+        val wav = java.io.File("src/main/res/raw/gs_picto_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(250_929L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Simon - la douce partie sur son temps fort, seulement sous l'intro, au meme volume`() {
+        val simon = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true, gameShow = true, famille = "simon")
+        assertEquals(Ambiance.SIMON_PRESENTATION, ambiancePresentation(simon))
+        assertEquals(Ambiance.SIMON_PRESENTATION.volume(Lit.SIMON_INTRO, gs = true), Ambiance.SIMON_ENTRE.volume(Lit.SIMON_DOUCE, gs = true), 0f)
+        Lit.entries.filter { it != Lit.SIMON_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.SIMON_PRESENTATION.volume(it, gs = true), 0f) }
+        assertTrue(Lit.SIMON_INTRO.departFranc)
+        assertNull(Lit.SIMON_INTRO.fichierPour(false))
+        assertEquals(0L, Lit.SIMON_INTRO.repriseMs)
+        // Le jeu lui-même garde la douce d'avant entre deux suites.
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true))
+        assertEquals(Ambiance.SIMON_PRESENTATION, d.observer(simon).musique())
+        assertEquals(Ambiance.SIMON_ENTRE, d.observer(simon.copy(ecran = Ecran.QUESTION)).musique())
+        val wav = java.io.File("src/main/res/raw/gs_simon_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(662_146L, e.images)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `reprise d'une boucle - a l'echantillon pres quand elle est donnee, sinon en millisecondes`() {
+        assertEquals(305_706L, repriseEnImages(6_932L, 305_706L, 44_100))
+        assertEquals(95_256L, repriseEnImages(2_160L, 0L, 44_100))
+        assertEquals(0L, repriseEnImages(0L, 0L, 44_100))
+        Lit.entries.filter { it.repriseImage > 0 }.forEach { assertEquals("$it", it.repriseImage.toDouble(), it.repriseMs * 44.1, 44.1) }
     }
 }

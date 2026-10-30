@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -53,6 +54,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.text
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -67,16 +69,20 @@ import kotlin.math.roundToInt
  * (Digital Love) :
  * - 0 → [Tempo.PODIUM_REVELATION] : « why don't you play the game » et le roulement. Les tubes de verre des équipes
  *   (1 à 8, dans un ordre mélangé, moitié à gauche de l'arche, moitié à droite) se remplissent ensemble au même
- *   compteur. Une équipe sous le plafond s'arrête à son score ; les meilleures montent jusqu'au plafond (90 % du
- *   deuxième score) et y restent au même niveau : on ne sait pas qui gagne. Le robot attend dans l'arche, puis joue
- *   du tambour sur les dernières mesures. Sur la fin du roulement ([MONTEE_DEBUT] → [MONTEE_FIN]), les meilleurs
- *   repartent jusqu'à leur vrai score : le tube du gagnant se remplit jusqu'en haut (deux tubes pleins à égalité),
+ *   compteur, sans jamais s'arrêter : de plus en plus vite, comme le roulement qui accélère (cedric, 30/10). Une
+ *   équipe sous le plafond s'arrête à son score ; les meilleures montent ensemble jusqu'au plafond (90 % du deuxième
+ *   score), au même niveau : on ne sait pas qui gagne. Le robot attend dans l'arche, puis joue du tambour sur les
+ *   dernières mesures. Sur la fin du roulement ([MONTEE_DEBUT] → [MONTEE_FIN]), les meilleurs continuent, encore
+ *   plus vite, jusqu'à leur vrai score : le tube du gagnant se remplit jusqu'en haut (deux tubes pleins à égalité),
  *   brille, puis tous les tubes s'enfoncent sous le plateau (cedric, 24 octobre : « le gagnant remplit la jauge en
  *   totalité ») ;
  * - le solo de guitare : flash, la fête du gagnant en plan cinéma, plein écran ([FeteCinema] : le robot bondit,
  *   s'arrête, fait un clin d'œil, la caméra bouge ; cedric, 24 octobre), le nom du gagnant claque lettre par lettre
  *   ([NomNerveux]) et ses vrais points ; jamais les autres équipes (cedric, 26/10) ;
- * - à [Tempo.PODIUM_FIN], quand la chanson s'éteint : l'écran de fin cinéma ([FinCinemaGameShow]).
+ * - à [Tempo.PODIUM_COUPE] (4:07 de la chanson, juste avant une note grave), la musique enchaîne sur sa boucle
+ *   d'attente (écho de la dernière note aiguë, boucle « fête » sans guitare) et l'image du podium continue pendant que
+ *   Sarah parle aux enfants ; son « ▶ Lancer la fin » ([finLancee]) lance l'outro du robot en fusée puis l'écran de fin
+ *   cinéma ([OutroPuisFinGameShow]) (cedric, 29/10 : le podium faisait long, rien n'est coupé de la fusée).
  * Égalité en tête : mêmes tubes, puis « ÉGALITÉ ! » et les noms couronnés. Personne n'a marqué : les tubes restent
  * presque vides et « Bravo à toutes les équipes ! » arrive au solo. Les compteurs du suspense ne sont qu'un spectacle
  * plafonné ; tout nombre affiché après le solo est le vrai score ([Classee.points]) : rien ici ne compte de points.
@@ -85,8 +91,12 @@ import kotlin.math.roundToInt
  * par calques (échelle, position, opacité).
  */
 @Composable
-fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
-    if (apres(Tempo.PODIUM_FIN, Unit)) return FinCinemaGameShow(modifier)
+fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, finLancee: Boolean = false) {
+    if (finLancee) return OutroPuisFinGameShow(modifier)
+    DisposableEffect(Unit) {
+        Habillage.podium.value = true
+        onDispose { Habillage.podium.value = false }
+    }
     val meilleur = classement.firstOrNull()?.points ?: 0
     val gagnants = if (meilleur > 0) classement.takeWhile { it.points == meilleur } else emptyList()
     val seul = gagnants.size == 1
@@ -115,6 +125,15 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
     val tubesPartis = apres(Tempo.PODIUM_REVELATION + 500, Unit)
     val petitRobot = if (classement.size >= 7) 0.8f else 1f
     var feteEchec by remember { mutableStateOf(false) }
+    // La fête a montré sa première image : jusque-là, la dernière image des jauges reste dessous (jamais d'écran noir
+    // si la box tarde à afficher la fête, vu sur l'émulateur le 30/10).
+    var fetePrete by remember { mutableStateOf(false) }
+    // Les jauges en plan cinéma (décor 3D et robot dans la même vidéo, cedric 30/10) ; sans le fichier ou s'il ne se
+    // lit pas, le plateau et les clips du robot dans l'arche, comme avant.
+    val contexte = LocalContext.current
+    val jaugesRes = remember { contexte.resources.getIdentifier(JAUGES_VIDEO, "raw", contexte.packageName) }
+    var jaugesEchec by remember { mutableStateOf(false) }
+    val jaugesCinema = jaugesRes != 0 && !jaugesEchec
     val ligneNom = if (classement.size >= 6) 439.dp else 452.5.dp
     Box(modifier.fillMaxSize()) {
         // Salle un peu assombrie pendant le suspense (l'arche du plateau reste visible), qui se rallume au solo.
@@ -122,14 +141,20 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
             Modifier.fillMaxSize().graphicsLayer {
                 val m = ms()
                 alpha = when {
+                    // Sur la vidéo des jauges, la salle est déjà dans sa lumière : un voile léger seulement.
+                    jaugesCinema && m < revelation -> (m / 800f).coerceAtMost(1f) * 0.2f
                     m < 800f -> m / 800f * 0.45f
                     m < revelation -> 0.45f
                     else -> 0.45f - 0.2f * ((m - revelation) / 600f).coerceIn(0f, 1f)
                 }
             }.background(GS.Noir),
         )
+        // Les jauges en plan cinéma, de la première image au solo ; leur dernière image reste sous la fête qui arrive.
+        if (jaugesCinema && !(tubesPartis && (fetePrete || feteEchec)) && !podiumSansVideos) {
+            JaugesCinema(jaugesRes, { ms().toInt() }, { robot == 3 && !feteEchec }, { jaugesEchec = true })
+        }
         // Au solo, la fête en plan cinéma couvre tout le plateau ; elle part exactement sur le solo.
-        if (robot == 3 && !feteEchec) FeteCinema({ (revelation - ms()).toInt() }, { feteEchec = true })
+        if (robot == 3 && !feteEchec && !podiumSansVideos) FeteCinema({ (revelation - ms()).toInt() }, { fetePrete = true }, { feteEchec = true })
         if (gagnants.size > 1) Rayons { (ms() - revelation).coerceAtLeast(0f) }
         // Secousse de caméra quand le nom du gagnant claque (tout le podium bouge, le décor derrière reste).
         Box(
@@ -157,20 +182,43 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
                         val arche = Modifier
                             .padding(start = (480f - ROBOT_ARCHE_L / 2 * petitRobot).dp, top = (ROBOT_ARCHE_SOL - 0.84f * ROBOT_ARCHE_H * petitRobot).dp)
                             .size((ROBOT_ARCHE_L * petitRobot).dp, (ROBOT_ARCHE_H * petitRobot).dp)
-                        when (robot) {
-                            1 -> ClipRobotEnBoucle(ROBOT_ATTENTE, ROBOT_ATTENTE_BOUCLE_MS, arche)
-                            2 -> ClipRobotEnBoucle(ROBOT_TAMBOUR, -1, arche)
+                        when {
+                            jaugesCinema -> {}
+                            robot == 1 -> ClipRobotEnBoucle(ROBOT_ATTENTE, ROBOT_ATTENTE_BOUCLE_MS, arche)
+                            robot == 2 -> ClipRobotEnBoucle(ROBOT_TAMBOUR, -1, arche)
                             else -> {}
                         }
                     }
                     // Halo de l'arche qui couvre le passage du robot qui attend au robot qui joue du tambour (au solo,
                     // le flash blanc couvre l'arrivée du robot de la fête).
-                    Canvas(Modifier.fillMaxSize()) {
+                    if (!jaugesCinema) Canvas(Modifier.fillMaxSize()) {
                         val m = ms()
                         val a = 0.7f * battement(m - (revelation - ROBOT_TAMBOUR_AVANT_MS) + 200f, 500f)
                         if (a > 0f) {
                             val c = Offset(480.dp.toPx(), (ROBOT_ARCHE_SOL - 0.45f * ROBOT_ARCHE_H * petitRobot).dp.toPx())
                             drawCircle(Brush.radialGradient(listOf(GS.Cyan.copy(alpha = a), Color.Transparent), c, 150.dp.toPx()), 150.dp.toPx(), c)
+                        }
+                    }
+                    // Filigrane A derrière le logo et « LE GRAND GAGNANT EST… » pendant les jauges (cedric, 30/10 : la couronne
+                    // du nouveau décor est juste derrière, les textes s'y délavaient) ; il s'éteint avec le titre.
+                    val mesureTitre = rememberTextMeasurer()
+                    val largeurTitre = remember(mesureTitre) {
+                        mesureTitre.measure(TITRE_JAUGES, styleTitreNeon(30.sp, GS.Cyan), maxLines = 1, softWrap = false).size.width.toFloat()
+                    }
+                    Canvas(Modifier.fillMaxSize()) {
+                        val m = ms()
+                        val demi = largeurTitre / 2 + FILIGRANE_MARGE_DP.dp.toPx()
+                        val part = (m / 600f).coerceIn(0f, 1f) * (1f - (m - DESCENTE_DEBUT) / 400f).coerceIn(0f, 1f)
+                        filigrane(Rect(size.width / 2 - demi, 3.dp.toPx(), size.width / 2 + demi, FILIGRANE_TITRE_BAS_DP.dp.toPx()), part)
+                    }
+                    // Filigrane A derrière le logo et « Bravo à toutes les équipes ! », à partir du solo (cedric, 30/10).
+                    if (gagnants.isNotEmpty()) {
+                        val mesureBravo = rememberTextMeasurer()
+                        Canvas(Modifier.fillMaxSize()) {
+                            val l = if (seul) maxOf(mesureBravo.measure("Bravo à toutes les équipes !", styleBravo(), maxLines = 1).size.width.toFloat(), 200.dp.toPx()) else 200.dp.toPx()
+                            val demi = l / 2 + FILIGRANE_MARGE_DP.dp.toPx()
+                            val bas = (if (seul) 121f else 76f).dp.toPx()
+                            filigrane(Rect(size.width / 2 - demi, 3.dp.toPx(), size.width / 2 + demi, bas), ((ms() - revelation) / 300f).coerceIn(0f, 1f))
                         }
                     }
                     // Le logo, en haut au centre, bat sur le solo.
@@ -182,11 +230,11 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
                             val s = 1f + 0.12f * battement(m - revelation, 700f)
                             scaleX = s; scaleY = s
                         },
-                    ) { LogoGameShow(26.dp, aligne = Alignment.CenterHorizontally) }
+                    ) { LogoGameShow(LOGO_PODIUM_DP.dp, aligne = Alignment.CenterHorizontally) }
                     // « Le grand gagnant est… », qui s'éteint quand les tubes descendent.
                     Text(
-                        "LE GRAND GAGNANT EST…", style = styleTitreNeon(30.sp, GS.Cyan), maxLines = 1, softWrap = false,
-                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp).apparition(300, Unit).graphicsLayer {
+                        TITRE_JAUGES, style = styleTitreNeon(30.sp, GS.Cyan), maxLines = 1, softWrap = false,
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = TEXTE_SOUS_LOGO_DP.dp).apparition(300, Unit).graphicsLayer {
                             val m = ms()
                             alpha = (0.8f + 0.2f * kotlin.math.sin(m / 240f)) * (1f - (m - DESCENTE_DEBUT) / 400f).coerceIn(0f, 1f)
                             compositingStrategy = CompositingStrategy.ModulateAlpha
@@ -196,12 +244,11 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
                     if (seul) {
                         val g = gagnants[0]
                         Text(
-                            "Bravo à toutes les équipes !",
-                            style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = GS.Encre),
-                            maxLines = 1, modifier = Modifier.align(Alignment.TopCenter).padding(top = 66.dp).apparition(Tempo.PODIUM_REVELATION + 3_000, Unit),
+                            "Bravo à toutes les équipes !", style = styleBravo(),
+                            maxLines = 1, modifier = Modifier.align(Alignment.TopCenter).padding(top = TEXTE_SOUS_LOGO_DP.dp).apparition(Tempo.PODIUM_REVELATION + 3_000, Unit),
                         )
                         NomNerveux(g, ligneNom, ms)
-                        PointsNerveux(g.points, g.nom.length, ligneNom + 42.dp, ms)
+                        PointsNerveux(g.points, g.nom.length, ligneNom + POINTS_SOUS_NOM_DP.dp, ms)
                         // Le gagnant seul : plus les autres équipes dessous (cedric, 26/10 : « je ne vois pas l'intérêt »).
                     } else {
                         RevelationEgaliteOuZero(gagnants, meilleur, Modifier.align(Alignment.BottomCenter))
@@ -285,7 +332,6 @@ private fun RevelationEgaliteOuZero(gagnants: List<Classee>, meilleur: Int, modi
 private fun TubesPodium(colonnes: List<Classee>, scores: List<Int>, ms: () -> Float) {
     val places = remember(colonnes.size) { dispositionTubes(colonnes.size) }
     val planches = planchesJauge()
-    val plafond = remember(scores) { plafondSuspense(scores) }
     val couleurs = remember(colonnes) { colonnes.map { enNeon(it.couleur) } }
     val mesure = rememberTextMeasurer()
     val densite = LocalDensity.current
@@ -332,16 +378,11 @@ private fun TubesPodium(colonnes: List<Classee>, scores: List<Int>, ms: () -> Fl
                     )
                 }
             }
-            // Le compteur : il ne change de texte que quand le nombre change. Les meilleurs, tenus au plafond,
-            // frémissent en attendant le solo.
+            // Le compteur : il ne change de texte que quand le nombre change.
             val valeur by remember(e, scores) { derivedStateOf { valeurSuspense(ms(), e.points, scores) } }
-            val tenu = e.points > plafond
             Text(
                 "$valeur", maxLines = 1, softWrap = false, style = styleCompteur(tailleCompteur, couleur),
-                modifier = Modifier.centreSurLigneDeBase(p.centre.dp, (TUBE_HAUT - 25f * p.echelle).dp).graphicsLayer {
-                    val m = ms()
-                    alpha = if (tenu && m > JAUGES_FIN && m < MONTEE_DEBUT) 0.82f + 0.18f * kotlin.math.cos((m - JAUGES_FIN) / 90f) else 1f
-                },
+                modifier = Modifier.centreSurLigneDeBase(p.centre.dp, (TUBE_HAUT - 25f * p.echelle).dp),
             )
         }
     }
@@ -413,6 +454,59 @@ private const val ROBOT_ARCHE_H = 300f
 private const val ROBOT_ARCHE_SOL = 420f
 
 /**
+ * Les jauges en plan cinéma (res/raw/gs_podium_jauges.mp4, cedric 30/10) : le nouveau décor 3D du podium et le robot qui
+ * attend puis joue du tambour, dans une seule vidéo calée sur la musique depuis son début ; les tubes, les compteurs et
+ * les textes sont dessinés par-dessus. Elle part à la position de la musique ([ecouleMs]) quand elle est prête. Une
+ * seule vidéo à la fois : le décor du dessous ne lit plus son fond, et le lecteur est rendu à [JAUGES_VIDEO_FIN_MS],
+ * avant que la fête ne prépare le sien ; sa dernière image reste affichée jusqu'à ce que la fête la couvre.
+ * [fetePrend] : la fête a déjà pris la main sur le décor quand les jauges partent.
+ */
+@Composable
+private fun JaugesCinema(resId: Int, ecouleMs: () -> Int, fetePrend: () -> Boolean, surEchec: () -> Unit) {
+    DisposableEffect(Unit) {
+        Habillage.finVideo.value = true
+        onDispose { if (!fetePrend()) Habillage.finVideo.value = false }
+    }
+    var prete by remember { mutableStateOf(false) }
+    var vue by remember { mutableStateOf<LecteurFond?>(null) }
+    AndroidView(
+        factory = {
+            LecteurFond(
+                it, resId, surPret = { prete = true }, surEchec = surEchec, boucle = false,
+                finMs = JAUGES_VIDEO_FIN_MS, surFin = { vue?.liberer() }, departLu = { ecouleMs().coerceAtLeast(0) },
+            ).also { v -> vue = v }
+        },
+        update = { it.alpha = if (prete) 1f else 0f },
+        onRelease = { it.liberer() },
+        modifier = Modifier.fillMaxSize().clearAndSetSemantics {},
+    )
+}
+
+/** Le titre des jauges, et le bas de son filigrane (le titre est à [TEXTE_SOUS_LOGO_DP] du haut, en 30 sp). */
+internal const val TITRE_JAUGES = "LE GRAND GAGNANT EST…"
+internal const val FILIGRANE_TITRE_BAS_DP = 126f
+
+/**
+ * Le logo du podium, 25 % plus grand qu'avant (cedric, 30/10 : presque invisible devant la couronne), et la ligne de
+ * texte dessous (« LE GRAND GAGNANT EST… », puis « Bravo à toutes les équipes ! »), descendue pour ne pas le toucher.
+ */
+internal const val LOGO_PODIUM_DP = 32.5f
+internal const val TEXTE_SOUS_LOGO_DP = 78f
+
+/**
+ * Pour le film d'aperçu des tests seulement (PodiumFilmTest) : le podium sans ses deux vidéos, sur un fond uni, pour
+ * incruster ensuite les textes sur les vraies vidéos. Toujours faux dans l'appli.
+ */
+@androidx.annotation.VisibleForTesting
+internal var podiumSansVideos = false
+
+/** La vidéo des jauges en plan cinéma (sans elle : le plateau et les clips du robot). */
+internal const val JAUGES_VIDEO = "gs_podium_jauges"
+
+/** Le lecteur des jauges est rendu 500 ms avant le solo : la fête prépare le sien 300 ms avant (une vidéo à la fois). */
+internal const val JAUGES_VIDEO_FIN_MS = (Tempo.PODIUM_REVELATION - 500).toInt()
+
+/**
  * La fête du gagnant en plan cinéma, plein écran (res/raw/gs_podium_fete.mp4, calculée à l'avance en 3D sur le plateau) :
  * 96 images (8 temps de Digital Love) pour le BOUM et l'approche de la caméra, puis une boucle parfaite de 64 temps
  * ([FETE_BOUCLE_DEBUT_MS] → la fin du fichier). Le tiers bas et le haut restent calmes : l'appli y écrit le nom, les
@@ -420,7 +514,7 @@ private const val ROBOT_ARCHE_SOL = 420f
  * image. Une seule vidéo à la fois : le décor du dessous ne lit plus son fond pendant ce temps.
  */
 @Composable
-private fun FeteCinema(attenteMs: () -> Int, surEchec: () -> Unit) {
+private fun FeteCinema(attenteMs: () -> Int, surAffiche: () -> Unit, surEchec: () -> Unit) {
     DisposableEffect(Unit) {
         Habillage.finVideo.value = true
         onDispose { Habillage.finVideo.value = false }
@@ -429,7 +523,7 @@ private fun FeteCinema(attenteMs: () -> Int, surEchec: () -> Unit) {
     AndroidView(
         factory = {
             LecteurFond(
-                it, R.raw.gs_podium_fete, surPret = { prete = true }, surEchec = surEchec, boucle = false,
+                it, R.raw.gs_podium_fete, surPret = { prete = true; surAffiche() }, surEchec = surEchec, boucle = false,
                 repriseMs = FETE_BOUCLE_DEBUT_MS, attenteMs = { attenteMs().coerceAtLeast(0) },
             )
         },
@@ -439,6 +533,8 @@ private fun FeteCinema(attenteMs: () -> Int, surEchec: () -> Unit) {
     )
 }
 
+private fun styleBravo() = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = GS.Encre)
+
 /** La fête en plan cinéma : 96 images d'arrivée (8 temps à 124,73 BPM, arrondis à l'image), puis la boucle de 64 temps jusqu'à la fin du fichier ; une image clé est posée sur la 96ᵉ. */
 internal const val FETE_BOUCLE_DEBUT_MS = 3_840
 
@@ -446,9 +542,8 @@ internal const val FETE_BOUCLE_DEBUT_MS = 3_840
 internal const val ROBOT_FETE = "gs_robot_fete"
 internal const val ROBOT_FETE_BOUCLE_MS = 3_849
 
-/** Le compteur commun monte de [JAUGES_DEBUT] à [JAUGES_FIN] (ms), puis reste au plafond jusqu'à la montée finale. */
+/** Le compteur commun part à [JAUGES_DEBUT] (ms) et arrive au plafond pile au début de la montée finale, sans pause. */
 internal const val JAUGES_DEBUT = 1_200f
-internal const val JAUGES_FIN = 11_500f
 /** Montée finale, sur la fin du roulement : du plafond au meilleur score ; chacun s'arrête à son vrai score. */
 internal const val MONTEE_DEBUT = Tempo.PODIUM_REVELATION - 3_000f
 internal const val MONTEE_FIN = Tempo.PODIUM_REVELATION - 1_500f
@@ -474,18 +569,28 @@ internal fun plafondSuspense(scores: List<Int>): Float {
 }
 
 /**
- * Le compteur commun à [ms] : de 0 au plafond, lent au départ et à l'arrivée ; puis, à la montée finale, du plafond
- * au meilleur score (accélère, puis claque en haut).
+ * Le compteur commun à [ms], qui suit le roulement de tambour (cedric, 30/10 : la jauge s'arrêtait quand le roulement
+ * accélérait, puis bondissait à la fin) : il ne s'arrête jamais et va de plus en plus vite. De 0 au plafond, sa
+ * vitesse triple du début à la fin, comme la force du roulement ; puis, à la montée finale, il repart du plafond à la
+ * même vitesse et accélère encore jusqu'au meilleur score. Scores très serrés (peu de points après le plafond) : la
+ * première montée accélère moins, pour que la fin ne ralentisse presque pas.
  */
 internal fun compteurSuspense(ms: Float, scores: List<Int>): Float {
     val plafond = plafondSuspense(scores)
+    val reste = (scores.maxOrNull() ?: 0).coerceAtLeast(0).toFloat() - plafond
+    val t1 = MONTEE_DEBUT - JAUGES_DEBUT
+    val t2 = MONTEE_FIN - MONTEE_DEBUT
+    // Part qui accélère dans la première montée (0,5 : vitesse ×3), réduite si la fin n'a pas de quoi aller plus vite.
+    val k = if (plafond > 0f && reste > 0f) (reste * t1 / (plafond * t2) - 1f).coerceIn(0f, 0.5f) else 0.5f
     if (ms >= MONTEE_DEBUT) {
-        val v = ((ms - MONTEE_DEBUT) / (MONTEE_FIN - MONTEE_DEBUT)).coerceIn(0f, 1f)
-        val meilleur = (scores.maxOrNull() ?: 0).coerceAtLeast(0).toFloat()
-        return plafond + (meilleur - plafond) * v * v
+        if (reste <= 0f) return plafond
+        val v = ((ms - MONTEE_DEBUT) / t2).coerceIn(0f, 1f)
+        // Part linéaire choisie pour repartir à la vitesse d'arrivée au plafond ((1 + k) × plafond / t1), le reste accélère.
+        val a = ((1 + k) * plafond * t2 / (t1 * reste)).coerceIn(0f, 1f)
+        return plafond + reste * (a * v + (1 - a) * v * v)
     }
-    val u = ((ms - JAUGES_DEBUT) / (JAUGES_FIN - JAUGES_DEBUT)).coerceIn(0f, 1f)
-    return plafond * u * u * (3 - 2 * u)
+    val u = ((ms - JAUGES_DEBUT) / t1).coerceIn(0f, 1f)
+    return plafond * ((1 - k) * u + k * u * u)
 }
 
 /** Éclat d'un tube plein (0 → 1) : le gagnant (ou les ex aequo) au sommet après la montée finale, s'il a marqué. */
