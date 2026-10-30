@@ -34,6 +34,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       actions: read
+      # Les planches (noms avec « * ») sont aussi poussées sur une branche à part, « captures-<passage> » : le journal
+      # n'est pas toujours téléchargeable. Rien d'autre n'est écrit dans le dépôt.
+      contents: write
     env:
       PASSAGE: ${{ inputs.captures }}
       NOMS: ${{ inputs.noms }}
@@ -76,14 +79,30 @@ jobs:
               fichier=$(basename "$png" .png | tr -c 'a-zA-Z0-9.\n-' '_')
               convert "$png" -resize "$taille" -quality "$qualite" "$RUNNER_TEMP/$fichier.jpg"
               echo "=== CAPTURE $fichier $(identify -format '%wx%h' "$png") $(wc -c < "$RUNNER_TEMP/$fichier.jpg")"
-              base64 -w 1000 "$RUNNER_TEMP/$fichier.jpg" | sed 's/^/B64 /'
+              case "$nom" in
+                *'*'*) mkdir -p "$RUNNER_TEMP/planche" && cp "$RUNNER_TEMP/$fichier.jpg" "$RUNNER_TEMP/planche/" ;;
+                *) base64 -w 1000 "$RUNNER_TEMP/$fichier.jpg" | sed 's/^/B64 /' ;;
+              esac
               echo "=== FIN $fichier"
             done < <(find archive \( -name "*-[0-9][0-9]-$nom.png" -o -name "$nom.png" \) | sort | head -"$combien")
             [ -n "$trouve" ] || echo "=== ABSENTE $nom"
           done
       - name: Rapport du tour des écrans (1 à 8 équipes)
         if: contains(inputs.noms, 'tour')
-        run: find archive -name 'logcat.txt' -exec grep -h 'TOUR|' {} + | sed 's/^.*TOUR|/TOUR|/' || echo "=== ABSENT rapport du tour"
+        run: |
+          mkdir -p "$RUNNER_TEMP/planche"
+          find archive -name 'logcat.txt' -exec grep -h 'TOUR|' {} + | sed 's/^.*TOUR|/TOUR|/' | sort -u | tee "$RUNNER_TEMP/planche/tour.txt" || echo "=== ABSENT rapport du tour"
+      - name: Pousser la planche sur sa branche
+        if: contains(inputs.noms, '*')
+        run: |
+          [ -d "$RUNNER_TEMP/planche" ] || { echo "Pas de planche"; exit 0; }
+          cd "$RUNNER_TEMP/planche"
+          git init -q -b "captures-$PASSAGE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -q -m "Captures du passage $PASSAGE des tests émulateur"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "captures-$PASSAGE"
+          echo "Branche captures-$PASSAGE : $(ls | wc -l) fichiers"
       - name: Afficher les films (aperçus)
         if: contains(inputs.noms, 'apercu')
         run: |
