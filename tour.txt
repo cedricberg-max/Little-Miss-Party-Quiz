@@ -1,0 +1,114 @@
+TOUR|7|BILAN|coupés=7|bloqués=1
+TOUR|7|blind-test-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|blind-test-ecoute|coupés=0|chevauchements=0|plus petit=21 px « 100 points »|
+TOUR|7|blind-test-presentation|coupés=0|chevauchements=0|plus petit=20 px « Morceau 1 / 1 · 100 points »|
+TOUR|7|blind-test-revelation|coupés=0|chevauchements=0|plus petit=18 px « 100 points »|
+TOUR|7|ca-va-exploser-bombe|coupés=0|chevauchements=0|plus petit=13 px « Les Licornes Roses »|
+TOUR|7|chante-le-mot-buzz|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|7|chante-le-mot-question|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|7|chante-le-mot-revelation|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|7|coffres-choix|coupés=0|chevauchements=0|plus petit=25 px « Les Panthères Noires »|
+TOUR|7|coffres-ouverture|coupés=2|chevauchements=1|plus petit=21 px « Score »|« Bonus ! » rogné ou à cheval sur le bord ; « +100 POINTS » rogné ou à cheval sur le bord ; « Les Panthères Noires » et « +100 POINTS » se chevauchent
+TOUR|7|coffres|BLOQUÉ|« Le classement » n'apparaît pas à l'écran
+TOUR|7|duel-face-a-face|coupés=0|chevauchements=0|plus petit=17 px « JOUEUR N° 1 »|
+TOUR|7|duel-pret|coupés=0|chevauchements=0|plus petit=19 px « 🤠 LE DUEL DES ROBOTS 1 / 4 »|
+TOUR|7|gonfleur-course|coupés=0|chevauchements=0|plus petit=13 px « Les Licornes Roses »|
+TOUR|7|gonfleur-depart|coupés=0|chevauchements=0|plus petit=13 px « Les Licornes Roses »|
+TOUR|7|image-floue-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|image-floue-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|image-floue-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|juste-chiffre-question|coupés=5|chevauchements=0|plus petit=21 px « Le Juste Chiffre question 1 / 1 »|« 8 » rogné ou à cheval sur le bord ; « 0 » rogné ou à cheval sur le bord ; « 9 » rogné ou à cheval sur le bord ; « 1 » rogné ou à cheval sur le bord ; « 6 » rogné ou à cheval sur le bord
+TOUR|7|juste-chiffre-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|mimes-bravo|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|7|mimes-changement|coupés=6|chevauchements=0|plus petit=21 px « Les Licornes Roses »|« Au tour de Les Sirènes Bleues ! » rogné ou à cheval sur le bord ; « 🔄 » rogné ou à cheval sur le bord ; « Au mimeur suivant ! » rogné ou à cheval sur le bord ; « Le mimeur face à l'écran ! » rogné ou à cheval sur le bord ; « 1 » rogné ou à cheval sur le bord ; « trouvé » rogné ou à cheval sur le bord
+TOUR|7|mimes-presentation|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|7|mimes-tour|coupés=5|chevauchements=0|plus petit=21 px « Les Licornes Roses »|« Au tour de Les Sirènes Bleues ! » rogné ou à cheval sur le bord ; « 🦛 » rogné ou à cheval sur le bord ; « Hippopotame » rogné ou à cheval sur le bord ; « 0 » rogné ou à cheval sur le bord ; « trouvé » rogné ou à cheval sur le bord
+TOUR|7|pictionary-au-tour-de|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|7|pictionary-choix|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|7|pictionary-dessin|coupés=0|chevauchements=0|plus petit=20 px «  dessine ! »|
+TOUR|7|pictionary-presentation|coupés=0|chevauchements=1|plus petit=21 px « Les Licornes Roses »|« PICTIONARY » et « Un enfant dessine sur la tablette de son équipe, le dessin apparaît ici en direct. Son équipe a 90 secondes pour trouver le mot : 100 points ! » se chevauchent
+TOUR|7|pictionary-trouve|coupés=0|chevauchements=0|plus petit=20 px « Le mot »|
+TOUR|7|podium|coupés=1|chevauchements=0|plus petit=13 px « by »|« Bravo à toutes les équipes ! » rogné ou à cheval sur le bord
+TOUR|7|qui-a-disparu-buzz|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|7|qui-a-disparu-chercher|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|7|qui-a-disparu-memoriser|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|7|qui-a-disparu-revelation|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|7|qui-suis-je-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|qui-suis-je-question|coupés=0|chevauchements=0|plus petit=19 px « dès que vous savez qui je suis »|
+TOUR|7|qui-suis-je-revelation|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Sirènes Bleues ! »|
+TOUR|7|quiz-illustre-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|quiz-illustre-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|quiz-musical-paroles|coupés=0|chevauchements=0|plus petit=21 px « Comptine »|
+TOUR|7|quiz-musical-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|quiz-musical-revelation|coupés=4|chevauchements=0|plus petit=21 px « Comptine »|« Au clair de la lune » rogné ou à cheval sur le bord ; « Comptine » rogné ou à cheval sur le bord ; « Bravo Les Dragons Dorés et Les Fusées Rouges ! » rogné ou à cheval sur le bord ; « TOUT LE MONDE CHANTE ! » rogné ou à cheval sur le bord
+TOUR|7|quiz-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|quiz-revelation|coupés=0|chevauchements=0|plus petit=21 px « Les Comètes Filantes »|
+TOUR|7|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|7|scores|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|7|simon-a-vous|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|7|simon-pret|coupés=0|chevauchements=0|plus petit=10 px « Les Comètes Filantes »|
+TOUR|7|simon-regardez|coupés=0|chevauchements=0|plus petit=10 px « Les Comètes Filantes »|
+TOUR|7|statues-danse|coupés=0|chevauchements=1|plus petit=18 px « BOUGEZ TANT QUE LA MUSIQUE JOUE »|« S » et « E » se chevauchent
+TOUR|7|statues-gagnante|coupés=7|chevauchements=0|plus petit=22 px « Les Comètes Filantes »|« Les Licornes Roses » rogné ou à cheval sur le bord ; « +150 » rogné ou à cheval sur le bord ; « Les Dragons Dorés » rogné ou à cheval sur le bord ; « Les Comètes Filantes » rogné ou à cheval sur le bord ; « Les Pirates du Lac » rogné ou à cheval sur le bord ; « Les Panthères Noires » rogné ou à cheval sur le bord ; « Les Fusées Rouges » rogné ou à cheval sur le bord
+TOUR|7|statues-statue|coupés=0|chevauchements=0|plus petit=24 px « Statues musicales »|
+TOUR|7|vrai-faux-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|vrai-faux-revelation|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|7|zoom-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|zoom-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|8|BILAN|coupés=14|bloqués=1
+TOUR|8|blind-test-buzz|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|blind-test-ecoute|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|blind-test-presentation|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|blind-test-revelation|coupés=2|chevauchements=0|plus petit=15 px « Les Ninjas Masqués »|« … » ligne 1 de « Les Ninjas Masqués » ; mot coupé : « Les Ninjas Mas | qués »
+TOUR|8|ca-va-exploser-bombe|coupés=0|chevauchements=0|plus petit=13 px « Les Licornes Roses »|
+TOUR|8|chante-le-mot-buzz|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|chante-le-mot-question|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|chante-le-mot-revelation|coupés=2|chevauchements=0|plus petit=15 px « Les Ninjas Masqués »|« … » ligne 1 de « Les Ninjas Masqués » ; mot coupé : « Les Ninjas Masqu | és »
+TOUR|8|coffres-choix|coupés=0|chevauchements=0|plus petit=25 px « Les Comètes Filantes »|
+TOUR|8|coffres-ouverture|coupés=2|chevauchements=1|plus petit=21 px « Score »|« Bonus ! » rogné ou à cheval sur le bord ; « +50 POINTS » rogné ou à cheval sur le bord ; « Les Comètes Filantes » et « +50 POINTS » se chevauchent
+TOUR|8|coffres|BLOQUÉ|« Le classement » n'apparaît pas à l'écran
+TOUR|8|duel-face-a-face|coupés=0|chevauchements=0|plus petit=17 px « JOUEUR N° 1 »|
+TOUR|8|duel-pret|coupés=0|chevauchements=0|plus petit=19 px « 🤠 LE DUEL DES ROBOTS 1 / 4 »|
+TOUR|8|gonfleur-course|coupés=0|chevauchements=0|plus petit=13 px « Les Licornes Roses »|
+TOUR|8|gonfleur-depart|coupés=0|chevauchements=0|plus petit=13 px « Les Licornes Roses »|
+TOUR|8|image-floue-buzz|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|image-floue-question|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|image-floue-revelation|coupés=2|chevauchements=0|plus petit=15 px « Les Ninjas Masqués »|« … » ligne 1 de « Les Ninjas Masqués » ; mot coupé : « Les Ninjas Masqu | és »
+TOUR|8|juste-chiffre-question|coupés=5|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|« 7 » rogné ou à cheval sur le bord ; « 9 » rogné ou à cheval sur le bord ; « 8 » rogné ou à cheval sur le bord ; « 0 » rogné ou à cheval sur le bord ; « 5 » rogné ou à cheval sur le bord
+TOUR|8|juste-chiffre-revelation|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|8|mimes-bravo|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|8|mimes-changement|coupés=5|chevauchements=0|plus petit=21 px « Les Licornes Roses »|« Au tour de Les Ninjas Masqués ! » rogné ou à cheval sur le bord ; « 🔄 » rogné ou à cheval sur le bord ; « ON TOURNE ! » rogné ou à cheval sur le bord ; « 1 » rogné ou à cheval sur le bord ; « trouvé » rogné ou à cheval sur le bord
+TOUR|8|mimes-presentation|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|8|mimes-tour|coupés=5|chevauchements=0|plus petit=21 px « Les Licornes Roses »|« Au tour de Les Ninjas Masqués ! » rogné ou à cheval sur le bord ; « 🦛 » rogné ou à cheval sur le bord ; « Hippopotame » rogné ou à cheval sur le bord ; « 0 » rogné ou à cheval sur le bord ; « trouvé » rogné ou à cheval sur le bord
+TOUR|8|pictionary-au-tour-de|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|8|pictionary-choix|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|8|pictionary-dessin|coupés=0|chevauchements=0|plus petit=17 px «  dessine ! »|
+TOUR|8|pictionary-presentation|coupés=0|chevauchements=1|plus petit=21 px « Les Licornes Roses »|« PICTIONARY » et « Un enfant dessine sur la tablette de son équipe, le dessin apparaît ici en direct. Son équipe a 90 secondes pour trouver le mot : 100 points ! » se chevauchent
+TOUR|8|pictionary-trouve|coupés=0|chevauchements=0|plus petit=16 px « Le mot »|
+TOUR|8|podium|coupés=1|chevauchements=0|plus petit=13 px « by »|« Bravo à toutes les équipes ! » rogné ou à cheval sur le bord
+TOUR|8|qui-a-disparu-buzz|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|qui-a-disparu-chercher|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|qui-a-disparu-memoriser|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|qui-a-disparu-revelation|coupés=2|chevauchements=0|plus petit=15 px « Les Ninjas Masqués »|« … » ligne 1 de « Les Ninjas Masqués » ; mot coupé : « Les Ninjas Masqu | és »
+TOUR|8|qui-suis-je-buzz|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|qui-suis-je-question|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|qui-suis-je-revelation|coupés=2|chevauchements=0|plus petit=15 px « Les Ninjas Masqués »|« … » ligne 1 de « Les Ninjas Masqués » ; mot coupé : « Les Ninjas Masqu | és »
+TOUR|8|quiz-illustre-question|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|quiz-illustre-revelation|coupés=0|chevauchements=0|plus petit=16 px « Les Licornes Roses »|
+TOUR|8|quiz-musical-paroles|coupés=1|chevauchements=0|plus petit=16 px « Les Dragons Dorés »|« ta » rogné ou à cheval sur le bord
+TOUR|8|quiz-musical-question|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|quiz-musical-revelation|coupés=7|chevauchements=0|plus petit=16 px « Les Dragons Dorés »|« Au clair de la lune » rogné ou à cheval sur le bord ; « Comptine » rogné ou à cheval sur le bord ; « Bravo Les Dragons Dorés et Les Fusées Rouges ! » rogné ou à cheval sur le bord ; « TOUT LE MONDE CHANTE ! » rogné ou à cheval sur le bord ; « Au » rogné ou à cheval sur le bord ; « Les Dragons Dorés » rogné ou à cheval sur le bord ; « +117 » rogné ou à cheval sur le bord
+TOUR|8|quiz-question|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|quiz-revelation|coupés=4|chevauchements=0|plus petit=15 px « Les Comètes Filantes »|« … » ligne 1 de « Les Comètes Filantes » ; mot coupé : « Les Comètes Filant | es » ; « … » ligne 1 de « Les Panthères Noires » ; mot coupé : « Les Panthères Noir | es »
+TOUR|8|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|8|scores|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|8|simon-a-vous|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|8|simon-pret|coupés=0|chevauchements=0|plus petit=10 px « Les Licornes Roses »|
+TOUR|8|simon-regardez|coupés=0|chevauchements=0|plus petit=10 px « Les Licornes Roses »|
+TOUR|8|statues-danse|coupés=0|chevauchements=1|plus petit=18 px « BOUGEZ TANT QUE LA MUSIQUE JOUE »|« N » et « S » se chevauchent
+TOUR|8|statues-gagnante|coupés=8|chevauchements=0|plus petit=22 px « Les Comètes Filantes »|« Les Licornes Roses » rogné ou à cheval sur le bord ; « +150 » rogné ou à cheval sur le bord ; « Les Dragons Dorés » rogné ou à cheval sur le bord ; « Les Comètes Filantes » rogné ou à cheval sur le bord ; « Les Pirates du Lac » rogné ou à cheval sur le bord ; « Les Panthères Noires » rogné ou à cheval sur le bord ; « Les Fusées Rouges » rogné ou à cheval sur le bord ; « Les Sirènes Bleues » rogné ou à cheval sur le bord
+TOUR|8|statues-statue|coupés=0|chevauchements=0|plus petit=24 px « Statues musicales »|
+TOUR|8|vrai-faux-question|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|vrai-faux-revelation|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|8|zoom-question|coupés=0|chevauchements=0|plus petit=16 px « Les Comètes Filantes »|
+TOUR|8|zoom-revelation|coupés=0|chevauchements=0|plus petit=15 px « Les Ninjas Masqués »|
