@@ -76,7 +76,9 @@ if ((process.env.MODE === "menage3" || process.env.MODE === "menage3ecrire") && 
   const autres = Object.entries(shows).filter(([id, x]) => x && id !== "anniversaire-epstein");
   const vraie = ([, x]) => `${x.date ?? ""}` >= "2026-12-01";
   for (const [id, x] of autres) console.log(`${vraie([id, x]) ? "Gardée (date de vraie fête)" : "À effacer"} : ${id} · date ${x.date ?? "?"} · ${x.status ?? "?"} · ${(Array.isArray(x.rounds) ? x.rounds : Object.values(x.rounds ?? {})).length} jeux · créée ${jour(x.createdAt)} · modifiée ${jour(x.updatedAt)}`);
-  const effacees = autres.filter((e) => !vraie(e)).map(([id]) => id);
+  // menage3ecrire n'efface que les prestations nommées dans QUOI (celles que cedric a vues dans la liste et acceptées).
+  const acceptees = new Set(`${process.env.QUOI ?? ""}`.split(",").map((x) => x.trim()).filter(Boolean));
+  const effacees = autres.filter((e) => !vraie(e)).map(([id]) => id).filter((id) => process.env.MODE === "menage3" || acceptees.has(id));
   const manchesEffacees = Object.entries(manches).filter(([, m]) => effacees.includes(m?.showId)).map(([id]) => id);
   const manchesSeules = Object.entries(manches).filter(([, m]) => m?.showId && !shows[m.showId]).length;
   console.log(`${effacees.length} prestations et ${manchesEffacees.length} manches à effacer ; ${Object.keys(manches).length} manches en tout (${manchesSeules} sans prestation, gardées)`);
