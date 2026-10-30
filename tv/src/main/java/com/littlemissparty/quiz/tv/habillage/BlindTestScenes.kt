@@ -73,6 +73,8 @@ import kotlinx.coroutines.delay
 
 private val LARGEUR = 1600.dp
 private val HAUTEUR = 700.dp
+/** Hauteur la plus basse où la scène des paroles tient entière (pochette au plus petit, paroles, égaliseur). */
+internal val HAUTEUR_PAROLES = 460.dp
 
 /** Millisecondes écoulées depuis l'arrivée de [cle], rafraîchies une vingtaine de fois par seconde. */
 @Composable
@@ -266,7 +268,9 @@ fun BlindRevelation(
     val ms = horloge(cle)
     val fete = if (gagnants != null) gagnants.isNotEmpty() else gagnant != null && points > 0
     if (chantons && paroles.isNotEmpty()) {
-        Echelle(LARGEUR, HAUTEUR, modifier) {
+        // La scène des paroles se tasse en hauteur (pochette plus petite) au lieu de tout rapetisser : avec 8 équipes,
+        // le plateau est bas, et « Bravo … ! » et « TOUT LE MONDE CHANTE ! » devenaient minuscules (cedric, 30/10).
+        Echelle(LARGEUR, HAUTEUR_PAROLES, modifier) {
             Scene { Rayons(ms) }
             SceneParoles(cle, pochette, titre, artiste, gagnant, points, double, paroles, positionMs, gagnants)
             if (fete) Gerbe(cle, actif = apres(500, cle))

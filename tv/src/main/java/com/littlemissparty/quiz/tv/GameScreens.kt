@@ -89,6 +89,8 @@ import kotlinx.coroutines.delay
 fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
     val q = state.question ?: return
     val revealed = state.phase == Phase.REVEAL
+    // Quiz musical (cedric, 24/10) : la bonne réponse s'allume, puis la révélation du blind test en plus court.
+    val sceneMusicale = revealed && q.isMusical && apres(MUSICAL_GRILLE_MS, q.id)
     // Blind test ou quiz musical : l'extrait joue depuis le cache de la box, calé sur le chrono.
     ExtraitMusical(q, state)
     Box(Modifier.fillMaxSize()) {
@@ -138,7 +140,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             // Blind test : pas de question écrite (« Quel est ce titre ? »), la scène prend la place.
             // Statues : le panneau porte déjà l'étiquette « STATUES MUSICALES », le titre en double lui volerait sa place.
             // Chante le mot en Game Show : le mot est déjà sur l'enseigne néon, en double il lui volerait sa hauteur.
-            if (!q.isBlind && !q.isStatues && !(Look.gs && q.isChante) && !(Look.gs && q.isDisparu && PropositionDisparu.sansEnseigne)) {
+            // Quiz musical, scène du titre : « Quel est ce titre ? » laisse sa hauteur à la scène (8 équipes, cedric, 30/10).
+            if (!q.isBlind && !q.isStatues && !sceneMusicale && !(Look.gs && q.isChante) && !(Look.gs && q.isDisparu && PropositionDisparu.sansEnseigne)) {
                 // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène). Qui a
                 // disparu ? y a droit aussi, lettres de couleur comme « Quel est ce titre ? » (cedric, 25/10 au soir).
                 val panneau = planchesQuiz3d()?.takeIf { !q.isBuzz || q.isDisparu }
@@ -158,9 +161,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             }
             // Chaque question a ses propres cartes : elles surgissent une à une, sur les bulles sonores.
             key(state.index) {
-                // Quiz musical (cedric, 24/10) : la bonne réponse s'allume, puis la révélation du blind test en plus court.
-                // Sinon, à la révélation, l'illustration facultative (photo ou émoji) apparaît à gauche des propositions.
-                if (revealed && q.isMusical && apres(MUSICAL_GRILLE_MS, q.id)) {
+                // Quiz musical : la scène du titre. Sinon, à la révélation, l'illustration facultative (photo ou émoji)
+                // apparaît à gauche des propositions.
+                if (sceneMusicale) {
                     RevelationMusicale(q, state, Modifier.weight(1f).fillMaxWidth())
                 } else if (revealed && Look.gs && q.isNumber) {
                     // Juste Chiffre du Game Show : la machine à sous, puis la règle des écarts (planche du 28/10, « A puis B »).
