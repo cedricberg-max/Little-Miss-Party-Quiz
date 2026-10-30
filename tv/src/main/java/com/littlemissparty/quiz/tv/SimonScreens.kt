@@ -216,8 +216,9 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
             Modifier.padding(start = gauche.dp, end = 40.dp, top = 130.dp, bottom = if (lignes) 40.dp else 190.dp).fillMaxSize(),
         ) { CompositionLocalProvider(LargeurTableau provides 1920f - gauche - 40f - 84f) {
             when (vue.etape) {
+                // Avant le premier tour : le nom du jeu au tableau (cedric, 30/10), comme les autres jeux.
                 EtapeSimon.ATTENTE -> Annonce(
-                    if (state.teams.isEmpty()) "IL FAUT UNE ÉQUIPE" else "LE ROBOT PROF ARRIVE…",
+                    if (state.teams.isEmpty()) "IL FAUT UNE ÉQUIPE" else "LE SIMON DE BUZZY",
                     if (state.teams.isEmpty()) "Au moins une équipe doit être inscrite pour jouer" else null, cle,
                 )
                 EtapeSimon.PRET -> Annonce(
