@@ -1432,4 +1432,18 @@ class DirecteurSonoreTest {
         assertEquals(328_194L, e.images)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
+
+    @Test
+    fun `chaque musique d'intro part du tout debut de son fichier, jamais calee au milieu sur le tempo commun`() {
+        // Une boucle de 16 s (± 250 ms) se cale sur le tempo commun des fonds ; les autres partent de leur début
+        // (BouclePcm.ouvrir : periodeMs). Les musiques d'intro doivent toutes partir du début (cedric, 30/10).
+        val intros = Lit.entries.filter { it.name.endsWith("_INTRO") }
+        assertTrue(intros.size >= 11)
+        intros.forEach { l ->
+            val wav = java.io.File("src/main/res/raw/${l.gs}.wav").readBytes()
+            val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+            assertTrue("${l.name} : ${e.dureeMs} ms", kotlin.math.abs(e.dureeMs - 16_000L) > 250)
+            assertTrue("${l.name} : reprise après la fin", l.repriseMs * e.frequence / 1000 < e.images)
+        }
+    }
 }

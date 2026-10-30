@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -176,6 +177,16 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
                             drawCircle(Brush.radialGradient(listOf(GS.Cyan.copy(alpha = a), Color.Transparent), c, 150.dp.toPx()), 150.dp.toPx(), c)
                         }
                     }
+                    // Filigrane A derrière le logo et « Bravo à toutes les équipes ! », à partir du solo (cedric, 30/10).
+                    if (gagnants.isNotEmpty()) {
+                        val mesureBravo = rememberTextMeasurer()
+                        Canvas(Modifier.fillMaxSize()) {
+                            val l = if (seul) maxOf(mesureBravo.measure("Bravo à toutes les équipes !", styleBravo(), maxLines = 1).size.width.toFloat(), 200.dp.toPx()) else 200.dp.toPx()
+                            val demi = l / 2 + FILIGRANE_MARGE_DP.dp.toPx()
+                            val bas = (if (seul) 109f else 62f).dp.toPx()
+                            filigrane(Rect(size.width / 2 - demi, 3.dp.toPx(), size.width / 2 + demi, bas), ((ms() - revelation) / 300f).coerceIn(0f, 1f))
+                        }
+                    }
                     // Le logo, en haut au centre, bat sur le solo.
                     Box(
                         Modifier.align(Alignment.TopCenter).padding(top = 8.dp).graphicsLayer {
@@ -199,12 +210,11 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier, fin
                     if (seul) {
                         val g = gagnants[0]
                         Text(
-                            "Bravo à toutes les équipes !",
-                            style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = GS.Encre),
+                            "Bravo à toutes les équipes !", style = styleBravo(),
                             maxLines = 1, modifier = Modifier.align(Alignment.TopCenter).padding(top = 66.dp).apparition(Tempo.PODIUM_REVELATION + 3_000, Unit),
                         )
                         NomNerveux(g, ligneNom, ms)
-                        PointsNerveux(g.points, g.nom.length, ligneNom + 42.dp, ms)
+                        PointsNerveux(g.points, g.nom.length, ligneNom + POINTS_SOUS_NOM_DP.dp, ms)
                         // Le gagnant seul : plus les autres équipes dessous (cedric, 26/10 : « je ne vois pas l'intérêt »).
                     } else {
                         RevelationEgaliteOuZero(gagnants, meilleur, Modifier.align(Alignment.BottomCenter))
@@ -441,6 +451,8 @@ private fun FeteCinema(attenteMs: () -> Int, surEchec: () -> Unit) {
         modifier = Modifier.fillMaxSize().clearAndSetSemantics {},
     )
 }
+
+private fun styleBravo() = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = GS.Encre)
 
 /** La fête en plan cinéma : 96 images d'arrivée (8 temps à 124,73 BPM, arrondis à l'image), puis la boucle de 64 temps jusqu'à la fin du fichier ; une image clé est posée sur la 96ᵉ. */
 internal const val FETE_BOUCLE_DEBUT_MS = 3_840

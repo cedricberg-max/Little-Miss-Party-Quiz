@@ -165,4 +165,22 @@ class PodiumGameShowTest {
         // 96 images à 25 i/s (8 temps de Digital Love) : une image clé y est posée pour une reprise sans saut.
         assertEquals(3_840, FETE_BOUCLE_DEBUT_MS)
     }
+
+    @Test
+    fun `nom du gagnant en neon plein, sans reflet sur le haut des lettres, filigrane A derriere le nom et les points`() {
+        // Choix de cedric (30/10) d'après la maquette en 1080p : contour sombre fin (4 px → 2 dp de chaque côté du bord),
+        // deux lueurs (écarts types 44 et 20 px), filigrane #06020E à 80 %, flou de 45 px, 90 px de plus que le texte.
+        assertEquals(4f, NOM_CONTOUR_DP, 0f)
+        assertTrue(NOM_LUEUR_LARGE_DP > NOM_LUEUR_SERREE_DP)
+        assertEquals(0.8f, FILIGRANE_OPACITE, 0f)
+        assertEquals(45f, FILIGRANE_MARGE_DP, 0f)
+        assertEquals(22.5f, FILIGRANE_FLOU_DP * 0.57735f + 0.5f, 0.5f)
+        assertEquals(42f, POINTS_SOUS_NOM_DP, 0f)
+        // Plus aucun reflet fixe sur le haut des lettres, ni voile en dégradé : le corps du nom est une lettre pleine.
+        val source = File("src/main/java/com/littlemissparty/quiz/tv/habillage/NomNerveux.kt").readText()
+        val corps = source.substringAfter("// Corps, néon plein").substringBefore("// Flash blanc")
+        assertTrue(corps.contains("drawText(l.mise, couleur, o"))
+        assertTrue(!corps.contains("verticalGradient") && !corps.contains("Brush."))
+        assertTrue(!source.contains("radialGradient(listOf(GS.Noir"))
+    }
 }
