@@ -1,0 +1,113 @@
+TOUR|1|BILAN|coupés=6|bloqués=3
+TOUR|1|blind-test-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|blind-test-ecoute|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|blind-test-presentation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|blind-test-revelation|coupés=0|chevauchements=0|plus petit=18 px « 100 points »|
+TOUR|1|ca-va-exploser|BLOQUÉ|Délai dépassé : t-patate ouvert
+TOUR|1|chante-le-mot-buzz|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|1|chante-le-mot-question|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|1|chante-le-mot-revelation|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|1|coffres-choix|coupés=0|chevauchements=0|plus petit=25 px « Les Licornes Roses »|
+TOUR|1|coffres-ouverture|coupés=6|chevauchements=3|plus petit=21 px « Oups ! »|« MALUS ! » rogné ou à cheval sur le bord ; « Les Licornes Roses » rogné ou à cheval sur le bord ; « Oups ! » rogné ou à cheval sur le bord ; « Score » rogné ou à cheval sur le bord ; « 1528 » rogné ou à cheval sur le bord ; « −50 POINTS » rogné ou à cheval sur le bord ; « MALUS ! » et « Oups ! » se chevauchent ; « MALUS ! » et « −50 POINTS » se chevauchent ; « Les Licornes Roses » et « −50 POINTS » se chevauchent
+TOUR|1|coffres|BLOQUÉ|« Le classement » n'apparaît pas à l'écran
+TOUR|1|duel|BLOQUÉ|Délai dépassé : t-duel ouvert
+TOUR|1|gonfleur-course|coupés=0|chevauchements=0|plus petit=18 px « Les Licornes Roses »|
+TOUR|1|gonfleur-depart|coupés=0|chevauchements=0|plus petit=18 px « Les Licornes Roses »|
+TOUR|1|image-floue-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|image-floue-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|image-floue-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|juste-chiffre-question|coupés=5|chevauchements=0|plus petit=21 px « Le Juste Chiffre question 1 / 1 »|« 8 » rogné ou à cheval sur le bord ; « 9 » rogné ou à cheval sur le bord ; « 0 » rogné ou à cheval sur le bord ; « 6 » rogné ou à cheval sur le bord ; « 7 » rogné ou à cheval sur le bord
+TOUR|1|juste-chiffre-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|mimes-bravo|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|1|mimes-changement|coupés=5|chevauchements=0|plus petit=21 px « Les Licornes Roses »|« Au tour de Les Licornes Roses ! » rogné ou à cheval sur le bord ; « 🔄 » rogné ou à cheval sur le bord ; « ON TOURNE ! » rogné ou à cheval sur le bord ; « 1 » rogné ou à cheval sur le bord ; « trouvé » rogné ou à cheval sur le bord
+TOUR|1|mimes-presentation|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|1|mimes-tour|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|1|pictionary-au-tour-de|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|1|pictionary-choix|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|1|pictionary-dessin|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|1|pictionary-presentation|coupés=0|chevauchements=1|plus petit=21 px « Les Licornes Roses »|« PICTIONARY » et « Un enfant dessine sur la tablette de son équipe, le dessin apparaît ici en direct. Son équipe a 90 secondes pour trouver le mot : 100 points ! » se chevauchent
+TOUR|1|pictionary-trouve|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|1|podium|coupés=2|chevauchements=0|plus petit=13 px « by »|« Bravo à toutes les équipes ! » rogné ou à cheval sur le bord ; « Victoire de Les Licornes Roses » rogné ou à cheval sur le bord
+TOUR|1|qui-a-disparu-buzz|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|1|qui-a-disparu-chercher|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|1|qui-a-disparu-memoriser|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|1|qui-a-disparu-revelation|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|1|qui-suis-je-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|qui-suis-je-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|qui-suis-je-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|quiz-illustre-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|quiz-illustre-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|quiz-musical-paroles|coupés=4|chevauchements=0|plus petit=21 px « Comptine »|« Pour » rogné ou à cheval sur le bord ; « écrire » rogné ou à cheval sur le bord ; « un » rogné ou à cheval sur le bord ; « mot » rogné ou à cheval sur le bord
+TOUR|1|quiz-musical-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|quiz-musical-revelation|coupés=4|chevauchements=0|plus petit=21 px « Comptine »|« Au clair de la lune » rogné ou à cheval sur le bord ; « Comptine » rogné ou à cheval sur le bord ; « Personne n'a trouvé, ce n'est pas grave ! » rogné ou à cheval sur le bord ; « TOUT LE MONDE CHANTE ! » rogné ou à cheval sur le bord
+TOUR|1|quiz-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|quiz-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|1|scores|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|1|simon-a-vous|coupés=0|chevauchements=0|plus petit=20 px « LE SIMON DU PROF · TOUR 1 »|
+TOUR|1|simon-pret|coupés=0|chevauchements=0|plus petit=19 px « joueur n° 1 »|
+TOUR|1|simon-regardez|coupés=0|chevauchements=0|plus petit=19 px « encore en jeu »|
+TOUR|1|statues-danse|coupés=0|chevauchements=1|plus petit=18 px « BOUGEZ TANT QUE LA MUSIQUE JOUE »|« S » et « E » se chevauchent
+TOUR|1|statues-gagnante|coupés=0|chevauchements=0|plus petit=24 px « Statues musicales »|
+TOUR|1|statues-statue|coupés=0|chevauchements=0|plus petit=24 px « Statues musicales »|
+TOUR|1|vrai-faux-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|vrai-faux-revelation|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|1|zoom-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|zoom-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|BILAN|coupés=9|bloqués=1
+TOUR|2|blind-test-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|blind-test-ecoute|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|blind-test-presentation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|blind-test-revelation|coupés=0|chevauchements=0|plus petit=18 px « 100 points »|
+TOUR|2|ca-va-exploser-bombe|coupés=0|chevauchements=0|plus petit=17 px « Les Licornes Roses »|
+TOUR|2|chante-le-mot-buzz|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|2|chante-le-mot-question|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|2|chante-le-mot-revelation|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|2|coffres-choix|coupés=0|chevauchements=0|plus petit=25 px « Les Licornes Roses »|
+TOUR|2|coffres-ouverture|coupés=6|chevauchements=3|plus petit=21 px « Oups ! »|« MALUS ! » rogné ou à cheval sur le bord ; « Les Licornes Roses » rogné ou à cheval sur le bord ; « Oups ! » rogné ou à cheval sur le bord ; « Score » rogné ou à cheval sur le bord ; « 430 » rogné ou à cheval sur le bord ; « −50 POINTS » rogné ou à cheval sur le bord ; « MALUS ! » et « Oups ! » se chevauchent ; « MALUS ! » et « −50 POINTS » se chevauchent ; « Les Licornes Roses » et « −50 POINTS » se chevauchent
+TOUR|2|coffres|BLOQUÉ|« Le classement » n'apparaît pas à l'écran
+TOUR|2|duel-face-a-face|coupés=0|chevauchements=0|plus petit=17 px « JOUEUR N° 1 »|
+TOUR|2|duel-pret|coupés=0|chevauchements=0|plus petit=19 px « 🤠 LE DUEL DES ROBOTS 1 / 1 »|
+TOUR|2|gonfleur-course|coupés=0|chevauchements=0|plus petit=18 px « Les Licornes Roses »|
+TOUR|2|gonfleur-depart|coupés=1|chevauchements=0|plus petit=18 px « Les Licornes Roses »|« GONFLEZ ! » rogné ou à cheval sur le bord
+TOUR|2|image-floue-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|image-floue-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|image-floue-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|juste-chiffre-question|coupés=5|chevauchements=0|plus petit=21 px « Le Juste Chiffre question 1 / 1 »|« 8 » rogné ou à cheval sur le bord ; « 0 » rogné ou à cheval sur le bord ; « 9 » rogné ou à cheval sur le bord ; « 1 » rogné ou à cheval sur le bord ; « 6 » rogné ou à cheval sur le bord
+TOUR|2|juste-chiffre-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|mimes-bravo|coupés=1|chevauchements=0|plus petit=21 px « Les Licornes Roses »|« Bravo Les Dragons Dorés ! » rogné ou à cheval sur le bord
+TOUR|2|mimes-changement|coupés=5|chevauchements=0|plus petit=21 px « Les Licornes Roses »|« Au tour de Les Dragons Dorés ! » rogné ou à cheval sur le bord ; « 🔄 » rogné ou à cheval sur le bord ; « ON TOURNE ! » rogné ou à cheval sur le bord ; « 1 » rogné ou à cheval sur le bord ; « trouvé » rogné ou à cheval sur le bord
+TOUR|2|mimes-presentation|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|2|mimes-tour|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|2|pictionary-au-tour-de|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|2|pictionary-choix|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|2|pictionary-dessin|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|2|pictionary-presentation|coupés=0|chevauchements=1|plus petit=21 px « Les Licornes Roses »|« PICTIONARY » et « Un enfant dessine sur la tablette de son équipe, le dessin apparaît ici en direct. Son équipe a 90 secondes pour trouver le mot : 100 points ! » se chevauchent
+TOUR|2|pictionary-trouve|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|2|podium|coupés=2|chevauchements=0|plus petit=13 px « by »|« Bravo à toutes les équipes ! » rogné ou à cheval sur le bord ; « Victoire de Les Dragons Dorés » rogné ou à cheval sur le bord
+TOUR|2|qui-a-disparu-buzz|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|2|qui-a-disparu-chercher|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|2|qui-a-disparu-memoriser|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|2|qui-a-disparu-revelation|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|2|qui-suis-je-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|qui-suis-je-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|qui-suis-je-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|quiz-illustre-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|quiz-illustre-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|quiz-musical-paroles|coupés=1|chevauchements=0|plus petit=21 px « Comptine »|« ta » rogné ou à cheval sur le bord
+TOUR|2|quiz-musical-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|quiz-musical-revelation|coupés=7|chevauchements=0|plus petit=21 px « Comptine »|« Au clair de la lune » rogné ou à cheval sur le bord ; « Comptine » rogné ou à cheval sur le bord ; « Bravo Les Dragons Dorés ! » rogné ou à cheval sur le bord ; « TOUT LE MONDE CHANTE ! » rogné ou à cheval sur le bord ; « Au » rogné ou à cheval sur le bord ; « Les Dragons Dorés » rogné ou à cheval sur le bord ; « +117 · B » rogné ou à cheval sur le bord
+TOUR|2|quiz-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|quiz-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|2|scores|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|2|simon-a-vous|coupés=0|chevauchements=0|plus petit=20 px « LE SIMON DU PROF · TOUR 1 »|
+TOUR|2|simon-pret|coupés=0|chevauchements=0|plus petit=19 px « joueur n° 1 »|
+TOUR|2|simon-regardez|coupés=0|chevauchements=0|plus petit=19 px « encore en jeu »|
+TOUR|2|statues-danse|coupés=0|chevauchements=1|plus petit=18 px « BOUGEZ TANT QUE LA MUSIQUE JOUE »|« S » et « E » se chevauchent
+TOUR|2|statues-gagnante|coupés=2|chevauchements=0|plus petit=24 px « Statues musicales »|« Les Licornes Roses » rogné ou à cheval sur le bord ; « +150 » rogné ou à cheval sur le bord
+TOUR|2|statues-statue|coupés=0|chevauchements=0|plus petit=24 px « Statues musicales »|
+TOUR|2|vrai-faux-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|vrai-faux-revelation|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|2|zoom-question|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|zoom-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
