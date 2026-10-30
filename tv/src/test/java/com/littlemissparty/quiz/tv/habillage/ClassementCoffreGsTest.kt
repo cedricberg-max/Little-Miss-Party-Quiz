@@ -65,4 +65,13 @@ class ClassementCoffreGsTest {
         val classement = File("src/main/java/com/littlemissparty/quiz/tv/habillage/ClassementCoffreGs.kt").readText()
         assertFalse(classement.contains("painterResource") || classement.contains("R.raw.") || classement.contains("R.drawable."))
     }
+
+    @Test
+    fun `le rond du rang respire dans sa carte, de 1 a 8 equipes`() {
+        // cedric, 30/10 : le rond touchait le cadre ; au moins 2 dp de bordure plus 3,5 dp d'air, en haut et en bas.
+        for (n in 1..8) {
+            val g = geometrieClassementA(n)
+            assertTrue("$n équipes : marge ${margeRangA(g)}", margeRangA(g) >= 5.5f * g.f)
+        }
+    }
 }
