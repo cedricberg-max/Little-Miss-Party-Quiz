@@ -49,6 +49,7 @@ import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.RevelationPictionary
 import com.littlemissparty.quiz.tv.habillage.ScenePictionary
 import com.littlemissparty.quiz.tv.habillage.Tampon
+import com.littlemissparty.quiz.tv.habillage.TientEnHauteur
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.bandeTitre
 import com.littlemissparty.quiz.tv.habillage.TraitDessin
@@ -146,7 +147,8 @@ fun PictionaryScreen(state: UiState.Playing, actions: TvActions) {
                                 ?: emoji?.let { e -> @Composable { Text(e, fontSize = 110.sp, lineHeight = 116.sp) } },
                         )
                     }
-                    else -> Presentation(state, m)
+                    // Avec 8 équipes, la règle rapetisse un peu au lieu de passer sous leurs cartes (cedric, 30/10).
+                    else -> TientEnHauteur(Modifier.fillMaxSize()) { Presentation(state, m) }
                 }
             }
             Spacer(Modifier.height(10.dp))

@@ -47,7 +47,11 @@ class TextesEntiersTest(private val nombre: Int) : TestTv() {
             "id" to "f1", "text" to "Qu'est-ce que c'est ?", "choices" to listOf("Un téléphérique"), "correct" to 0,
             "duration" to 60, "kind" to "flou", "double" to false, "round" to "Image floue", "imageId" to photo,
         )
-        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(quiSuis("p1"), quiSuis("p2"), flou) + avant))
+        val picto = mapOf(
+            "id" to "d1", "text" to "Pictionary", "kind" to "pictionary", "duration" to 90, "round" to "Pictionary",
+            "points" to 100, "cards" to listOf(mapOf("word" to "Soleil", "image" to "☀️"), mapOf("word" to "Maison", "image" to "🏠")),
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(quiSuis("p1"), quiSuis("p2"), flou, picto) + avant))
         val n = "$nombre-equipes"
 
         // Qui suis-je ? : un buzz, la bonne réponse, la révélation.
@@ -91,6 +95,14 @@ class TextesEntiersTest(private val nombre: Int) : TestTv() {
         assertEquals("applied", regie.commande(code, "buzz_ok"))
         ecran.voit("C'était :")
         controler("image-floue-revelation-$n", attente = Ecran.APRES_REVELATION)
+
+        // Pictionary : la règle en entier, au-dessus des cartes des équipes (cedric, 30/10, 8 équipes).
+        attendreQue("Pictionary ouvert", 40_000) {
+            if (equipes[0].etat(code).child("qid").value == "d1") true else { regie.commande(code, "next"); null }
+        }
+        ecran.voit("secondes pour trouver le mot")
+        controler("pictionary-regle-$n", attente = 1_500)
+        ecran.auDessusDe("secondes pour trouver le mot", NOMS.take(nombre))
     }
 
     /** La régie passe à la question [qid] (présentation du jeu comprise) et attend qu'elle soit ouverte. */

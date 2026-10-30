@@ -258,6 +258,23 @@ class Ecran(private val nomTest: () -> String) {
         }
     }
 
+    /**
+     * Le texte [texte] passe entièrement au-dessus de chacun des [dessous] (cartes des équipes…) : aucun cadre ne le
+     * recouvre (cedric, 30/10 : la règle du Pictionary à moitié mangée par les cartes de 8 équipes).
+     */
+    fun auDessusDe(texte: String, dessous: List<String>) {
+        val tous = elements().filter { it.visible }
+        val haut = tous.filter { texte in it.texte }
+        val bas = tous.filter { e -> dessous.any { it == e.texte } }
+        if (haut.isEmpty() || bas.isEmpty()) throw AssertionError("« $texte » ou ${dessous.joinToString()} absent de l'écran")
+        val fond = haut.maxOf { it.bas }
+        val plafond = bas.minOf { it.haut }
+        if (fond > plafond) {
+            capture("texte-recouvert")
+            throw AssertionError("« $texte » descend sous le haut des cartes (${fond.toInt()} px > ${plafond.toInt()} px)")
+        }
+    }
+
     private fun defautsDeMots(n: SemanticsNode, texte: String, defauts: MutableList<String>) {
         val textes = n.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }
         if (textes.any { texte in it }) {
