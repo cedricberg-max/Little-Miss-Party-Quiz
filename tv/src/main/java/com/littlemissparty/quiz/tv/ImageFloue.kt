@@ -163,6 +163,16 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     }
 }
 
+/**
+ * Sous « X a buzzé ! » : ce qui se passe maintenant, en mots simples (cedric, 30/10 : « Votre réponse, à voix haute ! »
+ * ne se comprenait pas). L'équipe parle, l'animatrice écoute puis décide.
+ */
+internal fun consigneBuzz(chante: Boolean, blind: Boolean) = when {
+    chante -> "À vous de chanter !"
+    blind -> "On écoute le titre…"
+    else -> "On écoute sa réponse…"
+}
+
 /** Panneau des jeux au buzzer (image floue, chante le mot, qui suis-je) : consigne, équipe qui a buzzé, équipes déjà passées, puis la réponse. */
 @Composable
 fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
@@ -220,13 +230,17 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                     )
                 }
                 buzzer != null -> {
-                    Text(
-                        "${buzzer.name} a buzzé !",
-                        color = buzzer.color.toColor(), fontSize = 46.sp, lineHeight = 52.sp, fontWeight = FontWeight.Black,
-                        textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.apparition(0, buzzer.uid),
+                    // De 1 à 8 équipes, tout tient dans le panneau : le nom sur une ligne tant qu'il reste grand, la
+                    // consigne entière dessous (test du 30/10 : « Votre réponse, à voix… » rogné sous les équipes).
+                    TexteAjuste(
+                        "${buzzer.name} a buzzé !", color = buzzer.color.toColor(), max = 46.sp, min = 20.sp, lignes = 2, uneLigneJusqua = 30.sp,
+                        modifier = Modifier.fillMaxWidth().weight(1f, fill = false).apparition(0, buzzer.uid),
                     )
                     Spacer(Modifier.height(14.dp))
-                    Text(if (q.isChante) "À vous de chanter !" else if (q.isBlind) "Le titre, à voix haute !" else "Votre réponse, à voix haute !", color = Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    TexteAjuste(
+                        consigneBuzz(q.isChante, q.isBlind), color = Palette.Ink, max = 30.sp, min = 16.sp, lignes = 2, uneLigneJusqua = 22.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(),
+                    )
                 }
                 state.phase == Phase.CLOSED -> Text(
                     if (q.isFlou) "Temps écoulé ! Voyons ce qui se cachait…" else if (q.isBlind) "Temps écoulé ! Écoutons la réponse…" else "Temps écoulé !",

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -54,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.filigraneGs
 import com.littlemissparty.quiz.tv.habillage.MotsNeon
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.ConfettisLegers
@@ -148,7 +150,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     q.text,
                     color = Palette.Ink, fontSize = selonLook(34.sp, 38.sp), fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     lineHeight = selonLook(40.sp, 42.sp), maxLines = 3, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().apparition(0, state.index),
+                    // Game Show : filigrane A derrière la question posée sur le décor (cedric, 30/10 : « Qu'est-ce que
+                    // c'est ? » se confondait avec le décor).
+                    modifier = Modifier.fillMaxWidth().apparition(0, state.index).wrapContentWidth().filigraneGs(),
                 )
                 Spacer(Modifier.height(if (panneau != null) 14.dp else 20.dp))
             }

@@ -241,6 +241,23 @@ class Ecran(private val nomTest: () -> String) {
         }
     }
 
+    /**
+     * Règle 10 sur tout l'écran : chaque texte à l'écran est entier (ni rogné par son cadre ni à cheval sur le bord), aucun
+     * mot n'est coupé en fin de ligne et aucune ligne ne finit en « … ». Les textes entièrement hors de l'écran (une
+     * animation qui n'est pas encore entrée) ne comptent pas.
+     */
+    fun aucunTexteCoupe() {
+        val defauts = elements().filter { it.visible && !it.entier && it.texte.isNotBlank() }.map { "« ${it.texte} » rogné ou à cheval sur le bord" }.toMutableList()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            fenetres().flatMap(::racinesCompose).forEach { racine -> defautsDeMots(racine.semanticsOwner.rootSemanticsNode, "", defauts) }
+        }
+        if (defauts.isNotEmpty()) {
+            capture("texte-coupe")
+            runCatching { Log.e(TAG, "Textes coupés :\n${defauts.joinToString("\n")}\nplan de l'écran :\n${plan()}") }
+            throw AssertionError("Textes mal affichés : ${defauts.distinct().joinToString(" ; ")}")
+        }
+    }
+
     private fun defautsDeMots(n: SemanticsNode, texte: String, defauts: MutableList<String>) {
         val textes = n.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }
         if (textes.any { texte in it }) {
