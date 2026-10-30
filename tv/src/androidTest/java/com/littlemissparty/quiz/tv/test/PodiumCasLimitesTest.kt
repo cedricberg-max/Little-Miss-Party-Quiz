@@ -1,6 +1,8 @@
 package com.littlemissparty.quiz.tv.test
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
 import com.littlemissparty.quiz.tv.habillage.Tempo
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -120,6 +122,12 @@ class PodiumCasLimitesTest : TestTv() {
             assertEquals("applied", regie.verdict(code, id))
             attendreQue("points de ${equipe.uid}") { points(licornes, code, equipe.uid).takeIf { it == points.toLong() } }
         }
+        // Film de tout le podium (sans son : l'émulateur n'en a pas), pour un aperçu avec la musique ajoutée après.
+        val film = Thread {
+            UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).executeShellCommand(
+                "screenrecord --size 1280x720 --bit-rate 1500000 --time-limit 48 ${Ecran.DOSSIER_CAPTURES}/podium-apercu.mp4",
+            )
+        }.apply { start() }
         assertEquals("applied", regie.commande(code, "end"))
         ecran.voit("LE GRAND GAGNANT EST", 45_000)
         ecran.voit("Dragons")
@@ -129,6 +137,7 @@ class PodiumCasLimitesTest : TestTv() {
         ecran.capture("fete-arrivee", 1_500)
         ecran.capture("fete-boucle", 5_000)
         ecran.voit("Licornes")
+        film.join(60_000)
     }
 
     /**

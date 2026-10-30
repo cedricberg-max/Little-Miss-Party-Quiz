@@ -76,6 +76,14 @@ jobs:
             done
             [ -n "$trouve" ] || echo "=== ABSENTE $nom"
           done
+      - name: Afficher les films (aperçus)
+        if: contains(inputs.noms, 'apercu')
+        run: |
+          for mp4 in $(find archive -name '*apercu*.mp4' | sort | head -2); do
+            echo "=== VIDEO $(basename "$mp4") $(wc -c < "$mp4")"
+            base64 -w 4000 "$mp4" | sed 's/^/V64 /'
+            echo "=== FIN VIDEO"
+          done
 
   # Audit des images des packs (test Mi Box du 26/10 : questions Marvel du Quiz illustré sans images). Lecture seule ;
   # le journal étant public, rien que des titres de packs, des comptes et des identifiants d'images.

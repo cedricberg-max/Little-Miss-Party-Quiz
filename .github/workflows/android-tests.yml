@@ -31,7 +31,8 @@ on:
 
 # Un nouvel envoi sur la même branche annule l'essai précédent (minutes GitHub économisées).
 concurrency:
-  group: android-tests-${{ github.ref }}
+  # Un passage limité à quelques classes (captures, aperçus) n'annule pas un passage complet en cours.
+  group: android-tests-${{ github.ref }}-${{ inputs.classes || 'toutes' }}
   cancel-in-progress: true
 
 jobs:
