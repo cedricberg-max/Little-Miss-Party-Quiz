@@ -18,7 +18,7 @@ permissions:
 jobs:
   fantomes:
     name: Publier la page des équipes fantômes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

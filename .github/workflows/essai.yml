@@ -20,7 +20,7 @@ permissions:
 jobs:
   essai:
     name: Publier la Régie PC d'essai
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

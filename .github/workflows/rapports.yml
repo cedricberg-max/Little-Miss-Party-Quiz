@@ -30,7 +30,7 @@ permissions:
 jobs:
   captures:
     if: inputs.captures != ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -81,7 +81,7 @@ jobs:
   # le journal étant public, rien que des titres de packs, des comptes et des identifiants d'images.
   audit:
     if: inputs.audit == 'packs'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -122,7 +122,7 @@ jobs:
 
   bombe:
     if: inputs.audit == 'bombe'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -138,7 +138,7 @@ jobs:
 
   partie:
     if: inputs.audit == 'partie'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -154,7 +154,7 @@ jobs:
 
   lire:
     if: inputs.captures == '' && inputs.audit == ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       NOMBRE: ${{ inputs.nombre }}
