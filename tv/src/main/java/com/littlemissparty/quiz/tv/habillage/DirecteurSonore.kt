@@ -777,7 +777,7 @@ enum class Lit(
     ZOOM_INTRO(null, "gs_zoom_intro"),
     /**
      * Game Show, Qui a disparu ? : la boucle sous sa vidéo d'intro (cedric, 29/10) : Mission Impossible, un début joué
-     * une fois (3,30 s, son premier échantillon sur le début de la musique), puis 13,3 s qui tournent à partir de
+     * une fois (3,30 s, son premier échantillon sur le début de la musique), puis 13,2 s qui tournent (boucle D, 0,10 s plus courte, 30/10) à partir de
      * l'échantillon 145 547 ([repriseImage]), −12 LUFS.
      */
     DISPARU_INTRO(null, "gs_disparu_intro", repriseMs = DISPARU_INTRO_REPRISE_MS, repriseImage = DISPARU_INTRO_REPRISE_IMAGE),

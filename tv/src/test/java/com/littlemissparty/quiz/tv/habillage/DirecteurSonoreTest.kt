@@ -1289,7 +1289,7 @@ class DirecteurSonoreTest {
         val wav = java.io.File("src/main/res/raw/gs_disparu_intro.wav").readBytes()
         val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
         assertEquals(44_100, e.frequence)
-        assertEquals(733_247L, e.images.toLong())
+        assertEquals(728_837L, e.images.toLong())
         assertEquals(145_547L, repriseEnImages(Lit.DISPARU_INTRO.repriseMs, Lit.DISPARU_INTRO.repriseImage, 44_100))
         // La reprise en millisecondes (lecture de secours) reste à moins d'une milliseconde.
         assertEquals(145_547.0, Lit.DISPARU_INTRO.repriseMs * 44.1, 44.1)
