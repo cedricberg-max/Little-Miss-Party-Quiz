@@ -79,7 +79,7 @@ export const reglagesSimon = (round) => ({
   joueurs: dansLaListe(round?.joueurs, DUEL_JOUEURS, DUEL_JOUEURS_DEFAUT),
 });
 /**
- * « ⏱️ Le Chrono caché » (cedric, 30/10) : le chrono de la TV part, Buzzy le cache sous un drap, chaque équipe buzze
+ * « ⏱️ Le Chrono de Buzzy » (cedric, 30/10) : le chrono de la TV part, Buzzy le cache sous un drap, chaque équipe buzze
  * quand elle pense avoir atteint la cible. Réglages de la prestation : la cible (secondes, Sarah peut la changer avant
  * chaque tour sur son téléphone) et le nombre de tours.
  */
@@ -87,7 +87,7 @@ export const CHRONO_CIBLES = [10, 15, 20, 25, 30, 40, 45, 60];
 export const CHRONO_CIBLE_DEFAUT = 30;
 export const CHRONO_TOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 export const CHRONO_TOURS_DEFAUT = 3;
-/** Réglages d'une manche du Chrono caché, ramenés dans leurs limites. */
+/** Réglages d'une manche du Chrono de Buzzy, ramenés dans leurs limites. */
 export const reglagesChrono = (round) => ({
   cible: dansLaListe(round?.cible, CHRONO_CIBLES, CHRONO_CIBLE_DEFAUT),
   tours: dansLaListe(round?.tours, CHRONO_TOURS, CHRONO_TOURS_DEFAUT),
@@ -104,7 +104,7 @@ export const roundType = (type) => (type === "portes" ? "coffres" : type);
 // Super Finale : au Quiz, au Quiz illustré et au Vrai ou Faux express (cedric, 23/10 : « à l'image du quiz »).
 export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre" || type === "express";
 
-export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots", simon: "Le Simon du Prof", chrono: "Le Chrono caché" };
+export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots", simon: "Le Simon du Prof", chrono: "Le Chrono de Buzzy" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -1739,7 +1739,7 @@ export const DUREE_ESTIMEE = {
   apresDuel: 20,
   // Simon du Prof : environ 3 minutes par tour (les suites qui s'allongent, les vérifications, le gagnant).
   simonParTour: 180,
-  // Chrono caché : la cible, plus environ 1 minute 30 par tour (consignes, décompte, révélation).
+  // Chrono de Buzzy : la cible, plus environ 1 minute 30 par tour (consignes, décompte, révélation).
   chronoParTour: 90,
   presentation: 60, accueil: 180, podium: 120, pauses: 0.1,
 };

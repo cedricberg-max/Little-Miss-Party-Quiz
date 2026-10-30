@@ -4,7 +4,7 @@ import kotlin.math.abs
 import kotlin.random.Random
 
 /*
- * ⏱️ Le Chrono caché (cedric, 30 octobre) : à la TV, un grand chrono part de 0. À un moment tiré au hasard (entre 6 et
+ * ⏱️ Le Chrono de Buzzy (cedric, 30 octobre) : à la TV, un grand chrono part de 0. À un moment tiré au hasard (entre 6 et
  * 12 s environ), Buzzy arrive avec un grand drap et le jette dessus : plus aucun chiffre n'est visible. Les équipes
  * continuent de compter dans leur tête et buzzent UNE fois, quand elles pensent avoir atteint la cible (30 s par
  * exemple). Quand toutes ont buzzé, la révélation : une règle du temps, la cible, et la pastille de chaque équipe là
@@ -121,5 +121,5 @@ fun momentDuDrap(cible: Int, random: Random = Random.Default): Long {
     return if (max <= min) min else random.nextLong(min, max + 1)
 }
 
-/** Chrono caché : tours gagnés par chaque équipe dans le jeu en cours. */
+/** Chrono de Buzzy : tours gagnés par chaque équipe dans le jeu en cours. */
 fun Game.chronoGagnes(): Map<String, Int> = state.chrono?.takeIf { question?.isChrono == true }?.gagnes.orEmpty()

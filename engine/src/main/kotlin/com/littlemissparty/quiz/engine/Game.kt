@@ -125,7 +125,7 @@ data class GameState(
     val duel: DuelRound? = null,
     /** Le Simon du Prof : le tour en cours et sa suite (null hors de ce jeu, ou pendant sa présentation). */
     val simon: SimonRound? = null,
-    /** Le Chrono caché : le tour prêt, en cours ou jugé (null hors de ce jeu, ou pendant sa présentation). */
+    /** Le Chrono de Buzzy : le tour prêt, en cours ou jugé (null hors de ce jeu, ou pendant sa présentation). */
     val chrono: ChronoRound? = null,
     /**
      * Heure du serveur de la fin de partie ([GameEnded]), seulement tant que la partie est terminée : une partie
@@ -298,7 +298,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         val duel = question?.isDuel == true && !state.intro && state.duel?.enCours == true
         // Simon du Prof : une suite en cours s'arrête (les tablettes ne pourraient plus envoyer leur réponse).
         val simon = question?.isSimon == true && !state.intro && state.simon?.enCours == true
-        // Chrono caché : un tour en cours s'arrête (les tablettes ne pourraient plus buzzer).
+        // Chrono de Buzzy : un tour en cours s'arrête (les tablettes ne pourraient plus buzzer).
         val chrono = question?.isChrono == true && !state.intro && state.chrono?.enCours == true
         if (alreadyPaused || (remainingMs(now) == 0L && !statues && !duel && !simon && !chrono)) return null
         return pause(now, PAUSE_NETWORK)
@@ -407,7 +407,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 duel = s.duel?.annule(),
                 // Simon du Prof : la suite en cours s'arrête, sans élimination ; Sarah la relancera.
                 simon = s.simon?.annule(),
-                // Chrono caché : le tour en cours s'arrête, sans points ; Sarah le relancera.
+                // Chrono de Buzzy : le tour en cours s'arrête, sans points ; Sarah le relancera.
                 chrono = s.chrono?.annule(),
                 segments = if (s.phase == Phase.QUESTION && s.segments.lastOrNull()?.end == null && s.segments.isNotEmpty()) {
                     // Un chrono encore dans son décompte de reprise n'a pas commencé : rien n'est décompté.
@@ -954,7 +954,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null,
             awards = s.awards - q.id,
         )
-        // Chrono caché : pas de chrono de question ; le premier tour est prêt dès le lancement du jeu, avec la cible réglée.
+        // Chrono de Buzzy : pas de chrono de question ; le premier tour est prêt dès le lancement du jeu, avec la cible réglée.
         else if (q.isChrono) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null,
             awards = s.awards - q.id, chrono = ChronoRound(tour = 1, cible = q.chronoCible),
@@ -1057,7 +1057,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             question?.isDuel == true -> if (!duelLibre(state)) null else scoresOuFin(now)
             // Simon du Prof : les scores entre deux suites, jamais pendant une suite.
             question?.isSimon == true -> if (!simonLibre(state)) null else scoresOuFin(now)
-            // Chrono caché : les scores entre deux tours, jamais pendant un tour.
+            // Chrono de Buzzy : les scores entre deux tours, jamais pendant un tour.
             question?.isChrono == true -> if (!chronoLibre(state)) null else scoresOuFin(now)
             state.mime == null -> close(now)
             state.mimeTurn -> mimeStop(now)
@@ -1520,17 +1520,17 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         )
     }
 
-    /** Chrono caché : le jeu est lancé, le tour [tour] de la question [qid] est celui en cours, rien ne fige la partie. */
+    /** Chrono de Buzzy : le jeu est lancé, le tour [tour] de la question [qid] est celui en cours, rien ne fige la partie. */
     private fun chronoOuvert(s: GameState, qid: String, tour: Int): Boolean {
         val q = quiz.questions.getOrNull(s.index)
         return s.phase == Phase.QUESTION && !s.intro && !s.paused && q != null && q.isChrono && q.id == qid && s.chrono?.tour == tour
     }
 
-    /** Chrono caché : pas de tour en cours (prêt ou jugé) : on peut changer de jeu. */
+    /** Chrono de Buzzy : pas de tour en cours (prêt ou jugé) : on peut changer de jeu. */
     private fun chronoLibre(s: GameState): Boolean =
         s.phase == Phase.QUESTION && !s.intro && quiz.questions.getOrNull(s.index)?.isChrono == true && s.chrono?.enCours != true
 
-    /** Chrono caché : [c] avec son bilan [result] (null : on attend encore), les points des gagnantes. */
+    /** Chrono de Buzzy : [c] avec son bilan [result] (null : on attend encore), les points des gagnantes. */
     private fun chronoJuge(s: GameState, c: ChronoRound, result: ChronoResult?): GameState {
         if (result == null) return s.copy(chrono = c)
         val q = quiz.questions[s.index]
@@ -1615,55 +1615,55 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return state.qid?.let { emit(SimonStopped(nextSeq, now, it, r.tour, r.suite)) }
     }
 
-    /** Chrono caché : tous les tours sont joués (le dernier est jugé). */
+    /** Chrono de Buzzy : tous les tours sont joués (le dernier est jugé). */
     val chronoFini: Boolean get() {
         val c = state.chrono ?: return false
         return question?.isChrono == true && c.result != null && c.tour >= (question?.chronoTours ?: 0)
     }
 
-    /** Chrono caché : « ▶ Tour suivant », le tour suivant est prêt avec la même cible (ou [cible]). */
+    /** Chrono de Buzzy : « ▶ Tour suivant », le tour suivant est prêt avec la même cible (ou [cible]). */
     fun readyChrono(now: Long, cible: Int? = null): GameEvent? {
         val q = question?.takeIf { it.isChrono } ?: return null
         val c = state.chrono?.takeIf { it.result != null } ?: return null
         return emit(ChronoReady(nextSeq, now, q.id, c.tour + 1, cible ?: c.cible))
     }
 
-    /** Chrono caché : la cible du tour prêt passe à [cible] secondes. */
+    /** Chrono de Buzzy : la cible du tour prêt passe à [cible] secondes. */
     fun chronoCible(cible: Int, now: Long): GameEvent? {
         val c = state.chrono?.takeIf { it.step == "ready" } ?: return null
         return state.qid?.let { emit(ChronoTargetSet(nextSeq, now, it, c.tour, cible)) }
     }
 
-    /** Chrono caché : « ▶ Lancer le chrono » entre les équipes [teams] ; la box tire le moment du drap. */
+    /** Chrono de Buzzy : « ▶ Lancer le chrono » entre les équipes [teams] ; la box tire le moment du drap. */
     fun startChrono(teams: Collection<String>, now: Long, random: Random = Random.Default): GameEvent? {
         val c = state.chrono?.takeIf { it.step == "ready" } ?: return null
         if (teams.isEmpty()) return null
         return state.qid?.let { emit(ChronoStarted(nextSeq, now, it, c.tour, now + CHRONO_DECOMPTE_MS, momentDuDrap(c.cible, random), teams.distinct())) }
     }
 
-    /** Chrono caché : la tablette de [team] a buzzé ; [t] = heure de l'appui (heure du serveur estimée par la tablette). */
+    /** Chrono de Buzzy : la tablette de [team] a buzzé ; [t] = heure de l'appui (heure du serveur estimée par la tablette). */
     fun chronoBuzz(team: String, t: Long, now: Long): GameEvent? {
         val c = state.chrono ?: return null
         return state.qid?.let { emit(ChronoBuzzed(nextSeq, now, it, c.tour, team, t)) }
     }
 
-    /** Chrono caché : le 0 est apparu à l'écran de la TV à [shownAt] (heure du serveur), une fois par tour. */
+    /** Chrono de Buzzy : le 0 est apparu à l'écran de la TV à [shownAt] (heure du serveur), une fois par tour. */
     fun chronoShown(shownAt: Long, now: Long): GameEvent? {
         val c = state.chrono?.takeIf { it.enCours && it.shownAt == null } ?: return null
         return state.qid?.let { emit(ChronoShown(nextSeq, now, it, c.tour, shownAt)) }
     }
 
-    /** Chrono caché : heure où la box juge le tour en cours sans attendre d'autre buzz, ou null. */
+    /** Chrono de Buzzy : heure où la box juge le tour en cours sans attendre d'autre buzz, ou null. */
     fun chronoJugeAt(): Long? = state.chrono?.takeIf { question?.isChrono == true && state.phase == Phase.QUESTION && !state.paused && !state.intro }?.jugeAt
 
-    /** Chrono caché : juge le tour en cours si plus rien n'est à attendre ([force] : « Révéler » de Sarah, cible passée). */
+    /** Chrono de Buzzy : juge le tour en cours si plus rien n'est à attendre ([force] : « Révéler » de Sarah, cible passée). */
     fun settleChrono(now: Long, force: Boolean = false): GameEvent? {
         val c = state.chrono?.takeIf { it.enCours } ?: return null
         if (!force && (chronoJugeAt() ?: return null) > now + ARM_TOLERANCE_MS) return null
         return state.qid?.let { emit(ChronoSettled(nextSeq, now, it, c.tour, force)) }
     }
 
-    /** Chrono caché : « ✋ Arrêter », le tour s'arrête sans points et reste prêt. */
+    /** Chrono de Buzzy : « ✋ Arrêter », le tour s'arrête sans points et reste prêt. */
     fun stopChrono(now: Long): GameEvent? {
         val c = state.chrono ?: return null
         return state.qid?.let { emit(ChronoStopped(nextSeq, now, it, c.tour)) }

@@ -354,7 +354,7 @@ class Fantome {
   }
 
   /**
-   * ⏱️ Chrono caché : le fantôme compte dans sa tête comme un enfant, à environ ±2 s de la cible (une fois sur dix à
+   * ⏱️ Chrono de Buzzy : le fantôme compte dans sa tête comme un enfant, à environ ±2 s de la cible (une fois sur dix à
    * ±5 s, et une fois sur vingt il oublie de buzzer). L'heure du 0 est publiée : il buzze à 0 + cible + son erreur.
    */
   chrono(st, actives) {

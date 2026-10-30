@@ -8,10 +8,10 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** ⏱️ Le Chrono caché : le chrono disparaît sous le drap, chaque équipe buzze à la cible, la plus proche gagne. */
+/** ⏱️ Le Chrono de Buzzy : le chrono disparaît sous le drap, chaque équipe buzze à la cible, la plus proche gagne. */
 class ChronoCacheTest {
 
-    private val chrono = Question("c1", "Le Chrono caché", emptyList(), -1, kind = QuestionKind.CHRONO, roundTitle = "Le Chrono caché", chronoTours = 2)
+    private val chrono = Question("c1", "Le Chrono de Buzzy", emptyList(), -1, kind = QuestionKind.CHRONO, roundTitle = "Le Chrono de Buzzy", chronoTours = 2)
     private val quiz = Question("q1", "Capitale ?", listOf("Paris", "Rome"), 0, durationSec = 20, roundTitle = "Quiz")
     private val t0 = 1_000_000L
     private val equipes = setOf("orange", "vert", "rose")

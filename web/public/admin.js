@@ -3550,7 +3550,7 @@ function reglagesDuSimon(r) {
 }
 
 /**
- * « ⏱️ Le Chrono caché » dans une prestation (cedric, 30/10) : rien à piocher ; la cible et le nombre de tours. Sarah
+ * « ⏱️ Le Chrono de Buzzy » dans une prestation (cedric, 30/10) : rien à piocher ; la cible et le nombre de tours. Sarah
  * peut changer la cible avant chaque tour sur son téléphone. Pour le rejouer, il suffit de le remettre dans la prestation.
  */
 function reglagesDuChrono(r) {

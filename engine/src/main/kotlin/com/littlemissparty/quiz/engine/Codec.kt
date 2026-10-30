@@ -364,7 +364,7 @@ object Codec {
         )
     }
 
-    /** Chrono caché : clé du buzz des tablettes pour le tour en cours (`chrono/<clé>/<équipe>`), ou null. */
+    /** Chrono de Buzzy : clé du buzz des tablettes pour le tour en cours (`chrono/<clé>/<équipe>`), ou null. */
     fun chronoKey(game: Game): String? {
         val c = game.state.chrono?.takeIf { it.enCours } ?: return null
         if (game.question?.isChrono != true || game.state.paused) return null
@@ -372,7 +372,7 @@ object Codec {
     }
 
     /**
-     * Chrono caché, pour la TV, la régie et les tablettes : le tour, la cible, l'étape, l'heure du 0 et du drap, les
+     * Chrono de Buzzy, pour la TV, la régie et les tablettes : le tour, la cible, l'étape, l'heure du 0 et du drap, les
      * équipes du tour et celles qui ont déjà buzzé (sans leur heure), puis le bilan (écart de chaque équipe, gagnantes).
      */
     fun chronoState(game: Game): Map<String, Any?> {

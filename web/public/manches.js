@@ -313,7 +313,7 @@ export function cleanRound(r, playlists = {}) {
   else if (type === "duel") out = { type, ...reglagesDuel(r) };
   // Le Simon du Prof (cedric, 27/10) : tours, secondes pour taper une suite, joueurs par équipe (environ).
   else if (type === "simon") out = { type, ...reglagesSimon(r) };
-  // Le Chrono caché (cedric, 30/10) : la cible (secondes) et le nombre de tours.
+  // Le Chrono de Buzzy (cedric, 30/10) : la cible (secondes) et le nombre de tours.
   else if (type === "chrono") out = { type, ...reglagesChrono(r) };
   // Blind test tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : ses chansons dans l'ordre, cases retirées
   // comprises (en attente de leur 🎲), et le nombre demandé.

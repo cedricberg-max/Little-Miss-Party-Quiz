@@ -924,7 +924,7 @@ async function buzzDuel(st, t) {
 }
 
 /**
- * ⏱️ Le Chrono caché (cedric, 30/10) : la tablette ne montre JAMAIS le temps. Après le décompte de la TV, le gros bouton
+ * ⏱️ Le Chrono de Buzzy (cedric, 30/10) : la tablette ne montre JAMAIS le temps. Après le décompte de la TV, le gros bouton
  * s'allume : l'équipe compte dans sa tête et buzze une seule fois, à la cible. Comme au Duel, la tablette envoie l'heure
  * de l'appui (heure du serveur, horloge fine mesurée pendant que le tour est prêt), et la box juge.
  */
@@ -952,7 +952,7 @@ function renderChrono(st) {
   // Le gros bouton s'allume tout seul au 0 du chrono.
   if (avantZero) chronoMinuterie = setTimeout(() => game?.state && render(), Math.max(50, c.goAt - (Date.now() + serverOffset)));
   const cible = `${c.cible ?? 30} secondes`;
-  if (!c.step || c.step === "none") status.textContent = "Le Chrono caché : regardez la TV !";
+  if (!c.step || c.step === "none") status.textContent = "Le Chrono de Buzzy : regardez la TV !";
   else if (c.step === "ready") status.textContent = `Tour ${c.tour ?? 1} : comptez jusqu'à ${cible} ! Regardez la TV…`;
   else if (c.step === "run") status.textContent = !equipes.includes(teamId) ? "Ce tour a commencé sans vous : regardez la TV !"
     : avantZero ? "Prêts ? Le chrono va partir…"

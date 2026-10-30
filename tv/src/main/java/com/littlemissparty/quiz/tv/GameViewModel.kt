@@ -217,9 +217,9 @@ sealed interface UiState {
         /** Le Simon du Prof : joueurs par équipe (le joueur appelé tourne), et le dernier tour est gagné (« Jeu suivant »). */
         val simonJoueurs: Int = 0,
         val simonFini: Boolean = false,
-        /** Le Chrono caché : le tour prêt, en cours ou jugé (heures des buzz comprises), null hors de ce jeu. */
+        /** Le Chrono de Buzzy : le tour prêt, en cours ou jugé (heures des buzz comprises), null hors de ce jeu. */
         val chrono: ChronoRound? = null,
-        /** Le Chrono caché : nombre de tours, le dernier est joué, et les tours gagnés par équipe. */
+        /** Le Chrono de Buzzy : nombre de tours, le dernier est joué, et les tours gagnés par équipe. */
         val chronoTours: Int = 0,
         val chronoFini: Boolean = false,
         val chronoGagnes: Map<String, Int> = emptyMap(),
@@ -966,7 +966,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                         },
                     )
                 }
-                // Chrono caché : OK lance le chrono du tour prêt, puis le tour suivant ; après le dernier, le jeu suivant.
+                // Chrono de Buzzy : OK lance le chrono du tour prêt, puis le tour suivant ; après le dernier, le jeu suivant.
                 else if (g.question?.isChrono == true) {
                     val c = g.state.chrono
                     val ids = teams().map { it.uid }
@@ -1024,7 +1024,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Le Chrono caché : l'image où le chrono part de 0 vient d'être envoyée à l'écran ; la box mesure les buzz depuis
+     * Le Chrono de Buzzy : l'image où le chrono part de 0 vient d'être envoyée à l'écran ; la box mesure les buzz depuis
      * cet instant (heure du serveur, horloge fine), pris tout de suite.
      */
     fun chronoShown() {
@@ -1417,7 +1417,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // pendant chaque suite.
         if (g.needsSimon() && teams().isNotEmpty()) act { it.readySimon(teams().map { t -> t.uid }, serverNow()) }
         watchSimon(Codec.simonKey(g))
-        // Chrono caché : les buzz des équipes pendant chaque tour ; l'horloge fine se mesure pendant que le tour est prêt.
+        // Chrono de Buzzy : les buzz des équipes pendant chaque tour ; l'horloge fine se mesure pendant que le tour est prêt.
         watchChrono(Codec.chronoKey(g))
         s.chrono?.takeIf { q?.isChrono == true && it.step == "ready" }?.let { mesurerHorloge("${s.qid}-chrono-${it.tour}") }
         s.duel?.takeIf { q?.isDuel == true }?.let { d ->
@@ -2401,7 +2401,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Chrono caché : les buzz des tablettes du tour en cours (games/<code>/chrono/<clé>/<équipe> = { t, at }) : [t] = heure
+     * Chrono de Buzzy : les buzz des tablettes du tour en cours (games/<code>/chrono/<clé>/<équipe> = { t, at }) : [t] = heure
      * de l'appui estimée par la tablette, [at] = arrivée sur le serveur. Les règles n'acceptent qu'un buzz par équipe du
      * tour, et une clé par tour : un vieux buzz ne compte jamais.
      */
@@ -2795,7 +2795,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "duel" to true,
             // Le Simon du Prof : réponses des tablettes dans simon/, suite secrète et jugement par la box, simon_go / simon_stop.
             "simon" to true,
-            // Le Chrono caché : buzz des tablettes dans chrono/, 0 affiché et jugement par la box, chrono_go / chrono_cible / chrono_reveal / chrono_stop.
+            // Le Chrono de Buzzy : buzz des tablettes dans chrono/, 0 affiché et jugement par la box, chrono_go / chrono_cible / chrono_reveal / chrono_stop.
             "chrono" to true,
             // Mauvaise prestation : une autre prestation remplace celle-ci tant qu'aucun point n'a été donné (retour au salon).
             "programReset" to true,
@@ -2820,7 +2820,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     // Le Simon du Prof : tours, temps pour répondre et joueurs par équipe, relus après un redémarrage.
                     "tours" to (if (it.isSimon) it.simonTours else if (it.isChrono) it.chronoTours else null), "reponse" to it.simonSec.takeIf { _ -> it.isSimon },
                     "joueurs" to it.joueurs.takeIf { _ -> it.isDuel || it.isSimon },
-                    // Le Chrono caché : la cible réglée dans la Régie PC, relue après un redémarrage.
+                    // Le Chrono de Buzzy : la cible réglée dans la Régie PC, relue après un redémarrage.
                     "cible" to it.chronoCible.takeIf { _ -> it.isChrono },
                 ))
             },

@@ -129,7 +129,7 @@ object QuizJson {
             // Simon du Prof : réglages hors limites ramenés dans les limites.
             simonTours = q.optInt("tours", SIMON_TOURS).coerceIn(1, SIMON_TOURS_MAX),
             simonSec = q.optInt("reponse", SIMON_REPONSE_SEC).coerceIn(SIMON_REPONSE_MIN_SEC, SIMON_REPONSE_MAX_SEC),
-            // Chrono caché : cible et tours hors limites ramenés dans les limites.
+            // Chrono de Buzzy : cible et tours hors limites ramenés dans les limites.
             chronoCible = q.optInt("cible", CHRONO_CIBLE_DEFAUT).coerceIn(CHRONO_CIBLE_MIN, CHRONO_CIBLE_MAX),
             chronoTours = q.optInt("tours", CHRONO_TOURS).coerceIn(1, CHRONO_TOURS_MAX),
         )

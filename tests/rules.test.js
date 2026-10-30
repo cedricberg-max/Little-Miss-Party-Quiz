@@ -1592,7 +1592,7 @@ describe("Le Duel des robots", () => {
   });
 });
 
-describe("Le Chrono caché", () => {
+describe("Le Chrono de Buzzy", () => {
   const tour = (chrono = {}, extra = {}) => seed({
     kind: "chrono", qid: "r9h", choices: null, deadline: null,
     chrono: { tour: 1, cible: 30, step: "run", key: "r9h-1-100", goAt: Date.now() - 5_000, teams: ["bleu", "rose"], ...chrono }, ...extra,

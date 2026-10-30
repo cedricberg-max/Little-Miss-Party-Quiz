@@ -117,7 +117,7 @@ class TvActions(
     val statuesSongEnded: (Int) -> Unit = {},
     /** Le Duel des robots : l'image du PAN vient d'être envoyée à l'écran. */
     val duelPanShown: () -> Unit = {},
-    /** Le Chrono caché : l'image où le chrono part de 0 vient d'être envoyée à l'écran. */
+    /** Le Chrono de Buzzy : l'image où le chrono part de 0 vient d'être envoyée à l'écran. */
     val chronoShown: () -> Unit = {},
     /** « Donner des points » (menu Retour) : équipes choisies, montant (fête sans Internet). */
     val givePoints: (List<String>, Int) -> Unit = { _, _ -> },

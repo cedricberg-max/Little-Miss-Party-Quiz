@@ -69,16 +69,16 @@ sealed interface Command {
     /** Duel des robots : « ✋ Arrêter le duel », le face-à-face s'arrête sans points. */
     data class DuelStop(override val id: String, override val expectSeq: Int) : Command
 
-    /** Chrono caché : « ▶ Lancer le chrono » du tour prêt, ou « ▶ Tour suivant » après un tour jugé. */
+    /** Chrono de Buzzy : « ▶ Lancer le chrono » du tour prêt, ou « ▶ Tour suivant » après un tour jugé. */
     data class ChronoGo(override val id: String, override val expectSeq: Int) : Command
 
-    /** Chrono caché : la cible du tour prêt (secondes), − / + du téléphone. */
+    /** Chrono de Buzzy : la cible du tour prêt (secondes), − / + du téléphone. */
     data class ChronoCible(override val id: String, override val expectSeq: Int, val cible: Int) : Command
 
-    /** Chrono caché : « 👀 Révéler maintenant », sans attendre les équipes qui n'ont pas buzzé (cible passée). */
+    /** Chrono de Buzzy : « 👀 Révéler maintenant », sans attendre les équipes qui n'ont pas buzzé (cible passée). */
     data class ChronoReveal(override val id: String, override val expectSeq: Int) : Command
 
-    /** Chrono caché : « ✋ Arrêter », le tour s'arrête sans points et reste prêt. */
+    /** Chrono de Buzzy : « ✋ Arrêter », le tour s'arrête sans points et reste prêt. */
     data class ChronoStop(override val id: String, override val expectSeq: Int) : Command
 
     /** Simon du Prof : « ▶ » de Sarah, la suite suivante (ou la même après « Bah alors »), ou le tour suivant. */

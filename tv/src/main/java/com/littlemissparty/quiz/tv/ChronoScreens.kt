@@ -51,7 +51,7 @@ import kotlin.math.floor
 import kotlin.math.sin
 
 /*
- * ⏱️ Le Chrono caché sur la TV (cedric, 30/10). L'écran ne décide rien : la box tire le moment du drap, reçoit les buzz
+ * ⏱️ Le Chrono de Buzzy sur la TV (cedric, 30/10). L'écran ne décide rien : la box tire le moment du drap, reçoit les buzz
  * et juge. Ici : le tour prêt (la cible), le décompte 3, 2, 1, le chrono qui défile au centième, puis Buzzy qui jette
  * son drap dessus (derrière, plus aucun chiffre n'est dessiné), et la révélation sur la règle du temps : le drapeau à
  * tête de Buzzy sur la cible, la pastille de chaque équipe là où elle a buzzé, la plus proche en dernier.
@@ -130,7 +130,7 @@ fun ChronoScreen(state: UiState.Playing, actions: TvActions) {
 
     EchelleSansCoupe(SCENE_L, SCENE_H, Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            TexteNeon("LE CHRONO CACHÉ", GS.Cyan, 92f, police = PoliceGsTitre, largeurMax = 1500.dp)
+            TexteNeon("LE CHRONO DE BUZZY", GS.Cyan, 92f, police = PoliceGsTitre, largeurMax = 1500.dp)
             if (c != null) {
                 val tours = if (state.chronoTours > 1) "TOUR ${c.tour} / ${state.chronoTours} · " else ""
                 TexteNeon("${tours}CIBLE : ${c.cible} SECONDES", GS.Jaune, 54f, police = PoliceGsTitre, largeurMax = 1500.dp, force = 0.7f)

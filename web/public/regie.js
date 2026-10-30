@@ -2296,7 +2296,7 @@ $("simon-fin").onclick = async () => {
 };
 
 /**
- * ⏱️ Le Chrono caché (cedric, 30/10) : Sarah règle la cible (− / +) avant chaque tour et lance le chrono ; la box reçoit
+ * ⏱️ Le Chrono de Buzzy (cedric, 30/10) : Sarah règle la cible (− / +) avant chaque tour et lance le chrono ; la box reçoit
  * les buzz et révèle seule quand toutes les équipes ont buzzé (ou 15 s après la cible). La régie ne voit jamais l'heure
  * des buzz avant la révélation, seulement qui a buzzé.
  */
@@ -2329,7 +2329,7 @@ function renderChrono(st) {
   const equipes = chronoListe(c.teams);
   const res = c.result ?? {};
   const gagnantes = chronoListe(res.winners);
-  $("chrono-info").textContent = c.step === "none" ? "Le Chrono caché se prépare…"
+  $("chrono-info").textContent = c.step === "none" ? "Le Chrono de Buzzy se prépare…"
     : c.step === "ready" ? `${tour}Cible : ${cible} secondes. Réglez-la, puis lancez le chrono.`
       : c.step === "run" ? (c.goAt > maintenant ? `${tour}3, 2, 1… le chrono part !` : `${tour}⏱️ Chrono en cours, cible ${c.cible} s : ${buzzees.length} / ${equipes.length} équipes ont buzzé.`)
         : gagnantes.length ? `${tour}🏆 ${gagnantes.map(name).join(", ")} ${gagnantes.length > 1 ? "gagnent" : "gagne"} le tour.`
@@ -2382,7 +2382,7 @@ function renderChrono(st) {
 
 function chronoBoutonPrincipal(e, st) {
   const c = e.c;
-  if (c.step === "none") return "Le Chrono caché se prépare…";
+  if (c.step === "none") return "Le Chrono de Buzzy se prépare…";
   if (c.step === "run") return "Chrono en cours… ⏱️";
   if (c.step === "ready") return `⏱️ Lancer le chrono (${chronoCibleEnvoi ?? c.cible ?? 30} s)`;
   if (c.step === "result") return c.last === true ? finDuelLabel(st) : `▶ Tour suivant (${(c.tour ?? 1) + 1} / ${c.tours ?? 1})`;
@@ -2425,7 +2425,7 @@ $("chrono-fin").onclick = async () => {
   const c = live.state?.chrono ?? {};
   const restent = Math.max(0, (c.tours ?? 1) - (c.tour ?? 1) + (c.step === "result" ? 0 : 1));
   const ok = await demander({
-    title: "Arrêter le Chrono caché ?",
+    title: "Arrêter le Chrono de Buzzy ?",
     text: restent ? `${restent} tour${restent > 1 ? "s" : ""} pas encore joué${restent > 1 ? "s" : ""}.` : "",
     ok: "⏭ Jeu suivant",
   });
@@ -3736,7 +3736,7 @@ const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer aux Coffres mys
 const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à « Ça va exploser ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_SIMON = "La TV doit être mise à jour pour jouer au Simon du Prof : sur la TV, menu Retour → « Rechercher une mise à jour ».";
-const OLD_TV_CHRONO = "La TV doit être mise à jour pour jouer au Chrono caché : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_CHRONO = "La TV doit être mise à jour pour jouer au Chrono de Buzzy : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DUEL = "La TV doit être mise à jour pour jouer au Duel des robots : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
