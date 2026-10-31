@@ -3,7 +3,7 @@ package com.littlemissparty.quiz.engine
 import kotlin.random.Random
 
 /*
- * 🔴 Le Simon du Prof (cedric, 27 octobre) : le robot professeur montre au tableau une suite de boules de couleur qui
+ * 🔴 Le Simon de Buzzy (cedric, 27 octobre) : le robot professeur montre au tableau une suite de boules de couleur qui
  * s'allument une à une (chacune sa note) ; la suite grandit d'un élément à chaque fois. Quand la suite atteint
  * [SIMON_CHIFFRES_DES] éléments, « Attention, les chiffres débarquent ! » : des chiffres s'y mêlent (rouge vert bleu 4
  * jaune…). Après la suite, le chrono part : sur sa tablette, un joueur de chaque équipe (un autre à chaque suite) tape
@@ -28,8 +28,12 @@ const val SIMON_CHIFFRES_DES = 4
  */
 const val SIMON_AVEC_CHIFFRES = false
 
-/** Longueur maximale d'une suite : les équipes encore en jeu à ce stade gagnent toutes le tour. */
-const val SIMON_LONGUEUR_MAX = 20
+/**
+ * Longueur maximale d'une suite : les équipes encore en jeu à ce stade gagnent toutes le tour. 12 depuis le 30/10
+ * (20 avant) : cedric, « il ne faut pas qu'une partie puisse durer aussi longtemps » ; au plus vite dès 6 boules,
+ * une suite de 12 est hors d'atteinte en pratique, et un tour dure au plus 12 suites.
+ */
+const val SIMON_LONGUEUR_MAX = 12
 
 /** Tours par jeu, réglables dans la Régie PC, et par défaut. */
 const val SIMON_TOURS = 3
@@ -47,9 +51,10 @@ const val SIMON_PAS_MS = 1_000L
 /**
  * Le rythme d'un vrai Simon (cedric, 29/10 : « ça manque énormément de rythme ») : la suite se montre de plus en plus
  * vite à chaque boule ajoutée. 1 s par boule pour la toute première, [SIMON_ACCELERE_MS] de moins par boule en plus,
- * jamais moins de [SIMON_PAS_MIN_MS] (suite de 10 et plus).
+ * jamais moins de [SIMON_PAS_MIN_MS] (suite de 6 et plus). cedric, 30/10 : l'accélération (65 ms par boule) n'était
+ * pas assez forte ; vers 4-5 boules ça doit déjà aller nettement plus vite (500 ms à 5 boules au lieu de 740).
  */
-const val SIMON_ACCELERE_MS = 65L
+const val SIMON_ACCELERE_MS = 125L
 const val SIMON_PAS_MIN_MS = 400L
 fun simonPasMs(suite: Int): Long = (SIMON_PAS_MS - SIMON_ACCELERE_MS * (suite - 1).coerceAtLeast(0)).coerceAtLeast(SIMON_PAS_MIN_MS)
 

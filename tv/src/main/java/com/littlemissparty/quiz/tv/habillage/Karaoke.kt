@@ -228,7 +228,7 @@ internal fun SceneParoles(
         Column(Modifier.weight(1f).fillMaxHeight()) {
             Gagnant(cle, gagnant, points, double, gagnants)
             Spacer(Modifier.height(10.dp))
-            if (Look.gs) ToutLeMondeChante(30.sp, Modifier.apparition(900, cle))
+            if (Look.gs) ToutLeMondeChante(36.sp, Modifier.apparition(900, cle))
             else Text(
                 "🎤 TOUS ENSEMBLE, ON CHANTE !", color = Neon.OrClair, fontSize = 26.sp, fontWeight = FontWeight.Black, letterSpacing = 0.06.em,
                 maxLines = 1, softWrap = false, modifier = Modifier.apparition(900, cle),
@@ -259,7 +259,7 @@ internal fun tailleDansPastille(largeurA36: Float, diametre: Int): Float =
 @Composable
 private fun Gagnant(cle: Any?, gagnant: Pair<String, Color>?, points: Int, double: Boolean, gagnants: List<Pair<String, Color>>? = null) {
     if (!gagnants.isNullOrEmpty()) {
-        BravoEquipes(gagnants, 38.sp, Modifier.padding(vertical = 8.dp).apparition(500, cle))
+        BravoEquipes(gagnants, 42.sp, Modifier.padding(vertical = 8.dp).apparition(500, cle))
     } else if (gagnants == null && gagnant != null && points > 0) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.apparition(500, cle)) {
             // Game Show : pastille sombre cernée d'un néon à la couleur de l'équipe, chiffres néon (proposition A, 24/10).
@@ -352,9 +352,9 @@ private fun Paroles(paroles: List<LigneParole>, arrivees: LongArray, ligne: Int,
             }
         }
         val pas = with(androidx.compose.ui.platform.LocalDensity.current) { milieu.toPx() * 0.62f }
-        val precedente = paroles.getOrNull(ligne - 1)
         val courante = paroles.getOrNull(ligne)
-        val suivante = paroles.getOrNull(ligne + 1)
+        val precedente = paroles.getOrNull(ligne - 1)?.takeIf { voisineAffichee(it, courante) }
+        val suivante = paroles.getOrNull(ligne + 1)?.takeIf { voisineAffichee(it, courante) }
         // La ligne d'avant : elle monte et s'éteint.
         if (precedente != null && precedente.mots.isNotEmpty()) {
             Box(
@@ -398,6 +398,13 @@ private fun Paroles(paroles: List<LigneParole>, arrivees: LongArray, ligne: Int,
         }
     }
 }
+
+/**
+ * Une ligne voisine (d'avant ou suivante) s'affiche, sauf si c'est la même que la ligne chantée : un refrain qui répète
+ * sa ligne donnait trois fois le même texte, en pâle au-dessus et en dessous (cedric, 30/10 : paroles « en double »).
+ */
+internal fun voisineAffichee(voisine: LigneParole, courante: LigneParole?): Boolean =
+    courante == null || courante.mots.isEmpty() || voisine.texte.trim().lowercase() != courante.texte.trim().lowercase()
 
 /** Une ligne au repos (d'avant ou suivante) : deux lignes au plus, la taille baisse si elle est longue. */
 @Composable

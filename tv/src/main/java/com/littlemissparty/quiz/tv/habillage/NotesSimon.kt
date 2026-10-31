@@ -12,7 +12,7 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * 🔴 Le Simon du Prof : la note de chaque boule (et de chaque chiffre) quand le robot l'allume au tableau. Mêmes notes
+ * 🔴 Le Simon de Buzzy : la note de chaque boule (et de chaque chiffre) quand le robot l'allume au tableau. Mêmes notes
  * que sur les tablettes (gamme de do, puis plus aigu pour les chiffres). Sons provisoires, fabriqués par l'appli : la
  * musique du jeu sera choisie avec cedric (28/10).
  */

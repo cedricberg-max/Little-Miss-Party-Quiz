@@ -390,7 +390,20 @@ class DirecteurSonore {
             if (i.duel && i.duelEtape != p.duelEtape) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.duelEtape == "standoff") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
-            // Simon du Prof : la musique change net quand une suite démarre (Classique : elle se tait), revient après.
+            // Le Chrono de Buzzy (cedric, 31/10) : Around the World doux au tour prêt ; il se tait net au départ du chrono
+            // (on n'entend plus que son tic-tac) ; sous le drap, la nappe stressante entre doucement (sans rythme : rien
+            // n'aide à compter) ; à la révélation, la boucle B d'Around the World, plus forte, part net.
+            if (i.chronoEtape.isNotEmpty() && i.chronoEtape != p.chronoEtape) {
+                o += Ordre.Musique(
+                    ambiance(i),
+                    fonduMs = when (i.chronoEtape) {
+                        "run", "result" -> Tempo.FONDU_RELAIS
+                        "drap" -> Tempo.CHRONO_NAPPE_ENTREE
+                        else -> Tempo.FONDU_MUSIQUE
+                    },
+                )
+            }
+            // Simon de Buzzy : la musique change net quand une suite démarre (Classique : elle se tait), revient après.
             if (i.simonSuite != p.simonSuite || i.simonChiffres != p.simonChiffres) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.simonSuite) Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
@@ -488,7 +501,13 @@ class DirecteurSonore {
                 "ready" -> Ambiance.DUEL_ANNONCE
                 else -> Ambiance.DUEL_ENTRE
             }
-            // Le Simon du Prof : la boucle douce entre deux suites, celle aux percussions pendant une suite (la note de
+            i.chronoEtape.isNotEmpty() -> when (i.chronoEtape) {
+                "ready" -> Ambiance.CHRONO_PRET
+                "drap" -> Ambiance.CHRONO_NAPPE
+                "result" -> Ambiance.CHRONO_REVELATION
+                else -> Ambiance.SILENCE
+            }
+            // Le Simon de Buzzy : la boucle douce entre deux suites, celle aux percussions pendant une suite (la note de
             // chaque boule passe par-dessus), la partie où tout joue quand les chiffres arrivent.
             i.simon && i.ecran == Ecran.QUESTION -> when {
                 !i.simonSuite -> Ambiance.SIMON_ENTRE
@@ -589,10 +608,15 @@ data class Instant(
      */
     val duel: Boolean = false,
     val duelEtape: String = "",
-    /** Le Simon du Prof : sa question est à l'écran ; une suite est en cours (le robot la montre, les équipes la tapent). */
+    /**
+     * Le Chrono de Buzzy : étape du tour (« ready », « run » pendant le décompte et le tic-tac, « drap » une fois le
+     * chrono caché, « result »), vide pour les autres jeux.
+     */
+    val chronoEtape: String = "",
+    /** Le Simon de Buzzy : sa question est à l'écran ; une suite est en cours (le robot la montre, les équipes la tapent). */
     val simon: Boolean = false,
     val simonSuite: Boolean = false,
-    /** Le Simon du Prof : la suite en cours a des chiffres (à partir de [com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES]). */
+    /** Le Simon de Buzzy : la suite en cours a des chiffres (à partir de [com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES]). */
     val simonChiffres: Boolean = false,
     /** Quiz : question fermée par la fin du chrono (une équipe n'a pas répondu), « TEMPS ÉCOULÉ ! » à l'écran. */
     val tempsEcoule: Boolean = false,
@@ -741,7 +765,7 @@ enum class Lit(
     /** Game Show : la boucle western du Duel des robots (36 temps, 21,24 s, sans blanc), sous l'annonce et entre deux duels. */
     DUEL(null, "gs_duel_intro_boucle"),
     /**
-     * Game Show, le Simon du Prof sur « Prix choc » d'Etienne de Crécy (cedric, 28/10), trois boucles prises entre les
+     * Game Show, le Simon de Buzzy sur « Prix choc » d'Etienne de Crécy (cedric, 28/10), trois boucles prises entre les
      * passages chantés (jamais la voix) à 127,87 BPM, coupées sur un début de mesure là où la suite ressemble le plus
      * au début (raccord fondu sur 60 ms) : la douce, sans batterie (8 mesures, 15 s, de 0:01,9) ; avec les premières
      * percussions (16 mesures, 30 s, de 0:43,2) ; la partie où tout joue (16 mesures, 30 s, de 2:02,0). Volumes laissés
@@ -752,7 +776,7 @@ enum class Lit(
     SIMON_SUITE(null, "gs_simon_suite"),
     SIMON_FORT(null, "gs_simon_fort"),
     /**
-     * Game Show, le Simon du Prof : sous sa vidéo d'intro seulement (cedric, 30/10), la douce tournée pour partir sur son
+     * Game Show, le Simon de Buzzy : sous sa vidéo d'intro seulement (cedric, 30/10), la douce tournée pour partir sur son
      * temps fort (même boucle de 15,01 s, sans couture) ; le jeu garde [SIMON_DOUCE].
      */
     SIMON_INTRO(null, "gs_simon_intro"),
@@ -830,6 +854,16 @@ enum class Lit(
      * dans le fichier (le même que le podium) : son ambiance le joue à plein volume.
      */
     PODIUM_ATTENTE(null, "gs_podium_attente", repriseMs = PODIUM_ATTENTE_REPRISE_MS),
+    /**
+     * Game Show, le Chrono de Buzzy sous le drap (cedric, 31/10) : nappe grave et stressante, sans aucun rythme (rien ne
+     * doit aider à compter), 27,3 s fondues sur leur début (3 s), −16 LUFS.
+     */
+    CHRONO_NAPPE(null, "gs_chrono_nappe"),
+    /**
+     * Game Show, le Chrono de Buzzy pendant la révélation (cedric, 31/10 : « boucle B ») : Around the World pris à 1:03,5,
+     * 8 mesures ramenées à 120 BPM comme gs_bed_light, 16,000 s, raccord fondu 25 ms, −16 LUFS.
+     */
+    CHRONO_REVELATION(null, "gs_chrono_revelation"),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -862,7 +896,7 @@ enum class Ambiance(
     /** Duel des robots : entre deux duels, sous le résultat ; Game Show : la boucle western à −10 dB. */
     DUEL_ENTRE(legere = 0.3f, gameShow = mapOf(Lit.DUEL to 0.32f)),
     /**
-     * Le Simon du Prof, Game Show (« Prix choc », cedric 28/10) : la boucle douce à la présentation et entre deux suites,
+     * Le Simon de Buzzy, Game Show (« Prix choc », cedric 28/10) : la boucle douce à la présentation et entre deux suites,
      * sous la voix de Sarah ; Classique : la musique des questions.
      */
     SIMON_ENTRE(legere = 0.7f, gameShow = mapOf(Lit.SIMON_DOUCE to 0.82f)),
@@ -910,6 +944,12 @@ enum class Ambiance(
     PATATE_PRESENTATION(gameShow = mapOf(Lit.PATATE_INTRO to 0.5f)),
     /** Présentation du Pictionary (Game Show) : Take On Me, au volume de la boucle « fête ». */
     PICTO_PRESENTATION(gameShow = mapOf(Lit.PICTO_INTRO to 0.5f)),
+    /** Le Chrono de Buzzy, tour prêt (« Prêts ? ») : Around the World (0:31,9 à 0:47,7) doux, à 0,4 (cedric, 31/10). */
+    CHRONO_PRET(legere = 0.4f),
+    /** Le Chrono de Buzzy sous le drap, Game Show : la nappe stressante, légère ; Classique : silence. */
+    CHRONO_NAPPE(gameShow = mapOf(Lit.CHRONO_NAPPE to 0.5f)),
+    /** Le Chrono de Buzzy, révélation, Game Show : la boucle B d'Around the World, plus forte, à 0,75 ; Classique : silence. */
+    CHRONO_REVELATION(gameShow = mapOf(Lit.CHRONO_REVELATION to 0.75f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -951,7 +991,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PICTO_INTRO, Lit.SIMON_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PICTO_INTRO, Lit.SIMON_INTRO, Lit.PODIUM_ATTENTE, Lit.CHRONO_NAPPE, Lit.CHRONO_REVELATION -> 0f
         }
     }
 }
@@ -1058,6 +1098,16 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     DUEL_INTRO("gs_duel_intro_debut", true),
     /** Game Show seulement : la grande fin de l'air western sous les affiches WANTED du classement du duel (22,7 s). */
     DUEL_CLASSEMENT("gs_duel_classement", true),
+    /**
+     * Le Chrono de Buzzy (studio_chrono.py) : tic-tac du chrono une fois par seconde, décompte et départ, le drap
+     * fantôme, un buzz sous le drap ; à la révélation, la règle, le drapeau, chaque pastille, la plus proche au ralenti,
+     * puis gagné / pile au centième / personne. Mêmes sons dans les deux looks.
+     */
+    CHRONO_TIC("gs_chrono_tic"), CHRONO_TAC("gs_chrono_tac"), CHRONO_BIP("gs_chrono_bip"), CHRONO_GO("gs_chrono_go"),
+    CHRONO_DRAP("gs_chrono_drap"), CHRONO_BUZZ("gs_chrono_buzz"),
+    CHRONO_REGLE("gs_chrono_regle"), CHRONO_DRAPEAU("gs_chrono_drapeau"), CHRONO_PASTILLE("gs_chrono_pastille"),
+    CHRONO_RALENTI("gs_chrono_ralenti", true), CHRONO_GAGNE("gs_chrono_gagne", true), CHRONO_PILE("gs_chrono_pile", true),
+    CHRONO_PERSONNE("gs_chrono_personne"),
     TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
     PATATE_PASSE("lmp_patate_passe"),
     /** Musique de « Ça va exploser ! » (extrait choisi par cedric) : sa fin tombe sur l'explosion, voir [MusiquePatate]. */
@@ -1130,6 +1180,8 @@ object Tempo {
     /** Temps fort qui suit la dernière note du générique (16 temps) : la musique du salon prend le relais. */
     const val GENERIQUE_RELAIS = 8_000L
     const val FONDU_RELAIS = 120L
+    /** Le Chrono de Buzzy : la nappe entre doucement sous le drap, après son « fffouf ». */
+    const val CHRONO_NAPPE_ENTREE = 1_500L
     /** Blind test : la musique d'attente entre à la fin du générique court (4,8 s). */
     const val BT_ATTENTE_APRES_GENERIQUE = 4_500L
     /** Duel des robots : la boucle western prend le relais à la fin de son début (gs_duel_intro_debut, 2,95 s). */

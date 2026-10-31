@@ -221,6 +221,7 @@ class Fantome {
       else if (st.mime && st.kind === "pictionary") this.picto(st, actives);
       else if (st.kind === "duel") this.duel(st, actives);
       else if (st.kind === "simon") this.simon(st, actives, now);
+      else if (st.kind === "chrono") this.chrono(st, actives);
       else if (BUZZ_KINDS.includes(st.kind)) this.buzzer(st, actives, now, attente);
       else if (st.phase === "question" && !st.mime && st.kind !== "statues") this.repondre(st, actives, now, attente, v);
     }
@@ -353,7 +354,26 @@ class Fantome {
   }
 
   /**
-   * 🔴 Simon du Prof : le joueur fantôme du tour tape la suite, élément par élément (la TV les montre en direct), puis
+   * ⏱️ Chrono de Buzzy : le fantôme compte dans sa tête comme un enfant, à environ ±2 s de la cible (une fois sur dix à
+   * ±5 s, et une fois sur vingt il oublie de buzzer). L'heure du 0 est publiée : il buzze à 0 + cible + son erreur.
+   */
+  chrono(st, actives) {
+    const c = st.chrono ?? {};
+    if (!reglages.buzz || st.phase !== "question" || c.step !== "run" || !c.key || typeof c.goAt !== "number" || !liste(c.teams).includes(this.teamId)) return;
+    const cle = `chrono:${c.key}`;
+    actives.add(cle);
+    if (this.faits.has(cle) || this.minuteries.has(cle)) return;
+    if (Math.random() < 0.05) { this.faits.add(cle); return journal(`${this.nom} oublie de buzzer au chrono`); }
+    const erreur = (Math.random() < 0.1 ? hasard(-5000, 5000) : hasard(-2000, 2000)) * reglages.vitesse;
+    const quand = c.goAt + (c.cible ?? 30) * 1000 + erreur;
+    this.prevoir(cle, quand - this.maintenant(), async () => {
+      await this.ecrire(`chrono/${c.key}/${this.teamId}`, { t: this.maintenant(), at: serverTimestamp() });
+      journal(`${this.nom} buzze au chrono (${erreur >= 0 ? "+" : ""}${(erreur / 1000).toFixed(1)} s)`);
+    });
+  }
+
+  /**
+   * 🔴 Simon de Buzzy : le joueur fantôme du tour tape la suite, élément par élément (la TV les montre en direct), puis
    * valide avant la fin du chrono ; une fois sur dix il se trompe d'un élément. La suite est secrète : avec le mot de
    * passe régie, la page la lit dans le journal de la box (elle y est dès le début du tour) ; sans lui, le fantôme se
    * souvient de la bonne suite montrée au bilan d'avant et devine le reste.
@@ -373,7 +393,9 @@ class Fantome {
       const vocabulaire = [...SIMON_COULEURS.map(([c]) => c), ...(sm.chiffres ? SIMON_CHIFFRES : [])];
       const secret = e && e.tour === sm.tour && e.qid === st.qid ? String(e.sequence ?? "").split(",") : [];
       const suite = Array.from({ length: n }, (_, k) => secret[k] ?? this.simonVu?.[k] ?? auHasard(vocabulaire));
-      if (n && Math.random() < 0.1) { const k = Math.floor(Math.random() * n); suite[k] = auHasard(vocabulaire.filter((x) => x !== suite[k])); }
+      // Comme de vrais enfants, ils se trompent de plus en plus quand la suite s'allonge (1 fois sur 10 à 1 boule,
+      // 1 sur 3 à 5, 6 sur 10 à 12) : une partie avec des fantômes ne dure pas indéfiniment (cedric, 30/10).
+      if (n && Math.random() < 1 - 0.92 ** Math.max(n, 1.3)) { const k = Math.floor(Math.random() * n); suite[k] = auHasard(vocabulaire.filter((x) => x !== suite[k])); }
       const debut = Math.max(sm.reponseAt ?? now, this.maintenant()) + hasard(600, 1500) * reglages.vitesse;
       const fin = (sm.finAt ?? debut + 10_000) - 400;
       const pas = Math.max(80, Math.min(hasard(350, 900) * reglages.vitesse, (fin - debut) / (n + 1)));

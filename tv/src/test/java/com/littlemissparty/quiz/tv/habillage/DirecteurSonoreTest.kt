@@ -1101,7 +1101,7 @@ class DirecteurSonoreTest {
     }
 
     @Test
-    fun `simon du prof - silence pendant une suite pour entendre les notes, musique entre deux suites`() {
+    fun `simon de buzzy - silence pendant une suite pour entendre les notes, musique entre deux suites`() {
         val d = DirecteurSonore()
         d.observer(salon)
         val entre = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)
@@ -1111,7 +1111,7 @@ class DirecteurSonoreTest {
     }
 
     @Test
-    fun `simon du prof - trois boucles de Prix choc en Game Show, la musique des questions ou le silence en Classique`() {
+    fun `simon de buzzy - trois boucles de Prix choc en Game Show, la musique des questions ou le silence en Classique`() {
         val d = DirecteurSonore()
         d.observer(salon)
         val gs = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true, gameShow = true)
@@ -1149,7 +1149,7 @@ class DirecteurSonoreTest {
     }
 
     @Test
-    fun `simon du prof - la presentation joue la douce en Game Show, la presentation habituelle en Classique`() {
+    fun `simon de buzzy - la presentation joue la douce en Game Show, la presentation habituelle en Classique`() {
         // Un quiz, puis le Simon : nouveau jeu, jingle du rideau puis la musique de présentation (sous la vidéo d'intro).
         val quiz = Instant(Ecran.QUESTION, partie = "ABCD", index = 2, equipes = 4, epreuve = "quiz|")
         val simon = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 4, epreuve = "simon|", simon = true)

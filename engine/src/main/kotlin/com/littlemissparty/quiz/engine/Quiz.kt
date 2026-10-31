@@ -114,11 +114,17 @@ enum class QuestionKind(val code: String) {
     DUEL("duel"),
 
     /**
-     * 🔴 Le Simon du Prof : le robot montre une suite de couleurs (puis de chiffres) qui grandit, les équipes la tapent
+     * 🔴 Le Simon de Buzzy : le robot montre une suite de couleurs (puis de chiffres) qui grandit, les équipes la tapent
      * sur leur tablette ; une erreur élimine du tour, la dernière équipe en jeu le gagne (voir [SimonRound]). Rien à
      * préparer que le nombre de tours, le temps pour répondre et les joueurs par équipe.
      */
-    SIMON("simon");
+    SIMON("simon"),
+
+    /**
+     * ⏱️ Le Chrono de Buzzy : le chrono de la TV part, Buzzy le cache sous un drap, les équipes comptent dans leur tête et
+     * buzzent à la cible ; la plus proche gagne le tour (voir [ChronoRound]). Rien à préparer que la cible et les tours.
+     */
+    CHRONO("chrono");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -196,10 +202,14 @@ data class Question(
     val faceMax: Int = DUEL_FACE_DEFAUT_MAX,
     /** Le Duel des robots : de temps en temps un long duel, jusqu'à 60 s. */
     val longs: Boolean = true,
-    /** Le Simon du Prof : nombre de tours, réglé dans la Régie PC. */
+    /** Le Simon de Buzzy : nombre de tours, réglé dans la Régie PC. */
     val simonTours: Int = SIMON_TOURS,
-    /** Le Simon du Prof : temps pour taper une suite (secondes, une de plus par élément au-delà de 4). */
+    /** Le Simon de Buzzy : temps pour taper une suite (secondes, une de plus par élément au-delà de 4). */
     val simonSec: Int = SIMON_REPONSE_SEC,
+    /** Le Chrono de Buzzy : la cible (secondes) proposée à chaque tour, que Sarah peut changer avant de lancer. */
+    val chronoCible: Int = CHRONO_CIBLE_DEFAUT,
+    /** Le Chrono de Buzzy : nombre de tours, réglé dans la Régie PC. */
+    val chronoTours: Int = CHRONO_TOURS,
 ) {
     /** Paroles du refrain, phrase par phrase et mot par mot (vide : pas de paroles). */
     val paroles: List<LigneParole> by lazy { lireParoles(lyrics) }
@@ -245,10 +255,14 @@ data class Question(
             require(joueurs in 1..DUEL_JOUEURS_MAX) { "Duel des robots $id : 1 à $DUEL_JOUEURS_MAX joueurs par équipe" }
             require(faceMin in DUEL_FACE_MIN_SEC..faceMax && faceMax <= DUEL_FACE_MAX_SEC) { "Duel des robots $id : face-à-face entre $DUEL_FACE_MIN_SEC et $DUEL_FACE_MAX_SEC s" }
         } else if (kind == QuestionKind.SIMON) {
-            require(choices.isEmpty()) { "Simon du Prof $id : pas de propositions" }
-            require(joueurs in 1..DUEL_JOUEURS_MAX) { "Simon du Prof $id : 1 à $DUEL_JOUEURS_MAX joueurs par équipe" }
-            require(simonTours in 1..SIMON_TOURS_MAX) { "Simon du Prof $id : 1 à $SIMON_TOURS_MAX tours" }
-            require(simonSec in SIMON_REPONSE_MIN_SEC..SIMON_REPONSE_MAX_SEC) { "Simon du Prof $id : $SIMON_REPONSE_MIN_SEC à $SIMON_REPONSE_MAX_SEC s pour répondre" }
+            require(choices.isEmpty()) { "Simon de Buzzy $id : pas de propositions" }
+            require(joueurs in 1..DUEL_JOUEURS_MAX) { "Simon de Buzzy $id : 1 à $DUEL_JOUEURS_MAX joueurs par équipe" }
+            require(simonTours in 1..SIMON_TOURS_MAX) { "Simon de Buzzy $id : 1 à $SIMON_TOURS_MAX tours" }
+            require(simonSec in SIMON_REPONSE_MIN_SEC..SIMON_REPONSE_MAX_SEC) { "Simon de Buzzy $id : $SIMON_REPONSE_MIN_SEC à $SIMON_REPONSE_MAX_SEC s pour répondre" }
+        } else if (kind == QuestionKind.CHRONO) {
+            require(choices.isEmpty()) { "Chrono de Buzzy $id : pas de propositions" }
+            require(chronoCible in CHRONO_CIBLE_MIN..CHRONO_CIBLE_MAX) { "Chrono de Buzzy $id : cible entre $CHRONO_CIBLE_MIN et $CHRONO_CIBLE_MAX s" }
+            require(chronoTours in 1..CHRONO_TOURS_MAX) { "Chrono de Buzzy $id : 1 à $CHRONO_TOURS_MAX tours" }
         } else if (kind == QuestionKind.GONFLEUR) {
             require(choices.isEmpty()) { "Gonfleur fou $id : pas de propositions" }
             require(durationSec in 20..180) { "Gonfleur fou $id : durée entre 20 et 180 s" }
@@ -276,6 +290,7 @@ data class Question(
     val isPatate: Boolean get() = kind == QuestionKind.PATATE
     val isDuel: Boolean get() = kind == QuestionKind.DUEL
     val isSimon: Boolean get() = kind == QuestionKind.SIMON
+    val isChrono: Boolean get() = kind == QuestionKind.CHRONO
 
     /** Jeu joué équipe par équipe, tour après tour (mimes, Pictionary) : le chrono part au lancement de chaque tour. */
     val isTurns: Boolean get() = isMime || isPicto

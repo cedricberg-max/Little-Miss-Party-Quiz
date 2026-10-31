@@ -80,6 +80,15 @@ internal object TempsClassementA {
 }
 
 /** Pas d'une ligne (dp), taille relative [f] et haut de la liste (dp) pour [n] équipes : la liste est centrée entre 95 et 495 dp. */
+/**
+ * Rond du rang (dp à l'échelle 1) et son anneau de lueur : un peu de marge au-dessus et en dessous dans la carte
+ * (cedric, 30/10 : le rond 1, 2, 3… touchait le cadre, « ça demande à respirer un tout petit peu »).
+ */
+internal const val PASTILLE_RANG_A = 30f
+internal const val ANNEAU_RANG_A = 3.5f
+/** Marge libre (dp à l'échelle 1) entre l'anneau du rang et le bord de la carte, en haut comme en bas. */
+internal fun margeRangA(g: GeometrieClassementA): Float = (g.hauteurCarte - (PASTILLE_RANG_A + 2 * ANNEAU_RANG_A) * g.f) / 2f
+
 internal data class GeometrieClassementA(val pas: Float, val f: Float, val haut: Float) {
     val hauteurCarte get() = pas - 7f * f
 }
@@ -240,13 +249,13 @@ private fun CarteClassementA(
             horizontalArrangement = Arrangement.spacedBy((11f * f).dp),
         ) {
             Box(
-                Modifier.size((37f * f).dp).drawBehind { drawCircle(e.couleur.copy(alpha = 0.45f), radius = size.minDimension / 2f + 5f * f * density) }
+                Modifier.size((PASTILLE_RANG_A * f).dp).drawBehind { drawCircle(e.couleur.copy(alpha = 0.45f), radius = size.minDimension / 2f + ANNEAU_RANG_A * f * density) }
                     .background(e.couleur, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     "${(if (nouveauxRangs) evo.rangApres else evo.rangAvant) + 1}", maxLines = 1, softWrap = false,
-                    style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = (20f * f).sp, color = NuitA),
+                    style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = (17f * f).sp, color = NuitA),
                 )
             }
             // Le nom prend toute la place libre et rétrécit plutôt que d'être coupé (règle de l'appli).

@@ -104,6 +104,18 @@ suspend fun DatabaseReference.lireUneFois(): DataSnapshot = suspendCancellableCo
 }
 
 /** Titre de l'écran des scores : « TABLEAU DES SCORES » en Game Show (le design par défaut), « Classement » en Classique. */
+/**
+ * Texte réduit en entier par un calque (largeur et hauteur à l'écran plus petites que sa mise en page, dans la même
+ * proportion, à 3 % près), pas rogné : un texte coupé par son cadre ne perd que sa largeur ou que sa hauteur, ou pas
+ * dans la même proportion.
+ */
+fun reduitEnEntier(largeurEcran: Float, hauteurEcran: Float, largeur: Int, hauteur: Int): Boolean {
+    if (largeur <= 0 || hauteur <= 0) return false
+    val sx = largeurEcran / largeur
+    val sy = hauteurEcran / hauteur
+    return sx < 1f && sy < 1f && sx > 0.3f && kotlin.math.abs(sx - sy) <= 0.03f * maxOf(sx, sy)
+}
+
 fun titreClassement() = if (Look.gs) "TABLEAU DES SCORES" else "Classement"
 
 /** La box : l'appli TV elle-même, dans le même processus que les tests. */
@@ -241,6 +253,105 @@ class Ecran(private val nomTest: () -> String) {
         }
     }
 
+    /**
+     * Règle 10 sur tout l'écran : chaque texte à l'écran est entier (ni rogné par son cadre ni à cheval sur le bord), aucun
+     * mot n'est coupé en fin de ligne et aucune ligne ne finit en « … ». Les textes entièrement hors de l'écran (une
+     * animation qui n'est pas encore entrée) ne comptent pas.
+     */
+    fun aucunTexteCoupe() {
+        val defauts = defautsTextes()
+        if (defauts.isNotEmpty()) {
+            capture("texte-coupe")
+            runCatching { Log.e(TAG, "Textes coupés :\n${defauts.joinToString("\n")}\nplan de l'écran :\n${plan()}") }
+            throw AssertionError("Textes mal affichés : ${defauts.distinct().joinToString(" ; ")}")
+        }
+    }
+
+    /**
+     * Le texte [texte] passe entièrement au-dessus de chacun des [dessous] (cartes des équipes…) : aucun cadre ne le
+     * recouvre (cedric, 30/10 : la règle du Pictionary à moitié mangée par les cartes de 8 équipes).
+     */
+    fun auDessusDe(texte: String, dessous: List<String>) {
+        val tous = elements().filter { it.visible }
+        val haut = tous.filter { texte in it.texte }
+        val bas = tous.filter { e -> dessous.any { it == e.texte } }
+        if (haut.isEmpty() || bas.isEmpty()) throw AssertionError("« $texte » ou ${dessous.joinToString()} absent de l'écran")
+        val fond = haut.maxOf { it.bas }
+        val plafond = bas.minOf { it.haut }
+        if (fond > plafond) {
+            capture("texte-recouvert")
+            throw AssertionError("« $texte » descend sous le haut des cartes (${fond.toInt()} px > ${plafond.toInt()} px)")
+        }
+    }
+
+    /** Les défauts de la règle 10 sur tout l'écran (voir [aucunTexteCoupe]), sans échouer : vide si tout est entier. */
+    fun defautsTextes(): List<String> {
+        val defauts = elements().filter { it.visible && !it.entier && it.texte.isNotBlank() }.map { "« ${it.texte} » rogné ou à cheval sur le bord" }.toMutableList()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            fenetres().flatMap(::racinesCompose).forEach { racine -> defautsDeMots(racine.semanticsOwner.rootSemanticsNode, "", defauts) }
+        }
+        return defauts.distinct()
+    }
+
+    /**
+     * Textes dont les cadres se chevauchent (cedric, 30/10 : chaque texte occupe un « carré » invisible ; quand deux
+     * carrés se recouvrent, un texte passe sous l'autre et paraît coupé). Deux textes différents, visibles, dont la zone
+     * commune dépasse [part] du plus petit ; un texte posé dans un autre (lueur, chiffre dans son rond) ne compte pas.
+     */
+    fun recouvrements(part: Float = 0.15f): List<String> {
+        val zones = mutableListOf<Pair<String, android.graphics.RectF>>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            fenetres().flatMap(::racinesCompose).forEach { racine -> zonesDeTexte(racine.semanticsOwner.rootSemanticsNode, zones) }
+        }
+        val defauts = mutableListOf<String>()
+        for (i in zones.indices) for (j in i + 1 until zones.size) {
+            val (ta, a) = zones[i]
+            val (tb, b) = zones[j]
+            if (ta == tb || ta.contains(tb) || tb.contains(ta)) continue
+            if (a.contains(b) || b.contains(a)) continue
+            val c = android.graphics.RectF()
+            if (!c.setIntersect(a, b)) continue
+            val petit = minOf(a.width() * a.height(), b.width() * b.height())
+            if (petit > 0 && c.width() * c.height() > part * petit) defauts += "« $ta » et « $tb » se chevauchent"
+        }
+        return defauts.distinct()
+    }
+
+    private fun zonesDeTexte(n: SemanticsNode, zones: MutableList<Pair<String, android.graphics.RectF>>) {
+        val texte = n.config.getOrNull(SemanticsProperties.Text).orEmpty().joinToString(" ") { it.text }.trim()
+        val b = n.boundsInWindow
+        if (texte.isNotEmpty() && b.width > 1 && b.height > 1) zones += texte to android.graphics.RectF(b.left, b.top, b.right, b.bottom)
+        n.children.forEach { zonesDeTexte(it, zones) }
+    }
+
+    /**
+     * Le plus petit texte visible de l'écran : sa hauteur de lettre en pixels de l'écran (taille de police après
+     * toutes les mises à l'échelle) et le texte. Pour voir si un texte devient minuscule avec 8 équipes, ou avec 3.
+     */
+    fun plusPetitTexte(): Pair<Float, String>? {
+        var mini: Pair<Float, String>? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            fun visiter(n: SemanticsNode) {
+                val b = n.boundsInWindow
+                if (b.width > 1 && b.height > 1) {
+                    val mises = mutableListOf<TextLayoutResult>()
+                    n.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(mises)
+                    mises.firstOrNull()?.let { l ->
+                        val st = l.layoutInput.style.fontSize
+                        if (st.isSp) {
+                            val px = with(l.layoutInput.density) { st.toPx() }
+                            val t = l.layoutInput.text.text
+                            if (t.isNotBlank() && (mini == null || px < mini!!.first)) mini = px to t
+                        }
+                    }
+                }
+                n.children.forEach(::visiter)
+            }
+            fenetres().flatMap(::racinesCompose).forEach { visiter(it.semanticsOwner.rootSemanticsNode) }
+        }
+        return mini
+    }
+
     private fun defautsDeMots(n: SemanticsNode, texte: String, defauts: MutableList<String>) {
         val textes = n.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }
         if (textes.any { texte in it }) {
@@ -326,9 +437,10 @@ class Ecran(private val nomTest: () -> String) {
             val b = n.boundsInWindow
             val visible = b.width > 0 && b.height > 0 && b.bottom > 0 && b.right > 0 &&
                 b.top < fenetre.height && b.left < fenetre.width
-            // boundsInWindow est rognée par les parents : plus petite que le texte, il est coupé.
+            // boundsInWindow est rognée par les parents : plus petite que le texte, il est coupé. Un texte réduit en entier
+            // (Mimes : la colonne du tour rapetisse au lieu d'être rognée) garde ses proportions : il n'est pas coupé.
             val entier = visible && b.top >= 0 && b.left >= 0 && b.bottom <= fenetre.height && b.right <= fenetre.width &&
-                b.height >= n.size.height - 1 && b.width >= n.size.width - 1
+                (b.height >= n.size.height - 1 && b.width >= n.size.width - 1 || reduitEnEntier(b.width, b.height, n.size.width, n.size.height))
             liste += Element(textes.joinToString(" "), n.config.getOrNull(SemanticsProperties.Focused) == true, visible, entier, b.center.x, fenetre.width, b.top, b.bottom, fenetre.height)
         }
         n.children.forEach { parcourir(it, fenetre, liste) }
@@ -388,7 +500,9 @@ class Ecran(private val nomTest: () -> String) {
      */
     fun capture(nom: String, attente: Long = 0) {
         if (attente > 0) SystemClock.sleep(attente)
-        val fichier = "$DOSSIER_CAPTURES/${nomTest()}-%02d-$nom.png".format(++numero)
+        // Le nom d'un test à paramètres (« tour[3 équipes] ») a des espaces : la commande screencap le couperait.
+        val test = nomTest().replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val fichier = "$DOSSIER_CAPTURES/$test-%02d-$nom.png".format(++numero)
         Log.i(TAG, "Capture $fichier")
         device.executeShellCommand("screencap -p $fichier")
     }
@@ -527,7 +641,19 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
     }.onFailure { Log.i(TAG, "Buzz du duel refusé : ${it.message}") }.isSuccess
 
     /**
-     * Le Simon du Prof : la tablette envoie la suite tapée ([items], codes du moteur), validée ou non ([ok]) ; false
+     * Le Chrono de Buzzy : la tablette buzze une fois ; l'heure annoncée [t] est ramenée par la box dans les 1,5 s avant
+     * l'arrivée (Long.MAX_VALUE : l'heure d'arrivée) ; false si le serveur refuse (pas de chrono en cours, déjà buzzé).
+     */
+    fun buzzerChrono(code: String, t: Long = Long.MAX_VALUE): Boolean = runCatching {
+        val cle = etat(code).child("chrono/key").value?.toString() ?: error("pas de chrono en cours")
+        bloquer {
+            base.getReference("games/$code/chrono/$cle/$uid")
+                .setValue(mapOf("t" to t, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Buzz du chrono refusé : ${it.message}") }.isSuccess
+
+    /**
+     * Le Simon de Buzzy : la tablette envoie la suite tapée ([items], codes du moteur), validée ou non ([ok]) ; false
      * si le serveur refuse (pas de suite en cours, équipe éliminée, chrono pas parti ou fini, déjà validé).
      */
     fun repondreSimon(code: String, items: List<String>, ok: Boolean = true): Boolean = runCatching {

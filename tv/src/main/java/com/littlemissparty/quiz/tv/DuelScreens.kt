@@ -224,7 +224,7 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (etape == EtapeDuel.ATTENTE) {
                     Text(
-                        if (state.teams.size < 2) "Il faut au moins 2 équipes pour le Duel des robots" else "Les robots arrivent…",
+                        if (state.teams.size < 2) "Il faut au moins 2 équipes pour le Duel des robots" else "Le Duel des robots",
                         style = styleCentre(40.sp, Neon.OrClair),
                     )
                 } else {

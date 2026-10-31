@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
@@ -72,6 +73,8 @@ import kotlinx.coroutines.delay
 
 private val LARGEUR = 1600.dp
 private val HAUTEUR = 700.dp
+/** Hauteur la plus basse où la scène des paroles tient entière (pochette au plus petit, paroles, égaliseur). */
+internal val HAUTEUR_PAROLES = 460.dp
 
 /** Millisecondes écoulées depuis l'arrivée de [cle], rafraîchies une vingtaine de fois par seconde. */
 @Composable
@@ -128,31 +131,42 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
             else classique()
             Spacer(Modifier.width(56.dp))
             Column(Modifier.weight(1f)) {
-                Text(
+            // Game Show : textes posés sur le décor « comme les jauges » (choix B du 31/10, n° 9-10), sans le carré du 30/10.
+            Column {
+                // Game Show : le titre en Bungee dégradé avec sa note jaune, validé par cedric le 31/10 à 11:12 (76 px de 1280).
+                if (Look.gs) TitreBlindTest((76f * 0.75f * ECHELLE_SCENE_BLIND).dp, Modifier.apparition(400, playlist))
+                else TexteJauge(
                     "BLIND TEST", color = Neon.Or, fontSize = 100.sp, lineHeight = 106.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
-                    modifier = Modifier.apparition(400, playlist),
+                    modifier = Modifier.apparition(400, playlist), echelle = ECHELLE_SCENE_BLIND,
                 )
                 if (playlist.isNotBlank()) {
-                    Text(
+                    TexteJauge(
                         playlist, color = Neon.Blanc, fontSize = 44.sp, lineHeight = 50.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.apparition(900, playlist),
+                        modifier = Modifier.apparition(900, playlist), echelle = ECHELLE_SCENE_BLIND,
                     )
                 }
                 Spacer(Modifier.height(24.dp))
-                Text(
+                // Game Show : l'info en rose (24 px de 1280), puis l'onglet « PRÊTS ? » (planche des onglets d'appel, 31/10).
+                TexteJauge(
                     "Morceau 1 / $morceaux · $points points",
-                    color = Neon.Halo, fontSize = 38.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.apparition(1300, playlist),
+                    color = if (Look.gs) RoseChante else Neon.Halo, fontSize = if (Look.gs) (24f * 0.75f * ECHELLE_SCENE_BLIND).sp else 38.sp,
+                    fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.apparition(1300, playlist), echelle = ECHELLE_SCENE_BLIND,
                 )
-                Spacer(Modifier.height(8.dp))
-                Text(
+                Spacer(Modifier.height(if (Look.gs) 40.dp else 8.dp))
+                if (Look.gs) PlaqueAppel(GenrePlaque.BLIND, "PRÊTS ?", "Écoutez bien…", Modifier.apparition(1700, playlist), k = ECHELLE_SCENE_BLIND)
+                else Text(
                     "Prêts ? Écoutez bien…", color = Neon.Blanc, fontSize = 48.sp, lineHeight = 54.sp,
                     fontWeight = FontWeight.Black, modifier = Modifier.apparition(1700, playlist),
                 )
             }
+            }
         }
     }
 }
+
+/** La scène fait 1600 dp de large pour un écran de 960 : les ombres du contour sont agrandies d'autant. */
+internal const val ECHELLE_SCENE_BLIND = 1600f / 960f
 
 /**
  * Une équipe a buzzé : panneau bleu nuit cerné d'un néon de la couleur de l'équipe, qui flashe trois fois,
@@ -256,7 +270,9 @@ fun BlindRevelation(
     val ms = horloge(cle)
     val fete = if (gagnants != null) gagnants.isNotEmpty() else gagnant != null && points > 0
     if (chantons && paroles.isNotEmpty()) {
-        Echelle(LARGEUR, HAUTEUR, modifier) {
+        // La scène des paroles se tasse en hauteur (pochette plus petite) au lieu de tout rapetisser : avec 8 équipes,
+        // le plateau est bas, et « Bravo … ! » et « TOUT LE MONDE CHANTE ! » devenaient minuscules (cedric, 30/10).
+        Echelle(LARGEUR, HAUTEUR_PAROLES, modifier) {
             Scene { Rayons(ms) }
             SceneParoles(cle, pochette, titre, artiste, gagnant, points, double, paroles, positionMs, gagnants)
             if (fete) Gerbe(cle, actif = apres(500, cle))

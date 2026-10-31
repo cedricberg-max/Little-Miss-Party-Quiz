@@ -76,6 +76,9 @@ internal const val NOUVEL_INDICE_MS = 2_000
 private val MOTS_ENSEIGNE = listOf("QUI " to GS.Rose, "SUIS" to GS.Jaune, "-" to GS.Encre, "JE" to GS.Cyan, " ?" to GS.Juste)
 private const val AMPOULES = 30
 
+/** L'enseigne un peu plus grande avec l'onglet d'appel (choix A de cedric, 31/10 : titre +7 %). */
+internal const val AGRANDI_ENSEIGNE = 1.07f
+
 /** La grande enseigne « QUI SUIS-JE ? » violette, ampoules qui clignotent en chenillard, un peu penchée. */
 @Composable
 internal fun EnseigneQuiSuis(modifier: Modifier = Modifier) {
@@ -108,7 +111,7 @@ internal fun EnseigneQuiSuis(modifier: Modifier = Modifier) {
                     drawCircle(Color(0xFFFFF3C4), 3.2.dp.toPx(), p, alpha = if (allumee) 1f else 0.3f)
                 }
             }
-            .padding(horizontal = 36.dp, vertical = 14.dp),
+            .padding(horizontal = 36.dp * AGRANDI_ENSEIGNE, vertical = 14.dp * AGRANDI_ENSEIGNE),
         contentAlignment = Alignment.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -116,7 +119,7 @@ internal fun EnseigneQuiSuis(modifier: Modifier = Modifier) {
                 val lueur = 0.7f + 0.15f * sin(t * 5f + i)
                 Text(
                     mot, maxLines = 1, softWrap = false,
-                    style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 46.sp, color = Color.White, shadow = Shadow(couleur, Offset.Zero, 26f * lueur)),
+                    style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 46.sp * AGRANDI_ENSEIGNE, color = Color.White, shadow = Shadow(couleur, Offset.Zero, 26f * lueur)),
                 )
             }
         }
@@ -238,24 +241,14 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.etincelles(centre: 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AppelBuzzQuiSuis(dejaEssaye: List<String>, modifier: Modifier = Modifier) {
-    val pulse by rememberInfiniteTransition(label = "buzzez").animateFloat(0.5f, 1f, infiniteRepeatable(tween(780), RepeatMode.Reverse), label = "p")
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
-        // Tout réduit d'un même facteur quand le cadre est bas (Mi Box, 8 équipes) : jamais « qui je suis » coupé (test du 28/10).
-        val e = if (constraints.hasBoundedHeight) (maxHeight.value / besoinAppelBuzz(dejaEssaye.size)).coerceIn(0.5f, 1f) else 1f
-        Column(
-            Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0x990E0622)).padding(horizontal = 18.dp * e, vertical = 22.dp * e),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                "BUZZEZ !", maxLines = 1, softWrap = false,
-                style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 46.sp * e, color = Color.White, shadow = Shadow(GS.Rose, Offset.Zero, 22f + 22f * pulse)),
-            )
-            Spacer(Modifier.height(10.dp * e))
-            Text(
-                "dès que vous savez\nqui je suis", textAlign = TextAlign.Center,
-                style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 23.sp * e, lineHeight = 26.sp * e, color = GS.Encre),
-            )
+        // Tout réduit d'un même facteur quand le cadre est bas (Mi Box, 8 équipes) : jamais « qui je suis » coupé (test du 28/10),
+        // jamais « Déjà essayé » sous le cadre (4 équipes, test du 30/10 au soir).
+        val e = if (constraints.hasBoundedHeight) (maxHeight.value / besoinAppelBuzz(dejaEssaye.size)).coerceIn(0.4f, 1f) else 1f
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            // L'onglet d'appel validé par cedric (choix A, 31/10 à 11:12) : plaque violette, « BUZZEZ ! » jaune, « ? » cyan.
+            // Après un essai raté, « BUZZEZ ! » suffit : la place va aux équipes déjà essayées.
+            PlaqueAppel(GenrePlaque.QUISUIS, "BUZZEZ !", if (dejaEssaye.isEmpty()) "dès que vous savez\nqui je suis" else "", k = e)
             if (dejaEssaye.isNotEmpty()) {
                 Spacer(Modifier.height(22.dp * e))
                 Text("Déjà essayé :", style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 17.sp * e, color = Color(0xFFC9C0F0)))
@@ -281,9 +274,10 @@ internal fun AppelBuzzQuiSuis(dejaEssaye: List<String>, modifier: Modifier = Mod
  * plus 10 % de marge : la police néon est plus haute que sa taille.
  */
 internal fun besoinAppelBuzz(essais: Int): Float {
-    val base = 44f + 62f + 10f + 52f
-    val liste = if (essais > 0) 22f + 22f + 8f + ((essais + 1) / 2) * 34f else 0f
-    return (base + liste) * 1.1f
+    // L'onglet d'appel (31/10) : plaque et « ? » qui dépasse (84), sa petite ligne (36) sans essai, sinon la liste des essais.
+    val base = 84f
+    val suite = if (essais > 0) 22f + 22f + 8f + ((essais + 1) / 2) * 34f else 36f
+    return (base + suite) * 1.1f
 }
 
 /** Confettis légers qui tombent doucement derrière le jeu (une trentaine de petits rectangles, rien de lourd). */

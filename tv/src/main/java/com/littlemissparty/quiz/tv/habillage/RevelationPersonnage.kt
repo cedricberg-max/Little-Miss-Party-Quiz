@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -45,6 +47,9 @@ fun RevelationPersonnage(nom: String, emoji: String?, image: ImageBitmap?, modif
     val t = remember(nom) { Animatable(0f) }
     LaunchedEffect(nom) { t.animateTo(1_200f, tween(1_200, easing = LinearEasing)) }
     val visuel = image != null || !emoji.isNullOrBlank()
+    // Game Show, le nom déjà écrit à côté : le médaillon seul, aussi grand que le cadre le permet (cedric, 30/10 : à
+    // 8 équipes « la pastille de Mickey est ridiculement petite »).
+    if (!avecNom && visuel) return MedaillonSeul(nom, emoji, image, t.value, modifier)
     Box(modifier.fillMaxSize()) {
         Echelle(560.dp, 400.dp) {
             if (visuel) Box(Modifier.align(Alignment.Center).size(420.dp).graphicsLayer { translationY = -48.dp.toPx() }) { Rayons { t.value } }
@@ -69,11 +74,7 @@ fun RevelationPersonnage(nom: String, emoji: String?, image: ImageBitmap?, modif
                             .border(6.dp, Brush.verticalGradient(listOf(Neon.OrClair, Neon.OrProfond)), CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (image != null) {
-                            Image(image, contentDescription = null, contentScale = ContentScale.Crop, alignment = com.littlemissparty.quiz.tv.CadrageHaut, modifier = Modifier.fillMaxSize().clip(CircleShape))
-                        } else {
-                            Text(emoji.orEmpty(), fontSize = 110.sp)
-                        }
+                        VisuelPersonnage(image, emoji, 110f)
                     }
                     if (avecNom) Spacer(Modifier.height(18.dp))
                 }
@@ -98,3 +99,44 @@ fun RevelationPersonnage(nom: String, emoji: String?, image: ImageBitmap?, modif
         }
     }
 }
+
+/** L'image du personnage, ou son émoji à [tailleEmoji] sp, dans le médaillon. */
+@Composable
+private fun VisuelPersonnage(image: ImageBitmap?, emoji: String?, tailleEmoji: Float) {
+    if (image != null) {
+        Image(image, contentDescription = null, contentScale = ContentScale.Crop, alignment = com.littlemissparty.quiz.tv.CadrageHaut, modifier = Modifier.fillMaxSize().clip(CircleShape))
+    } else {
+        Text(emoji.orEmpty(), fontSize = tailleEmoji.sp)
+    }
+}
+
+/**
+ * Le médaillon seul, centré, de [MEDAILLON_PART] de la plus petite dimension du cadre : il grandit avec la place, de 1
+ * à 8 équipes, et ne déborde jamais. Rayons et gerbe derrière, rognés au cadre.
+ */
+@Composable
+private fun MedaillonSeul(nom: String, emoji: String?, image: ImageBitmap?, ms: Float, modifier: Modifier) {
+    BoxWithConstraints(modifier.fillMaxSize().clipToBounds(), contentAlignment = Alignment.Center) {
+        val cote = minOf(maxWidth, maxHeight) * MEDAILLON_PART
+        Box(Modifier.size(cote * 2.1f)) { Rayons { ms } }
+        Gerbe(cle = nom)
+        Box(
+            Modifier
+                .graphicsLayer {
+                    val p = (ms / 450f).coerceIn(0f, 1f)
+                    // Le rebond reste dans le cadre : 1 + 0,08 au plus fort.
+                    val s = 0.3f + 0.7f * p + 0.08f * sin(p * PI.toFloat())
+                    scaleX = s; scaleY = s
+                    alpha = p
+                }
+                .size(cote)
+                .clip(CircleShape)
+                .background(Brush.radialGradient(listOf(Neon.FondHaut, Neon.Nuit2)))
+                .border(cote * 0.03f, Brush.verticalGradient(listOf(Neon.OrClair, Neon.OrProfond)), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { VisuelPersonnage(image, emoji, cote.value * 0.55f) }
+    }
+}
+
+/** Part de la plus petite dimension du cadre prise par le médaillon seul (le rebond monte à × 1,08). */
+internal const val MEDAILLON_PART = 0.86f

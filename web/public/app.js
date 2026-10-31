@@ -576,6 +576,7 @@ function render() {
       if (st.kind === "gonfleur") return renderGonfleur(st);
       if (st.kind === "patate") return renderPatate(st);
       if (st.kind === "duel") return renderDuel(st);
+      if (st.kind === "chrono") return renderChrono(st);
       if (st.kind === "simon") return renderSimon(st);
       return st.mime ? (st.kind === "pictionary" ? renderPicto(st) : renderMime(st)) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
@@ -919,6 +920,69 @@ async function buzzDuel(st, t) {
     await set(ref(db, `games/${code}/duel/${d.key}/${teamId}`), { t, at: serverTimestamp(), ...mesure });
   } catch {
     // Face-à-face arrêté ou déjà jugé : l'écran suit l'état de la TV.
+  }
+}
+
+/**
+ * ⏱️ Le Chrono de Buzzy (cedric, 30/10) : la tablette ne montre JAMAIS le temps. Après le décompte de la TV, le gros bouton
+ * s'allume : l'équipe compte dans sa tête et buzze une seule fois, à la cible. Comme au Duel, la tablette envoie l'heure
+ * de l'appui (heure du serveur, horloge fine mesurée pendant que le tour est prêt), et la box juge.
+ */
+let chronoEnvoye = null;
+let chronoMinuterie = null;
+const ecartTexte = (ms) => `${ms > 0 ? "+" : ms < 0 ? "−" : ""}${(Math.abs(ms) / 1000).toFixed(2).replace(".", ",")}\u00a0s`;
+function renderChrono(st) {
+  clearInterval(timerHandle);
+  clearTimeout(chronoMinuterie);
+  show("play");
+  const buzz = $("buzz");
+  const c = st.chrono ?? {};
+  const status = $("play-status");
+  const equipes = Array.isArray(c.teams) ? c.teams : [];
+  const enJeu = c.step === "run" && equipes.includes(teamId);
+  const avantZero = enJeu && typeof c.goAt === "number" && Date.now() + serverOffset < c.goAt;
+  const envoye = chronoEnvoye === c.key || (Array.isArray(c.buzzed) && c.buzzed.includes(teamId));
+  buzz.hidden = c.step !== "run" || !equipes.includes(teamId);
+  buzz.disabled = !enJeu || avantZero || !c.key || envoye || st.paused;
+  if (buzz.textContent !== "BUZZ") buzz.textContent = "BUZZ";
+  const res = c.result ?? {};
+  buzz.classList.toggle("winner", c.step === "result" && (res.winners ?? []).includes(teamId));
+  // Pendant que le tour est prêt : l'horloge de la tablette est calée sur celle du serveur.
+  if (c.step === "ready") mesurerPourLeDuel(`${st.qid}-chrono-${c.tour}`);
+  // Le gros bouton s'allume tout seul au 0 du chrono.
+  if (avantZero) chronoMinuterie = setTimeout(() => game?.state && render(), Math.max(50, c.goAt - (Date.now() + serverOffset)));
+  const cible = `${c.cible ?? 30} secondes`;
+  if (!c.step || c.step === "none") status.textContent = "Le Chrono de Buzzy : regardez la TV !";
+  else if (c.step === "ready") status.textContent = `Tour ${c.tour ?? 1} : comptez jusqu'à ${cible} ! Regardez la TV…`;
+  else if (c.step === "run") status.textContent = !equipes.includes(teamId) ? "Ce tour a commencé sans vous : regardez la TV !"
+    : avantZero ? "Prêts ? Le chrono va partir…"
+    : envoye ? "Buzz envoyé ! Regardez la TV…"
+    : `Comptez dans votre tête… Buzzez à ${cible} pile !`;
+  else {
+    const e = res.ecarts?.[teamId];
+    const gagne = (res.winners ?? []).includes(teamId);
+    const gain = res.gains?.[teamId];
+    status.textContent = typeof e !== "number" ? "Pas de buzz pour vous ce tour-ci…"
+      : gagne ? `BRAVO ! La plus proche : ${ecartTexte(e)} ! +${gain ?? res.points ?? 100} points`
+      : gain ? `Votre écart : ${ecartTexte(e)}. Bien joué : +${gain} points !`
+      : `Votre écart : ${ecartTexte(e)}. Presque !`;
+  }
+}
+
+async function buzzChrono(st, t) {
+  const c = st.chrono ?? {};
+  if (!c.key || c.step !== "run" || !c.teams?.includes(teamId) || chronoEnvoye === c.key) return;
+  if (typeof c.goAt === "number" && t < c.goAt) return;
+  chronoEnvoye = c.key;
+  $("buzz").disabled = true;
+  sonBuzz(() => beep(880, 160));
+  navigator.vibrate?.(120);
+  $("play-status").textContent = "Buzz envoyé ! Regardez la TV…";
+  const mesure = horlogeDuel ? { r: Math.round(horlogeDuel.rtt), o: Math.round(horlogeDuel.offset - performance.timeOrigin) } : {};
+  try {
+    await set(ref(db, `games/${code}/chrono/${c.key}/${teamId}`), { t, at: serverTimestamp(), ...mesure });
+  } catch {
+    // Tour arrêté ou déjà jugé : l'écran suit l'état de la TV.
   }
 }
 
@@ -1447,10 +1511,25 @@ function tapeGonfleur() {
   if (!gonfleur || st.kind !== "gonfleur" || st.paused || counting(st) || gonfleur.n >= cible) return;
   gonfleur.n += 1;
   if (gonfleur.n % 5 === 0) navigator.vibrate?.(8);
-  render();
+  redessinerGonfleur();
   // Ballon éclaté : envoi immédiat ; sinon au plus toutes les ENVOI_MS.
   if (gonfleur.n >= cible) { clearTimeout(gonfleur.minuterie); gonfleur.minuterie = null; envoyerTapes(); }
   else gonfleur.minuterie ??= setTimeout(() => { if (gonfleur) { gonfleur.minuterie = null; envoyerTapes(); } }, ENVOI_MS);
+}
+
+/**
+ * Après une tape : seul le ballon est redessiné, une fois par image au plus. Redessiner toute la page à chaque tape
+ * saturait une tablette modeste au départ de la course : les premières tapes semblaient sans effet, puis le ballon
+ * gonflait d'un coup (cedric, 30/10).
+ */
+let imageGonfleur = 0;
+function redessinerGonfleur() {
+  if (imageGonfleur) return;
+  imageGonfleur = requestAnimationFrame(() => {
+    imageGonfleur = 0;
+    const st = game.state;
+    if (gonfleur && st?.kind === "gonfleur" && st.phase === "question") renderGonfleur(st);
+  });
 }
 
 async function envoyerTapes() {
@@ -1577,7 +1656,7 @@ async function envoyerPatate(to) {
 }
 
 /**
- * 🔴 Le Simon du Prof (écran simon.js) : { ctl, cle, saisie, envoye, minuterie } de la suite en cours. Les étapes se
+ * 🔴 Le Simon de Buzzy (écran simon.js) : { ctl, cle, saisie, envoye, minuterie } de la suite en cours. Les étapes se
  * calculent à l'heure du serveur : annonce des chiffres, le robot montre la suite (« Regarde bien la TV… »), le chrono
  * (on tape), puis la vérification de la TV avant de dire « éliminés » ou « gagné » (jamais avant la TV).
  */
@@ -1602,31 +1681,32 @@ function renderSimon(st) {
   const verifFin = v ? (v.at ?? 0) + (v.suite ?? 1) * SIMON_VERIF_PAS_MS + SIMON_VERIF_FIN_MS : 0;
   const nom = (id) => game.teams[id]?.name ?? "une équipe";
   let etat; let titre; let texte = ""; let chrono = null; let prochain = null;
-  const joueurTexte = duTour && !sorti ? `C'est au tour du joueur ${joueur}` : "";
+  // Plus de « joueur n° » sur la tablette (cedric, 31/10 : l'équipe joue, la rotation des enfants se fait entre eux).
+  const joueurTexte = "";
   if (st.paused) { etat = "attente"; titre = "Pause"; texte = "La partie reprend bientôt."; }
   else if (sm.step === "play") {
     if (sm.chiffresAt != null && now < sm.montreAt - SIMON_REGARDEZ_MS) { etat = "chiffres"; titre = "Attention, les chiffres débarquent !"; prochain = sm.montreAt - SIMON_REGARDEZ_MS; }
-    else if (now < sm.reponseAt) { etat = "regarde"; titre = "Regarde bien la TV…"; texte = `Suite n° ${sm.suite}`; prochain = sm.reponseAt; }
-    else if (!duTour || sorti) { etat = "spectateur"; titre = "Les autres équipes jouent…"; texte = sorti ? "Éliminés de ce tour : vous rejouerez au prochain." : "Vous jouerez au prochain tour."; }
-    else if (simon.envoye) { etat = "envoye"; titre = "Suite envoyée !"; texte = "Regardez la TV : vérification à la fin du chrono."; }
+    else if (now < sm.reponseAt) { etat = "regarde"; titre = "Regarde et retiens bien les couleurs…"; texte = `Série n° ${sm.suite}`; prochain = sm.reponseAt; }
+    else if (!duTour || sorti) { etat = "spectateur"; titre = "Les autres équipes jouent…"; texte = sorti ? "Éliminé de ce tour : tu rejoueras au prochain." : "Tu joueras au prochain tour."; }
+    else if (simon.envoye) { etat = "envoye"; titre = "Couleurs envoyées !"; texte = "Regarde la TV : vérification à la fin du chrono."; }
     else if (now <= sm.finAt) {
-      etat = "joue"; titre = "À toi ! Tape la suite";
+      etat = "joue"; titre = "À toi ! Tape les couleurs";
       chrono = (sm.finAt - now) / Math.max(1, sm.finAt - sm.reponseAt);
       prochain = now + 250;
-    } else { etat = "envoye"; titre = "Temps écoulé !"; texte = "Regardez la TV."; }
-  } else if (v && now < verifFin) { etat = "regarde"; titre = "Vérification…"; texte = "Regardez la TV !"; prochain = verifFin; }
-  else if (v && (v.winners ?? []).includes(teamId)) { etat = "gagne"; titre = "Bravo, vous gagnez le tour !"; texte = v.points ? `+${v.points} points` : ""; }
-  else if (v && (v.wrong ?? []).includes(teamId)) { etat = "elimine"; titre = "Éliminés du tour…"; texte = sm.step === "won" ? "Le tour est fini." : "Vous rejouerez au prochain tour."; }
-  else if (v?.bahAlors) { etat = "attente"; titre = "Bah alors ?!"; texte = "Personne n'a trouvé : on recommence la même suite."; }
+    } else { etat = "envoye"; titre = "Temps écoulé !"; texte = "Regarde la TV."; }
+  } else if (v && now < verifFin) { etat = "regarde"; titre = "Vérification…"; texte = "Regarde la TV !"; prochain = verifFin; }
+  else if (v && (v.winners ?? []).includes(teamId)) { etat = "gagne"; titre = "Bravo, tu gagnes le tour !"; texte = v.points ? `+${v.points} points` : ""; }
+  else if (v && (v.wrong ?? []).includes(teamId)) { etat = "elimine"; titre = "Éliminé du tour…"; texte = sm.step === "won" ? "Le tour est fini." : "Tu rejoueras au prochain tour."; }
+  else if (v?.bahAlors) { etat = "attente"; titre = "Bah alors ?!"; texte = "Personne n'a trouvé : on recommence les mêmes couleurs."; }
   else if (sm.step === "won") {
     const gagnants = (v?.winners ?? []).map(nom);
     etat = "attente"; titre = gagnants.length ? `${gagnants.join(" et ")} ${gagnants.length > 1 ? "gagnent" : "gagne"} le tour !` : "Tour terminé";
     texte = sm.last ? "C'était le dernier tour !" : "Le tour suivant arrive…";
-  } else if (v && duTour && !sorti) { etat = "attente"; titre = "Bravo, vous continuez !"; texte = "La prochaine suite aura un élément de plus."; }
+  } else if (v && duTour && !sorti) { etat = "attente"; titre = "Bravo, tu continues !"; texte = "La prochaine série aura une couleur de plus."; }
   else if (sm.step === "ready" || sm.step === "judged") {
-    etat = "attente"; titre = "Le Simon du Prof";
-    texte = !duTour ? "Vous jouerez au prochain tour." : sorti ? "Éliminés de ce tour : vous rejouerez au prochain." : `Prochaine suite : joueur ${joueur}, prépare-toi !`;
-  } else { etat = "attente"; titre = "Le Simon du Prof"; texte = "Regardez la TV !"; }
+    etat = "attente"; titre = "Le Simon de Buzzy";
+    texte = !duTour ? "Tu joueras au prochain tour." : sorti ? "Éliminé de ce tour : tu rejoueras au prochain." : "Prochaine série : prépare-toi !";
+  } else { etat = "attente"; titre = "Le Simon de Buzzy"; texte = "Regarde la TV !"; }
   simon.ctl.maj({
     etat, titre, texte, chrono, joueur: etat === "joue" || etat === "regarde" ? joueurTexte : "",
     chiffres: sm.chiffres === true, saisie: simon.saisie, longueur: sm.suite ?? 0,
@@ -1635,7 +1715,7 @@ function renderSimon(st) {
   if (prochain != null) simon.minuterie = setTimeout(render, Math.max(50, Math.min(1_000, prochain - now + 20)));
 }
 
-/** Simon du Prof : envoie ce que l'équipe a tapé (à chaque appui, pour la TV en direct), [ok] = « Valider ». */
+/** Simon de Buzzy : envoie ce que l'équipe a tapé (à chaque appui, pour la TV en direct), [ok] = « Valider ». */
 async function envoyerSimon(ok = false) {
   const key = game.state?.simon?.key;
   if (!key || !simon || simon.cle !== key || simon.envoye) return;
@@ -1743,6 +1823,7 @@ $("buzz").onclick = async () => {
   const buzz = $("buzz");
   if (buzz.disabled) return;
   if (game?.state?.kind === "duel" && game.state.phase === "question") return buzzDuel(game.state, appui);
+  if (game?.state?.kind === "chrono" && game.state.phase === "question") return buzzChrono(game.state, appui);
   if (BUZZ_KINDS.includes(game?.state?.kind) && game.state.phase === "question") return buzzFlou(game.state);
   sonBuzz(funSound);
   navigator.vibrate?.(60);
@@ -1782,7 +1863,7 @@ document.addEventListener("pointerdown", (e) => {
   // Duel des robots : le doigt posé sur le BUZZ compte tout de suite (pas au doigt relevé).
   if (e.target instanceof Element && e.target.closest("#buzz") && buzzAffiche()) {
     dernierAppui = e.timeStamp || performance.now();
-    if (game?.state?.kind === "duel" && !$("buzz").disabled) $("buzz").click();
+    if (["duel", "chrono"].includes(game?.state?.kind) && !$("buzz").disabled) $("buzz").click();
     return;
   }
   if (e.pointerType !== "mouse" || !buzzAffiche()) return;

@@ -420,9 +420,9 @@ describe("programme modifié pendant la partie", () => {
 
 describe("prestation de test (cedric, 24/10)", async () => {
   const S = await import("../web/public/show.js");
-  test("les 18 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
-    assert.equal(JEUX_DU_TEST.length, 18);
-    assert.equal(new Set(JEUX_DU_TEST).size, 18);
+  test("les 19 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
+    assert.equal(JEUX_DU_TEST.length, 19);
+    assert.equal(new Set(JEUX_DU_TEST).size, 19);
     assert.deepEqual([...JEUX_DU_TEST].sort(), Object.keys(S.ROUND_TYPES).filter((k) => !["finale", "portes"].includes(k)).sort());
     assert.equal(JEUX_DU_TEST.at(-1), "coffres");
   });
@@ -926,10 +926,10 @@ describe("Ça va exploser !", () => {
     // 3 équipes × 5 joueurs : 8 duels × (40 s + 20 s) = 8 min.
     assert.equal(estimateMinutes(snapshot, 3), 8);
   });
-  test("🔴 Le Simon du Prof (cedric, 27/10) : tours, secondes pour taper une suite, joueurs par équipe ; passé à la TV ; 3 min par tour", async () => {
+  test("🔴 Le Simon de Buzzy (cedric, 27/10) : tours, secondes pour taper une suite, joueurs par équipe ; passé à la TV ; 3 min par tour", async () => {
     const { cleanRound, mancheSummary } = await import("../web/public/manches.js");
     const { reglagesSimon, ROUND_TYPES, alerteEquipes } = await import("../web/public/show.js");
-    assert.equal(ROUND_TYPES.simon, "Le Simon du Prof");
+    assert.equal(ROUND_TYPES.simon, "Le Simon de Buzzy");
     assert.equal(roundFilled({ type: "simon" }), true, "rien à préparer");
     assert.deepEqual(reglagesSimon({}), { tours: 3, reponse: 10, joueurs: 4 });
     assert.deepEqual(reglagesSimon({ tours: 11, reponse: 12, joueurs: 0 }), { tours: 3, reponse: 10, joueurs: 4 }, "dans ses limites");
@@ -941,7 +941,7 @@ describe("Ça va exploser !", () => {
       { q: { title: "Quiz", questions: [{ text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }] } });
     assert.deepEqual(problems, []);
     const s = snapshot.quiz.questions.at(-1);
-    assert.deepEqual(s, { id: "r2s", kind: "simon", text: "Le Simon du Prof", round: "Le Simon du Prof", choices: [], correct: -1, double: false, tours: 4, reponse: 8, joueurs: 3 });
+    assert.deepEqual(s, { id: "r2s", kind: "simon", text: "Le Simon de Buzzy", round: "Le Simon de Buzzy", choices: [], correct: -1, double: false, tours: 4, reponse: 8, joueurs: 3 });
     // Environ 3 minutes par tour.
     assert.equal(DUREE_ESTIMEE.simonParTour, 180);
     assert.equal(estimateMinutes({ quiz: { questions: [s] } }), 12);

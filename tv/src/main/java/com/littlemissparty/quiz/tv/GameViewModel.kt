@@ -22,6 +22,8 @@ import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.BlindTrack
 import com.littlemissparty.quiz.engine.ChestRound
 import com.littlemissparty.quiz.engine.DuelRound
+import com.littlemissparty.quiz.engine.ChronoRound
+import com.littlemissparty.quiz.engine.chronoGagnes
 import com.littlemissparty.quiz.engine.SimonAnswer
 import com.littlemissparty.quiz.engine.SimonRound
 import com.littlemissparty.quiz.engine.Codec
@@ -52,6 +54,7 @@ import com.littlemissparty.quiz.engine.gameGains
 import com.littlemissparty.quiz.engine.gameStep
 import com.littlemissparty.quiz.engine.nextGameTitle
 import com.littlemissparty.quiz.engine.withProgram
+import com.littlemissparty.quiz.tv.habillage.portraitDuel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -76,7 +79,7 @@ data class Team(val uid: String, val name: String, val color: String, val joined
 /** Appareil qui demande à entrer en cours de partie ; [replace] : l'équipe qu'il veut reprendre. */
 data class JoinRequestUi(val device: String, val name: String, val color: String, val replace: String?)
 
-/** Le Simon du Prof : ce qu'une équipe a tapé ([items]), validé ou non ([ok]), à l'heure du serveur [at]. */
+/** Le Simon de Buzzy : ce qu'une équipe a tapé ([items]), validé ou non ([ok]), à l'heure du serveur [at]. */
 data class SaisieSimon(val items: List<String>, val ok: Boolean, val at: Long?)
 
 sealed interface UiState {
@@ -205,16 +208,22 @@ sealed interface UiState {
         val duelGagnes: Map<String, Int> = emptyMap(),
         /** Le Duel des robots : décalage fin de l'horloge de la box avec le serveur (meilleure de 5 mesures), ou null. */
         val duelOffset: Long? = null,
-        /** Le Simon du Prof : le tour et sa suite (la suite secrète, que seule la box connaît), null hors de ce jeu. */
+        /** Le Simon de Buzzy : le tour et sa suite (la suite secrète, que seule la box connaît), null hors de ce jeu. */
         val simon: SimonRound? = null,
-        /** Le Simon du Prof : ce que chaque équipe tape en direct pour la suite en cours (montré en « ? » à la TV). */
+        /** Le Simon de Buzzy : ce que chaque équipe tape en direct pour la suite en cours (montré en « ? » à la TV). */
         val simonSaisies: Map<String, SaisieSimon> = emptyMap(),
-        /** Le Simon du Prof : temps pour répondre (réglé dans la Régie PC) et nombre de tours. */
+        /** Le Simon de Buzzy : temps pour répondre (réglé dans la Régie PC) et nombre de tours. */
         val simonSec: Int = 0,
         val simonTours: Int = 0,
-        /** Le Simon du Prof : joueurs par équipe (le joueur appelé tourne), et le dernier tour est gagné (« Jeu suivant »). */
+        /** Le Simon de Buzzy : joueurs par équipe (le joueur appelé tourne), et le dernier tour est gagné (« Jeu suivant »). */
         val simonJoueurs: Int = 0,
         val simonFini: Boolean = false,
+        /** Le Chrono de Buzzy : le tour prêt, en cours ou jugé (heures des buzz comprises), null hors de ce jeu. */
+        val chrono: ChronoRound? = null,
+        /** Le Chrono de Buzzy : nombre de tours, le dernier est joué, et les tours gagnés par équipe. */
+        val chronoTours: Int = 0,
+        val chronoFini: Boolean = false,
+        val chronoGagnes: Map<String, Int> = emptyMap(),
         /** Quiz : la question a été fermée par la fin du chrono, la TV annonce « TEMPS ÉCOULÉ ! » avant la réponse. */
         val tempsEcoule: Boolean = false,
     ) : UiState {
@@ -313,8 +322,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var potatoListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var duelListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var simonListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var chronoListener: Pair<DatabaseReference, ValueEventListener>? = null
 
-    /** Le Simon du Prof : ce que les tablettes ont envoyé pour la suite en cours (clé de la suite, puis équipe). */
+    /** Le Simon de Buzzy : ce que les tablettes ont envoyé pour la suite en cours (clé de la suite, puis équipe). */
     private var simonSaisies: Pair<String, Map<String, SaisieSimon>>? = null
 
     /**
@@ -892,7 +902,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val entreDeuxTours = g.state.mime != null && g.state.mime?.team == null && !g.mimeBilanDue(serverNow())
         // Duel des robots : pas de chrono ; le jugement d'un face-à-face attend son heure ([schedule]).
         if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.question?.isCoffres != true &&
-            g.question?.isDuel != true && g.question?.isSimon != true && !entreDeuxTours && g.timeOver(serverNow())
+            g.question?.isDuel != true && g.question?.isSimon != true && g.question?.isChrono != true && !entreDeuxTours && g.timeOver(serverNow())
         ) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
             act { it.timeUp(serverNow()) ?: it.balloon(pumps, teams().map { t -> t.uid }, serverNow(), stop = true) }
@@ -957,7 +967,22 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                         },
                     )
                 }
-                // Simon du Prof : OK lance la suite (ou le tour suivant) ; après le dernier tour, passe au jeu suivant.
+                // Chrono de Buzzy : OK lance le chrono du tour prêt, révèle quand toutes ont buzzé (comme « 👀 Révéler »),
+                // puis le tour suivant ; après le dernier, le jeu suivant.
+                else if (g.question?.isChrono == true) {
+                    val c = g.state.chrono
+                    val ids = teams().map { it.uid }
+                    commit(
+                        when {
+                            c != null && c.revelable -> g.settleChrono(serverNow(), force = true)
+                            c == null || c.enCours -> null
+                            c.step == "ready" -> if (ids.isEmpty()) null else g.startChrono(ids, serverNow())
+                            g.chronoFini -> g.next(serverNow())
+                            else -> g.readyChrono(serverNow())
+                        },
+                    )
+                }
+                // Simon de Buzzy : OK lance la suite (ou le tour suivant) ; après le dernier tour, passe au jeu suivant.
                 else if (g.question?.isSimon == true) {
                     val r = g.state.simon
                     val ids = teams().map { it.uid }
@@ -999,6 +1024,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun duelPanShown() {
         val vu = duelNow()
         act { it.duelPanShown(vu, serverNow()) }
+    }
+
+    /**
+     * Le Chrono de Buzzy : l'image où le chrono part de 0 vient d'être envoyée à l'écran ; la box mesure les buzz depuis
+     * cet instant (heure du serveur, horloge fine), pris tout de suite.
+     */
+    fun chronoShown() {
+        val vu = duelNow()
+        act { it.chronoShown(vu, serverNow()) }
     }
 
     /** Duel des robots : 5 mesures de l'écart entre l'horloge de la box et celle du serveur ; la plus courte gagne. */
@@ -1336,6 +1370,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 duelTotal = if (q?.isDuel == true) g.duelsAPrevoir(teams().size) else 0,
                 duelTousPasses = q?.isDuel == true && g.duelTousPasses(teams().map { it.uid }),
                 duelGagnes = if (q?.isDuel == true) g.duelsGagnes() else emptyMap(),
+                chrono = s.chrono.takeIf { q?.isChrono == true && s.phase != Phase.LOBBY },
+                chronoTours = q?.chronoTours ?: 0,
+                chronoFini = q?.isChrono == true && g.chronoFini,
+                chronoGagnes = if (q?.isChrono == true) g.chronoGagnes() else emptyMap(),
                 simon = s.simon.takeIf { q?.isSimon == true && s.phase != Phase.LOBBY },
                 simonSaisies = simonSaisies?.takeIf { (cle, _) -> cle == Codec.simonKey(g) }?.second.orEmpty(),
                 simonSec = q?.simonSec ?: 0,
@@ -1378,10 +1416,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // des 2 équipes pendant chaque face-à-face.
         if (g.needsDuel() && teams().size >= 2) act { it.readyDuel(teams().map { t -> t.uid }, serverNow()) }
         watchDuel(Codec.duelKey(g))
-        // Simon du Prof : la box prépare le premier tour dès le lancement du jeu, puis écoute ce que tapent les tablettes
+        // Simon de Buzzy : la box prépare le premier tour dès le lancement du jeu, puis écoute ce que tapent les tablettes
         // pendant chaque suite.
         if (g.needsSimon() && teams().isNotEmpty()) act { it.readySimon(teams().map { t -> t.uid }, serverNow()) }
         watchSimon(Codec.simonKey(g))
+        // Chrono de Buzzy : les buzz des équipes pendant chaque tour ; l'horloge fine se mesure pendant que le tour est prêt.
+        watchChrono(Codec.chronoKey(g))
+        s.chrono?.takeIf { q?.isChrono == true && it.step == "ready" }?.let { mesurerHorloge("${s.qid}-chrono-${it.tour}") }
         s.duel?.takeIf { q?.isDuel == true }?.let { d ->
             // Pendant que les joueurs se placent : l'horloge de la box est recalée finement sur celle du serveur.
             if (d.step == "ready") mesurerHorloge("${s.qid}-${d.n}")
@@ -1412,6 +1453,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         programSongs(g.quiz).forEach(::prefetchSong)
         // Ménage du cache des médias de la box, au salon d'attente ou à la fin seulement.
         rangerMedias()
+        // Prestations du jour copiées d'avance (cedric, 30/10) : seulement quand le robot dort à l'accueil d'une box
+        // acceptée, avant que Sarah charge une prestation ; ensuite le réseau est à la partie.
+        val db = gameRef?.database
+        if (db != null && s.phase == Phase.LOBBY && g.quiz.id == DEFAULT_QUIZ && boxOk != null) {
+            prechargeur.accueil(viewModelScope, db)
+        } else {
+            prechargeur.arreter()
+        }
     }
 
     private fun blindUi(g: Game): BlindUi {
@@ -1524,7 +1573,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val n = (node.child("n").readWhenPresent(SONG_WAIT_MS)?.value as? Number)?.toInt()?.takeIf { it in 1..24 } ?: return null
         val length = (node.child("length").readWhenPresent(PHOTO_WAIT_MS)?.value as? Number)?.toLong() ?: 0L
         val kbps = (node.child("kbps").readWhenPresent(PHOTO_WAIT_MS)?.value as? Number)?.toLong() ?: 0L
-        val cle = "e_${songId}_${n}_${length}_$kbps"
+        val cle = Prechargeur.cleChanson(songId, n, length, kbps)
         songKeys[songId] = cle
         val file = medias.extrait(cle)
         if (kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { file.isFile && file.length() > 0 }) {
@@ -1651,6 +1700,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Extraits et photos gardés sur la box, retéléchargeables depuis la partie. */
     private val medias by lazy { MediasBox(getApplication<Application>().filesDir) }
+    private val prechargeur by lazy { Prechargeur(medias) }
     /** Un seul ménage ou vidage du cache à la fois. */
     private val mediasLock = Mutex()
     /** Partie dont le cache a déjà été rangé : une seule fois par partie ouverte. */
@@ -2047,6 +2097,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     private var sante: Job? = null
     @Volatile private var internet = false
+    private val coupures = Coupures()
 
     /** Bilan de santé de la box dans ses rapports pendant la soirée (voir [SanteBox]) ; un seul suivi par lancement. */
     private fun suivreSante(db: FirebaseDatabase) {
@@ -2093,6 +2144,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 depuisMs = depuisMs,
             )
             CrashReporter.report(db, "sante", bilan.ligne())
+            // Coupures des 5 dernières minutes (cedric, 30/10) : par couleur d'équipe, jamais le nom (journal public).
+            val equipes = partie?.teams.orEmpty().associateBy { it.uid }
+            coupures.releve(System.currentTimeMillis()) { id ->
+                if (id.startsWith(REGIE_COUPURE)) "téléphone" else equipes[id]?.let { "tablette ${portraitDuel(it.color.toColor())}" } ?: "tablette ?"
+            }?.let { CrashReporter.report(db, "connexions", it) }
             // Fluidité des 5 dernières minutes : où la box a accroché (cedric, 25/10 : la Mi Box comme référence).
             Fluidite.releve()?.let { CrashReporter.report(db, "fluidite", it) }
             Reactivite.releve()?.let { CrashReporter.report(db, "fluidite", it) }
@@ -2158,6 +2214,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         online = emptySet()
         observe(ref.child("presence")) { snap ->
+            val maintenant = System.currentTimeMillis()
+            snap.children.forEach { c -> c.key?.let { coupures.vu(it, c.child("online").getValue(Boolean::class.java) == true, maintenant) } }
             val now = snap.children.filter { it.child("online").getValue(Boolean::class.java) == true }
                 .mapNotNull { it.key }.toSet()
             onPresence(online, now)
@@ -2195,6 +2253,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
             updatePlaying { it.copy(requests = list) }
+        }
+        // Le téléphone de la régie signale sa présence : ses coupures vont dans les rapports, comme celles des tablettes.
+        observe(ref.child("regiePresence")) { snap ->
+            val maintenant = System.currentTimeMillis()
+            snap.children.forEach { c -> c.key?.let { coupures.vu(REGIE_COUPURE + it, c.child("online").getValue(Boolean::class.java) == true, maintenant) } }
         }
         observe(ref.child("regie")) { snap ->
             val uids = snap.children.mapNotNull { it.key }.toSet()
@@ -2237,10 +2300,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 delay(DROP_GRACE_MS)
                 dropTimers.remove(uid)
                 act { g ->
-                    // Pendant les mimes et les Statues musicales, les pupitres ne servent pas : un pupitre qui décroche ne
-                    // bloque rien. Blind test : seulement pendant la musique (en attente de relance, rien ne court).
-                    val waited = g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) > 0 &&
-                        g.question?.isTurns != true && g.question?.isStatues != true && g.state.buzz?.waiting != true
+                    // Mimes, Statues, blind test en attente, réponse orale après un buzz : pas de pause (voir pauseAutoPossible).
+                    val waited = g.pauseAutoPossible(serverNow())
                     if (waited && uid !in online && uid !in answers && teams().any { it.uid == uid }) {
                         g.pause(serverNow(), PAUSE_TEAM, uid)
                     } else null
@@ -2363,6 +2424,39 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Chrono de Buzzy : les buzz des tablettes du tour en cours (games/<code>/chrono/<clé>/<équipe> = { t, at }) : [t] = heure
+     * de l'appui estimée par la tablette, [at] = arrivée sur le serveur. Les règles n'acceptent qu'un buzz par équipe du
+     * tour, et une clé par tour : un vieux buzz ne compte jamais.
+     */
+    private fun watchChrono(key: String?) {
+        if (key == chronoListener?.first?.key) return
+        chronoListener?.let { (r, l) -> r.removeEventListener(l) }
+        chronoListener = null
+        val ref = gameRef?.child("chrono")?.child(key ?: return) ?: return
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val buzz = snapshot.children.mapNotNull { c ->
+                    val at = c.child("at").getValue(Long::class.java) ?: return@mapNotNull null
+                    Triple(c.key ?: return@mapNotNull null, c.child("t").getValue(Long::class.java) ?: at, at)
+                }.sortedBy { it.third }
+                buzz.forEach { (team, t, at) ->
+                    Reactivite.noter("chrono", serverNow() - at)
+                    act { g ->
+                        if (Codec.chronoKey(g) != key || g.state.chrono?.buzzes?.any { it.team == team } == true) null
+                        else g.chronoBuzz(team, t, minOf(at, serverNow()))
+                    }
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Buzz du chrono : ${error.message}")
+            }
+        }
+        chronoListener = ref to listener
+        ref.addValueEventListener(listener)
+    }
+
+    /**
      * Duel des robots : les buzz des 2 tablettes du face-à-face en cours (games/<code>/duel/<clé>/<équipe> = { t, at }) :
      * [t] = heure de l'appui estimée par la tablette, [at] = arrivée sur le serveur. Les règles n'acceptent qu'un buzz par
      * équipe du duel, et une clé par face-à-face : un vieux buzz ne compte jamais. La box juge (trop tôt, plus rapide).
@@ -2400,7 +2494,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Simon du Prof : ce que tapent les tablettes pendant la suite en cours (games/<code>/simon/<clé>/<équipe> =
+     * Simon de Buzzy : ce que tapent les tablettes pendant la suite en cours (games/<code>/simon/<clé>/<équipe> =
      * { items: "rouge,vert,4", ok, at }), réécrit à chaque appui jusqu'à « Valider » (ok). Les règles n'acceptent que
      * les équipes encore en jeu, pendant le chrono, et plus rien après « Valider ». La TV le montre en direct ; quand
      * toutes les équipes en jeu ont validé, la box juge sans attendre la fin du chrono.
@@ -2439,7 +2533,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         ref.addValueEventListener(listener)
     }
 
-    /** Simon du Prof : les réponses de la suite en cours, temps pour valider compté depuis le début du chrono. */
+    /** Simon de Buzzy : les réponses de la suite en cours, temps pour valider compté depuis le début du chrono. */
     private fun reponsesSimon(g: Game): Map<String, SimonAnswer> {
         val depart = g.state.simon?.reponseAt ?: return emptyMap()
         val saisies = simonSaisies?.takeIf { (cle, _) -> cle == Codec.simonKey(g) }?.second.orEmpty()
@@ -2628,6 +2722,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         watchPotato(null)
         watchDuel(null)
         watchSimon(null)
+        watchChrono(null)
         watchDrawing(null)
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
@@ -2635,6 +2730,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        prechargeur.arreter()
         stopListening()
         boxWatch.forEach { (r, l) -> r.removeEventListener(l) }
         boxWatch.clear()
@@ -2721,8 +2817,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "disparu" to true,
             // Le Duel des robots : buzz des tablettes dans duel/, PAN et jugement par la box, duel_start / duel_next / duel_stop.
             "duel" to true,
-            // Le Simon du Prof : réponses des tablettes dans simon/, suite secrète et jugement par la box, simon_go / simon_stop.
+            // Le Simon de Buzzy : réponses des tablettes dans simon/, suite secrète et jugement par la box, simon_go / simon_stop.
             "simon" to true,
+            // Le Chrono de Buzzy : buzz des tablettes dans chrono/, 0 affiché et jugement par la box, chrono_go / chrono_cible / chrono_reveal / chrono_stop.
+            "chrono" to true,
             // Mauvaise prestation : une autre prestation remplace celle-ci tant qu'aucun point n'a été donné (retour au salon).
             "programReset" to true,
             "questions" to quiz.questions.map {
@@ -2743,9 +2841,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     // Le Duel des robots : joueurs par équipe et durée du face-à-face, relus après un redémarrage.
                     "faceMin" to it.faceMin.takeIf { _ -> it.isDuel },
                     "faceMax" to it.faceMax.takeIf { _ -> it.isDuel }, "longs" to it.longs.takeIf { _ -> it.isDuel },
-                    // Le Simon du Prof : tours, temps pour répondre et joueurs par équipe, relus après un redémarrage.
-                    "tours" to it.simonTours.takeIf { _ -> it.isSimon }, "reponse" to it.simonSec.takeIf { _ -> it.isSimon },
+                    // Le Simon de Buzzy : tours, temps pour répondre et joueurs par équipe, relus après un redémarrage.
+                    "tours" to (if (it.isSimon) it.simonTours else if (it.isChrono) it.chronoTours else null), "reponse" to it.simonSec.takeIf { _ -> it.isSimon },
                     "joueurs" to it.joueurs.takeIf { _ -> it.isDuel || it.isSimon },
+                    // Le Chrono de Buzzy : la cible réglée dans la Régie PC, relue après un redémarrage.
+                    "cible" to it.chronoCible.takeIf { _ -> it.isChrono },
                 ))
             },
         )
@@ -2792,6 +2892,9 @@ private suspend fun DatabaseReference.readWhenPresent(timeoutMs: Long = 60_000L)
 }
 
 private const val PHOTO_WAIT_MS = 30_000L
+
+/** Les coupures du téléphone de la régie, suivies avec celles des tablettes (voir [Coupures]). */
+private const val REGIE_COUPURE = "regie:"
 /** Statues : la régie copie les chansons entières (plusieurs Mo chacune) pendant la fête ; la box les attend longtemps. */
 private const val SONG_WAIT_MS = 20 * 60_000L
 /** Ménage du cache des médias : laissé à la partie qui s'ouvre le temps de démarrer et de lancer ses copies. */
@@ -2878,3 +2981,4 @@ private suspend fun DatabaseReference.readOnce(timeoutMs: Long = 8000L): DataSna
         cont.invokeOnCancellation { removeEventListener(listener) }
     }
 }
+

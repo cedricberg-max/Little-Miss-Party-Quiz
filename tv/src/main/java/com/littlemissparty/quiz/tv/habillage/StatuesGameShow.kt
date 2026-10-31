@@ -97,7 +97,7 @@ private fun FinDeLaChanson(modifier: Modifier) {
     }
 }
 
-/** S1 : DANSEZ ! qui rebondit sur la mesure, un égaliseur qui bat, la consigne en dessous. */
+/** S1 : DANSEZ ! qui rebondit sur la mesure et un égaliseur qui bat, sans consigne en dessous. */
 @Composable
 private fun Dansez(modifier: Modifier) {
     val ms = horloge(Unit)
@@ -113,8 +113,7 @@ private fun Dansez(modifier: Modifier) {
         }) { LettresQuiDansent("DANSEZ !", 170.sp) }
         Spacer(Modifier.height(18.dp))
         Egaliseur(ms, Modifier.width(560.dp).height(96.dp))
-        Spacer(Modifier.height(22.dp))
-        LigneBuzz("BOUGEZ TANT QUE LA MUSIQUE JOUE", 26.sp)
+        // Plus d'onglet « BOUGEZ TANT QUE LA MUSIQUE JOUE » : « DANSEZ ! » reste seul (cedric, 31/10 à 11:12).
     }
 }
 

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -81,7 +83,7 @@ import com.littlemissparty.quiz.tv.habillage.apparition
 import kotlinx.coroutines.delay
 
 /*
- * 🔴 Le Simon du Prof sur la TV (cedric, 27/10 ; planche du design). L'écran ne décide rien : la box tire la suite
+ * 🔴 Le Simon de Buzzy sur la TV (cedric, 27/10 ; planche du design). L'écran ne décide rien : la box tire la suite
  * secrète, lance chaque suite et juge. Ici, au tableau néon : « Regardez bien… » puis les boules qui s'allument une à
  * une avec leur note ; « Attention, les chiffres débarquent ! » avant la première suite à chiffres ; « À vous de
  * jouer ! » avec ce que chaque équipe tape en direct, en « ? » à sa couleur ; la vérification colonne par colonne ;
@@ -203,7 +205,7 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
 
     EchelleSansCoupe(SCENE_L, SCENE_H, Modifier.fillMaxSize()) {
         if (r != null) {
-            TubeSimon("LE SIMON DU PROF · TOUR ${r.tour}", GS.Cyan, Modifier.align(Alignment.TopStart).padding(start = 72.dp, top = 34.dp))
+            TubeSimon("LE SIMON DE BUZZY · TOUR ${r.tour}", GS.Cyan, Modifier.align(Alignment.TopStart).padding(start = 72.dp, top = 34.dp))
             val n = if (r.enCours || v == null) r.suite else v.suite
             TubeSimon("SUITE N° $n", GS.Orange, Modifier.align(Alignment.TopEnd).padding(end = 72.dp, top = 34.dp))
         }
@@ -214,8 +216,9 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
             Modifier.padding(start = gauche.dp, end = 40.dp, top = 130.dp, bottom = if (lignes) 40.dp else 190.dp).fillMaxSize(),
         ) { CompositionLocalProvider(LargeurTableau provides 1920f - gauche - 40f - 84f) {
             when (vue.etape) {
+                // Avant le premier tour : le nom du jeu au tableau (cedric, 30/10), comme les autres jeux.
                 EtapeSimon.ATTENTE -> Annonce(
-                    if (state.teams.isEmpty()) "IL FAUT UNE ÉQUIPE" else "LE ROBOT PROF ARRIVE…",
+                    if (state.teams.isEmpty()) "IL FAUT UNE ÉQUIPE" else "LE SIMON DE BUZZY",
                     if (state.teams.isEmpty()) "Au moins une équipe doit être inscrite pour jouer" else null, cle,
                 )
                 EtapeSimon.PRET -> Annonce(
@@ -223,7 +226,8 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
                     when {
                         r!!.tour > 1 && r.suite == 1 -> "Nouveau tour : tout le monde rejoue !"
                         r.suite == 1 -> "Le robot montre une suite : retenez-la bien !"
-                        else -> "Suite de ${r.suite} : le joueur appelé prend la tablette"
+                        // Plus de « joueur » à l'écran (cedric, 31/10) : l'équipe joue, la rotation se fait entre eux.
+                        else -> "Série de ${r.suite} : à vos tablettes !"
                     },
                     cle,
                 )
@@ -237,11 +241,11 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
         // Devant le tableau : sa règle passe par-dessus le cadre, comme sur la planche.
         RobotProf(poseSimon(vue.etape, v), if (lignes) 700f else 820f, Modifier.align(Alignment.BottomStart).offset(x = (-40).dp, y = (-30).dp))
         if (!lignes && r != null) {
-            val prets = vue.etape == EtapeSimon.PRET
             Plaques(
                 r.teams.map { uid ->
                     val dehors = uid in r.out
-                    Plaque(nom(uid), couleur(uid), if (dehors) "éliminés" else if (prets) "joueur n° ${r.joueur(uid, state.simonJoueurs)}" else "encore en jeu", dehors)
+                    // « encore en jeu » ou « éliminés », jamais de « joueur n° » (choix A de cedric, 31/10).
+                    Plaque(nom(uid), couleur(uid), if (dehors) "éliminés" else "encore en jeu", dehors)
                 },
                 1920f - gauche - 40f,
                 Modifier.align(Alignment.BottomEnd).padding(start = gauche.dp, end = 40.dp, bottom = 36.dp),
@@ -305,7 +309,7 @@ private fun DrawScope.halo(couleur: Color, rayon: Float, n: Int) {
     }
 }
 
-/** « LE SIMON DU PROF · TOUR 3 », « SUITE N° 4 » : tubes néon en haut de l'écran. */
+/** « LE SIMON DE BUZZY · TOUR 3 », « SUITE N° 4 » : tubes néon en haut de l'écran. */
 @Composable
 private fun TubeSimon(texte: String, couleur: Color, modifier: Modifier) {
     val forme = RoundedCornerShape(50.dp)
@@ -444,6 +448,18 @@ private sealed interface Case {
 /** Une ligne du tableau : l'équipe (ou « La bonne suite »), ses cases, et son état à droite. */
 private class Ligne(val nom: String, val couleur: Color, val cases: List<Case>, val etat: String, val etatCouleur: Color, val eteinte: Boolean = false, val coches: Int = 0)
 
+/**
+ * Taille (dp) des boules d'une ligne de [n] boules, haute de [h] dp, dans un tableau large de [largeur] dp : elles
+ * rapetissent quand la suite s'allonge, la ligne ne déborde jamais (cedric, 30/10 : « quand le nombre de boules
+ * dépasse la ligne ? »), jusqu'à la suite la plus longue (SIMON_LONGUEUR_MAX).
+ */
+internal fun tailleBouleSimon(n: Int, h: Float, largeur: Float): Float {
+    return minOf(h - 18f, 66f, placeBoulesSimon(largeur) / (n.coerceAtLeast(1) * 1.2f - 0.2f)).coerceAtLeast(20f)
+}
+
+/** Place laissée aux boules d'une ligne (dp). */
+internal fun placeBoulesSimon(largeur: Float): Float = largeur - 48f - NOM_L.value - ESPACE.value * 2 - ETAT_L.value
+
 private val NOM_L = 250.dp
 private val ETAT_L = 250.dp
 private val ESPACE = 16.dp
@@ -454,18 +470,20 @@ private fun BoxScope.Lignes(titre: String, sousTitre: String, lignes: List<Ligne
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().height(110.dp), verticalAlignment = Alignment.CenterVertically) {
             TexteNeon(titre, GS.CyanClair, 86f, PoliceGsTitre, largeurMax = 900.dp, force = 0.6f)
-            Text(
-                sousTitre, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 24.dp, top = 18.dp).weight(1f),
-                style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 38.sp, color = Color(0xFF8CE8FF)),
-            )
+            // Taille ajustée à la place entre le titre et le chrono : « Suite de 7 · tapez puis v » était coupé (cedric, 30/10).
+            CompositionLocalProvider(LocalTextStyle provides TextStyle(fontFamily = PoliceGsTexte)) {
+                TexteAjuste(
+                    sousTitre, Color(0xFF8CE8FF), 38.sp, Modifier.padding(start = 24.dp, top = 18.dp).weight(1f).fillMaxHeight(),
+                    min = 20.sp, lignes = 1, fontWeight = FontWeight.Bold,
+                )
+            }
             if (chronoReste != null) Chrono(chronoReste, chronoTotal)
         }
         Spacer(Modifier.height(12.dp))
         val hauteurDispo = 880f - 110f - 12f - 40f
         val k = lignes.size.coerceAtLeast(1)
         val h = minOf(100f, (hauteurDispo - 10f * (k - 1)) / k)
-        val dispo = LargeurTableau.current - 48f - NOM_L.value - ESPACE.value * 2 - ETAT_L.value
-        val taille = minOf(h - 18f, 66f, dispo / (n * 1.2f - 0.2f)).coerceAtLeast(20f)
+        val taille = tailleBouleSimon(n, h, LargeurTableau.current)
         val ecart = taille * 0.2f
         Box(Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -681,7 +699,7 @@ private fun BoxScope.ChiffresDebarquent(cle: Any?) {
     }
 }
 
-/** Les plaques des équipes du tour, sous le tableau : en jeu, joueur appelé, ou éliminées (pâlies). */
+/** Les plaques des équipes du tour, sous le tableau : en jeu ou éliminées (pâlies). */
 private class Plaque(val nom: String, val couleur: Color, val etat: String, val eteinte: Boolean)
 
 @Composable

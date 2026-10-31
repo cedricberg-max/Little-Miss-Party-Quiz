@@ -69,10 +69,22 @@ sealed interface Command {
     /** Duel des robots : « ✋ Arrêter le duel », le face-à-face s'arrête sans points. */
     data class DuelStop(override val id: String, override val expectSeq: Int) : Command
 
-    /** Simon du Prof : « ▶ » de Sarah, la suite suivante (ou la même après « Bah alors »), ou le tour suivant. */
+    /** Chrono de Buzzy : « ▶ Lancer le chrono » du tour prêt, ou « ▶ Tour suivant » après un tour jugé. */
+    data class ChronoGo(override val id: String, override val expectSeq: Int) : Command
+
+    /** Chrono de Buzzy : la cible du tour prêt (secondes), − / + du téléphone. */
+    data class ChronoCible(override val id: String, override val expectSeq: Int, val cible: Int) : Command
+
+    /** Chrono de Buzzy : « 👀 Révéler maintenant », sans attendre les équipes qui n'ont pas buzzé (cible passée). */
+    data class ChronoReveal(override val id: String, override val expectSeq: Int) : Command
+
+    /** Chrono de Buzzy : « ✋ Arrêter », le tour s'arrête sans points et reste prêt. */
+    data class ChronoStop(override val id: String, override val expectSeq: Int) : Command
+
+    /** Simon de Buzzy : « ▶ » de Sarah, la suite suivante (ou la même après « Bah alors »), ou le tour suivant. */
     data class SimonGo(override val id: String, override val expectSeq: Int) : Command
 
-    /** Simon du Prof : « ✋ Arrêter la suite », elle se relancera telle quelle, sans élimination. */
+    /** Simon de Buzzy : « ✋ Arrêter la suite », elle se relancera telle quelle, sans élimination. */
     data class SimonStop(override val id: String, override val expectSeq: Int) : Command
 
     /** Blind test : lancer ou relancer la musique du morceau. */
@@ -153,6 +165,10 @@ sealed interface Command {
                 "duel_stop" -> DuelStop(id, seq)
                 "simon_go" -> SimonGo(id, seq)
                 "simon_stop" -> SimonStop(id, seq)
+                "chrono_go" -> ChronoGo(id, seq)
+                "chrono_cible" -> ChronoCible(id, seq, (m["cible"] as Number).toInt())
+                "chrono_reveal" -> ChronoReveal(id, seq)
+                "chrono_stop" -> ChronoStop(id, seq)
                 "portes_set" -> PortesSet(id, seq, m["qid"] as String, (m["door"] as Number).toInt(), (m["value"] as Number).toInt())
                 else -> null
             }
@@ -192,7 +208,8 @@ fun Game.execute(
         cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut ||
         cmd is Command.PictoShow || cmd is Command.PictoDraw || cmd is Command.ChestRandom || cmd is Command.PotatoRandom ||
         cmd is Command.PotatoStop || cmd is Command.StatuesStop || cmd is Command.StatuesPlay || cmd is Command.StatuesSong ||
-        cmd is Command.DuelStart || cmd is Command.DuelNext || cmd is Command.DuelStop || cmd is Command.SimonGo || cmd is Command.SimonStop
+        cmd is Command.DuelStart || cmd is Command.DuelNext || cmd is Command.DuelStop || cmd is Command.SimonGo || cmd is Command.SimonStop ||
+        cmd is Command.ChronoGo || cmd is Command.ChronoCible || cmd is Command.ChronoReveal || cmd is Command.ChronoStop
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
     // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
@@ -261,6 +278,15 @@ fun Game.execute(
         is Command.DuelStop -> stopDuel(now)
         is Command.SimonGo -> if (teams.isEmpty()) return refused("no_teams") else simonGo(teams, now, random)
         is Command.SimonStop -> stopSimon(now)
+        is Command.ChronoGo -> when {
+            teams.isEmpty() -> return refused("no_teams")
+            state.chrono?.step == "ready" -> startChrono(teams, now, random)
+            chronoFini -> return refused("last_tour")
+            else -> readyChrono(now)
+        }
+        is Command.ChronoCible -> if (cmd.cible !in CHRONO_CIBLE_MIN..CHRONO_CIBLE_MAX) return refused("bad_cible") else chronoCible(cmd.cible, now)
+        is Command.ChronoReveal -> settleChrono(now, force = true)
+        is Command.ChronoStop -> stopChrono(now)
         is Command.PortesSet -> if (question?.id != cmd.qid) return refused("stale_program") else setDoor(cmd.door, cmd.value, now)
         is Command.Factor -> if (cmd.factor !in FACTORS) return refused("bad_factor") else chooseFactor(cmd.factor, now)
         // Le programme a changé depuis l'affichage de la régie : rien n'est fait.
