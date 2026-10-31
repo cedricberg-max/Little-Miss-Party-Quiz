@@ -6071,7 +6071,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Mimes" }).waitFor();
     await page.locator("#manches-list", { hasText: "Aucun jeu gardé pour l'instant : ils arrivent ici quand vous composez une prestation." }).waitFor();
     assert.equal(await page.locator("#manche-new").count(), 0);
-    assert.match(await page.locator("#game-apercu").getAttribute("src"), /apercus-jeux\/mimes\.mp4$/);
+    assert.match(await page.locator("#game-apercu").getAttribute("src"), /apercus-jeux\/mimes\.mp4\?v=\d+$/);
     assert.match(await page.locator("#game-manche-hint").textContent(), /« ＋ Ajouter un jeu »/);
 
     // Composée dans une prestation : le 🎲 de chaque équipe tire ses images (10 ici), toutes différentes.
@@ -7147,7 +7147,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // La page du jeu : son aperçu, pas de création de manche (elles se composent dans les prestations).
     await openGamePage(page, "illustre");
     await page.locator("#game-h1", { hasText: "📷 Quiz illustré" }).waitFor();
-    assert.match(await page.locator("#game-apercu").getAttribute("src"), /apercus-jeux\/illustre\.mp4$/);
+    assert.match(await page.locator("#game-apercu").getAttribute("src"), /apercus-jeux\/illustre\.mp4\?v=\d+$/);
 
     // L'ancienne prestation s'ouvre avec un Quiz illustré (Super Finale gardée) et s'enregistre ainsi.
     await page.click("#nav button[data-screen=home]");
