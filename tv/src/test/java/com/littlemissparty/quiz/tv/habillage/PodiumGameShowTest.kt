@@ -280,4 +280,10 @@ class PodiumGameShowTest {
         val appli = File("src/main/java").walkTopDown().filter { it.extension == "kt" }.map { it.readText() }
         assertTrue(appli.none { it.contains("podiumSansVideos = true") })
     }
+
+    @Test
+    fun `les noms sous les tubes ont tous la meme taille, celle du nom le plus serre`() {
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/PodiumGameShow.kt").readText()
+        assertTrue(source.contains("places.indices.minOfOrNull { k -> tailleNomTube(textes[k], places[k], mesure, densite) }"))
+    }
 }

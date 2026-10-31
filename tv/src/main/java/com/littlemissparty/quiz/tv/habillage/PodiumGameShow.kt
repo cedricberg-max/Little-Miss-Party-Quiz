@@ -58,8 +58,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -409,21 +411,28 @@ private fun TubesPodium(colonnes: List<Classee>, scores: List<Int>, ms: () -> Fl
             compositingStrategy = CompositingStrategy.ModulateAlpha
         },
     ) {
+        // Tous les noms à la même taille : celle du nom qui doit le plus rétrécir (tour des écrans du 31/10 à 8 équipes :
+        // des noms grands à côté de noms petits faisaient désordre).
+        val textes = places.mapIndexed { k, p -> if (p.deuxLignes) nomSurDeuxLignes(colonnes[k].nom) else colonnes[k].nom }
+        val taille = remember(textes, places, densite) {
+            places.indices.minOfOrNull { k -> tailleNomTube(textes[k], places[k], mesure, densite) } ?: 16f
+        }
         places.forEachIndexed { k, p ->
-            val e = colonnes[k]
-            val texte = if (p.deuxLignes) nomSurDeuxLignes(e.nom) else e.nom
-            val taille = remember(texte, p, densite) {
-                val t0 = maxOf(16f, 19f * p.echelle)
-                val l = texte.lines().maxOf { mesure.measure(it, styleNomTube(t0), maxLines = 1, softWrap = false).size.width }.toFloat()
-                val maxPx = with(densite) { p.placeNom.dp.toPx() }
-                if (l > maxPx) t0 * maxPx / l else t0
-            }
+            val texte = textes[k]
             Text(
                 texte, maxLines = 2, softWrap = false, style = styleNomTube(taille).copy(textAlign = TextAlign.Center, lineHeight = (taille * 1.08f).sp),
                 modifier = Modifier.centreSurLigneDeBase(p.centre.dp, (TUBE_HAUT + TUBE_HAUTEUR + 22f * p.echelle).dp),
             )
         }
     }
+}
+
+/** Taille (sp) où [texte] tient dans la largeur de nom de [p], au plus sa taille normale. */
+private fun tailleNomTube(texte: String, p: PlaceTube, mesure: TextMeasurer, densite: Density): Float {
+    val t0 = maxOf(16f, 19f * p.echelle)
+    val l = texte.lines().maxOf { mesure.measure(it, styleNomTube(t0), maxLines = 1, softWrap = false).size.width }.toFloat()
+    val maxPx = with(densite) { p.placeNom.dp.toPx() }
+    return if (l > maxPx) t0 * maxPx / l else t0
 }
 
 // Chiffres un peu espacés, comme aux jauges des scores : en Black, « 117 » se touchait presque (cedric, 26/10).
