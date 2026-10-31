@@ -540,12 +540,14 @@ private fun androidx.compose.foundation.layout.BoxScope.Revelation(state: UiStat
     }
     // Les noms et écarts sous la règle, sur 4 rangées pour ne jamais se chevaucher à 8 équipes.
     val parPosition = ordre.sortedBy { r.ecarts.getValue(it) }
-    val rangees = rangeesEtiquettes(parPosition.map { xDe(c.cible + r.ecarts.getValue(it) / 1000.0) })
+    val places = placesEtiquettes(
+        parPosition.map { xDe(c.cible + r.ecarts.getValue(it) / 1000.0) },
+        parPosition.map { largeurEtiquette(nom(it), texteEcart(r.ecarts.getValue(it)) + (r.gains[it]?.let { g -> " · +$g" }.orEmpty())) },
+    )
     parPosition.forEachIndexed { rang, uid ->
         val i = ordre.indexOf(uid)
         if (t < arrivee[i] + (if (i == ordre.lastIndex) PASTILLE_RALENTI_MS else 500L)) return@forEachIndexed
-        val x = xDe(c.cible + r.ecarts.getValue(uid) / 1000.0)
-        val rangee = rangees[rang]
+        val (rangee, x) = places[rang]
         Column(
             Modifier.offset((x - ETIQUETTE_L / 2).dp, (yRegle + 46f + rangee * 104f).dp).width(ETIQUETTE_L.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -579,17 +581,28 @@ internal fun phraseGagnant(nom: String): String {
 /** Largeur d'une étiquette (nom + écart) sous la règle, en px de la scène. */
 internal const val ETIQUETTE_L = 400f
 
+/** Largeur estimée d'une étiquette (nom en 42 sp, écart en 36 sp), plafonnée à [ETIQUETTE_L] (le texte se réduit au-delà). */
+internal fun largeurEtiquette(nom: String, ecart: String): Float =
+    (maxOf(nom.length * 19f, ecart.length * 15f) + 16f).coerceAtMost(ETIQUETTE_L)
+
 /**
- * La rangée (0 à 3) de chaque étiquette sous la règle, les [x] triés de gauche à droite : chacune va dans la première
- * rangée où elle ne touche aucune autre étiquette ; si aucune n'est libre (équipes très serrées), dans celle où la voisine
- * la plus proche est la plus loin.
+ * Où poser chaque étiquette sous la règle, les [x] (centres des pastilles) triés de gauche à droite, [largeurs] estimées :
+ * (rangée 0 à 3, centre x). Chacune va dans la première rangée où elle ne touche pas la précédente ; si aucune n'est libre
+ * (équipes très serrées), dans celle où il y a le plus de place, décalée vers la droite juste ce qu'il faut. Jamais hors de
+ * l'écran (1920 px).
  */
-internal fun rangeesEtiquettes(x: List<Float>, rangeesMax: Int = 4, ecart: Float = ETIQUETTE_L + 12f): List<Int> {
-    val dernier = FloatArray(rangeesMax) { Float.NEGATIVE_INFINITY }
-    return x.map { xi ->
-        val libre = (0 until rangeesMax).firstOrNull { xi - dernier[it] >= ecart }
-        val r = libre ?: (0 until rangeesMax).maxBy { xi - dernier[it] }
-        dernier[r] = xi
-        r
+internal fun placesEtiquettes(x: List<Float>, largeurs: List<Float>, rangeesMax: Int = 4, marge: Float = 14f): List<Pair<Int, Float>> {
+    val bordDroit = FloatArray(rangeesMax) { Float.NEGATIVE_INFINITY }
+    return x.indices.map { i ->
+        val demi = largeurs[i] / 2
+        val libre = (0 until rangeesMax).firstOrNull { x[i] - demi >= bordDroit[it] + marge }
+        val r = libre ?: (0 until rangeesMax).minBy { bordDroit[it] }
+        val cx = maxOf(x[i], bordDroit[r] + marge + demi).coerceIn(demi + 20f, 1900f - demi)
+        bordDroit[r] = cx + demi
+        r to cx
     }
 }
+
+/** Les rangées seules, étiquettes toutes de largeur [ETIQUETTE_L] (pour les tests et les cas simples). */
+internal fun rangeesEtiquettes(x: List<Float>, rangeesMax: Int = 4): List<Int> =
+    placesEtiquettes(x, x.map { ETIQUETTE_L }, rangeesMax).map { it.first }
