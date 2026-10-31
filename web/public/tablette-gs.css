@@ -465,8 +465,8 @@ body.look-gs:not(.regie-mode) #app .sm-joueur { align-self: center; justify-self
 body.look-gs:not(.regie-mode) #app .sm-compte { text-align: center; }
 body.look-gs:not(.regie-mode) .sm-suite { justify-content: center; }
 /* De l'air sur les côtés (cedric, 31/10 08:34) : rien ne colle au bord de l'écran, en portrait comme en paysage. */
-/* (Le Simon garde sa marge d'avant : ses boules doivent rester assez grosses pour le doigt, les tests le vérifient.) */
-body.look-gs:not(.regie-mode) #app .screen:not(#screen-simon) { padding-left: max(clamp(32px, 8vw, 96px), env(safe-area-inset-left)); padding-right: max(clamp(32px, 8vw, 96px), env(safe-area-inset-right)); }
+/* Le Simon a les mêmes marges que les autres écrans (cedric, 31/10 12:56). */
+body.look-gs:not(.regie-mode) #app .screen { padding-left: max(clamp(32px, 8vw, 96px), env(safe-area-inset-left)); padding-right: max(clamp(32px, 8vw, 96px), env(safe-area-inset-right)); }
 @media (max-width: 600px) {
   /* Téléphone tenu droit : l'écran est étroit, une marge plus fine suffit. */
   body.look-gs:not(.regie-mode) #app .screen { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
@@ -507,3 +507,46 @@ body.look-gs:not(.regie-mode) #app #play-status.fete {
   text-shadow: none; color: transparent; font-size: clamp(24px, min(6.6vw, 3.8vh), 48px);
   filter: drop-shadow(0 0 2px rgba(5, 1, 13, .95)) drop-shadow(0 0 6px rgba(255, 255, 255, .45)) drop-shadow(0 0 14px rgba(255, 45, 149, .55));
 }
+/* Simon avec les marges de tous les écrans : en paysage, les boules prennent un peu plus de largeur (colonne de droite
+   plus étroite, boules un peu plus serrées) pour rester aussi grosses qu'avant sous le doigt. */
+body.look-gs:not(.regie-mode) .sm { padding-left: 0; padding-right: 0; }
+body.look-gs:not(.regie-mode) .sm.sm-sans-chiffres .sm-boules { gap: clamp(10px, 2vw, 18px); }
+@media (orientation: landscape) and (min-width: 700px) {
+  body.look-gs:not(.regie-mode) .sm.sm-a-moi.sm-sans-chiffres { grid-template-columns: 1.9fr 1fr; }
+  body.look-gs:not(.regie-mode) .sm.sm-sans-chiffres .sm-boules { gap: clamp(10px, 1.4vw, 18px); }
+}
+/* Ça va exploser, téléphone couché avec 6 à 8 équipes : deux colonnes de boutons plus bas, tout tient sans défiler. */
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .pc.pc-chez-moi .pc-equipes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
+  body.look-gs:not(.regie-mode) #app .pc-equipe { min-height: 46px; font-size: 16px; padding: 2px 8px; }
+  body.look-gs:not(.regie-mode) #app .pc-equipe small { font-size: 11px; }
+}
+/* Statues musicales (cedric, 31/10, choix A) : un gros mot néon qui bouge — « DANSE ! » vert qui se dandine,
+   « STATUE ! » cyan figé qui scintille — et une petite phrase dessous. */
+body.look-gs:not(.regie-mode) #app .statues-mot {
+  font-family: "GS Bungee"; font-weight: 400; font-size: clamp(54px, min(15vw, 11vh), 150px); line-height: 1.05; letter-spacing: .02em;
+  margin-bottom: .1em;
+}
+body.look-gs:not(.regie-mode) #app .statues-danse {
+  color: #eaffef; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 8px #fff, 0 0 24px var(--gs-vert), 0 0 52px var(--gs-vert);
+  animation: tg-danse .9s ease-in-out infinite;
+}
+body.look-gs:not(.regie-mode) #app .statues-fige {
+  color: #e9feff; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 8px #fff, 0 0 24px var(--gs-cyan), 0 0 52px var(--gs-cyan);
+  animation: tg-fige .35s steps(1) 1, tg-scintille 2.4s ease-in-out .35s infinite;
+}
+body.look-gs:not(.regie-mode) #app .statues-phrase { font-size: clamp(20px, min(5vw, 3.8vh), 40px); color: #fff; text-shadow: var(--tg-halo); max-width: 22em; margin-inline: auto; }
+@keyframes tg-danse { 0%, 100% { transform: rotate(-5deg) translateY(0) scale(1); } 25% { transform: rotate(0) translateY(-6%) scale(1.06); } 50% { transform: rotate(5deg) translateY(0) scale(1); } 75% { transform: rotate(0) translateY(-6%) scale(1.06); } }
+@keyframes tg-fige { 0% { transform: scale(1.25); } }
+@keyframes tg-scintille { 0%, 100% { opacity: 1; } 50% { opacity: .82; } }
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .statues-mot { font-size: 56px; }
+  body.look-gs:not(.regie-mode) #app .statues-phrase { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) { body.look-gs:not(.regie-mode) #app .statues-mot { animation: none; } }
+/* Chante le mot ! : le mot de la TV en néon rose sur la tablette (cedric, 31/10), comme le mot secret du Pictionary. */
+body.look-gs:not(.regie-mode) #app .chante-mot {
+  font-family: "GS Bungee"; font-weight: 400; font-size: clamp(38px, min(11vw, 7.4vh), 96px); text-transform: uppercase; max-width: 100%;
+  color: #ffe3f1; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 22px var(--gs-rose), 0 0 44px var(--gs-rose);
+}
+@media (orientation: landscape) and (max-height: 520px) { body.look-gs:not(.regie-mode) #app .chante-mot { font-size: 34px; } }

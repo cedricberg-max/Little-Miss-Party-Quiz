@@ -238,6 +238,10 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
   #screen-play.active:has(> #duel-titre:not([hidden])) { grid-template-rows: 1fr auto auto auto 1fr; }
   #screen-play > #duel-titre { grid-column: 1; grid-row: 3; }
   #screen-play:has(> #duel-titre:not([hidden])) > #play-status { grid-row: 4; }
+  /* Chante le mot ! : le mot entre l'équipe et la consigne, comme le titre du duel. */
+  #screen-play.active:has(> #chante-mot:not([hidden])) { grid-template-rows: 1fr auto auto auto 1fr; }
+  #screen-play > #chante-mot { grid-column: 1; grid-row: 3; }
+  #screen-play:has(> #chante-mot:not([hidden])) > #play-status { grid-row: 4; }
   /* Sans buzzer (présentation d'un jeu, attente) : une simple colonne centrée. */
   #screen-play.active:has(> #buzz[hidden]) { display: flex; }
   .buzz { width: min(46vw, 74vh); height: min(46vw, 74vh); }
@@ -352,3 +356,8 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 #screen-ended.suspense #e-rank { animation: suspense-fin 1.1s ease-in-out infinite; }
 @keyframes suspense-fin { 50% { transform: scale(1.06); opacity: .75; } }
 @media (prefers-reduced-motion: reduce) { #screen-ended.suspense #e-rank { animation: none; } }
+/* Statues musicales : le gros mot (DANSE ! / STATUE !) puis une petite phrase dessous. */
+.statues-mot { display: block; font-size: 1.9em; font-weight: 900; line-height: 1.1; }
+.statues-phrase { display: block; margin-top: .4em; }
+/* Chante le mot ! : le mot à chanter, en grand. */
+.chante-mot { margin: 0; font-size: clamp(34px, 9vw, 64px); font-weight: 900; line-height: 1.05; text-align: center; overflow-wrap: anywhere; color: #ff2d8a; }

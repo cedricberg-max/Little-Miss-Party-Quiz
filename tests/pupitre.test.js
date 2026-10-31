@@ -592,10 +592,10 @@ describe("pupitre", () => {
     const uid = Object.keys(await read("teams"))[0];
     const statues = (s) => question({ qid: "s1", kind: "statues", choices: null, text: "Statues musicales", statues: { songs: 3, annonceMs: 8000, song: 0, dancing: true, playedMs: 0, ended: false, ...s } });
     await hostState(statues({ since: Date.now() }));
-    await page.locator("#play-status", { hasText: "DANSEZ !" }).waitFor();
+    await page.locator("#play-status .statues-mot", { hasText: "DANSE !" }).waitFor();
     assert.equal(await page.locator("#buzz").isVisible(), false, "rien à toucher");
     await hostState(statues({ dancing: false, playedMs: 12000 }));
-    await page.locator("#play-status", { hasText: "STATUE !" }).waitFor();
+    await page.locator("#play-status .statues-mot", { hasText: "STATUE !" }).waitFor();
     await hostState(statues({ dancing: false, ended: true }));
     await page.locator("#play-status", { hasText: "Fin de la chanson !" }).waitFor();
     // Gagnantes désignées : la TV fait le suspense (la tablette ne dit rien), puis la tablette montre ses points.
@@ -1003,6 +1003,8 @@ describe("pupitre", () => {
     const jeu = (extra) => question({ choices: null, buzzOpen: true, buzz: { blocked: [] }, ...extra });
     await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", round: "c1-1000-0" }));
     await page.locator("#play-status", { hasText: "chantez une chanson avec le mot de la TV" }).waitFor();
+    // Le mot à chanter est aussi sur la tablette (cedric, 31/10).
+    await page.locator("#chante-mot:not([hidden])", { hasText: "soleil" }).waitFor();
     await page.click("#buzz");
     await waitFor(async () => (await read("buzz/c1-1000-0"))?.team === uid, "buzz enregistré");
     await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", round: "c1-1000-0", buzzOpen: false, buzz: { team: uid, blocked: [] } }));
@@ -1011,6 +1013,7 @@ describe("pupitre", () => {
     await page.locator("#r-detail", { hasText: "Le mot : soleil" }).waitFor();
     await hostState(jeu({ qid: "p1", kind: "quisuis", text: "Qui suis-je ?", round: "p1-1000-0" }));
     await page.locator("#play-status", { hasText: "Écoutez les indices de la TV" }).waitFor();
+    assert.equal(await page.locator("#chante-mot").isVisible(), false, "plus de mot hors de Chante le mot");
     assert.equal(await page.locator("#buzz").isDisabled(), false);
     // Qui a disparu ? : pas de buzz pendant qu'on mémorise, puis le buzzer s'ouvre quand l'objet a disparu.
     await hostState(jeu({ qid: "d1", kind: "disparu", text: "Qui a disparu ?", round: "d1-1000-0", buzzOpen: false }));

@@ -567,6 +567,7 @@ function render() {
     if ($("buzz").textContent !== "BUZZ") $("buzz").textContent = "BUZZ";
   }
   $("play-intro").hidden = true;
+  $("chante-mot").hidden = true;
   $("play-status").classList.remove("fete");
   switch (st.phase) {
     case "question":
@@ -759,6 +760,10 @@ function renderFlou(st) {
   const blocked = tried && !(rebuzzIn != null && rebuzzIn <= 0);
   const open = st.phase === "question" && st.buzzOpen === true && !st.paused && !counting(st) && !b.team && !blocked;
   buzz.disabled = !open;
+  // Chante le mot ! : le mot de la TV en grand au-dessus du BUZZ, pour que l'équipe l'ait sous les yeux.
+  const mot = st.kind === "chante" && st.phase === "question" ? String(st.text ?? "").trim() : "";
+  $("chante-mot").hidden = !mot;
+  if ($("chante-mot").textContent !== mot) $("chante-mot").textContent = mot;
   buzz.classList.toggle("winner", b.team === teamId);
   const chante = st.kind === "chante";
   if (b.team === teamId) $("play-status").textContent = chante ? "Vous avez buzzé ! À vous de chanter !" : st.kind === "blind" ? "Vous avez buzzé ! Le titre, à voix haute !" : "Vous avez buzzé ! Donnez votre réponse à voix haute.";
@@ -819,9 +824,19 @@ function renderStatues(st) {
       : gagnantes.length ? "Bien dansé ! À la prochaine chanson." : "Personne cette fois ! On se rattrape à la prochaine chanson.";
     return;
   }
-  status.textContent = s.ended ? "Fin de la chanson ! Plus personne ne bouge…"
-    : s.dancing === false ? "STATUE ! Plus personne ne bouge…"
-    : "DANSEZ ! Posez la tablette et bougez tant que la musique joue.";
+  // Un gros mot néon qui bouge, et une petite phrase dessous (cedric, 31/10, choix A : « plus fun, moins sérieux »).
+  const danse = !s.ended && s.dancing !== false;
+  const mot = document.createElement("span");
+  mot.className = `statues-mot ${danse ? "statues-danse" : "statues-fige"}`;
+  mot.textContent = danse ? "DANSE !" : "STATUE !";
+  const phrase = document.createElement("span");
+  phrase.className = "statues-phrase";
+  phrase.textContent = s.ended ? "Fin de la chanson ! Plus personne ne bouge…"
+    : danse ? "Posez la tablette et bougez comme des robots fous tant que la musique joue !"
+    : "Plus personne ne bouge… pas même un cil !";
+  // Remplacé seulement s'il change : le mot ne recommence pas son animation à chaque mise à jour.
+  const avant = status.querySelector(".statues-mot");
+  if (avant?.className !== mot.className || status.querySelector(".statues-phrase")?.textContent !== phrase.textContent) status.replaceChildren(mot, phrase);
 }
 
 /**
