@@ -2475,6 +2475,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         chronoListener?.let { (r, l) -> r.removeEventListener(l) }
         chronoListener = null
         val ref = gameRef?.child("chrono")?.child(key ?: return) ?: return
+        // Chaque nouveau buzz renvoie tout le tour : seul le buzz qui vient d'arriver compte dans la réactivité (avant, les
+        // buzz déjà reçus étaient recomptés à chaque nouveau, avec un retard qui grandissait : 1 s de moyenne, 6 s au pire).
+        val mesures = mutableSetOf<String>()
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val buzz = snapshot.children.mapNotNull { c ->
@@ -2482,7 +2485,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     Triple(c.key ?: return@mapNotNull null, c.child("t").getValue(Long::class.java) ?: at, at)
                 }.sortedBy { it.third }
                 buzz.forEach { (team, t, at) ->
-                    Reactivite.noter("chrono", serverNow() - at)
+                    if (mesures.add(team)) Reactivite.noter("chrono", serverNow() - at)
                     act { g ->
                         if (Codec.chronoKey(g) != key || g.state.chrono?.buzzes?.any { it.team == team } == true) null
                         else g.chronoBuzz(team, t, minOf(at, serverNow()))
@@ -2509,6 +2512,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         duelListener = null
         duelMesures.clear()
         val ref = gameRef?.child("duel")?.child(key ?: return) ?: return
+        val mesures = mutableSetOf<String>()   // comme au Chrono : un buzz ne compte qu'une fois dans la réactivité
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val buzz = snapshot.children.mapNotNull { c ->
@@ -2519,7 +2523,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     c.key?.let { duelMesures[it] = c.child("r").getValue(Long::class.java) to c.child("o").getValue(Long::class.java) }
                 }
                 buzz.forEach { (team, t, at) ->
-                    Reactivite.noter("duel", serverNow() - at)
+                    if (mesures.add(team)) Reactivite.noter("duel", serverNow() - at)
                     act { g ->
                         if (Codec.duelKey(g) != key || g.state.duel?.buzzes?.any { it.team == team } == true) null
                         else g.duelBuzz(team, t, minOf(at, serverNow()))
