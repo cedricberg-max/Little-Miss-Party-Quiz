@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import com.littlemissparty.quiz.tv.UneLigneQuiTient
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -171,10 +172,10 @@ fun ClassementCoffreGs(lignes: List<LigneClassement>, joue: Int, modifier: Modif
         TitreClassementA { t.value }
         lignes.forEachIndexed { i, l -> CarteClassementA(l, evo[i], i, i == joue, g, x0, largeur) { t.value } }
         if (ej != null) {
-            AutocollantA(ej, lignes.size, x0 + largeur + 20f, g.haut + ej.rangApres * g.pas + g.pas / 2f) { t.value }
+            AutocollantA(ej, lignes.size, x0 + largeur + AUTOCOLLANT_ECART_DP, g.haut + ej.rangApres * g.pas + g.pas / 2f) { t.value }
             if (renverse) {
                 val exPremier = evo.indexOfFirst { it.rangAvant == 0 }
-                if (exPremier >= 0) DetroneA(x0 + largeur + 20f, g.haut + evo[exPremier].rangApres * g.pas + g.pas / 2f) { t.value }
+                if (exPremier >= 0) DetroneA(x0 + largeur + AUTOCOLLANT_ECART_DP, g.haut + evo[exPremier].rangApres * g.pas + g.pas / 2f) { t.value }
             }
             if (renverse || monte) {
                 val source = Offset(x0 + largeur / 2f, g.haut + ej.rangApres * g.pas + g.pas / 2f)
@@ -331,6 +332,14 @@ private fun CouronneA(f: Float, modifier: Modifier, t: () -> Float) {
     }
 }
 
+/**
+ * Place de l'autocollant à droite des cartes (x0 110 + largeur 560) : au plus [AUTOCOLLANT_MAX_DP] de large, même au
+ * plus fort du ressort (× 1,16), il reste dans l'écran de 960 (tour des écrans à 3 équipes, 31/10 : « GARDE SA PLACE »
+ * touchait le bord).
+ */
+internal const val AUTOCOLLANT_ECART_DP = 12f
+internal const val AUTOCOLLANT_MAX_DP = 235f
+
 /** Le gros autocollant de l'équipe qui joue, à droite de sa nouvelle ligne : il arrive en ressort et se balance. */
 @Composable
 private fun AutocollantA(evo: Evolution, equipes: Int, x: Float, centreY: Float, t: () -> Float) {
@@ -353,9 +362,12 @@ private fun AutocollantA(evo: Evolution, equipes: Int, x: Float, centreY: Float,
             .border(2.5.dp, NuitA, RoundedCornerShape(10.dp))
             .padding(2.5.dp)
             .background(fond, RoundedCornerShape(8.dp))
-            .padding(start = 13.dp, end = 13.dp, top = 5.dp, bottom = 3.dp),
+            .padding(start = 13.dp, end = 13.dp, top = 5.dp, bottom = 3.dp)
+            .widthIn(max = (AUTOCOLLANT_MAX_DP - 2f * (2f + 2.5f + 13f)).dp),
     ) {
-        Text(texte, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 23.sp, color = if (rose) Color.White else NuitA))
+        UneLigneQuiTient(echelleMin = 0.7f) {
+            Text(texte, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 23.sp, color = if (rose) Color.White else NuitA))
+        }
     }
 }
 

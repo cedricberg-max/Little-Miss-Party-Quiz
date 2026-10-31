@@ -90,4 +90,11 @@ class ClassementCoffreGsTest {
         val compteur = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/CompteurMystere.kt").readText()
         assertTrue(compteur.contains(".clearAndSetSemantics { }"))
     }
+
+    @Test
+    fun `l'autocollant reste dans l'ecran, meme au plus fort du ressort`() {
+        // Tour des écrans à 3 équipes (31/10) : « GARDE SA PLACE » touchait le bord droit.
+        val ressortMax = (0..1000).maxOf { rebondA(it / 1000f) }
+        assertTrue(110f + 560f + AUTOCOLLANT_ECART_DP + AUTOCOLLANT_MAX_DP * ressortMax <= 960f)
+    }
 }
