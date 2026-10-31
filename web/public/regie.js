@@ -163,7 +163,7 @@ function installerCockpit() {
   $("c-pause").after(plus);
   const grille = $("plus-grille");
   // « ⏭ Terminer » rangé ici aussi (cedric, 30/10 : trop dangereux sur l'écran principal en pleine partie), juste
-  // avant « ⛔ Arrêter la partie ».
+  // avant « ⛔ Terminer la partie ».
   // « 📋 Conducteur » (cedric, 30/10) : à la place de « Changer de jeu », il ouvre le conducteur en plein écran.
   const conducteur = document.createElement("button");
   conducteur.id = "c-conducteur";
@@ -179,7 +179,7 @@ function installerCockpit() {
   $("c-end").querySelector(".label").textContent = "⏭ Terminer";
   $("plus-onglets").append($("c-notes"), document.querySelector(".regie .tabs"),
     $("panel-teams"), $("panel-show"), $("panel-defis"));
-  // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer » : appui long, elle reste).
+  // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer la partie » : appui long, elle reste).
   grille.addEventListener("click", (e) => {
     const bouton = e.target.closest("button");
     if (bouton && bouton.id !== "c-arret") fermerPlus();
@@ -4568,7 +4568,7 @@ const STATUS_MESSAGES = {
   just_started: "Le chrono vient de partir : rien n'a été arrêté. Touchez à nouveau pour l'arrêter.",
   scores_just_shown: "Les scores viennent de s'afficher : laissez-les quelques secondes à l'écran, puis touchez à nouveau.",
   bad_factor: "Valeur de points inconnue.",
-  not_ended: "La partie n'est pas encore terminée : appuyez d'abord longtemps sur « Terminer ».",
+  not_ended: "La partie n'est pas encore terminée : gardez d'abord le doigt appuyé sur « ⛔ Terminer la partie ».",
   no_name: "Tapez d'abord le nom de l'équipe.",
 };
 
@@ -4586,7 +4586,7 @@ function toast(message) {
  */
 /**
  * [repli] : un refus « not_ended » ou une écriture refusée (règles d'avant) ne s'affiche pas ; l'appelant se replie
- * (« Arrêter la partie » sur une TV ou un site d'avant).
+ * (« Terminer la partie » sur une TV ou un site d'avant).
  */
 async function send(type, extra = {}, { advance = false, repli = false } = {}) {
   const st = live.state;
@@ -4815,19 +4815,23 @@ function appuiLong(btn, ms, { court, long }) {
 
 // Les trois confirmations ne s'affichent que sur ce téléphone, jamais sur la TV (cedric, 29/10).
 const SUR = { title: "Êtes-vous sûr ?", ok: "Oui", non: "Non" };
+const SUR_JEU = { ...SUR, title: "Êtes-vous sûr de vouloir terminer le jeu en cours ?" };
 
-/** « ⏭ Terminer », appui court : le jeu en cours s'arrête, la suite démarre (jeu suivant, ou podium au dernier jeu). */
+/**
+ * « ⏭ Terminer » (cedric, 31/10) : un appui court seulement, plus d'appui long ni de menu. « Êtes-vous sûr de vouloir
+ * terminer le jeu en cours ? Oui / Non », puis la suite démarre (jeu suivant, ou podium au dernier jeu).
+ */
 async function terminerLeJeu() {
   const st = live.state ?? {};
   if (st.phase === "lobby" || st.phase === "ended" || pending?.advance) return;
   const { questions, current, next } = gamesOf(st);
   const nom = current ? `« ${gameName(current, questions)} »` : "Le jeu en cours";
   if (!next) {
-    if (!await demander({ ...SUR, line: "Vous allez passer au podium final.", text: `${nom} est le dernier jeu.` })) return;
+    if (!await demander({ ...SUR_JEU, line: "Vous allez passer au podium final.", text: `${nom} est le dernier jeu.` })) return;
     return send("end", {}, { advance: true });
   }
   const suivant = gameName(next, questions);
-  if (!await demander({ ...SUR, line: `Vous allez passer au jeu suivant : «\u00a0${suivant}\u00a0».`, text: `${nom} s'arrête ici. Les points déjà gagnés sont gardés.` })) return;
+  if (!await demander({ ...SUR_JEU, line: `Vous allez passer au jeu suivant : «\u00a0${suivant}\u00a0».`, text: `${nom} s'arrête ici. Les points déjà gagnés sont gardés.` })) return;
   const jeu = questions.slice(next.start, next.end + 1);
   copyImages(jeu).catch((e) => console.warn("Illustrations non recopiées", e));
   copySounds(jeu);
@@ -4835,7 +4839,8 @@ async function terminerLeJeu() {
   if (status?.status === "applied") toast(jeuEnCours(st) ? `Bilan des scores sur la TV, puis « ${suivant} ».` : `C'est parti pour « ${suivant} » !`);
 }
 
-/** « ⏭ Terminer », appui long : directement les résultats finaux (podium), quel que soit le jeu en cours. */
+/**
+/** « ⛔ Terminer la partie » → « 🏆 Aller au podium » : les résultats finaux, quel que soit le jeu en cours. */
 async function allerAuPodium() {
   const st = live.state ?? {};
   if (st.phase === "lobby" || st.phase === "ended" || pending?.advance) return;
@@ -4844,7 +4849,7 @@ async function allerAuPodium() {
 }
 
 /**
- * « ⛔ Arrêter la partie » (cedric, 29/10) : tout s'arrête tout de suite, sans podium ; la TV revient à l'accueil et
+ * « ⛔ Terminer la partie » → « ⛔ Terminer définitivement la partie » (cedric, 29/10 et 31/10) : tout s'arrête tout de suite, sans podium ; la TV revient à l'accueil et
  * la régie la suit. Une TV ou un site d'avant refuse « arret » : la partie est alors terminée puis quittée.
  */
 async function arreterLaPartie() {
@@ -4863,7 +4868,7 @@ async function arreterLaPartie() {
   if (r?.status === "applied") toast("⛔ Partie arrêtée : la TV revient à l'accueil.");
 }
 
-/** Le choix de l'appui long sur « ⏭ Terminer » (cedric, 30/10) : « podium », « arret », ou null (annulé). */
+/** Le choix au bout de la jauge de « ⛔ Terminer la partie » (cedric, 31/10) : « podium », « arret », ou null (annulé). */
 function choisirLaFin() {
   return new Promise((resolve) => {
     const box = $("fin-choix");
@@ -4882,19 +4887,23 @@ function choisirLaFin() {
   });
 }
 
-/** « ⏭ Terminer », appui long : aller au podium ou terminer complètement, puis « Êtes-vous sûr ? » (cedric, 30/10). */
+/**
+ * « ⛔ Terminer la partie », jauge pleine (cedric, 31/10) : aller au podium ou terminer définitivement, puis « Êtes-vous
+ * sûr ? ». Partie déjà au podium : il ne reste que la fin définitive.
+ */
 async function finAuChoix() {
   const st = live.state ?? {};
-  if (st.phase === "lobby" || st.phase === "ended" || st.leftAt || pending?.advance) return;
-  fermerPlus(); // le doigt est encore sur « ⏭ Terminer » : « ☰ Plus » se referme derrière le choix
+  if (st.phase === "lobby" || st.leftAt || pending?.advance) return;
+  fermerPlus(); // le doigt est encore sur le bouton : « ☰ Plus » se referme derrière le choix
+  if (st.phase === "ended") return arreterLaPartie();
   const choix = await choisirLaFin();
   if (choix === "podium") return allerAuPodium();
   if (choix === "arret") return arreterLaPartie();
 }
 
-appuiLong($("c-end"), 1000, { court: terminerLeJeu, long: finAuChoix });
-// Arrêter la partie : seulement en appui long (1,5 s), jamais d'un simple toucher.
-appuiLong($("c-arret"), 1500, { court: () => toast("Gardez le doigt appuyé sur « Arrêter la partie » jusqu'au bout de la jauge."), long: arreterLaPartie });
+$("c-end").onclick = terminerLeJeu;
+// Terminer la partie (cedric, 31/10) : seulement en appui long (1,5 s) ; un appui court ne fait rien, la jauge le montre.
+appuiLong($("c-arret"), 1500, { court: () => {}, long: finAuChoix });
 
 $("tab-teams").onclick = () => { tabChosen = true; switchTab("teams"); };
 $("tab-plan").onclick = () => { tabChosen = true; switchTab("plan"); };
