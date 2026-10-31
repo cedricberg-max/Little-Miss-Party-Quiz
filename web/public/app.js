@@ -868,7 +868,7 @@ function renderDuel(st) {
   const contre = equipes.length === 2 ? `${nomEquipe(equipes[0])} contre ${nomEquipe(equipes[1])}` : "";
   if (!d.step || d.step === "none") status.textContent = "Le Duel des robots : il faut au moins 2 équipes. Regardez la TV !";
   else if (d.step === "ready") status.textContent = moi
-    ? `Duel n° ${d.n} : à toi, joueur n° ${d.players?.[place] ?? 1} ! Viens te placer, la main sur le buzzer…`
+    ? `Duel n° ${d.n} : à toi ! Viens te placer, la main sur le buzzer…`
     : `Duel n° ${d.n} : ${contre}. Regardez la TV !`;
   else if (d.step === "standoff") status.textContent = !moi ? `${contre} : silence, ça va tirer…`
     : duelEnvoye === d.key ? "Buzz envoyé ! Regardez la TV…" : "Attends le PAN ! Pas avant… Buzze dès qu'il apparaît !";
