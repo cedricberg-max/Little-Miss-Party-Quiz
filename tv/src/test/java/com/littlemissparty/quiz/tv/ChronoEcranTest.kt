@@ -113,4 +113,13 @@ class ChronoEcranTest {
         // Sans voisine, l'étiquette reste juste sous sa pastille.
         assertEquals(600f, p[0].second, 0.01f)
     }
+
+    @Test
+    fun `la largeur estimee d une etiquette colle a la capture TV`() {
+        // Capture du 31/10 (8 h 30) : « LES FUSÉES » occupe environ 260 px de la scène, « +0,35 s · +100 » environ 255 px.
+        assertTrue(largeurEtiquette("Les Fusées", "") >= 262f)
+        assertTrue(largeurEtiquette("", "+0,35 s · +100") >= 255f)
+        // Un nom très long reste plafonné : le texte se réduit au lieu de déborder.
+        assertEquals(ETIQUETTE_L, largeurEtiquette("Les Supers Licornes Arc-en-ciel", ""), 0.01f)
+    }
 }

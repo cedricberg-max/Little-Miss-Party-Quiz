@@ -581,9 +581,9 @@ internal fun phraseGagnant(nom: String): String {
 /** Largeur d'une étiquette (nom + écart) sous la règle, en px de la scène. */
 internal const val ETIQUETTE_L = 400f
 
-/** Largeur estimée d'une étiquette (nom en 42 sp, écart en 36 sp), plafonnée à [ETIQUETTE_L] (le texte se réduit au-delà). */
+/** Largeur estimée d'une étiquette (nom en 42 sp : ~27 px par lettre dans la police titre, mesuré sur capture ; écart en 36 sp : ~19 px), plafonnée à [ETIQUETTE_L] (le texte se réduit au-delà). */
 internal fun largeurEtiquette(nom: String, ecart: String): Float =
-    (maxOf(nom.length * 19f, ecart.length * 15f) + 16f).coerceAtMost(ETIQUETTE_L)
+    (maxOf(nom.length * 27f, ecart.length * 19f) + 16f).coerceAtMost(ETIQUETTE_L)
 
 /**
  * Où poser chaque étiquette sous la règle, les [x] (centres des pastilles) triés de gauche à droite, [largeurs] estimées :
