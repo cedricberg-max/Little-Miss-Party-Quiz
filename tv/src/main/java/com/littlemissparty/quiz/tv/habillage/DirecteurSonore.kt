@@ -1047,7 +1047,6 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     MALUS("lmp_malus"),
     PICTIO_TOP("lmp_pictio_top", true),
     PICTIO_TROUVE("lmp_pictio_trouve", true),
-    PORTES_OUVRE("lmp_portes_ouvre", true),
     PORTES_JACKPOT("lmp_portes_jackpot", true),
     PORTES_TUILE("lmp_portes_tuile", true),
     PORTES_RENVERSEMENT("lmp_portes_renversement", true),

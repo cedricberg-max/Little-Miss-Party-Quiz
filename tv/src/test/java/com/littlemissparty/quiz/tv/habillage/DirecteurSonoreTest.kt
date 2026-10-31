@@ -1200,7 +1200,7 @@ class DirecteurSonoreTest {
     fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
         val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
         // La boucle « fête » de Digital Love sous les intros, sauf le Duel, le Simon et le Blind test (cedric, 29/10).
-        listOf("juste", "portes", "").forEach {
+        listOf("juste", "inconnu", "").forEach {
             assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
         }
         assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
@@ -1544,10 +1544,10 @@ class DirecteurSonoreTest {
         val o = d.observer(patate)
         assertTrue(Ordre.Caler(Tempo.TRANSITION_MUSIQUE) in o)
         assertEquals(Ordre.Musique(Ambiance.PICTO_PRESENTATION, Tempo.TRANSITION_MUSIQUE), o.last())
-        // Sans intro vidéo (Juste Chiffre, Portes), en Classique, au Duel et au Simon : comme avant, sans calage.
+        // Sans intro vidéo (Juste Chiffre, famille inconnue), en Classique, au Duel et au Simon : comme avant, sans calage.
         listOf(
             patate.copy(index = 14, epreuve = "juste|", famille = "juste"),
-            patate.copy(index = 16, epreuve = "portes|", famille = "portes"),
+            patate.copy(index = 16, epreuve = "inconnu|", famille = "inconnu"),
             patate.copy(index = 18, epreuve = "duel|", famille = "duel", duel = true),
         ).forEach { i ->
             // Après un autre jeu : c'est bien un nouveau jeu, avec son rideau.

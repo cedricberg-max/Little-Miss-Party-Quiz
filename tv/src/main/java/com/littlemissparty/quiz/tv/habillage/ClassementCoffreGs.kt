@@ -131,7 +131,7 @@ private val jouerSonClassement: (Son) -> Unit = { Sons.executer(listOf(Ordre.Jou
  * de l'équipe qui a ouvert le coffre (−1 si elle n'est plus là : les lignes s'affichent sans animation de jeu).
  */
 @Composable
-fun ClassementCoffreGs(lignes: List<LignePortes>, joue: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonClassement) {
+fun ClassementCoffreGs(lignes: List<LigneClassement>, joue: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonClassement) {
     val evo = remember(lignes) { evolutions(lignes) }
     val ej = evo.getOrNull(joue)
     val renverse = ej?.recit == Recit.NOUVEAU_PREMIER
@@ -195,7 +195,7 @@ private fun TitreClassementA(t: () -> Float) {
 
 @Composable
 private fun CarteClassementA(
-    e: LignePortes, evo: Evolution, i: Int, joue: Boolean, g: GeometrieClassementA, x0: Float, largeur: Float, t: () -> Float,
+    e: LigneClassement, evo: Evolution, i: Int, joue: Boolean, g: GeometrieClassementA, x0: Float, largeur: Float, t: () -> Float,
 ) {
     val f = g.f
     val forme = RoundedCornerShape((13f * f).dp)

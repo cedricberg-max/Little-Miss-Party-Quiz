@@ -105,9 +105,6 @@ sealed interface Command {
     /** Dernières questions du quiz : multiplicateur de la série qui commence à la question suivante. */
     data class Factor(override val id: String, override val expectSeq: Int, val factor: Int) : Command
 
-    /** Portes mystères : nouvelle valeur derrière une porte, avant leur ouverture. */
-    data class PortesSet(override val id: String, override val expectSeq: Int, val qid: String, val door: Int, val value: Int) : Command
-
     /** Les coffres mystères, secours : ouvrir un coffre au hasard pour l'équipe qui joue (tablette en panne, hésitation). */
     data class ChestRandom(override val id: String, override val expectSeq: Int) : Command
 
@@ -169,7 +166,6 @@ sealed interface Command {
                 "chrono_cible" -> ChronoCible(id, seq, (m["cible"] as Number).toInt())
                 "chrono_reveal" -> ChronoReveal(id, seq)
                 "chrono_stop" -> ChronoStop(id, seq)
-                "portes_set" -> PortesSet(id, seq, m["qid"] as String, (m["door"] as Number).toInt(), (m["value"] as Number).toInt())
                 else -> null
             }
         }.getOrNull()
@@ -287,7 +283,6 @@ fun Game.execute(
         is Command.ChronoCible -> if (cmd.cible !in CHRONO_CIBLE_MIN..CHRONO_CIBLE_MAX) return refused("bad_cible") else chronoCible(cmd.cible, now)
         is Command.ChronoReveal -> settleChrono(now, force = true)
         is Command.ChronoStop -> stopChrono(now)
-        is Command.PortesSet -> if (question?.id != cmd.qid) return refused("stale_program") else setDoor(cmd.door, cmd.value, now)
         is Command.Factor -> if (cmd.factor !in FACTORS) return refused("bad_factor") else chooseFactor(cmd.factor, now)
         // Le programme a changé depuis l'affichage de la régie : rien n'est fait.
         is Command.Goto -> if (quiz.questions.getOrNull(cmd.index)?.id != cmd.qid) return refused("stale_program") else changeGame(cmd.index, now)

@@ -369,7 +369,7 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
       if (started) state = { phase: "lobby", seq: state.seq + 1, total: show.quiz.questions.length, scores: {}, round: 1, buzzOpen: true };
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
-        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, programReset: true, questions: show.quiz.questions },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, programReset: true, questions: show.quiz.questions },
         public: { title: show.title, ...(show.childName ? { childName: show.childName } : {}), ...(show.prestation ? { prestation: show.prestation } : {}) },
         ...(started ? { state } : {}),
       });
@@ -451,7 +451,7 @@ beforeEach(async () => {
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
-    conducteur: { id: "essai", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
+    conducteur: { id: "essai", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
   });
 });
 afterEach(() => { box?.stop(); box = null; });
@@ -1475,7 +1475,7 @@ describe("régie", () => {
       track("b2", "Hakuna Matata", "Le Roi lion", "fedcba9876543210", 100),
       track("b3", "Un jour mon prince viendra", "Blanche-Neige", "00112233445566ff", 200),
     ];
-    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, questions: plan });
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, coffres: true, gonfleur: true, patate: true, questions: plan });
     // Comme la box : un état par extrait.
     for (const [id, status] of [["0123456789abcdef", "ok"], ["fedcba9876543210", "missing"], ["00112233445566ff", "ok"]]) await set(gameRef(`media/${id}`), status);
     const tracks = (statuses, team) => plan.map((t, k) => ({ qid: t.id, points: t.points, status: statuses[k], ...(statuses[k] === "found" ? { team } : {}) }));
@@ -1554,7 +1554,7 @@ describe("régie", () => {
     await addTeam("rose", "Les Roses");
     await addTeam("bleu", "Les Bleus");
     const plan = [{ id: "s1", text: "Statues musicales", duration: 60, kind: "statues", round: "Statues musicales" }];
-    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, questions: plan });
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, coffres: true, gonfleur: true, patate: true, questions: plan });
     await box.set({ ...questionState(1), qid: "s1", kind: "statues", text: plan[0].text, choices: null, total: 1, durationMs: 60000 });
     const page = await openRegie();
     await pair(page);
@@ -1572,7 +1572,7 @@ describe("régie", () => {
     box = startBox();
     for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
     const plan = [{ id: "s1", text: "Statues musicales", kind: "statues", round: "Statues musicales", songs: [{ songId: "danse", audioId: "0123456789abcdef", title: "Danse" }, { songId: "bouge", audioId: "fedcba9876543210", title: "Bouge" }] }];
-    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, questions: plan });
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, coffres: true, gonfleur: true, patate: true, questions: plan });
     const etat = { song: 0, songs: 2, titles: ["Danse", "Bouge"], dancing: true, since: Date.now(), playedMs: 0, ended: false, result: null, ...statues };
     await box.set({ ...questionState(1), qid: "s1", kind: "statues", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, statues: etat });
     const page = await openRegie(undefined, query);
@@ -1692,7 +1692,7 @@ describe("régie", () => {
     box = startBox();
     for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
     const plan = [{ id: "d1", kind: "duel", text: "Le Duel des robots", round: "Le Duel des robots", joueurs: 2, faceMin: 20, faceMax: 40, longs: true }];
-    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, questions: plan });
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, questions: plan });
     const etat = { n: 1, total: 3, teams: ["rose", "bleu"], players: [1, 1], step: "ready", extra: false, key: "d1-1", result: null, played: {}, allPlayed: false, ...duel };
     await box.set({ ...questionState(1), qid: "d1", kind: "duel", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, duel: etat });
     const page = await openRegie(undefined, query);
@@ -1807,7 +1807,7 @@ describe("régie", () => {
     const teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"], ["jaune", "Les Jaunes", "#FFE600"]];
     for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
     const plan = [{ id: "ch", kind: "chrono", text: "Le Chrono de Buzzy", round: "Le Chrono de Buzzy", choices: [], correct: -1, double: false, cible: 30, tours: 3 }];
-    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, questions: plan });
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, questions: plan });
     const etat = { tour: 1, tours: 3, cible: 30, step: "ready", key: "ch-1-0", last: false };
     await box.set({ ...questionState(1), qid: "ch", kind: "chrono", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, chrono: etat });
     const page = await openRegie(undefined, `?g=${CODE}&emu=1&cockpit=1`);
@@ -1853,7 +1853,7 @@ describe("régie", () => {
     box = startBox();
     for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
     const plan = [{ id: "s1", kind: "simon", text: "Le Simon de Buzzy", round: "Le Simon de Buzzy", choices: [], correct: -1, double: false, tours: 2, reponse: 10, joueurs: 4 }];
-    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, questions: plan });
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, questions: plan });
     const etat = { tour: 1, tours: 2, suite: 3, step: "ready", teams: teams.map(([id]) => id), out: {}, players: Object.fromEntries(teams.map(([id], i) => [id, i + 1])), last: false, verdict: null, ...simon };
     await box.set({ ...questionState(1), qid: "s1", kind: "simon", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, simon: etat });
     const page = await openRegie(undefined, `?g=${CODE}&emu=1&cockpit=1`);
@@ -2447,34 +2447,6 @@ describe("régie", () => {
     await set(gameRef("conducteur"), { ...plan, questions: [...plan.questions, vf("vf1"), vf("vf2")] });
     await box.set({ ...questionState(1), phase: "reveal", factorChoice: { start: plan.questions.length, factor: 2 } });
     await page.locator("#c-factor:not([hidden])", { hasText: "Les 2 dernières affirmations du Vrai ou Faux arrivent : combien de points ?" }).waitFor();
-    await page.context().close();
-  });
-
-  test("Portes mystères : l'animatrice change ce qu'il y a derrière une porte avant l'ouverture, sans chrono", async () => {
-    box = startBox();
-    const page = await openRegie();
-    await pair(page);
-    await inRegie(page);
-    const plan = (await read("conducteur")) ?? { questions: [] };
-    const portes = { id: "p1", text: "Portes mystères", kind: "portes", choices: ["Porte 1", "Porte 2", "Porte 3"], correct: -1, doors: [300, -150, 50], round: "Portes mystères" };
-    await set(gameRef("conducteur"), { ...plan, portesSet: true, questions: [...plan.questions, portes] });
-    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "portes", text: "Portes mystères", choices: portes.choices, deadline: null, total: 3 });
-    await page.locator("#c-doors:not([hidden])").waitFor();
-    // Replié : les enfants qui regardent le téléphone ne voient pas les valeurs.
-    assert.equal(await page.locator("#c-doors-list select").first().isVisible(), false);
-    await page.click("#c-doors summary");
-    assert.equal(await page.locator("#c-doors-list select").count(), 3);
-    assert.equal(await page.locator("#c-doors-list select").nth(1).inputValue(), "-150");
-    await page.locator("#c-doors-list select").nth(1).selectOption("200");
-    await waitFor(async () => (await commands()).find((c) => c.type === "portes_set" && c.qid === "p1" && c.door === 1 && c.value === 200), "commande portes_set");
-    // La box publie la nouvelle valeur : la régie l'affiche.
-    await set(gameRef("conducteur/doorValues/p1"), [300, 200, 50]);
-    await page.locator("#c-answer", { hasText: "2 : +200" }).waitFor();
-    // Pas de chrono pour les portes.
-    assert.equal(await page.locator("#c-timer").isVisible(), false);
-    // Portes ouvertes : plus de changement possible.
-    await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", portes: { count: 3, order: [0, 1, 2], opened: 0, values: {} } });
-    await page.locator("#c-doors[hidden]").waitFor({ state: "attached" });
     await page.context().close();
   });
 

@@ -35,7 +35,7 @@ import com.littlemissparty.quiz.tv.habillage.ClassementCoffre
 import com.littlemissparty.quiz.tv.habillage.ClassementCoffreGs
 import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.Look
-import com.littlemissparty.quiz.tv.habillage.LignePortes
+import com.littlemissparty.quiz.tv.habillage.LigneClassement
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.OuvertureCoffre
 import com.littlemissparty.quiz.tv.habillage.PoliceGsTitre
@@ -165,11 +165,11 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
  * Le classement juste après le coffre [o] : les scores d'avant (sans le coffre) et d'après, et les rangs. À égalité,
  * l'ancien rang départage, puis l'ordre des équipes.
  */
-private fun lignesClassement(state: UiState.Playing, o: ChestOpen): List<LignePortes> {
+private fun lignesClassement(state: UiState.Playing, o: ChestOpen): List<LigneClassement> {
     val equipes = state.teams
     val apres = equipes.map { state.scores[it.uid] ?: 0 }
     val avant = equipes.mapIndexed { i, t -> apres[i] - if (t.uid == o.team) o.delta else 0 }
     val rangsAvant = rangs(avant)
     val rangsApres = rangs(apres, rangsAvant)
-    return equipes.mapIndexed { i, t -> LignePortes(t.name, t.color.toColor(), avant[i], apres[i], rangsAvant[i] + 1, rangsApres[i] + 1) }
+    return equipes.mapIndexed { i, t -> LigneClassement(t.name, t.color.toColor(), avant[i], apres[i], rangsAvant[i] + 1, rangsApres[i] + 1) }
 }

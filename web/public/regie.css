@@ -401,10 +401,6 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .factor-row .btn.on { background: var(--gold); color: var(--night-deep); border-color: var(--gold); }
 .regie .notes summary { cursor: pointer; color: var(--gold); font-weight: 700; min-height: 32px; }
 .regie .notes p { margin: 6px 0 0; white-space: pre-line; line-height: 1.4; }
-/* Portes mystères : une ligne par porte, la valeur à choisir à droite. */
-.regie .doors-list { display: grid; gap: 8px; margin-top: 8px; }
-.regie .door-value { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 700; }
-.regie .door-value select { min-height: 40px; min-width: 9em; border-radius: 10px; font: inherit; font-weight: 700; }
 .regie .rescue-open { padding: 8px 12px; font-size: 15px; }
 .regie .rescue-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .regie .rescue-game { display: flex; align-items: center; gap: 10px; background: var(--night); border-radius: 14px; padding: 10px 12px; }

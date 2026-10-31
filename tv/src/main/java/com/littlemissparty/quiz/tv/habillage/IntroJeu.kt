@@ -56,7 +56,6 @@ internal fun familleType(kind: QuestionKind?, musique: Boolean = false, images: 
     QuestionKind.QUISUIS -> "quisuis"
     QuestionKind.DISPARU -> "disparu"
     QuestionKind.STATUES -> "statues"
-    QuestionKind.PORTES -> "portes"
     QuestionKind.COFFRES -> "bombe"
     QuestionKind.GONFLEUR -> "gonfleur"
     QuestionKind.PATATE -> "patate"
@@ -71,8 +70,8 @@ internal fun familleType(kind: QuestionKind?, musique: Boolean = false, images: 
 }
 
 /**
- * Nom de l'intro vidéo d'une famille de jeu (res/raw/gs_intro_<nom>.mp4), ou null : Juste Chiffre et les Portes n'en
- * ont pas, leur écran de présentation dessiné reste.
+ * Nom de l'intro vidéo d'une famille de jeu (res/raw/gs_intro_<nom>.mp4), ou null : Juste Chiffre n'en
+ * a pas, leur écran de présentation dessiné reste.
  */
 internal fun nomIntroJeu(famille: String): String? = when (famille) {
     "quiz" -> "quiz"

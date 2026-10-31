@@ -80,13 +80,6 @@ enum class QuestionKind(val code: String) {
     PICTIONARY("pictionary"),
 
     /**
-     * Portes mystères (jeu final, façon Mario Kart) : chaque équipe choisit en secret une porte sur sa tablette ;
-     * derrière chacune, un bonus ou un malus ([Question.doors]) qui peut renverser le classement. L'animatrice
-     * ouvre les portes une à une, puis montre le classement final. Plusieurs équipes peuvent prendre la même porte.
-     */
-    PORTES("portes"),
-
-    /**
      * Les coffres mystères : des coffres ouverts chacun son tour, depuis la tablette de l'équipe qui joue. Chaque coffre
      * cache un bonus ou un malus, tiré au sort par la box à son ouverture. Après quelques tours sans danger, une bombe
      * se cache dans un des coffres restants, avec un coffre en or ([GOLD_POINTS]) : l'équipe qui ouvre la bombe perd
@@ -155,8 +148,6 @@ data class Question(
      * games/<code>/choiceImages. Vide : propositions en texte. Une proposition sans photo reste en texte.
      */
     val choiceImages: List<String?> = emptyList(),
-    /** Portes mystères : la valeur cachée derrière chaque porte (bonus positif, malus négatif), dans l'ordre des portes. */
-    val doors: List<Int> = emptyList(),
     /** Blind test : l'artiste ou l'œuvre (dessin animé, film…), montré à la révélation ; facultatif. */
     val artist: String? = null,
     /**
@@ -241,11 +232,6 @@ data class Question(
         } else if (kind == QuestionKind.STATUES) {
             require(choices.isEmpty()) { "Statues musicales $id : pas de propositions" }
             require(durationSec in 30..180) { "Statues musicales $id : durée entre 30 et 180 s" }
-        } else if (kind == QuestionKind.PORTES) {
-            require(choices.size in 2..MAX_DOORS && choices.none { it.isBlank() }) { "Portes mystères $id : il faut 2 à $MAX_DOORS portes" }
-            require(doors.size == choices.size) { "Portes mystères $id : une valeur par porte" }
-            require(doors.all { it in -MAX_DOOR_POINTS..MAX_DOOR_POINTS }) { "Portes mystères $id : valeur hors limites" }
-            require(durationSec in 10..120) { "Portes mystères $id : durée entre 10 et 120 s" }
         } else if (kind == QuestionKind.COFFRES) {
             require(choices.isEmpty()) { "Coffres mystères $id : pas de propositions" }
         } else if (kind == QuestionKind.PATATE) {
@@ -284,7 +270,6 @@ data class Question(
 
     val isMime: Boolean get() = kind == QuestionKind.MIME
     val isPicto: Boolean get() = kind == QuestionKind.PICTIONARY
-    val isPortes: Boolean get() = kind == QuestionKind.PORTES
     val isCoffres: Boolean get() = kind == QuestionKind.COFFRES
     val isGonfleur: Boolean get() = kind == QuestionKind.GONFLEUR
     val isPatate: Boolean get() = kind == QuestionKind.PATATE
@@ -365,10 +350,6 @@ const val MAX_MIME_CARDS = 200
 
 /** Tour de mimes (ou de Pictionary) le plus long, en secondes. */
 const val MAX_MIME_TURN_SEC = 300
-
-/** Portes mystères : nombre de portes au plus, et valeur la plus forte (bonus ou malus) derrière une porte. */
-const val MAX_DOORS = 4
-const val MAX_DOOR_POINTS = 1000
 
 /** Qui suis-je ? : nombre maximum d'indices d'un personnage. */
 const val MAX_CLUES = 6

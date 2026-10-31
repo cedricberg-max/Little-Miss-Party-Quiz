@@ -12,17 +12,7 @@ import { propositionsDeTitre, cle, LEURRE_MAX } from "./paroles.js";
 import { lireFamille, lireNiveau } from "./rangement.js";
 
 /**
- * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
- * un malus ne fait jamais descendre une équipe sous 0 (réglé par le moteur de la TV).
- */
-export const PORTES_DOORS = [3, 4];
-export const PORTES_DEFAULT = 4;
-export const PORTES_SEC = 30;
-export const PORTES_VALUES = { 3: [300, 100, -150], 4: [300, 150, 50, -150] };
-export const PORTES_RULE = "chaque équipe choisit une porte sur sa tablette : derrière, un bonus ou un malus qui peut tout renverser ! Plusieurs équipes peuvent prendre la même porte";
-
-/**
- * Les coffres mystères (remplacent les Portes mystères) : chaque équipe à son tour ouvre un coffre sur sa tablette, bonus ou
+ * Les coffres mystères : chaque équipe à son tour ouvre un coffre sur sa tablette, bonus ou
  * malus tirés au sort par la TV à l'ouverture ; après quelques tours sans danger, une bombe se cache dans un coffre et
  * arrête le jeu. Rien à préparer. Les manches « portes » déjà enregistrées se jouent en coffres mystères.
  */

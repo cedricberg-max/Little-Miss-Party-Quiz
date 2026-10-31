@@ -245,7 +245,7 @@ function questionSuivante(st) {
   const k = (st.index ?? -1) + 1;
   const q = questions[k];
   if (!q || (next && next.start === k) || st.leaveTo != null) return null;
-  if (["portes", "coffres", "gonfleur", "patate", "statues", "duel", "simon", "chrono", "mime", "pictionary", "blind"].includes(q.kind)) return null;
+  if (["coffres", "gonfleur", "patate", "statues", "duel", "simon", "chrono", "mime", "pictionary", "blind"].includes(q.kind)) return null;
   if (q.correct == null) return null;
   return { q, correct: q.correct, text: q.choices?.[q.correct] ?? "", number: q.kind === "number", flou: BUZZ_KINDS.includes(q.kind) };
 }
@@ -643,10 +643,9 @@ function nextLabel(st, teamCount) {
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
     case "intro": return "▶ Lancer l'épreuve";
     // Les coffres mystères : ce sont les équipes qui ouvrent les coffres, le bouton principal attend l'explosion.
-    case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : versClassement(st, "Voir le classement")) : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
-    case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
-    // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
-    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : expressSuivante(st) ? "Affirmation suivante ▶" : st.kind === "coffres" ? finCoffresLabel(st) : versClassement(st, "Voir les scores");
+    case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : versClassement(st, "Voir le classement")) : "Arrêter le chrono";
+    case "closed": return "Révéler la réponse";
+    case "reveal": return expressSuivante(st) ? "Affirmation suivante ▶" : st.kind === "coffres" ? finCoffresLabel(st) : versClassement(st, "Voir les scores");
     case "scores": {
       const { next, questions } = gamesOf(st);
       // Bilan d'un jeu quitté en cours de route (cedric, 24/10) : « suivant » ouvre le jeu choisi.
@@ -690,7 +689,6 @@ function render() {
   renderHold(st, teams);
   renderAlerte(st, teams);
   renderFactor(st);
-  renderDoors(st, q);
   $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? ""
     : st.phase === "ended" ? (st.leftAt ? "🏁 Fête terminée. La TV est revenue à l'accueil, prête pour la prochaine fête. Merci !"
       : gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre."
@@ -698,17 +696,11 @@ function render() {
       : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu). Sinon : « 🏁 Fin de la fête ».")
     : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
-  const portes = (q?.kind ?? st.kind) === "portes";
-  // Portes et coffres mystères : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
-  const correct = portes || ["coffres", "gonfleur", "patate", "simon", "chrono"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
+  // Coffres mystères : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
+  const correct = ["coffres", "gonfleur", "patate", "simon", "chrono"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
-  answerBtn.hidden = intro || !inQuestion || (correct == null && !(portes && q?.doors));
-  if (portes && q?.doors) {
-    // Portes mystères : ce qu'il y a derrière chaque porte, pour l'animatrice seulement (masquable comme une réponse).
-    const values = doorValues(q).map((v, k) => `${k + 1} : ${v > 0 ? "+" : "−"}${Math.abs(v)}`).join(" · ");
-    answerBtn.textContent = answerMasked ? "Portes masquées · toucher pour voir" : `Derrière les portes · ${values}`;
-    answerBtn.classList.toggle("masked", answerMasked);
-  } else if (correct != null) {
+  answerBtn.hidden = intro || !inQuestion || correct == null;
+  if (correct != null) {
     const text = (st.choices ?? q?.choices ?? [])[correct] ?? "";
     const number = (q?.kind ?? st.kind) === "number";
     const flou = BUZZ_KINDS.includes(q?.kind ?? st.kind);
@@ -724,9 +716,9 @@ function render() {
     grosseReponse(answerBtn, { ...suite, prochaine: true });
     answerBtn.classList.toggle("masked", answerMasked);
   }
-  answerBtn.classList.toggle("grosse", COCKPIT && !answerBtn.hidden && !(portes && q?.doors));
+  answerBtn.classList.toggle("grosse", COCKPIT && !answerBtn.hidden);
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "simon" || st.kind === "chrono" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
+  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "simon" || st.kind === "chrono" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ont répondu` : "";
 
   renderGames(st);
   renderRequests(st, teams);
@@ -823,47 +815,6 @@ function renderFactor(st) {
     b.classList.toggle("on", on);
     b.setAttribute("aria-pressed", String(on));
   });
-}
-
-/** Portes mystères : valeurs en vigueur derrière les portes (celles changées par l'animatrice comprises). */
-function doorValues(q) {
-  const changed = live.plan?.doorValues?.[q.id];
-  return q.doors.map((v, k) => (typeof changed?.[k] === "number" ? changed[k] : v));
-}
-
-/** Valeurs proposées pour une porte (points) ; une valeur tirée au hasard hors de la liste reste choisie. */
-const DOOR_CHOICES = [-300, -150, -100, -50, 0, 50, 100, 150, 200, 300, 500];
-
-/**
- * Portes mystères, avant l'ouverture : l'animatrice change la valeur d'une porte pour changer un peu le cours des
- * choses. Replié par défaut, pour que les enfants qui regardent le téléphone ne voient rien.
- */
-function renderDoors(st, q) {
-  const box = $("c-doors");
-  const open = q?.kind === "portes" && Array.isArray(q.doors) && (st.phase === "question" || st.phase === "closed") && live.plan?.portesSet === true;
-  box.hidden = !open || isDemo();
-  if (box.hidden) return;
-  const values = doorValues(q);
-  const key = `${q.id}:${values.join(",")}`;
-  if (box.dataset.key === key) return;
-  box.dataset.key = key;
-  const sign = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${Math.abs(v)}` : "0");
-  $("c-doors-list").replaceChildren(...values.map((v, k) => {
-    const select = document.createElement("select");
-    select.setAttribute("aria-label", `Porte ${k + 1}`);
-    for (const n of [...new Set([...DOOR_CHOICES, v])].sort((a, b) => a - b)) {
-      const o = document.createElement("option");
-      o.value = n;
-      o.textContent = `${sign(n)} points`;
-      o.selected = n === v;
-      select.appendChild(o);
-    }
-    select.onchange = () => send("portes_set", { qid: q.id, door: k, value: Number(select.value) });
-    const label = document.createElement("label");
-    label.className = "door-value";
-    label.append(`🚪 Porte ${k + 1}`, select);
-    return label;
-  }));
 }
 
 /** Bandeau d'alerte : une tablette d'équipe coupée depuis 4 s (comme la pause de la TV), à tout moment de la fête. */
@@ -3044,7 +2995,7 @@ function planItem(q, i, current) {
   const title = document.createElement("div");
   title.textContent = `${i + 1}. ${q.text}${q.double ? " · points ×2" : ""}`;
   const answer = document.createElement("b");
-  answer.textContent = q.kind === "patate" ? "bombe de tablette en tablette · mèche secrète" : q.kind === "gonfleur" ? "course de ballons · le premier qui éclate gagne" : q.kind === "coffres" ? "coffres chacun son tour · la bombe arrête le jeu" : q.kind === "portes" ? `${q.choices?.length ?? 0} portes · bonus ou malus` : q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
+  answer.textContent = q.kind === "patate" ? "bombe de tablette en tablette · mèche secrète" : q.kind === "gonfleur" ? "course de ballons · le premier qui éclate gagne" : q.kind === "coffres" ? "coffres chacun son tour · la bombe arrête le jeu" : q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
   item.append(title, answer);
   return item;
 }
@@ -3113,7 +3064,7 @@ async function fetchLibrary() {
     const rounds = Object.entries(s.val() ?? {})
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
-      .flatMap(([id, show]) => (show.rounds ?? []).map((r) => jeuDeLaManche(r, quizzes)).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).map((r) => jeuDeLaManche(r, quizzes)).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
         const series = roundSeriesQuiz(round);
         const title = [...(roundTirees(round).length ? ["Quiz tiré au hasard"] : []), ...roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)].join(" + ") || `Manche ${i + 1}`;
         // Quiz et Quiz illustré en séries (cedric, 23/10) : le nom du jeu, puis ses séries.
@@ -3748,7 +3699,6 @@ const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à « Ça va exp
 const OLD_TV_SIMON = "La TV doit être mise à jour pour jouer au Simon de Buzzy : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_CHRONO = "La TV doit être mise à jour pour jouer au Chrono de Buzzy : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DUEL = "La TV doit être mise à jour pour jouer au Duel des robots : sur la TV, menu Retour → « Rechercher une mise à jour ».";
-const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
 function tvRefuses(questions) {
@@ -3763,7 +3713,6 @@ function tvRefuses(questions) {
   if (live.plan.quisuis !== true && questions.some((q) => q?.kind === "quisuis")) return OLD_TV_QUISUIS;
   if (live.plan.statues !== true && questions.some((q) => q?.kind === "statues")) return OLD_TV_STATUES;
   if (live.plan.disparu !== true && questions.some((q) => q?.kind === "disparu")) return OLD_TV_DISPARU;
-  if (live.plan.portes !== true && questions.some((q) => q?.kind === "portes")) return OLD_TV_PORTES;
   if (live.plan.coffres !== true && questions.some((q) => q?.kind === "coffres")) return OLD_TV_COFFRES;
   if (live.plan.gonfleur !== true && questions.some((q) => q?.kind === "gonfleur")) return OLD_TV_GONFLEUR;
   if (live.plan.patate !== true && questions.some((q) => q?.kind === "patate")) return OLD_TV_PATATE;

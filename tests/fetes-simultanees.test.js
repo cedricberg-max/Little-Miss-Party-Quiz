@@ -144,7 +144,7 @@ async function waitFor(fn, what, ms = 10000) {
 // ---------- Box simulée (une par fête) ----------
 
 /** Jeux que la TV sait jouer (conducteur publié par la box) : la régie ne refuse aucune prestation. */
-const DRAPEAUX = { mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true };
+const DRAPEAUX = { mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, coffres: true, gonfleur: true, patate: true };
 const AU_BUZZER = ["flou", "chante", "quisuis"];
 /** Chrono long : la machine de test peut être lente, aucune réponse ne doit arriver après la fin du chrono. */
 const DUREE_MS = 90000;

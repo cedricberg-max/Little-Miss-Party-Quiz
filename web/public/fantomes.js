@@ -234,7 +234,7 @@ class Fantome {
     actives.add(cle);
     // Une équipe sur vingt ne répond pas (enfants distraits).
     if (Math.random() < 0.05 && !this.minuteries.has(cle)) { this.faits.add(cle); return journal(`${this.nom} ne répond pas`); }
-    const reste = st.kind === "portes" ? 12000 : Math.max(1500, (st.deadline ?? now + 15000) - now - attente);
+    const reste = Math.max(1500, (st.deadline ?? now + 15000) - now - attente);
     const ms = attente + Math.min(reste * 0.85, hasard(1200, Math.min(9000, reste * 0.7)) * v);
     const n = liste(st.choices).length || 4;
     const choix = st.kind === "number" ? Math.round(hasard(1, 100)) : Math.floor(Math.random() * n);

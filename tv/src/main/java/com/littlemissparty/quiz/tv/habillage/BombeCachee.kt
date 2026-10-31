@@ -78,7 +78,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /*
- * Les coffres mystères (remplacent les Portes mystères) : des coffres de toutes formes posés sur les gradins d'une estrade
+ * Les coffres mystères : des coffres de toutes formes posés sur les gradins d'une estrade
  * laquée prune, ouverts chacun leur tour par les équipes. Bonus, malus, le classement après chaque coffre… puis la bombe,
  * cachée avec un coffre en or.
  *
@@ -639,7 +639,7 @@ fun OuvertureCoffre(
             if (malus) { jusqua(T_OUVRE + 60f); joue(Son.COFFRE_MALUS) }
             jusqua(if (malus) T_VERDICT_MALUS - 130f else 1_420f)
             // La carte joue elle-même son BONUS / MALUS : pas de second son par-dessus.
-            if (!carte) joue(if (or || delta!! >= PORTE_JACKPOT) Son.PORTES_JACKPOT else if (estBonus(delta)) Son.COFFRE_OR else Son.PORTES_TUILE)
+            if (!carte) joue(if (or || delta!! >= GROS_GAIN) Son.PORTES_JACKPOT else if (estBonus(delta)) Son.COFFRE_OR else Son.PORTES_TUILE)
             // La carte BONUS / MALUS fait venir le robot elle-même ; sans carte, c'est ici.
             if (!carte && delta != 0) signalerRobot(if (malus) MomentRobot.MALUS else MomentRobot.BONUS)
         }
@@ -1263,7 +1263,7 @@ private fun LigneBilan(nom: String, couleur: Color, points: Int, i: Int, largeur
  * [joue] : l'index (dans [lignes]) de l'équipe qui a ouvert le coffre.
  */
 @Composable
-fun ClassementCoffre(lignes: List<LignePortes>, joue: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonBombe) {
+fun ClassementCoffre(lignes: List<LigneClassement>, joue: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonBombe) {
     val evo = remember(lignes) { evolutions(lignes) }
     val renverse = evo.any { it.recit == Recit.NOUVEAU_PREMIER }
     val bouge = evo.any { it.rangAvant != it.rangApres }
@@ -1310,7 +1310,7 @@ private const val C_BASCULE = 1_250f
 private const val C_RECIT = 1_950f
 
 @Composable
-private fun LigneClassementCoffre(e: LignePortes, evo: Evolution, joue: Boolean, hauteur: Float, ms: () -> Float) {
+private fun LigneClassementCoffre(e: LigneClassement, evo: Evolution, joue: Boolean, hauteur: Float, ms: () -> Float) {
     val gain = e.apres - e.avant
     val taille = (hauteur * 0.4f).sp
     val apres by remember(evo) { derivedStateOf { ms() >= C_BASCULE + 500f } }

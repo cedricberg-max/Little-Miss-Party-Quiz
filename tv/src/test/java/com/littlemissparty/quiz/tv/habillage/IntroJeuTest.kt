@@ -76,9 +76,8 @@ class IntroJeuTest {
     }
 
     @Test
-    fun `juste chiffre et portes gardent leur ecran dessine`() {
+    fun `juste chiffre garde son ecran dessine`() {
         assertNull(nomIntroJeu(familleType(QuestionKind.NUMBER)))
-        assertNull(nomIntroJeu(familleType(QuestionKind.PORTES)))
     }
 
     @Test
