@@ -146,7 +146,9 @@ class SimonEcranTest {
     fun `duel des robots - jamais de « joueur n° » non plus, seulement le nom de l'equipe (cedric, 31 octobre au soir)`() {
         for (f in listOf("habillage/DuelWestern.kt", "habillage/DuelRobots.kt")) {
             val src = java.io.File("src/main/java/com/littlemissparty/quiz/tv/$f").readText()
-            assertFalse(f, Regex("\"[^\"]*joueur n°", RegexOption.IGNORE_CASE).containsMatchIn(src))
+            // Seulement les textes entre guillemets (les commentaires peuvent citer la règle).
+            val textes = Regex("\"[^\"\n]*\"").findAll(src).map { it.value.lowercase() }
+            assertFalse(f, textes.any { "joueur n°" in it })
         }
     }
 }
