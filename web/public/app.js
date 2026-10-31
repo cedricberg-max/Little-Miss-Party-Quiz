@@ -819,9 +819,19 @@ function renderStatues(st) {
       : gagnantes.length ? "Bien dansé ! À la prochaine chanson." : "Personne cette fois ! On se rattrape à la prochaine chanson.";
     return;
   }
-  status.textContent = s.ended ? "Fin de la chanson ! Plus personne ne bouge…"
-    : s.dancing === false ? "STATUE ! Plus personne ne bouge…"
-    : "DANSEZ ! Posez la tablette et bougez tant que la musique joue.";
+  // Un gros mot néon qui bouge, et une petite phrase dessous (cedric, 31/10, choix A : « plus fun, moins sérieux »).
+  const danse = !s.ended && s.dancing !== false;
+  const mot = document.createElement("span");
+  mot.className = `statues-mot ${danse ? "statues-danse" : "statues-fige"}`;
+  mot.textContent = danse ? "DANSE !" : "STATUE !";
+  const phrase = document.createElement("span");
+  phrase.className = "statues-phrase";
+  phrase.textContent = s.ended ? "Fin de la chanson ! Plus personne ne bouge…"
+    : danse ? "Posez la tablette et bougez comme des robots fous tant que la musique joue !"
+    : "Plus personne ne bouge… pas même un cil !";
+  // Remplacé seulement s'il change : le mot ne recommence pas son animation à chaque mise à jour.
+  const avant = status.querySelector(".statues-mot");
+  if (avant?.className !== mot.className || status.querySelector(".statues-phrase")?.textContent !== phrase.textContent) status.replaceChildren(mot, phrase);
 }
 
 /**

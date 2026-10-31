@@ -352,3 +352,6 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 #screen-ended.suspense #e-rank { animation: suspense-fin 1.1s ease-in-out infinite; }
 @keyframes suspense-fin { 50% { transform: scale(1.06); opacity: .75; } }
 @media (prefers-reduced-motion: reduce) { #screen-ended.suspense #e-rank { animation: none; } }
+/* Statues musicales : le gros mot (DANSE ! / STATUE !) puis une petite phrase dessous. */
+.statues-mot { display: block; font-size: 1.9em; font-weight: 900; line-height: 1.1; }
+.statues-phrase { display: block; margin-top: .4em; }

@@ -592,10 +592,10 @@ describe("pupitre", () => {
     const uid = Object.keys(await read("teams"))[0];
     const statues = (s) => question({ qid: "s1", kind: "statues", choices: null, text: "Statues musicales", statues: { songs: 3, annonceMs: 8000, song: 0, dancing: true, playedMs: 0, ended: false, ...s } });
     await hostState(statues({ since: Date.now() }));
-    await page.locator("#play-status", { hasText: "DANSEZ !" }).waitFor();
+    await page.locator("#play-status .statues-mot", { hasText: "DANSE !" }).waitFor();
     assert.equal(await page.locator("#buzz").isVisible(), false, "rien à toucher");
     await hostState(statues({ dancing: false, playedMs: 12000 }));
-    await page.locator("#play-status", { hasText: "STATUE !" }).waitFor();
+    await page.locator("#play-status .statues-mot", { hasText: "STATUE !" }).waitFor();
     await hostState(statues({ dancing: false, ended: true }));
     await page.locator("#play-status", { hasText: "Fin de la chanson !" }).waitFor();
     // Gagnantes désignées : la TV fait le suspense (la tablette ne dit rien), puis la tablette montre ses points.

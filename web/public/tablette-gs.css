@@ -515,3 +515,32 @@ body.look-gs:not(.regie-mode) .sm.sm-sans-chiffres .sm-boules { gap: clamp(10px,
   body.look-gs:not(.regie-mode) .sm.sm-a-moi.sm-sans-chiffres { grid-template-columns: 1.9fr 1fr; }
   body.look-gs:not(.regie-mode) .sm.sm-sans-chiffres .sm-boules { gap: clamp(10px, 1.4vw, 18px); }
 }
+/* Ça va exploser, téléphone couché avec 6 à 8 équipes : deux colonnes de boutons plus bas, tout tient sans défiler. */
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .pc.pc-chez-moi .pc-equipes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
+  body.look-gs:not(.regie-mode) #app .pc-equipe { min-height: 46px; font-size: 16px; padding: 2px 8px; }
+  body.look-gs:not(.regie-mode) #app .pc-equipe small { font-size: 11px; }
+}
+/* Statues musicales (cedric, 31/10, choix A) : un gros mot néon qui bouge — « DANSE ! » vert qui se dandine,
+   « STATUE ! » cyan figé qui scintille — et une petite phrase dessous. */
+body.look-gs:not(.regie-mode) #app .statues-mot {
+  font-family: "GS Bungee"; font-weight: 400; font-size: clamp(54px, min(15vw, 11vh), 150px); line-height: 1.05; letter-spacing: .02em;
+  margin-bottom: .1em;
+}
+body.look-gs:not(.regie-mode) #app .statues-danse {
+  color: #eaffef; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 8px #fff, 0 0 24px var(--gs-vert), 0 0 52px var(--gs-vert);
+  animation: tg-danse .9s ease-in-out infinite;
+}
+body.look-gs:not(.regie-mode) #app .statues-fige {
+  color: #e9feff; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 8px #fff, 0 0 24px var(--gs-cyan), 0 0 52px var(--gs-cyan);
+  animation: tg-fige .35s steps(1) 1, tg-scintille 2.4s ease-in-out .35s infinite;
+}
+body.look-gs:not(.regie-mode) #app .statues-phrase { font-size: clamp(20px, min(5vw, 3.8vh), 40px); color: #fff; text-shadow: var(--tg-halo); max-width: 22em; margin-inline: auto; }
+@keyframes tg-danse { 0%, 100% { transform: rotate(-5deg) translateY(0) scale(1); } 25% { transform: rotate(0) translateY(-6%) scale(1.06); } 50% { transform: rotate(5deg) translateY(0) scale(1); } 75% { transform: rotate(0) translateY(-6%) scale(1.06); } }
+@keyframes tg-fige { 0% { transform: scale(1.25); } }
+@keyframes tg-scintille { 0%, 100% { opacity: 1; } 50% { opacity: .82; } }
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .statues-mot { font-size: 56px; }
+  body.look-gs:not(.regie-mode) #app .statues-phrase { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) { body.look-gs:not(.regie-mode) #app .statues-mot { animation: none; } }
