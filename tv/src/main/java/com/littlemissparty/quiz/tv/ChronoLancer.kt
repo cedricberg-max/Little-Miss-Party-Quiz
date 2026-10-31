@@ -27,7 +27,7 @@ internal const val LANCER_BOUCLE = "gs_chrono_lancer_boucle"
 internal const val LANCER_POSE_MS = 5_620L
 
 /** Instant du clip où le drap couvre déjà le cadran : plus aucun chiffre n'est dessiné dessus. */
-internal const val LANCER_COUVRE_MS = 5_340L
+internal const val LANCER_COUVRE_MS = 5_120L
 
 /** Durée du clip du lancer (170 images à 25 i/s) ; la boucle prend la suite. */
 internal const val LANCER_DUREE_MS = 6_800L

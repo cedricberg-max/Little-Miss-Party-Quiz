@@ -65,6 +65,18 @@ class ChronoCapturesTest : TestTv() {
         if (reste > 0) Thread.sleep(reste)
     }
 
+    /**
+     * Toutes ont buzzé : la TV n'enchaîne plus seule (cedric, 31/10), elle attend le « 👀 Révéler » de Sarah ; la régie
+     * le propose, Sarah l'envoie. [capture] : l'écran pendant l'attente.
+     */
+    private fun attendRevelation(lecteur: PupitreSimule, regie: RegieSimulee, code: String, capture: String? = null) {
+        attendreQue("Révéler proposé") { lecteur.etat(code).takeIf { it.child("chrono/reveler").value == true } }
+        Thread.sleep(1_500)
+        assertEquals("la TV attend Sarah", "run", lecteur.etat(code).child("chrono/step").value)
+        if (capture != null) ecran.capture(capture)
+        assertEquals("applied", regie.commande(code, "chrono_reveal"))
+    }
+
     @Test
     fun chronoDeBuzzyQuatreEquipesDeuxTours() {
         val (code, regie, equipes) = jusquAuChrono(listOf("Les Licornes", "Les Dragons", "Les Fusées", "Les Pandas"), 10, 2, presentation = true)
@@ -85,6 +97,11 @@ class ChronoCapturesTest : TestTv() {
         val cache = (e.child("chrono/cacheMs").value as Number).toLong()
         jusqua(goAt - 1_400)
         ecran.capture("chrono-decompte")
+        // Le clip du lancer à deux mains : Buzzy revient avec le drap tendu (2,4 s avant la pose), puis le drap en vol.
+        jusqua(goAt + cache - 2_400)
+        ecran.capture("chrono-lancer-retour")
+        jusqua(goAt + cache - 500)
+        ecran.capture("chrono-lancer-vol")
         jusqua(goAt + 2_300)
         ecran.capture("chrono-defile")
         jusqua(goAt + cache + 200)
@@ -98,6 +115,7 @@ class ChronoCapturesTest : TestTv() {
         ecran.capture("chrono-buzz", attente = 300)
         jusqua(goAt + 10_400); assertTrue(equipes[1].buzzerChrono(code))
         jusqua(goAt + 11_600); assertTrue(equipes[2].buzzerChrono(code))
+        attendRevelation(lecteur, regie, code, "chrono-attente-reveler")
         attendreQue("tour jugé", 20_000) { lecteur.etat(code).takeIf { it.child("chrono/step").value == "result" } }
         val debut = System.currentTimeMillis()
         jusqua(debut + 1_100)
@@ -123,6 +141,7 @@ class ChronoCapturesTest : TestTv() {
         listOf(14_000L, 15_100L, 16_900L, 13_200L).withIndex().sortedBy { it.value }.forEach { (i, ms) ->
             jusqua(go2 + ms); assertTrue(equipes[i].buzzerChrono(code))
         }
+        attendRevelation(lecteur, regie, code)
         attendreQue("tour 2 jugé", 20_000) { lecteur.etat(code).takeIf { it.child("chrono/step").value == "result" } }
         ecran.capture("chrono-revelation-tour-2", attente = 7_500)
         assertEquals(true, lecteur.etat(code).child("chrono/last").value)
@@ -147,6 +166,7 @@ class ChronoCapturesTest : TestTv() {
             if (!capture && ms > 10_000) { ecran.capture("chrono-8-equipes-buzz"); capture = true }
             jusqua(goAt + maxOf(ms, cache + 500)); assertTrue(equipes[i].buzzerChrono(code))
         }
+        attendRevelation(lecteur, regie, code)
         attendreQue("tour jugé", 20_000) { lecteur.etat(code).takeIf { it.child("chrono/step").value == "result" } }
         val debut = System.currentTimeMillis()
         jusqua(debut + 6_000)
