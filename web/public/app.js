@@ -17,6 +17,7 @@ import { ecranGonfleur, ENVOI_MS, plafond } from "./gonfleur.js";
 import { ecranPatate } from "./patate.js";
 import { ecranSimon, noteSimon } from "./simon.js";
 import { afficherMotsDePasse } from "./oeil.js";
+import { ouvrirScanner } from "./scanner.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -129,7 +130,7 @@ let gameExists = false;
  * affiche un bandeau : l'animatrice choisit le moment.
  */
 let newVersion = false;
-const SAFE_TO_RELOAD = new Set(["gate", "play", "result", "ended", "error", "loading", "replaced", "watch"]);
+const SAFE_TO_RELOAD = new Set(["gate", "play", "result", "ended", "error", "loading", "replaced", "watch", "affiche"]);
 function maybeReload() {
   if (!newVersion) return;
   if (document.body.classList.contains("regie-mode") || !$("regie-login").hidden) {
@@ -159,11 +160,42 @@ function show(name) {
   maybeReload();
 }
 
-function fail(message) {
+/**
+ * Écrans d'arrivée en Game Show (cedric, 31/10) : chaque cas normal (partie complète, pas de réseau, vieille partie,
+ * pas encore entré) a sa petite scène en 3D avec Buzzy et des mots doux, jamais un écran d'erreur qui fait peur.
+ * Le texte de [fail] reste celui du design classique.
+ */
+const ARRIVEES = {
+  complet: { objet: "porte", buzzy: "pouces", couleur: "rose", titre: "On est déjà au complet\u00a0!", sous: `${MAX_TEAMS} équipes jouent déjà. Venez encourager les autres !` },
+  reseau: { objet: "cable", buzzy: "applaudit", couleur: "cyan", titre: "Oups ! Plus de réseau…", sous: "Pas de panique : je reviens tout seul dès que le Wi-Fi revient.", reessayer: true },
+  passe: { objet: "hier", buzzy: "applaudit", couleur: "jaune", titre: "Cette partie est déjà terminée\u00a0!", sous: "C'est du passé ! Scannez le QR code de la TV pour la nouvelle fête.", retourne: true },
+  attente: { objet: "sablier", buzzy: "batterie", couleur: "rose", titre: "Ça n'a pas encore commencé\u00a0!", sous: "", reessayer: true },
+};
+let reseauRetour = null;
+function fail(message, cas = null) {
   stopListening();
-  $("error-text").textContent = message;
+  clearInterval(reseauRetour);
+  reseauRetour = null;
+  const a = ARRIVEES[cas];
+  const ecran = $("screen-error");
+  ecran.dataset.cas = a ? cas : "";
+  $("arrivee-scene").hidden = !a;
+  $("arrivee-titre").hidden = !a;
+  if (a) {
+    $("arrivee-objet").src = `img/gs/arrivee/${a.objet}.webp`;
+    $("arrivee-buzzy").src = `img/gs/buzzy-${a.buzzy}.webp`;
+    $("arrivee-buzzy").classList.toggle("retourne", a.retourne === true);
+    $("arrivee-titre").textContent = a.titre;
+    $("arrivee-titre").className = `arrivee-titre ${a.couleur}`;
+    ecran.classList.toggle("sans-reessayer", !a.reessayer);
+  } else ecran.classList.remove("sans-reessayer");
+  $("error-text").textContent = lookGs && a ? a.sous : message;
+  $("error-text").hidden = lookGs && a && !a.sous;
   show("error");
+  // Pas de réseau : la tablette réessaie toute seule dès que le Wi-Fi revient (et toutes les 10 s, au cas où).
+  if (cas === "reseau") reseauRetour = setInterval(() => { if (lastScreen === "error" && navigator.onLine !== false) start(); }, 10000);
 }
+window.addEventListener("online", () => { if (lastScreen === "error" && $("screen-error").dataset.cas === "reseau") start(); });
 
 function beep(freq = 880, ms = 180) {
   try {
@@ -285,7 +317,7 @@ function suivreCoupures() {
 async function start() {
   show("loading");
   lastScreen = "loading";
-  if (!code) return fail("Scannez le QR code affiché sur la TV pour rejoindre une partie.");
+  if (!code) return show("affiche");
   try {
     if (!db) {
       const config = await (await fetch("firebase-config.json", { cache: "no-store" })).json();
@@ -305,7 +337,7 @@ async function start() {
     gameRef = ref(db, `games/${code}`);
     const host = await get(ref(db, `games/${code}/hostUid`));
     gameExists = host.exists();
-    if (!host.exists()) return fail(`La partie ${code} n'existe pas ou est terminée.`);
+    if (!host.exists()) return fail(`La partie ${code} n'existe pas ou est terminée.`, "passe");
     suivreLook();
     // Téléphone de l'animatrice déjà relié : retour direct à la régie (rechargement, écran verrouillé).
     if (await hasAccess({ db, uid }, code)) return enterRegie();
@@ -317,16 +349,16 @@ async function start() {
     const phase = (await get(ref(db, `games/${code}/state/phase`))).val() ?? "lobby";
     if (phase === "ended") {
       if (suivreLaSuite((await get(ref(db, `games/${code}/state/suite`))).val())) return;
-      return fail("Cette partie est terminée. Merci d'avoir joué !");
+      return fail("Cette partie est terminée. Merci d'avoir joué !", "passe");
     }
     if (takeover && !regieDirect && Object.keys(teams).length) return showTakeover();
     if (phase === "lobby" && Object.keys(teams).length >= MAX_TEAMS) {
-      fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`);
+      fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`, "complet");
     } else showGate();
     if (regieDirect) openRegieLogin();
   } catch (e) {
     console.error(e);
-    fail("Connexion impossible. Vérifiez Internet puis réessayez.");
+    fail("Connexion impossible. Vérifiez Internet puis réessayez.", "reseau");
   }
 }
 
@@ -389,7 +421,7 @@ async function askToJoin() {
     waitForAdmission();
   } catch (e) {
     console.error(e);
-    fail("Impossible d'envoyer la demande. Vérifiez Internet puis réessayez.");
+    fail("Impossible d'envoyer la demande. Vérifiez Internet puis réessayez.", "reseau");
   }
 }
 
@@ -421,7 +453,7 @@ async function askTakeover(id, team) {
     waitForAdmission(`L'animatrice confirme sur son téléphone (ou sur la TV) que cette tablette reprend « ${team.name} ».`);
   } catch (e) {
     console.error(e);
-    fail("Impossible d'envoyer la demande. Vérifiez Internet puis réessayez.");
+    fail("Impossible d'envoyer la demande. Vérifiez Internet puis réessayez.", "reseau");
   }
 }
 
@@ -452,7 +484,7 @@ function waitForAdmission(text = "L'animatrice vous fait entrer dans la partie d
     if (s.exists()) return;
     // Demande effacée : acceptée (l'équipe arrive dans la même écriture) ou écartée par l'animatrice.
     refusal = setTimeout(() => {
-      if (!admitted()) fail("L'animatrice n'a pas fait entrer cet appareil. Réessayez ou demandez-lui.");
+      if (!admitted()) fail("L'animatrice n'a pas fait entrer cet appareil. Réessayez ou demandez-lui.", "attente");
     }, 2000);
   });
 }
@@ -1897,4 +1929,5 @@ function exitRegie(message) {
 }
 
 $("retry").onclick = start;
+$("affiche-photo").onclick = () => ouvrirScanner();
 start();

@@ -1518,8 +1518,31 @@ describe("pupitre", () => {
     const teams = Object.fromEntries([...Array(8)].map((_, i) => [`t${i}`, { name: `Équipe ${i}`, color: "#FF3CAC" }]));
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams`), teams));
     const page = await openPupitre();
-    await page.locator("#error-text", { hasText: "complète" }).waitFor();
+    // Cas normal, pas une erreur (cedric, 31/10) : en Game Show, la porte « COMPLET » et des mots doux.
+    await page.locator('#screen-error.active[data-cas="complet"]').waitFor();
+    if (process.env.LMP_LOOK === "gs") await page.locator("#arrivee-titre", { hasText: "On est déjà au complet" }).waitFor();
+    else await page.locator("#error-text", { hasText: "complète" }).waitFor();
     await page.context().close();
+  });
+
+  test("appli ouverte sans QR code : l'affiche du Game Show et le petit bouton appareil photo, pas de message", async () => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.route("https://www.gstatic.com/firebasejs/11.1.0/*", (route) =>
+      route.fulfill({ path: join(FIREBASE_JS, new URL(route.request().url()).pathname.split("/").pop()), contentType: "text/javascript" }));
+    const page = await context.newPage();
+    await page.goto(`${baseUrl}/`);
+    await page.locator("#screen-affiche.active .affiche-logo").waitFor();
+    assert.equal(await page.locator("#affiche-photo").isVisible(), true);
+    assert.equal(await page.locator("#screen-error.active").count(), 0);
+    // Le scanner n'accepte que le QR code d'une partie de ce site.
+    const lu = await page.evaluate(async () => {
+      const { adresseDePartie } = await import("./scanner.js");
+      return [adresseDePartie(`${location.origin}/?g=ABCD&look=gs`), adresseDePartie("https://exemple.fr/?g=ABCD"), adresseDePartie(`${location.origin}/`)];
+    });
+    assert.ok(lu[0]?.includes("g=ABCD"));
+    assert.equal(lu[1], null);
+    assert.equal(lu[2], null);
+    await context.close();
   });
 
   test("une partie inexistante affiche un message clair", async () => {
@@ -1529,6 +1552,7 @@ describe("pupitre", () => {
     const page = await context.newPage();
     await page.goto(`${baseUrl}/?g=ZZZZZ&emu=1`);
     await page.locator("#error-text", { hasText: "n'existe pas" }).waitFor();
+    assert.equal(await page.locator('#screen-error[data-cas="passe"]').count(), 1, "vieille partie : l'écran « HIER » en Game Show");
     await context.close();
   });
 });
