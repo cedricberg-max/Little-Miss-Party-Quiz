@@ -965,23 +965,19 @@ class DirecteurSonoreTest {
         Lit.entries.forEach { assertEquals(Ambiance.FETE.volume(it), Ambiance.BILAN.volume(it), 0f) }
         assertEquals(0.8f, Ambiance.BILAN.volume(Lit.BILAN, gs = true), 0f)
         assertEquals(0f, Ambiance.BILAN.volume(Lit.COMPLET, gs = true), 0f)
-        // Super finale : en Classique, l'express un peu plus bas ; en Game Show, la musique de la manche un peu plus bas,
-        // la nappe nettement plus forte que la musique et la pulsation grave (idée 3, cedric 31/10).
+        // Super finale : en Classique, l'express un peu plus bas ; en Game Show, seulement la boucle « tout accélère ×3 »
+        // (idée 3, cedric 31/10 : musique et nappe accélérées, pulsation grave), la même pour tous les multiplicateurs.
         assertEquals(0.6f, Ambiance.DECISIVE.volume(Lit.EXPRESS), 0f)
         assertEquals(0f, Ambiance.DECISIVE.volume(Lit.TENSION), 0f)
-        assertEquals(0f, Ambiance.DECISIVE.volume(Lit.POULS), 0f)
-        val musique = Ambiance.DECISIVE.volume(Lit.LEGER, gs = true)
-        assertTrue(musique > 0f && musique < Ambiance.QUESTION.volume(Lit.LEGER, gs = true))
-        assertTrue(Ambiance.DECISIVE.volume(Lit.TENSION, gs = true) > musique)
-        assertTrue(Ambiance.DECISIVE.volume(Lit.POULS, gs = true) > 0f)
-        assertEquals(0f, Ambiance.DECISIVE.volume(Lit.EXPRESS, gs = true), 0f)
-        // La pulsation ne joue que là : aucune autre ambiance ne la fait entendre.
+        assertEquals(0f, Ambiance.DECISIVE.volume(Lit.FINALE), 0f)
+        Lit.entries.forEach { assertEquals(it.name, if (it == Lit.FINALE) 1f else 0f, Ambiance.DECISIVE.volume(it, gs = true), 0f) }
+        // Cette boucle ne joue que là.
         Ambiance.entries.filter { it != Ambiance.DECISIVE }.forEach {
-            assertEquals(it.name, 0f, it.volume(Lit.POULS, gs = true), 0f)
-            assertEquals(it.name, 0f, it.volume(Lit.POULS), 0f)
+            assertEquals(it.name, 0f, it.volume(Lit.FINALE, gs = true), 0f)
+            assertEquals(it.name, 0f, it.volume(Lit.FINALE), 0f)
         }
-        assertEquals("gs_bed_pouls", Lit.POULS.fichierPour(true))
-        assertNull(Lit.POULS.fichierPour(false))
+        assertEquals("gs_bed_finale", Lit.FINALE.fichierPour(true))
+        assertNull(Lit.FINALE.fichierPour(false))
         // Les ambiances sans réglage propre sonnent pareil dans les deux designs.
         Lit.entries.forEach { assertEquals(Ambiance.FETE.volume(it), Ambiance.FETE.volume(it, gs = true), 0f) }
         // Les boucles propres au Game Show ne se chargent pas en Classique.
