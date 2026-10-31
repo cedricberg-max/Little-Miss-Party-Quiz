@@ -775,7 +775,7 @@ function render() {
   const simon = simonEtape(st);
   if (simon) next.disabled = next.disabled || simon.s.step === "play" || simon.s.step === "none" || simon.verif > 0;
   const chrono = chronoEtape(st);
-  if (chrono) next.disabled = next.disabled || chrono.c.step === "run" || chrono.c.step === "none";
+  if (chrono) next.disabled = next.disabled || (chrono.c.step === "run" && chrono.c.reveler !== true) || chrono.c.step === "none";
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
@@ -2291,7 +2291,9 @@ function renderChrono(st) {
   const gagnantes = chronoListe(res.winners);
   $("chrono-info").textContent = c.step === "none" ? "Le Chrono de Buzzy se prépare…"
     : c.step === "ready" ? `${tour}Cible : ${cible} secondes. Réglez-la, puis lancez le chrono.`
-      : c.step === "run" ? (c.goAt > maintenant ? `${tour}3, 2, 1… le chrono part !` : `${tour}⏱️ Chrono en cours, cible ${c.cible} s : ${buzzees.length} / ${equipes.length} équipes ont buzzé.`)
+      : c.step === "run" ? (c.goAt > maintenant ? `${tour}3, 2, 1… le chrono part !`
+        : c.reveler === true ? `${tour}Toutes les équipes ont buzzé : touchez « 👀 Révéler » quand vous voulez.`
+          : `${tour}⏱️ Chrono en cours, cible ${c.cible} s : ${buzzees.length} / ${equipes.length} équipes ont buzzé.`)
         : gagnantes.length ? `${tour}🏆 ${gagnantes.map(name).join(", ")} ${gagnantes.length > 1 ? "gagnent" : "gagne"} le tour.`
           : `${tour}Personne n'a buzzé : aucun point.`;
   // Réglage de la cible, seulement quand le tour est prêt.
@@ -2325,9 +2327,10 @@ function renderChrono(st) {
   const liste = $("chrono-equipes");
   const cle = lignes.map((li) => li.textContent + li.className).join("|");
   if (liste.dataset.key !== cle) { liste.dataset.key = cle; liste.replaceChildren(...lignes); }
-  // Révéler sans attendre une équipe qui ne buzze pas : seulement une fois la cible passée.
+  // Le bilan attend toujours Sarah (cedric, 31/10) : « 👀 Révéler » en gros bouton quand toutes ont buzzé ; sinon,
+  // une fois la cible passée, révéler sans attendre une équipe qui ne buzze pas.
   const reveler = $("chrono-reveler");
-  reveler.hidden = c.step !== "run" || !cibleAt || maintenant < cibleAt;
+  reveler.hidden = c.step !== "run" || c.reveler === true || !cibleAt || maintenant < cibleAt;
   reveler.disabled = busy;
   const stop = $("chrono-stop");
   stop.hidden = c.step !== "run";
@@ -2344,7 +2347,7 @@ function renderChrono(st) {
 function chronoBoutonPrincipal(e, st) {
   const c = e.c;
   if (c.step === "none") return "Le Chrono de Buzzy se prépare…";
-  if (c.step === "run") return "Chrono en cours… ⏱️";
+  if (c.step === "run") return c.reveler === true ? "👀 Révéler" : "Chrono en cours… ⏱️";
   if (c.step === "ready") return `⏱️ Lancer le chrono (${chronoCibleEnvoi ?? c.cible ?? 30} s)`;
   if (c.step === "result") return c.last === true ? finDuelLabel(st) : `▶ Tour suivant (${(c.tour ?? 1) + 1} / ${c.tours ?? 1})`;
   return finDuelLabel(st);
@@ -2352,8 +2355,9 @@ function chronoBoutonPrincipal(e, st) {
 
 function chronoPrincipal(e) {
   const c = e.c;
-  if (c.step === "run" || c.step === "none") return;
+  if ((c.step === "run" && c.reveler !== true) || c.step === "none") return;
   navigator.vibrate?.(60);
+  if (c.step === "run") return send("chrono_reveal", {}, { advance: true });
   if (c.step === "result" && c.last === true) return send("next", {}, { advance: true });
   return send("chrono_go", {}, { advance: true });
 }

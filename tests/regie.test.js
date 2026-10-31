@@ -1835,6 +1835,20 @@ describe("régie", () => {
     assert.equal(await page.locator("#c-next").isDisabled(), true, "rien à lancer pendant le chrono");
     assert.doesNotMatch(await page.locator("#chrono").innerText(), /\d+,\d\d/, "aucun temps avant la révélation");
     await capture(page, "regie-chrono-en-cours", { pleinePage: false });
+    assert.equal(await page.locator("#chrono-reveler").isVisible(), false, "cible pas encore passée : rien à révéler");
+    // Toutes ont buzzé : le bilan attend Sarah, le gros bouton devient « 👀 Révéler » (cedric, 31/10).
+    await box.set({ chrono: { ...run, buzzed: teams.map(([id]) => id), reveler: true } });
+    await page.locator("#chrono-info", { hasText: "Toutes les équipes ont buzzé" }).waitFor();
+    await page.locator("#c-next", { hasText: "👀 Révéler" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), false, "Sarah révèle quand elle veut");
+    assert.equal(await page.locator("#chrono-reveler").isVisible(), false, "un seul bouton Révéler");
+    await capture(page, "regie-chrono-reveler", { pleinePage: false });
+    await page.click("#c-next");
+    await waitFor(async () => (await commandes("chrono_reveal")).length === 1, "révélation envoyée");
+    // Une équipe ne buzze pas, la cible est passée : « Révéler sans attendre », le gros bouton reste en attente.
+    await box.set({ chrono: { ...run, goAt: Date.now() - 40_000, reveler: null } });
+    await page.locator("#chrono-reveler", { hasText: "Révéler sans attendre" }).waitFor();
+    await page.locator("#c-next", { hasText: "Chrono en cours… ⏱️" }).waitFor();
     // Bilan : écarts, la plus proche d'abord, et les points des 3 plus proches.
     await box.set({ chrono: { ...run, step: "result", buzzed: null,
       result: { ecarts: { rose: -380, bleu: 1240, vert: 2900, jaune: -4100 }, winners: ["rose"], points: 100, gains: { rose: 100, bleu: 50, vert: 25 }, at: Date.now() } } });

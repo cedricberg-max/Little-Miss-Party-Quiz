@@ -121,7 +121,8 @@ fun HabillageTv(state: UiState) {
     // Qui a disparu ? : l'étape affichée par le plateau (mémoriser, tour de magie, chercher, réponse), de 1 à 4.
     val disparu = (state as? UiState.Playing)?.let { s -> s.question?.takeIf { it.isDisparu }?.let { etapeDisparu(it, s).ordinal + 1 } } ?: 0
     val lancement = Habillage.introLancement.value || (state as? UiState.Playing)?.let(Habillage::lancementEnVue) == true
-    val instant = remember(state, urgent, indices, statue, disparu, decompte, lancement, annonce) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte, presentation = (state as? UiState.Playing)?.intro == true, lancement = lancement, annonceStatues = annonce) }
+    val sousDrap = chronoSousDrap(state as? UiState.Playing)
+    val instant = remember(state, urgent, indices, statue, disparu, decompte, lancement, annonce, sousDrap) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte, presentation = (state as? UiState.Playing)?.intro == true, lancement = lancement, annonceStatues = annonce, chronoSousDrap = sousDrap) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
     // Mesure de la fluidité : l'écran en cours, pour savoir où la box accroche (rapports de la box).
     SideEffect { com.littlemissparty.quiz.tv.Fluidite.ecran = etiquetteFluidite(state) }
@@ -165,7 +166,7 @@ internal fun introJeuEnVue(gameShow: Boolean, phase: Phase, presentation: Boolea
  * Sarah le lance) ; musique douce, ni jingle de question ni bulles. [lancement] : la grande intro du Game Show passe
  * par-dessus, avec sa propre musique.
  */
-internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0, decompte: Int = 0, presentation: Boolean = false, lancement: Boolean = false, annonceStatues: Int = 0): Instant {
+internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0, decompte: Int = 0, presentation: Boolean = false, lancement: Boolean = false, annonceStatues: Int = 0, chronoSousDrap: Boolean = false): Instant {
     val s = state as? UiState.Playing ?: return Instant(Ecran.HORS_PARTIE)
     val blind = s.blind?.takeIf { s.question?.isBlind == true }
     val ecran = when (s.phase) {
@@ -224,7 +225,8 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         patate = s.question?.isPatate == true,
         duel = s.question?.isDuel == true,
         duelEtape = if (s.question?.isDuel == true) s.duel?.step.orEmpty() else "",
-        chronoEtape = if (s.question?.isChrono == true) s.chrono?.step.orEmpty() else "",
+        // Chrono de Buzzy : « drap » une fois le chrono caché (la nappe remplace le tic-tac), jusqu'à la révélation.
+        chronoEtape = if (s.question?.isChrono == true) s.chrono?.step?.let { if (it == "run" && chronoSousDrap) "drap" else it }.orEmpty() else "",
         simon = s.question?.isSimon == true,
         simonSuite = s.question?.isSimon == true && s.simon?.enCours == true,
         simonChiffres = SIMON_AVEC_CHIFFRES && s.question?.isSimon == true && s.simon?.enCours == true && (s.simon?.suite ?: 0) >= SIMON_CHIFFRES_DES,
@@ -291,6 +293,26 @@ private fun indicesQuiSuis(s: UiState.Playing?): Int {
         }
     }
     return n
+}
+
+/**
+ * Le Chrono de Buzzy : vrai dès que le drap de Buzzy tombe sur le chrono (le 0 + [ChronoRound.cacheMs], à la même heure
+ * que l'écran), jusqu'au bilan. Faux avant, pendant le tic-tac, et hors de ce jeu.
+ */
+@Composable
+private fun chronoSousDrap(s: UiState.Playing?): Boolean {
+    var sous by remember { mutableStateOf(false) }
+    val c = s?.chrono?.takeIf { s.question?.isChrono == true && it.enCours }
+    val chute = c?.goAt?.let { go -> c.cacheMs?.let { go + it } }
+    val decalage = s?.duelOffset ?: s?.serverOffset ?: 0L
+    LaunchedEffect(chute, decalage) {
+        sous = false
+        if (chute == null) return@LaunchedEffect
+        val attente = chute - (System.currentTimeMillis() + decalage)
+        if (attente > 0) delay(attente)
+        sous = true
+    }
+    return sous && chute != null
 }
 
 /**

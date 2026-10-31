@@ -74,7 +74,7 @@ object Codec {
             is DuelPanShown -> mapOf("type" to "duel_pan", "qid" to e.qid, "n" to e.n, "shownAt" to e.shownAt)
             is ChronoReady -> mapOf("type" to "chrono_ready", "qid" to e.qid, "tour" to e.tour, "cible" to e.cible)
             is ChronoTargetSet -> mapOf("type" to "chrono_cible", "qid" to e.qid, "tour" to e.tour, "cible" to e.cible)
-            is ChronoStarted -> mapOf("type" to "chrono_start", "qid" to e.qid, "tour" to e.tour, "goAt" to e.goAt, "cacheMs" to e.cacheMs, "teams" to e.teams)
+            is ChronoStarted -> mapOf("type" to "chrono_start", "qid" to e.qid, "tour" to e.tour, "goAt" to e.goAt, "cacheMs" to e.cacheMs, "teams" to e.teams) + listOfNotNull(("manuel" to true).takeIf { e.manuel })
             is ChronoBuzzed -> mapOf("type" to "chrono_buzz", "qid" to e.qid, "tour" to e.tour, "team" to e.team, "t" to e.t)
             is ChronoShown -> mapOf("type" to "chrono_shown", "qid" to e.qid, "tour" to e.tour, "shownAt" to e.shownAt)
             is ChronoSettled -> mapOf("type" to "chrono_settle", "qid" to e.qid, "tour" to e.tour, "force" to e.force.takeIf { it })
@@ -172,6 +172,7 @@ object Codec {
             "chrono_cible" -> ChronoTargetSet(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("cible").toInt())
             "chrono_start" -> ChronoStarted(
                 seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("goAt"), m.num("cacheMs"), (m["teams"] as List<*>).map { it as String },
+                manuel = m["manuel"] == true,
             )
             "chrono_buzz" -> ChronoBuzzed(seq, at, m["qid"] as String, m.num("tour").toInt(), m["team"] as String, m.num("t"))
             "chrono_shown" -> ChronoShown(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("shownAt"))
@@ -384,6 +385,8 @@ object Codec {
             "cacheMs" to c?.takeIf { it.enCours }?.cacheMs,
             "teams" to c?.teams?.ifEmpty { null },
             "buzzed" to c?.takeIf { it.enCours }?.buzzes?.map { it.team }?.ifEmpty { null },
+            // Toutes les équipes ont buzzé : la régie propose « 👀 Révéler » (le bilan attend Sarah).
+            "reveler" to c?.takeIf { it.enCours }?.revelable?.takeIf { it },
             "result" to c?.result?.let { r ->
                 mapOf("ecarts" to r.ecarts.ifEmpty { null }, "winners" to r.winners.ifEmpty { null }, "points" to r.points, "gains" to r.gains.ifEmpty { null }, "at" to r.at)
             },
