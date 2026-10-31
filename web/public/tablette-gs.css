@@ -364,15 +364,22 @@ body.look-gs:not(.regie-mode) #app .number-screen {
   background: none; border: 0; border-radius: 0; box-shadow: 0 4px 0 -1px var(--gs-cyan), 0 10px 18px -8px var(--gs-cyan);
   font-family: "GS Orbitron"; color: #fff7a8; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 20px var(--gs-jaune), 0 0 40px var(--gs-jaune);
 }
+/* Touches légères (cedric, 31/10 : « moins chargé, moins les uns sur les autres ») : des ronds de verre violet, chiffres
+   fins et bien espacés, « ⌫ » cerclé de rose. */
+body.look-gs:not(.regie-mode) #app .number-pad { gap: clamp(12px, 2.6vh, 30px) clamp(18px, 5vw, 48px); justify-items: center; width: min(100%, 560px); margin-inline: auto; }
 body.look-gs:not(.regie-mode) #app .number-key {
-  font-family: "GS Orbitron"; border: 0; border-radius: 22px; color: #fff; text-shadow: 0 2px 0 rgba(40, 0, 80, .6);
-  background: linear-gradient(180deg, #b38cff 0%, #8b2cff 45%, #5a17b0 100%);
-  box-shadow: 0 6px 0 #3d0c80, 0 10px 22px rgba(139, 44, 255, .4), inset 0 2px 0 rgba(255, 255, 255, .6);
+  width: clamp(58px, min(19vw, 10.5vh), 128px); min-height: 0; height: auto; aspect-ratio: 1; padding: 0; border-radius: 50%;
+  font-family: "GS Orbitron"; font-weight: 500; font-size: clamp(24px, min(7vw, 4.2vh), 50px); color: #fff;
+  background: radial-gradient(circle at 50% 30%, rgba(190, 150, 255, .38), rgba(110, 40, 220, .22) 70%);
+  border: 2px solid rgba(214, 190, 255, .75); box-shadow: 0 0 14px rgba(139, 44, 255, .35); text-shadow: 0 0 8px rgba(255, 255, 255, .5);
 }
-body.look-gs:not(.regie-mode) #app .number-key[data-key="⌫"] {
-  color: #fff; background: linear-gradient(180deg, #ff7ac0 0%, #ff2d95 45%, #ff6b1a 100%); box-shadow: 0 6px 0 #a3105a, 0 10px 22px rgba(255, 45, 149, .4), inset 0 2px 0 rgba(255, 255, 255, .7); text-shadow: 0 2px 0 rgba(120, 0, 60, .6);
+body.look-gs:not(.regie-mode) #app .number-key[data-key="⌫"] { color: #ffd0e6; border-color: rgba(255, 120, 190, .85); background: radial-gradient(circle at 50% 30%, rgba(255, 140, 200, .32), rgba(255, 45, 149, .18) 70%); box-shadow: 0 0 14px rgba(255, 45, 149, .35); }
+body.look-gs:not(.regie-mode) #app .number-key:active:not(:disabled) { transform: scale(.92); background: var(--team); border-color: #fff; box-shadow: 0 0 24px var(--team); }
+body.look-gs:not(.regie-mode) #app .number-vide { visibility: hidden; }
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .number-pad { gap: 8px 22px; }
+  body.look-gs:not(.regie-mode) #app .number-key { width: clamp(40px, 13vh, 60px); font-size: 22px; }
 }
-body.look-gs:not(.regie-mode) #app .number-key:active:not(:disabled) { transform: translateY(4px); }
 body.look-gs:not(.regie-mode) #app .number-send {
   font-family: "GS Orbitron"; font-weight: 800; color: #fff; border: 0; text-shadow: 0 2px 0 rgba(0, 60, 15, .6);
   background: linear-gradient(180deg, #9dffad 0%, #2bd94a 45%, #168a2c 100%);

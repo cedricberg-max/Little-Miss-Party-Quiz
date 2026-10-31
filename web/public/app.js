@@ -992,7 +992,7 @@ function renderMime(st) {
   const m = st.mime;
   const mine = m.counts?.[teamId] ?? 0;
   const found = mine ? ` Déjà ${mine} mime${mine > 1 ? "s" : ""} trouvé${mine > 1 ? "s" : ""} !` : "";
-  if (m.team === teamId) $("play-status").textContent = "C'est votre tour ! Celui qui devine se met dos à la TV, les autres miment.";
+  if (m.team === teamId) $("play-status").textContent = "C'est votre tour ! Le mimeur se met en place, les autres se mettent dos à la TV.";
   else if (m.team) $("play-status").textContent = `C'est au tour de ${game.teams[m.team]?.name ?? "une autre équipe"} : regardez-les mimer !${found}`;
   else $("play-status").textContent = `Mimes ! L'animatrice choisit l'équipe qui joue.${found}`;
 }
