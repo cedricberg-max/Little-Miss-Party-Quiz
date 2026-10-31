@@ -1,0 +1,171 @@
+/* Régie PC, look « The Game Show » sur fond clair (cedric, 31/10) : fond blanc, lignes nettes, très lisible ; les
+   couleurs néon de l'appli en accents, les polices du Game Show pour les titres et les boutons, Buzzy par-ci par-là.
+   Tout est sous body.regie-gs : sans cette classe (?look=classique), admin.css seul donne l'ancien look. */
+@font-face { font-family: "GS Rajdhani"; font-weight: 600; font-display: swap; src: url(fonts/gs-rajdhani-600.woff2) format("woff2"); }
+@font-face { font-family: "GS Rajdhani"; font-weight: 700 900; font-display: swap; src: url(fonts/gs-rajdhani-700.woff2) format("woff2"); }
+@font-face { font-family: "GS Orbitron"; font-weight: 500 900; font-display: swap; src: url(fonts/gs-orbitron.woff2) format("woff2"); }
+@font-face { font-family: "GS Bungee"; font-weight: 400; font-display: swap; src: url(fonts/gs-bungee.woff2) format("woff2"); }
+
+/* Un look ou l'autre : les éléments propres à chacun. */
+body:not(.regie-gs) .look-gs, body.regie-gs .look-classique { display: none !important; }
+
+body.regie-gs {
+  /* Les néons de l'appli, et leurs versions foncées pour écrire sur du blanc. */
+  --neon-rose: #ff2d95; --neon-violet: #8b2cff; --neon-cyan: #00d6f0; --neon-jaune: #ffd400; --neon-orange: #ff6b1a; --neon-vert: #2fd96b;
+  --cyan-encre: #00788c;
+  --bg: #fbfaff; --bg-2: #f5f1ff; --card: #ffffff; --line: #e2dbf1; --line-2: #cfc3ea;
+  --ink: #1a1030; --soft: #574d70; --rose: #e0007a; --rose-pale: #ffe4f2; --violet: #7a1fe0; --violet-pale: #f0e6ff;
+  --gold: #f2a900; --gold-pale: #fff4cc; --plum: #24104a; --bad: #c8003c; --warn: #9a5b00; --good: #0e8a46; --good-pale: #e1f7ea;
+  --shadow: 0 1px 0 rgba(26, 16, 48, .04), 0 8px 22px rgba(122, 31, 224, .07);
+  --nacre: #ffffff;
+  --titre: "GS Rajdhani", system-ui, sans-serif;
+  /* Fond blanc, avec un quadrillage de studio à peine visible. */
+  background:
+    linear-gradient(rgba(122, 31, 224, .035) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(122, 31, 224, .035) 1px, transparent 1px) 0 0 / 32px 32px,
+    #fbfaff;
+  background-attachment: scroll;
+}
+
+/* En-tête blanc, liseré néon en bas (les couleurs des équipes). */
+.regie-gs header { background: rgba(255, 255, 255, .96); backdrop-filter: none; border-bottom: 1px solid var(--line); }
+.regie-gs header::after {
+  bottom: -4px; height: 4px; opacity: 1;
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-violet) 25%, var(--neon-rose) 50%, var(--neon-orange) 75%, var(--neon-jaune));
+}
+.regie-gs .brand { gap: 10px; color: var(--plum); }
+.regie-gs .brand-buzzy { width: 40px; height: auto; border-radius: 0; }
+.regie-gs .brand small { font-family: var(--titre); font-weight: 700; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); }
+.regie-gs #nav button { font-family: var(--titre); font-size: 18px; letter-spacing: .03em; color: var(--soft); }
+.regie-gs #nav button:hover { background: var(--violet-pale); color: var(--plum); }
+.regie-gs #nav button.active { background: linear-gradient(135deg, var(--neon-violet), var(--neon-rose)); color: #fff; }
+
+/* Le mot « THE GAME SHOW » : THE en cyan, GAME SHOW en rose néon (comme le logo de la TV), lisible sur blanc. */
+.regie-gs .wm-gs, .regie-gs .wm-the { white-space: nowrap; }
+.regie-gs .wordmark { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.regie-gs .wm-the { font-family: "GS Orbitron", var(--titre); font-weight: 800; letter-spacing: .14em; color: var(--cyan-encre); }
+.regie-gs .wm-gs {
+  font-family: "GS Bungee", var(--titre); font-weight: 400; letter-spacing: .01em;
+  background: linear-gradient(180deg, #ff5fb0, var(--rose) 55%, #b4009a); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.regie-gs .brand .wm-the { font-size: 13px; }
+.regie-gs .brand .wm-gs { font-size: 22px; }
+
+/* Titres : la police du Game Show, en capitales pour les grands. */
+.regie-gs h1 { font-family: var(--titre); font-weight: 700; font-size: 36px; letter-spacing: .01em; color: var(--plum); }
+.regie-gs h2 { font-family: var(--titre); font-weight: 700; font-size: 26px; letter-spacing: .01em; color: var(--plum); }
+.regie-gs h2::before { width: 7px; background: linear-gradient(var(--neon-cyan), var(--neon-violet) 50%, var(--neon-rose)); }
+.regie-gs h3 { font-family: var(--titre); letter-spacing: .08em; }
+.regie-gs label { color: var(--plum); }
+
+/* Blocs blancs à bord net. */
+.regie-gs .panel, .regie-gs .card, .regie-gs .stat, .regie-gs .tile, .regie-gs .jeu-bloc { border: 1.5px solid var(--line); box-shadow: var(--shadow); }
+.regie-gs input, .regie-gs select, .regie-gs textarea { background: #fff; border-color: var(--line-2); }
+.regie-gs input:focus, .regie-gs select:focus, .regie-gs textarea:focus { border-color: var(--neon-violet); box-shadow: 0 0 0 4px rgba(139, 44, 255, .16); }
+
+/* Boutons : rose vers violet néon, police du Game Show. */
+.regie-gs .btn { font-family: var(--titre); font-weight: 700; font-size: 19px; letter-spacing: .02em; padding: 13px 24px; background: linear-gradient(135deg, var(--neon-rose), var(--neon-violet)); box-shadow: 0 4px 14px rgba(255, 45, 149, .28); }
+.regie-gs .btn:hover { box-shadow: 0 6px 20px rgba(139, 44, 255, .35); }
+.regie-gs .btn.big { font-size: 21px; }
+.regie-gs .btn.small { font-size: 17px; }
+.regie-gs .btn.secondary { background: #fff; color: var(--violet); border: 1.5px solid var(--line-2); box-shadow: none; }
+.regie-gs .btn.secondary:hover { border-color: var(--neon-violet); }
+.regie-gs .btn.danger { background: #fff; color: var(--bad); border: 1.5px solid #f3b8cb; box-shadow: none; }
+.regie-gs .btn.ajout-jeu { font-family: var(--titre); background: linear-gradient(135deg, #ffe45c, var(--neon-jaune) 45%, #ffb300); color: var(--plum); }
+.regie-gs .chip.active { background: var(--neon-violet); border-color: var(--neon-violet); }
+
+/* Connexion : la vitrine en petit, avec Buzzy. */
+.regie-gs .logo-band { background: #fff; border: 1.5px solid var(--line); padding: 18px 22px; }
+.regie-gs .vitrine { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; }
+.regie-gs .vitrine .vitrine-titre { font-size: 11.5px; }
+.regie-gs .vitrine-buzzy { width: 130px; height: auto; flex: none; }
+
+/* « THE GAME SHOW by Little Miss Party » en grand. Le logo Little Miss Party (écrit en blanc) dans sa pastille rose. */
+.regie-gs .vitrine-titre { display: grid; justify-items: start; line-height: .92; }
+.regie-gs .vitrine-titre .wm-the { font-size: 1.6em; padding-left: .12em; }
+.regie-gs .vitrine-titre .wm-gs { font-size: 4.2em; filter: drop-shadow(0 3px 0 rgba(122, 31, 224, .22)) drop-shadow(0 0 14px rgba(255, 45, 149, .25)); }
+.regie-gs .wm-by {
+  display: inline-flex; align-items: center; gap: .5em; margin-top: .35em; padding: .35em 1em .35em .85em; border-radius: 999px;
+  font-family: var(--titre); font-weight: 700; font-size: 1.15em; color: #fff;
+  background: linear-gradient(135deg, #ff4fa6, var(--rose) 60%, #a1007f); box-shadow: 0 4px 14px rgba(224, 0, 122, .25);
+}
+.regie-gs .wm-by img { width: 8.5em; height: auto; margin: -.2em 0; }
+
+/* Accueil : une petite vitrine blanche, liseré néon, Buzzy qui salue. */
+.regie-gs .hero {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "texte buzzy" "actions buzzy";
+  align-items: center; gap: 14px 24px; padding: 30px 34px; color: var(--ink); overflow: hidden;
+  border: 2px solid transparent; border-radius: 28px;
+  background:
+    radial-gradient(420px 260px at 88% 40%, rgba(0, 214, 240, .14), transparent 70%),
+    radial-gradient(520px 260px at 0% 0%, rgba(255, 45, 149, .07), transparent 70%) padding-box,
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(120deg, var(--neon-cyan), var(--neon-violet) 35%, var(--neon-rose) 65%, var(--neon-jaune)) border-box;
+  box-shadow: 0 14px 36px rgba(122, 31, 224, .12);
+}
+.regie-gs .hero-text { grid-area: texte; gap: 10px; font-size: clamp(11px, 1.55vw, 18px); }
+.regie-gs .hero h1 { color: var(--plum); font-size: 30px; margin-top: 8px; }
+.regie-gs .hero .hint { color: var(--soft); font-size: 18px; }
+.regie-gs .hero-actions { grid-area: actions; flex-direction: row; flex-wrap: wrap; }
+.regie-gs .hero .btn { align-self: flex-start; }
+.regie-gs .hero .btn:not(.secondary) { background: linear-gradient(135deg, #ffe45c, var(--neon-jaune) 45%, #ffb300); color: var(--plum); box-shadow: 0 6px 18px rgba(255, 179, 0, .35); }
+.regie-gs .hero-buzzy { grid-area: buzzy; width: clamp(150px, 22vw, 270px); height: auto; align-self: end; margin: -12px -6px -30px 0; }
+.regie-gs .vitrine-atouts { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 0; padding: 0; list-style: none; }
+.regie-gs .vitrine-atouts li {
+  padding: 6px 14px; border-radius: 999px; border: 1.5px solid var(--line-2); background: #fff;
+  font-family: var(--titre); font-weight: 700; font-size: 17px; color: var(--plum);
+}
+.regie-gs .vitrine-atouts li:nth-child(1) { border-color: var(--neon-rose); }
+.regie-gs .vitrine-atouts li:nth-child(2) { border-color: var(--neon-violet); }
+.regie-gs .vitrine-atouts li:nth-child(3) { border-color: var(--neon-cyan); }
+.regie-gs .vitrine-atouts li:nth-child(4) { border-color: var(--neon-orange); }
+.regie-gs .vitrine-atouts b { color: var(--rose); }
+@media (prefers-reduced-motion: no-preference) {
+  .regie-gs .hero-buzzy { animation: buzzy-flotte 4.5s ease-in-out infinite; }
+  @keyframes buzzy-flotte { 50% { translate: 0 -8px; } }
+}
+@media (max-width: 720px) {
+  .regie-gs .hero { grid-template-columns: 1fr; grid-template-areas: "buzzy" "texte" "actions"; padding: 18px 18px 22px; }
+  .regie-gs .hero-text { font-size: clamp(8px, 2.3vw, 14px); }
+  .regie-gs .hero-buzzy { width: 120px; margin: 0 auto -6px; align-self: center; }
+  .regie-gs .hero .btn { align-self: stretch; }
+}
+
+/* Compteurs : un bandeau de couleur en haut, gros chiffres du Game Show. */
+.regie-gs .stat { position: relative; overflow: hidden; padding-top: 20px; }
+.regie-gs .stat::before { content: ""; position: absolute; inset: 0 0 auto; height: 5px; background: var(--neon-violet); }
+.regie-gs .stat.ready::before { background: var(--neon-vert); }
+.regie-gs .stat.todo::before { background: var(--neon-jaune); }
+.regie-gs .stat.archive::before { background: var(--line-2); }
+.regie-gs .stat b { font-family: "GS Bungee", var(--titre); font-weight: 400; font-size: 40px; line-height: 1.1; }
+.regie-gs .stat.todo b { color: #b77800; }
+.regie-gs .stat span { font-family: var(--titre); font-weight: 700; font-size: 19px; color: var(--soft); }
+.regie-gs .stat:hover { border-color: var(--line-2); }
+
+/* Prestations : le prénom en grand, l'accent de couleur à gauche. */
+.regie-gs .card-title { font-family: var(--titre); font-weight: 700; font-size: 23px; color: var(--plum); }
+.regie-gs .card.prete { border-left: 6px solid var(--neon-vert); }
+.regie-gs .card.a-completer { border-left: 6px solid var(--neon-jaune); }
+
+/* Aucun anniversaire à venir : Buzzy attend. */
+.regie-gs .empty { position: relative; padding-left: 110px; min-height: 104px; }
+.regie-gs .empty::before { content: ""; position: absolute; left: 6px; top: 50%; translate: 0 -50%; width: 92px; height: 100px; background: url(img/buzzy-fier.webp) center / contain no-repeat; }
+
+/* Les jeux de l'Accueil : une pastille de couleur néon par jeu, comme les équipes. */
+.regie-gs .home-games h3 { color: var(--soft); }
+.regie-gs .tile { transition: transform .12s, border-color .12s, box-shadow .12s; }
+.regie-gs .tile:hover { transform: translateY(-2px); border-color: var(--neon-violet); box-shadow: 0 10px 24px rgba(122, 31, 224, .14); }
+.regie-gs .tile b { font-family: var(--titre); font-weight: 700; font-size: 19px; color: var(--plum); }
+.regie-gs .tile-icon { background: #fff; border: 2px solid var(--neon-violet); box-shadow: 0 0 0 3px var(--violet-pale); }
+.regie-gs .tiles .tile:nth-child(6n + 1) .tile-icon { border-color: var(--neon-rose); box-shadow: 0 0 0 3px var(--rose-pale); }
+.regie-gs .tiles .tile:nth-child(6n + 2) .tile-icon { border-color: var(--neon-cyan); box-shadow: 0 0 0 3px #dcf9fd; }
+.regie-gs .tiles .tile:nth-child(6n + 3) .tile-icon { border-color: var(--neon-orange); box-shadow: 0 0 0 3px #ffe8da; }
+.regie-gs .tiles .tile:nth-child(6n + 4) .tile-icon { border-color: var(--neon-vert); box-shadow: 0 0 0 3px #ddf8e7; }
+.regie-gs .tiles .tile:nth-child(6n + 5) .tile-icon { border-color: var(--neon-jaune); box-shadow: 0 0 0 3px #fff4c2; }
+
+/* Carte d'un jeu dans une prestation (aussi la carte « ＋ Jeu » du téléphone) : blanche, nette, très contrastée. */
+.regie-gs .jeu-bloc { background: #fff; border-left: 5px solid var(--neon-violet); }
+.regie-gs .jeu-nom { font-family: var(--titre); font-weight: 700; font-size: 21px; color: var(--plum); }
+.regie-gs .round { background: var(--bg-2); border: 1px solid #ebe4f8; }
+.regie-gs .round .num { background: var(--neon-violet); }
+.regie-gs .icon { border-color: var(--line-2); }
