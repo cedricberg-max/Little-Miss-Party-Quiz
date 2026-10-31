@@ -250,6 +250,22 @@
           ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid",
           ".validate": "newData.isBoolean()"
         },
+        "defisFete": {
+          ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+          ".write": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+          ".validate": "newData.hasChildren(['list', 'updatedAt']) && newData.child('updatedAt').val() === now",
+          "list": {
+            "$i": {
+              ".validate": "$i.matches(/^([0-9]|[12][0-9])$/) && newData.isString() && newData.val().length >= 1 && newData.val().length <= 120"
+            }
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": "false"
+          }
+        },
         "conducteur": {
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid"
@@ -632,7 +648,12 @@
         ".indexOn": ["date"],
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
-          ".validate": "!newData.exists() || ((!newData.child('childName').exists() || (newData.child('childName').isString() && newData.child('childName').val().length >= 1 && newData.child('childName').val().length <= 40)) && (newData.child('status').val() !== 'publiee' || newData.child('childName').exists()) && (!newData.child('copieDe').exists() || (newData.child('copieDe').isString() && newData.child('copieDe').val().length <= 120)) && newData.child('status').isString() && newData.child('status').val().matches(/^(brouillon|publiee|archivee)$/) && newData.child('updatedAt').val() === now)"
+          ".validate": "!newData.exists() || ((!newData.child('childName').exists() || (newData.child('childName').isString() && newData.child('childName').val().length >= 1 && newData.child('childName').val().length <= 40)) && (newData.child('status').val() !== 'publiee' || newData.child('childName').exists()) && (!newData.child('copieDe').exists() || (newData.child('copieDe').isString() && newData.child('copieDe').val().length <= 120)) && newData.child('status').isString() && newData.child('status').val().matches(/^(brouillon|publiee|archivee)$/) && newData.child('updatedAt').val() === now)",
+          "defis": {
+            "$i": {
+              ".validate": "$i.matches(/^([0-9]|[12][0-9])$/) && newData.isString() && newData.val().length >= 1 && newData.val().length <= 120"
+            }
+          }
         }
       },
       "manches": {

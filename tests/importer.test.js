@@ -361,8 +361,8 @@ describe("tableau de bord des prestations", () => {
     assert.equal(isoDay(new Date(2026, 0, 5)), "2026-01-05");
   });
 
-  test("dupliquer : mêmes manches en brouillon, prénom et date à saisir, original intact", () => {
-    const original = { childName: "Léa", age: 7, date: "2026-12-02", title: "Léa 7 ans", status: "publiee", profile: "PETITS", themes: "Licornes", rounds: [{ type: "quiz", quizId: "animaux" }], createdAt: 1, updatedAt: 2 };
+  test("dupliquer : mêmes manches en brouillon, prénom, date et défis en plus à saisir, original intact", () => {
+    const original = { childName: "Léa", age: 7, date: "2026-12-02", title: "Léa 7 ans", status: "publiee", profile: "PETITS", themes: "Licornes", rounds: [{ type: "quiz", quizId: "animaux" }], createdAt: 1, updatedAt: 2, defis: ["Bravo à Mamie !"] };
     const copy = duplicateShow(original);
     assert.deepEqual(copy, { profile: "PETITS", themes: "Licornes", status: "brouillon", rounds: [{ type: "quiz", quizId: "animaux" }] });
     copy.rounds[0].quizId = "autre";

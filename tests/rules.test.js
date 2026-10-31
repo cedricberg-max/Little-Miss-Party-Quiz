@@ -1413,6 +1413,42 @@ describe("défis de la pause", () => {
   });
 });
 
+describe("défis de la pause en plus de la fête", () => {
+  const REGIE = "tel";
+  const chemin = `games/${CODE}/defisFete`;
+  const avec = (uid, list) => set(ref(db(uid), chemin), { list, updatedAt: serverTimestamp() });
+  async function paired() {
+    await seed();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/${REGIE}`), { pairedAt: 1, via: "pin" }));
+  }
+
+  test("la régie de la partie (même ouverte avec le code de la TV) ajoute et efface ses défis, la TV les lit", async () => {
+    await paired();
+    await assertSucceeds(avec(REGIE, ["Tout le monde imite un lion !"]));
+    await assertSucceeds(get(ref(db(REGIE), chemin)));
+    await assertSucceeds(get(ref(db(HOST), chemin)));
+    await assertSucceeds(set(ref(db(REGIE), chemin), null));
+  });
+  test("une équipe ou un inconnu ne touchent pas aux défis de la fête", async () => {
+    await paired();
+    await assertFails(avec("rose", ["Dansez !"]));
+    await assertFails(avec(null, ["Dansez !"]));
+    await assertFails(get(ref(db("rose"), chemin)));
+    await assertFails(get(ref(db(null), chemin)));
+  });
+  test("défis de la fête mal formés refusés", async () => {
+    await paired();
+    await assertFails(avec(REGIE, [""]));
+    await assertFails(avec(REGIE, ["x".repeat(121)]));
+    await assertFails(avec(REGIE, Array.from({ length: 31 }, (_, i) => `Défi ${i}`)));
+    await assertFails(avec(REGIE, [42]));
+    await assertFails(set(ref(db(REGIE), chemin), { list: ["Dansez !"], updatedAt: serverTimestamp(), secret: 1 }));
+    await assertFails(set(ref(db(REGIE), chemin), { list: ["Dansez !"], updatedAt: 1 }));
+    await assertFails(set(ref(db(REGIE), chemin), { updatedAt: serverTimestamp() }));
+    await assertSucceeds(avec(REGIE, Array.from({ length: 30 }, (_, i) => `Défi ${i}`)));
+  });
+});
+
 describe("Les Coffres mystères", () => {
   const chests = (extra = {}) => seed({
     kind: "coffres", qid: "r9c", choices: null, deadline: null,

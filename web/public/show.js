@@ -1977,10 +1977,10 @@ export function upcoming(shows, today = isoDay()) {
 
 /**
  * Copie d'une prestation pour un nouvel anniversaire : mêmes manches (les quiz de la bibliothèque
- * sont repris tels quels, sans être modifiés), prénom, date et âge à saisir, en brouillon.
+ * sont repris tels quels, sans être modifiés), prénom, date et âge à saisir, en brouillon. Les défis de la pause en plus ne suivent pas (propres à chaque fête).
  */
 export function duplicateShow(show) {
-  const { childName, age, date, title, status, createdAt, updatedAt, origin, pinned, keepActive, copieDe, ...rest } = show;
+  const { childName, age, date, title, status, createdAt, updatedAt, origin, pinned, keepActive, copieDe, defis, ...rest } = show;
   return { ...rest, status: "brouillon", rounds: (show.rounds ?? []).filter(Boolean).map((r) => ({ ...r })) };
 }
 

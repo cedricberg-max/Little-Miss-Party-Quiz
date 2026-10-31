@@ -3,6 +3,7 @@ import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gst
 import {
   getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator, query, orderByKey, limitToLast,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
+import { defisDuTexte } from "./defis.js";
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
 import { TEST_PRESTATION, TEST_TITRE, TEST_FICHE, TEST_NOTES, JEUX_DU_TEST, demosAEffacer, nbDemos } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
@@ -910,6 +911,7 @@ function editShow(id) {
   $("show-title").dataset.auto = suivi ? titreAuto(s.childName) : "";
   $("show-profile").value = s.profile ?? "";
   $("show-notes").value = s.notes ?? "";
+  $("show-defis").value = Array.isArray(s.defis) ? s.defis.join("\n") : "";
   status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
     : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement."
     : fusions ? "Les manches Quiz qui se suivaient n'en font plus qu'une (une seule Super Finale, à la fin). Enregistrez pour garder ce changement."
@@ -932,7 +934,7 @@ function montrerArchivee(oui) {
 }
 
 /** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
-const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-notes"];
+const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-notes", "show-defis"];
 const histPrestation = historique({
   ecran: $("screen-show-edit"),
   precedent: pagePrecedente,
@@ -970,6 +972,8 @@ function formShow() {
     // Plus de case « Thèmes » (cedric, 23/10 : elle ne servait à rien) ; celui d'une ancienne prestation est gardé.
     themes: editing.themes ?? null,
     notes: $("show-notes").value.trim() || null,
+    // Défis de la pause en plus (cedric, 31/10) : copiés dans la partie au lancement, jamais repris à la fête suivante.
+    defis: defisDuTexte($("show-defis").value).length ? defisDuTexte($("show-defis").value) : null,
     teams: num($("show-teams").value),
     teamColors: [...couleursSaisies],
     rounds: editing.rounds.filter(roundFilled).map((r) => cleanRound(r, playlists)),

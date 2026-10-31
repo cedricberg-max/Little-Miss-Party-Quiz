@@ -3137,6 +3137,21 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
     });
   }
 
+  test("lancer : les défis de la pause préparés dans la fiche sont copiés dans la partie, à la suite de ceux déjà ajoutés (cedric, 31/10)", async () => {
+    box = startBox();
+    await seedShows({ lea: prestation("Léa", isoDay(), { defis: ["Tout le monde imite un lion !", "Bravo à Mamie !"] }) });
+    await writeRaw(`games/${CODE}/defisFete`, { list: ["Déjà là !", "Bravo à Mamie !"], updatedAt: 1 });
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await item(regie, "Léa").click();
+    await regie.locator("#ask:not([hidden])").waitFor();
+    await regie.click("#ask-ok");
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    assert.deepEqual((await raw(`games/${CODE}/defisFete`)).list, ["Déjà là !", "Bravo à Mamie !", "Tout le monde imite un lion !"]);
+    await regie.context().close();
+  });
+
   test("la liste des prestations est gardée sur le téléphone : affichée tout de suite au retour, puis mise à jour (cedric, 25/10)", async () => {
     box = startBox();
     await seedShows({ lea: prestation("Léa", isoDay()) });
@@ -12041,30 +12056,38 @@ describe("bibliothèque de quiz et prestations", () => {
 });
 
 describe("défis de la pause", () => {
-  const defis = async () => (await get(ref(hostDb(), "settings/defis/list"))).val();
+  const defis = async () => (await get(ref(hostDb(), `games/${CODE}/defisFete/list`))).val();
 
-  test("la régie ajoute, modifie et efface les défis affichés pendant la pause", async () => {
+  test("la régie ajoute, modifie et efface les défis en plus de la fête ; les 7 défis de base restent affichés, sans être modifiables", async () => {
     box = startBox();
     const page = await openRegie();
     await pair(page);
     await inRegie(page);
     await page.click("#tab-defis");
-    // Rien d'enregistré : la liste d'origine s'affiche, prête à être modifiée.
-    await page.locator("#panel-defis ol.defis input").nth(6).waitFor();
-    assert.equal(await page.locator("#panel-defis ol.defis input").count(), 7);
+    // Rien d'ajouté : les défis de base s'affichent, en lecture seule, et aucun défi en plus.
+    await page.locator("#panel-defis .defis-base li").nth(6).waitFor();
+    assert.equal(await page.locator("#panel-defis .defis-base li").count(), 7);
+    assert.equal(await page.locator("#panel-defis .defis-base input").count(), 0);
+    assert.equal(await page.locator("#panel-defis ol.defis input").count(), 0);
+    await page.locator("#panel-defis .defis-vide").waitFor();
 
     await page.fill('#panel-defis input[aria-label="Nouveau défi"]', "Tout le monde imite un lion !");
     await page.click("#panel-defis .defi-ajout button");
-    await waitFor(async () => (await defis())?.length === 8, "défi ajouté");
-    assert.equal((await defis())[7], "Tout le monde imite un lion !");
+    await waitFor(async () => (await defis())?.length === 1, "défi ajouté");
+    assert.equal((await defis())[0], "Tout le monde imite un lion !");
+    await page.locator("#panel-defis ol.defis input").first().waitFor();
 
     await page.locator("#panel-defis ol.defis input").first().fill("La ola, deux fois !");
     await page.locator("#panel-defis ol.defis input").first().press("Enter");
     await page.locator("#panel-defis ol.defis input").first().blur();
     await waitFor(async () => (await defis())?.[0] === "La ola, deux fois !", "défi modifié");
 
+    // Le dernier défi effacé : plus rien en plus dans la partie, la TV garde les défis de base.
     await page.locator("#panel-defis .defi-effacer").first().click();
-    await waitFor(async () => (await defis())?.length === 7 && (await defis())[0] !== "La ola, deux fois !", "défi effacé");
+    await waitFor(async () => (await defis()) === null, "défi effacé");
+    await page.locator("#panel-defis .defis-vide").waitFor();
+    // Les défis de base de la box (réglage commun) ne sont jamais touchés depuis le téléphone.
+    assert.equal((await get(ref(hostDb(), "settings/defis"))).val(), null);
     await page.context().close();
   });
 });

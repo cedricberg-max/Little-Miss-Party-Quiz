@@ -2229,6 +2229,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         observe(ref.child("pairing")) { snap -> snap.children.forEach(::judgePairing) }
         observe(ref.child("show"), ::judgeShow)
+        // Défis de la pause en plus de cette fête (régie) : ceux de la partie précédente ne suivent jamais.
+        DefisPause.lire(null)
+        observe(ref.child("defisFete"), DefisPause::lire)
         observe(ref.child("joinRequests")) { snap ->
             val list = snap.children.mapNotNull { r ->
                 val device = r.key ?: return@mapNotNull null

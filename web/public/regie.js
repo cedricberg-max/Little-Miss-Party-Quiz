@@ -20,7 +20,7 @@ import {
 } from "./manches.js";
 import { profileForAge } from "./profiles.js";
 import { setAwake } from "./awake.js";
-import { ouvrirDefis } from "./defis.js";
+import { ouvrirDefis, nettoyerDefis, valeurDefisFete } from "./defis.js";
 import { BANQUE, PHOTOS_BANQUE, avecPhoto, resolveBanque, lirePhotoBanque, emojiEnImage, cheminPhotoBanque } from "./banque-photos.js";
 
 // Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
@@ -4144,6 +4144,17 @@ async function confirmationLancement({ show, snapshot, problems, run }) {
   return { title: `Lancer ${nomDansPhrase(show)} ?`, text: soucis, line, warn, ok: problems.length ? "Lancer quand même" : "Lancer", safe: true };
 }
 
+/**
+ * Défis de la pause en plus préparés dans la fiche de la prestation (Régie PC) : copiés dans la partie au lancement,
+ * à la suite de ceux déjà ajoutés sur le téléphone (rien n'est jamais effacé). null : rien à écrire.
+ */
+async function defisAuLancement(prepares) {
+  const enPlus = nettoyerDefis(prepares);
+  if (!enPlus.length) return null;
+  const deja = await get(ref(db, `games/${code}/defisFete/list`)).then((x) => x.val(), () => null);
+  return valeurDefisFete([...nettoyerDefis(deja), ...enPlus]);
+}
+
 async function loadShow(id) {
   if (loadingShow) return;
   loadingShow = id;
@@ -4215,6 +4226,7 @@ async function loadShow(id) {
     done(SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
   });
   copySounds(snapshot.quiz?.questions);
+  const defisFete = await defisAuLancement(fresh.show?.defis);
   try {
     // Le programme pour la TV et le lancement de la prestation en une seule écriture : si une autre box vient de la
     // lancer, le serveur refuse tout, rien n'arrive sur cette TV.
@@ -4222,6 +4234,7 @@ async function loadShow(id) {
       [`games/${code}/show`]: { ...snapshot, id: showId, prestation: id, by: uid, at: serverTimestamp() },
       [`launches/${id}`]: { code, by: uid, at: serverTimestamp() },
       ...Object.fromEntries(anciennes.map((pid) => [`launches/${pid}`, null])),
+      ...(defisFete ? { [`games/${code}/defisFete`]: defisFete } : {}),
     });
   } catch (e) {
     console.error(e);
@@ -4627,7 +4640,7 @@ function switchTab(name) {
     $(`panel-${t}`).hidden = tab !== t;
   }
   // Défis de la pause : relus et affichés à chaque ouverture de l'onglet.
-  if (name === "defis") ouvrirDefis(db, $("panel-defis"), toast, demander);
+  if (name === "defis") ouvrirDefis(db, code, $("panel-defis"), toast);
   render();
 }
 
