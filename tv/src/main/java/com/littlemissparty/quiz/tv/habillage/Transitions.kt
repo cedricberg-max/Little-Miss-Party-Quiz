@@ -97,7 +97,7 @@ private fun TransitionDeJeu(state: UiState.Playing) {
             id = "${state.code} $cle ${state.index}",
             surtitre = when {
                 avant == null -> "C'EST PARTI !"
-                !mimes && (avant.startsWith("quiz") || avant.startsWith("manche")) -> "NOUVELLE MANCHE"
+                !mimes && (avant.startsWith("quiz") || avant.startsWith("manche")) -> "NOUVELLE ÉPREUVE"
                 else -> "JEU SUIVANT"
             },
             titre = when {

@@ -180,10 +180,10 @@ fun IntroPortes(valeurs: List<Int>, modifier: Modifier = Modifier, jouer: (Son) 
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             LogoMarque(54.dp)
             Spacer(Modifier.height(8.dp))
-            Text("DERNIÈRE MANCHE", style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 8.sp))
+            Text("DERNIÈRE ÉPREUVE", style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 8.sp))
             Spacer(Modifier.height(6.dp))
             Text(
-                "LA MANCHE DU DESTIN",
+                "L'ÉPREUVE DU DESTIN",
                 maxLines = 1, softWrap = false,
                 style = TextStyle(fontFamily = PoliceLmp,
                     brush = Brush.verticalGradient(listOf(Color(0xFFFFF6DC), Neon.OrClair, Color(0xFFC9974F), Neon.Or)),
