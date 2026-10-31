@@ -1687,26 +1687,26 @@ function renderSimon(st) {
   else if (sm.step === "play") {
     if (sm.chiffresAt != null && now < sm.montreAt - SIMON_REGARDEZ_MS) { etat = "chiffres"; titre = "Attention, les chiffres débarquent !"; prochain = sm.montreAt - SIMON_REGARDEZ_MS; }
     else if (now < sm.reponseAt) { etat = "regarde"; titre = "Regarde et retiens bien les couleurs…"; texte = `Série n° ${sm.suite}`; prochain = sm.reponseAt; }
-    else if (!duTour || sorti) { etat = "spectateur"; titre = "Les autres équipes jouent…"; texte = sorti ? "Éliminés de ce tour : vous rejouerez au prochain." : "Vous jouerez au prochain tour."; }
-    else if (simon.envoye) { etat = "envoye"; titre = "Couleurs envoyées !"; texte = "Regardez la TV : vérification à la fin du chrono."; }
+    else if (!duTour || sorti) { etat = "spectateur"; titre = "Les autres équipes jouent…"; texte = sorti ? "Éliminé de ce tour : tu rejoueras au prochain." : "Tu joueras au prochain tour."; }
+    else if (simon.envoye) { etat = "envoye"; titre = "Couleurs envoyées !"; texte = "Regarde la TV : vérification à la fin du chrono."; }
     else if (now <= sm.finAt) {
       etat = "joue"; titre = "À toi ! Tape les couleurs";
       chrono = (sm.finAt - now) / Math.max(1, sm.finAt - sm.reponseAt);
       prochain = now + 250;
-    } else { etat = "envoye"; titre = "Temps écoulé !"; texte = "Regardez la TV."; }
-  } else if (v && now < verifFin) { etat = "regarde"; titre = "Vérification…"; texte = "Regardez la TV !"; prochain = verifFin; }
-  else if (v && (v.winners ?? []).includes(teamId)) { etat = "gagne"; titre = "Bravo, vous gagnez le tour !"; texte = v.points ? `+${v.points} points` : ""; }
-  else if (v && (v.wrong ?? []).includes(teamId)) { etat = "elimine"; titre = "Éliminés du tour…"; texte = sm.step === "won" ? "Le tour est fini." : "Vous rejouerez au prochain tour."; }
+    } else { etat = "envoye"; titre = "Temps écoulé !"; texte = "Regarde la TV."; }
+  } else if (v && now < verifFin) { etat = "regarde"; titre = "Vérification…"; texte = "Regarde la TV !"; prochain = verifFin; }
+  else if (v && (v.winners ?? []).includes(teamId)) { etat = "gagne"; titre = "Bravo, tu gagnes le tour !"; texte = v.points ? `+${v.points} points` : ""; }
+  else if (v && (v.wrong ?? []).includes(teamId)) { etat = "elimine"; titre = "Éliminé du tour…"; texte = sm.step === "won" ? "Le tour est fini." : "Tu rejoueras au prochain tour."; }
   else if (v?.bahAlors) { etat = "attente"; titre = "Bah alors ?!"; texte = "Personne n'a trouvé : on recommence les mêmes couleurs."; }
   else if (sm.step === "won") {
     const gagnants = (v?.winners ?? []).map(nom);
     etat = "attente"; titre = gagnants.length ? `${gagnants.join(" et ")} ${gagnants.length > 1 ? "gagnent" : "gagne"} le tour !` : "Tour terminé";
     texte = sm.last ? "C'était le dernier tour !" : "Le tour suivant arrive…";
-  } else if (v && duTour && !sorti) { etat = "attente"; titre = "Bravo, vous continuez !"; texte = "La prochaine série aura une couleur de plus."; }
+  } else if (v && duTour && !sorti) { etat = "attente"; titre = "Bravo, tu continues !"; texte = "La prochaine série aura une couleur de plus."; }
   else if (sm.step === "ready" || sm.step === "judged") {
     etat = "attente"; titre = "Le Simon de Buzzy";
-    texte = !duTour ? "Vous jouerez au prochain tour." : sorti ? "Éliminés de ce tour : vous rejouerez au prochain." : "Prochaine série : préparez-vous !";
-  } else { etat = "attente"; titre = "Le Simon de Buzzy"; texte = "Regardez la TV !"; }
+    texte = !duTour ? "Tu joueras au prochain tour." : sorti ? "Éliminé de ce tour : tu rejoueras au prochain." : "Prochaine série : prépare-toi !";
+  } else { etat = "attente"; titre = "Le Simon de Buzzy"; texte = "Regarde la TV !"; }
   simon.ctl.maj({
     etat, titre, texte, chrono, joueur: etat === "joue" || etat === "regarde" ? joueurTexte : "",
     chiffres: sm.chiffres === true, saisie: simon.saisie, longueur: sm.suite ?? 0,

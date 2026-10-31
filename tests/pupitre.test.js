@@ -772,8 +772,8 @@ describe("pupitre", () => {
     const simon = (sm) => question({ qid: "s1", kind: "simon", text: "Le Simon de Buzzy", choices: null, deadline: null, durationMs: null,
       simon: { tour: 1, tours: 3, suite: 4, step: "ready", key: null, teams: [r, b], players: { [r]: 2, [b]: 1 }, chiffres: false, ...sm } });
     await hostState(simon({}));
-    await roses.locator(".sm-texte", { hasText: "Prochaine série : préparez-vous !" }).waitFor();
-    await verts.locator(".sm-texte", { hasText: "Vous jouerez au prochain tour." }).waitFor();
+    await roses.locator(".sm-texte", { hasText: "Prochaine série : prépare-toi !" }).waitFor();
+    await verts.locator(".sm-texte", { hasText: "Tu joueras au prochain tour." }).waitFor();
     // Les chiffres débarquent, puis le robot montre la suite : on regarde la TV, rien à toucher.
     const t = Date.now();
     await hostState(simon({ step: "play", key: "s1-1-4-100", startAt: t, chiffresAt: t, montreAt: t + 2_500, reponseAt: t + 4_500, finAt: t + 60_000, chiffres: true }));
@@ -805,9 +805,9 @@ describe("pupitre", () => {
     const verdict = { suite: 4, solution: "rouge,vert,jaune,4", wrong: [b], winners: [r], points: 300, at: Date.now() };
     await hostState(simon({ step: "won", out: { [b]: 4 }, verdict }));
     await bleus.locator(".sm-titre", { hasText: "Vérification…" }).waitFor();
-    await roses.locator(".sm-titre", { hasText: "Bravo, vous gagnez le tour !" }).waitFor({ timeout: 8_000 });
+    await roses.locator(".sm-titre", { hasText: "Bravo, tu gagnes le tour !" }).waitFor({ timeout: 8_000 });
     await roses.locator(".sm-texte", { hasText: "+300 points" }).waitFor();
-    await bleus.locator(".sm-titre", { hasText: "Éliminés du tour…" }).waitFor();
+    await bleus.locator(".sm-titre", { hasText: "Éliminé du tour…" }).waitFor();
     await verts.locator(".sm-titre", { hasText: "Les Roses gagne le tour !" }).waitFor();
     // Toutes en erreur dès la première suite : « Bah alors ?! ».
     await hostState(simon({ step: "judged", suite: 1, verdict: { suite: 1, bahAlors: true, points: 0, at: Date.now() - 10_000 } }));
