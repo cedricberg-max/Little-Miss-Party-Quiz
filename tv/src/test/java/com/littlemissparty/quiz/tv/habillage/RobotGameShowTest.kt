@@ -204,6 +204,18 @@ class RobotGameShowTest {
     }
 
     @Test
+    fun `pas de robot au tableau des scores de 6 a 8 equipes, il reste de 1 a 5`() {
+        assertEquals(6, EQUIPES_SANS_ROBOT_SCORES)
+        for (n in 1..8) {
+            val eq = (0 until n).map { Team("e$it", "e$it", "#fff", 0L) }
+            val sc = partie(Phase.SCORES) { copy(teams = eq, scores = eq.associate { it.uid to 100 }) }
+            if (n <= 5) assertEquals(MomentRobot.SCORES, momentRobot(sc, 0, null)?.first) else assertNull(momentRobot(sc, 0, null))
+            val tete = partie(Phase.SCORES) { copy(teams = eq, scores = eq.associate { it.uid to 100 } + ("e0" to 500)) }
+            if (n <= 5) assertEquals(MomentRobot.TETE, momentRobot(tete, 0, "e9")?.first) else assertNull(momentRobot(tete, 0, "e9"))
+        }
+    }
+
+    @Test
     fun `le suspense vient a chaque question, dans les cinq dernieres secondes`() {
         for (i in 0 until 10) assertEquals(MomentRobot.SUSPENSE, momentRobot(partie(Phase.QUESTION) { copy(index = i) }, 4, null)?.first)
         assertNull(momentRobot(partie(Phase.QUESTION), 8, null))
