@@ -772,7 +772,7 @@ describe("pupitre", () => {
     const simon = (sm) => question({ qid: "s1", kind: "simon", text: "Le Simon de Buzzy", choices: null, deadline: null, durationMs: null,
       simon: { tour: 1, tours: 3, suite: 4, step: "ready", key: null, teams: [r, b], players: { [r]: 2, [b]: 1 }, chiffres: false, ...sm } });
     await hostState(simon({}));
-    await roses.locator(".sm-texte", { hasText: "Prochaine série : joueur 2, prépare-toi !" }).waitFor();
+    await roses.locator(".sm-texte", { hasText: "Prochaine série : préparez-vous !" }).waitFor();
     await verts.locator(".sm-texte", { hasText: "Vous jouerez au prochain tour." }).waitFor();
     // Les chiffres débarquent, puis le robot montre la suite : on regarde la TV, rien à toucher.
     const t = Date.now();
