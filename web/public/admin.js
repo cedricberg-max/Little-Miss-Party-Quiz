@@ -569,6 +569,8 @@ function renderHome() {
 
 /** Accueil : chaque jeu en tuile, par famille ; la tuile mène à son contenu (ou à sa fiche s'il n'y a rien à préparer). */
 function renderHomeGames() {
+  // La vitrine compte les jeux (le Chrono de Buzzy compris, cedric 31/10).
+  $("vitrine-jeux").textContent = GAME_GROUPS.reduce((n, g) => n + g.games.length, 0);
   $("home-games").replaceChildren(...GAME_GROUPS.map((group) => h("div", { class: "home-group" },
     h("h3", { text: group.title }),
     h("div", { class: "tiles" }, ...group.games.map((g) => {
