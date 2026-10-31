@@ -337,7 +337,7 @@ internal fun momentRobot(s: UiState.Playing, secondes: Int, ancienMeneur: String
     val q = s.question
     // Questions à réponses (quiz, Vrai ou Faux, Juste Chiffre…) : les jeux à plein écran (mimes, blind test, mini-jeux)
     // ont déjà leur propre mise en scène.
-    val quiz = q != null && s.mime == null && s.blind == null && s.coffres == null && s.portes == null &&
+    val quiz = q != null && s.mime == null && s.blind == null && s.coffres == null &&
         q.kind in setOf(QuestionKind.CLASSIC, QuestionKind.EXPRESS, QuestionKind.NUMBER, QuestionKind.ZOOM, QuestionKind.FLOU)
     return when (s.phase) {
         Phase.QUESTION, Phase.CLOSED, Phase.REVEAL -> when {
@@ -352,7 +352,9 @@ internal fun momentRobot(s: UiState.Playing, secondes: Int, ancienMeneur: String
             else -> null
         }
         Phase.SCORES -> when {
-            s.portes != null || s.blind != null -> null
+            s.blind != null -> null
+            // Dès 6 équipes, le tableau des scores remplit l'écran : le robot y cachait un nom (cedric, 31/10).
+            s.teams.size >= EQUIPES_SANS_ROBOT_SCORES -> null
             ancienMeneur != null && meneur(s.scores).let { it != null && it != ancienMeneur } -> MomentRobot.TETE to "scores ${s.code} ${s.index}"
             else -> MomentRobot.SCORES to "scores ${s.code} ${s.index}"
         }
@@ -360,6 +362,9 @@ internal fun momentRobot(s: UiState.Playing, secondes: Int, ancienMeneur: String
         Phase.LOBBY -> null
     }
 }
+
+/** À partir de ce nombre d'équipes, pas de robot sur le tableau des scores (de 1 à 5 équipes, il reste). */
+internal const val EQUIPES_SANS_ROBOT_SCORES = 6
 
 /** Clips déjà joués (par clé) : un même moment ne repasse pas si l'écran se recompose ou si la box se reconnecte. */
 private val clipsJoues = mutableSetOf<String>()

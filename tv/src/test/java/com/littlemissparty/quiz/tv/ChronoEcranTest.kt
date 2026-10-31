@@ -4,14 +4,28 @@ import com.littlemissparty.quiz.tv.habillage.Ambiance
 import com.littlemissparty.quiz.tv.habillage.DirecteurSonore
 import com.littlemissparty.quiz.tv.habillage.Ecran
 import com.littlemissparty.quiz.tv.habillage.Instant
+import com.littlemissparty.quiz.tv.habillage.Lit
+import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.Ordre
 import com.littlemissparty.quiz.tv.habillage.Son
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.littlemissparty.quiz.engine.ChronoBuzz
 
 /** ⏱️ Le Chrono de Buzzy à la TV : textes du chrono et des écarts, bornes de la règle, ordre de la révélation. */
 class ChronoEcranTest {
+    /** cedric, 31/10 : chaque buzz de réponse joue le mot Daft Punk de l'équipe, dans tous les jeux (ici sous le drap). */
+    @Test
+    fun `chaque buzz sous le drap joue le mot de son equipe`() {
+        val equipes = listOf("a", "b", "c")
+        val buzz = listOf(ChronoBuzz("c", 30_100, 1), ChronoBuzz("a", 30_400, 2), ChronoBuzz("z", 31_000, 3))
+        assertEquals(listOf(Son.equipe(2), Son.equipe(0), Son.CHRONO_BUZZ), sonsNouveauxBuzz(buzz, 0, equipes))
+        // Deux buzz arrivés d'un coup : les deux mots ; ceux déjà entendus ne repassent pas.
+        assertEquals(listOf(Son.equipe(0), Son.CHRONO_BUZZ), sonsNouveauxBuzz(buzz, 1, equipes))
+        assertEquals(emptyList<Son>(), sonsNouveauxBuzz(buzz, 3, equipes))
+    }
+
 
     @Test
     fun `chrono au centieme, ecarts signes, pile`() {
@@ -45,20 +59,44 @@ class ChronoEcranTest {
         assertTrue("chaque pastille un peu plus aigue", sons[3].vitesse > sons[2].vitesse)
         val ralenti = sons.single { it.son == Son.CHRONO_RALENTI }
         assertEquals(REGLE_MS + 2 * PASTILLE_PAS_MS, ralenti.instant)
-        assertEquals(SonChrono(ralenti.instant + PASTILLE_RALENTI_MS, Son.CHRONO_GAGNE), sons.last())
+        assertEquals(SonChrono(ralenti.instant + PASTILLE_RALENTI_MS, Son.CHRONO_GAGNE, volume = 1f), sons.last())
+        assertTrue("les petits sons à 0,7 sous la boucle B", sons.dropLast(1).all { it.volume == CHRONO_SFX_VOLUME })
         assertEquals(Son.CHRONO_PILE, sonsRevelation(mapOf("orange" to 4L), listOf("orange")).last().son)
         assertEquals(Son.CHRONO_PERSONNE, sonsRevelation(emptyMap(), emptyList()).last().son)
     }
 
     @Test
-    fun `musique legere au tour pret, silence des le depart du chrono (aucun rythme pour aider a compter) et a la revelation`() {
+    fun `Around the World doux au tour pret, silence au tic-tac, nappe sous le drap, boucle B a la revelation`() {
         val d = DirecteurSonore()
         val q = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 3, chronoEtape = "ready", gameShow = true)
+        fun musique(i: Instant) = d.observer(i).filterIsInstance<Ordre.Musique>().last()
         d.observer(q.copy(ecran = Ecran.PRESENTATION, chronoEtape = ""))
         d.observer(q)
-        assertEquals(Ambiance.SILENCE, d.observer(q.copy(chronoEtape = "run")).filterIsInstance<Ordre.Musique>().last().ambiance)
-        d.observer(q.copy(chronoEtape = "result"))
-        assertEquals(Ambiance.SUSPENSE, d.observer(q.copy(chronoEtape = "ready")).filterIsInstance<Ordre.Musique>().last().ambiance)
+        assertEquals("« Prêts ? » : gs_bed_light (0:31,9), doux", 0.4f, Ambiance.CHRONO_PRET.volume(Lit.LEGER, gs = true), 0.001f)
+        val tic = musique(q.copy(chronoEtape = "run"))
+        assertEquals("on n'entend que le tic-tac", Ambiance.SILENCE, tic.ambiance)
+        assertEquals(Tempo.FONDU_RELAIS, tic.fonduMs)
+        val nappe = musique(q.copy(chronoEtape = "drap"))
+        assertEquals(Ambiance.CHRONO_NAPPE, nappe.ambiance)
+        assertEquals(Tempo.CHRONO_NAPPE_ENTREE, nappe.fonduMs)
+        assertEquals("aucun rythme sous le drap", 0f, Ambiance.CHRONO_NAPPE.volume(Lit.LEGER, gs = true), 0f)
+        val b = musique(q.copy(chronoEtape = "result"))
+        assertEquals(Ambiance.CHRONO_REVELATION, b.ambiance)
+        assertEquals(0.75f, Ambiance.CHRONO_REVELATION.volume(Lit.CHRONO_REVELATION, gs = true), 0.001f)
+        assertEquals("tour suivant", Ambiance.CHRONO_PRET, musique(q.copy(chronoEtape = "ready")).ambiance)
+    }
+
+    @Test
+    fun `le clip du lancer part pour que le drap se pose pile au moment tire par la box, les chiffres s'effacent juste avant`() {
+        // Drap à 8 s : le clip part à 2,38 s (Buzzy sort du cadre pendant le tic-tac), le drap se pose à 8 s pile.
+        assertEquals(8_000L - LANCER_POSE_MS, departLancer(8_000L))
+        assertEquals(null, tempsLancer(2_000L, 8_000L))
+        assertEquals(LANCER_POSE_MS, tempsLancer(8_000L, 8_000L))
+        assertTrue("les chiffres tournent encore pendant que Buzzy va chercher le drap", chiffresVisibles(7_000L, 8_000L))
+        assertTrue("le drap couvre le cadran : plus de chiffres", !chiffresVisibles(7_800L, 8_000L))
+        assertTrue("effacés avant que le drap ne se pose", LANCER_COUVRE_MS < LANCER_POSE_MS)
+        // Plus petit drap possible (cible 10 s : 3,6 s) : le clip part pendant le décompte, jamais avant « Lancer ».
+        assertTrue(departLancer(3_600L) > -com.littlemissparty.quiz.engine.CHRONO_DECOMPTE_MS)
     }
 
     @Test

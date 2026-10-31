@@ -1,0 +1,56 @@
+/* Régie de Sarah habillée « Game Show néon » (variante C choisie par cedric le 31/10).
+   Chargée après regie.css : elle ne fait que recolorer (polices, couleurs, fond, lueurs), jamais de place ni de taille
+   de bouton. Néons oui, mais jamais au détriment de la lisibilité : les boutons qui ont leur propre couleur (verdict,
+   alertes rouges, Arrêter la partie, bonus et malus…) la gardent, les lueurs passent en :where() pour ne rien écraser. */
+@font-face { font-family: "GS Rajdhani"; font-weight: 600; src: url(fonts/gs-rajdhani-600.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "GS Rajdhani"; font-weight: 700 900; src: url(fonts/gs-rajdhani-700.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "GS Orbitron"; font-weight: 500 900; src: url(fonts/gs-orbitron.woff2) format("woff2"); font-display: swap; }
+.regie {
+  --cyan: #00f0ff; --rose: #ff2d95; --violet: #8b2cff; --jaune: #ffe600;
+  --fond: #0e0820; --fond-bas: #05010d; --night: rgba(14, 8, 32, .78); --panel: rgba(28, 14, 58, .82);
+  --trait: rgba(0, 240, 255, .28); --ink: #f4f1ff; --ink-soft: rgba(244, 241, 255, .66);
+  --halo: var(--cyan); --gold: var(--cyan);
+  font-family: "GS Rajdhani", system-ui, sans-serif; font-weight: 600;
+  background: linear-gradient(180deg, rgba(5, 1, 13, .55), rgba(5, 1, 13, .85)), #05010d url(img/gs/studio-portrait-2.webp) center / cover no-repeat;
+}
+.regie .card, .regie .tuile, .regie .plan-jeu, .regie .chrono-equipes li { background: var(--night); border: 1px solid var(--trait); backdrop-filter: blur(6px); }
+.regie .phase { font-family: "GS Orbitron"; font-weight: 700; font-size: 11px; letter-spacing: 2px; color: var(--cyan); text-shadow: 0 0 10px rgba(0, 240, 255, .8); }
+.regie .question { font-size: 19px; font-weight: 700; }
+.regie .top { font-family: "GS Orbitron"; font-size: 12px; letter-spacing: 1px; }
+.regie .top .timer { font-family: "GS Orbitron"; color: var(--jaune); }
+/* Boutons d'action (cedric, 31/10) : une couleur de contraste, le jaune Game Show, pas le cyan du thème — gros bouton
+   du bas (« Arrêter le chrono »…), « ＋ Ajouter un jeu », « ✓ Envoyer au conducteur », « Oui ». Même sélecteur que
+   regie.css : les boutons qui ont leur propre couleur (secondaires, rouges, verdict…) la gardent. */
+.regie .btn { font-family: "GS Rajdhani"; font-weight: 700; letter-spacing: .5px; background: linear-gradient(180deg, #fff27a, #ffd400); color: #1a0b00; }
+/* Lueur jaune douce ; en attente (désactivé), sans lueur. */
+.regie :where(.btn:not(.secondary):not(.danger):not(:disabled)) { box-shadow: 0 0 22px rgba(255, 212, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .7); }
+.regie .btn.main { font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
+.regie :where(.btn.secondary) { background: var(--panel); border: 1px solid rgba(139, 44, 255, .7); color: var(--ink); box-shadow: 0 0 10px rgba(139, 44, 255, .45); }
+.regie .plus { background: rgba(8, 3, 22, .96); border-top: 1px solid var(--trait); }
+.regie .plus-haut b { font-family: "GS Orbitron"; letter-spacing: 2px; color: var(--cyan); text-shadow: 0 0 12px rgba(0, 240, 255, .8); }
+.regie .card { box-shadow: 0 0 14px rgba(0, 240, 255, .18), inset 0 0 12px rgba(0, 240, 255, .06); }
+.regie :where(.tuile) { box-shadow: 0 0 12px rgba(139, 44, 255, .25); }
+.regie .tuile .t-score { font-family: "GS Orbitron"; font-weight: 800; text-shadow: 0 0 10px rgba(255, 255, 255, .35); }
+.regie .answer { border-color: rgba(255, 230, 0, .5); }
+.regie .modal-box, .regie .ask-box { background: rgba(14, 8, 32, .97); border: 1px solid var(--trait); }
+.regie .modal-title { font-family: "GS Orbitron"; letter-spacing: 1px; color: var(--cyan); text-shadow: 0 0 12px rgba(0, 240, 255, .8); }
+/* Gros bouton en attente (« En attente des équipes », chargement…) : sombre, cerné de jaune, le texte bien lisible ;
+   il ne ressemble jamais à un bouton jaune sale. */
+.regie .btn.main:disabled:not(.secondary):not(.alert) { opacity: 1; background: rgba(255, 212, 0, .08); color: rgba(255, 236, 140, .8); border: 1px solid rgba(255, 212, 0, .45); box-shadow: none; }
+/* Les boutons « Arrêter » (Mimes, Pictionary, Duel, Simon, Chrono de Buzzy) : contrastés eux aussi, jamais fondus. */
+.regie #duel-stop, .regie #simon-stop, .regie #chrono-stop, .regie #c-next.secondary {
+  background: linear-gradient(180deg, #fff27a, #ffd400); color: #1a0b00; border: 0;
+  box-shadow: 0 0 22px rgba(255, 212, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .7); text-shadow: none;
+}
+/* Pictogrammes « lecteur » dessinés (cedric, 31/10) : triangles centrés sur la barre, à la couleur du texte du bouton.
+   Le caractère d'origine reste dans le span, invisible (on ne voit que le dessin). */
+.regie .picto { position: relative; display: inline-block; width: 1.1em; height: .85em; vertical-align: -.07em; overflow: hidden; line-height: 1; -webkit-text-fill-color: transparent; }
+.regie .picto::before { content: ""; position: absolute; inset: 0; background: currentColor; -webkit-mask: var(--picto) center / contain no-repeat; mask: var(--picto) center / contain no-repeat; }
+.regie .picto-suivant { --picto: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M2 5l8.5 7L2 19z M10.5 5L19 12l-8.5 7z'/%3E%3Crect x='19.5' y='5' width='2.5' height='14' rx='.6'/%3E%3C/svg%3E"); }
+.regie .picto-precedent { --picto: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M22 5l-8.5 7L22 19z M13.5 5L5 12l8.5 7z'/%3E%3Crect x='2' y='5' width='2.5' height='14' rx='.6'/%3E%3C/svg%3E"); }
+.regie .picto-avance { --picto: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M2 5l10 7-10 7z M12 5l10 7-10 7z'/%3E%3C/svg%3E"); }
+.regie .picto-recul { --picto: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M22 5l-10 7 10 7z M12 5L2 12l10 7z'/%3E%3C/svg%3E"); }
+.regie .picto-pause { --picto: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='5' y='5' width='5' height='14' rx='1'/%3E%3Crect x='14' y='5' width='5' height='14' rx='1'/%3E%3C/svg%3E"); }
+.regie .picto-lecture-pause { --picto: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M2 5l10 7-10 7z'/%3E%3Crect x='14' y='5' width='3.2' height='14' rx='.6'/%3E%3Crect x='19' y='5' width='3.2' height='14' rx='.6'/%3E%3C/svg%3E"); }
+/* Tous les boutons et champs de la régie dans la police Game Show (Retirer, ▶, bonus/malus, puces d'équipe…). */
+.regie :where(button, input, select, textarea) { font-family: inherit; }

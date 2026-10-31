@@ -73,25 +73,13 @@ data class GameLeft(override val seq: Int, override val at: Long, val qid: Strin
 data class FactorChosen(override val seq: Int, override val at: Long, val start: Int, val factor: Int) : GameEvent
 
 /**
- * Portes mystères : l'animatrice change la valeur cachée derrière la porte [door] (bonus ou malus), avant
- * l'ouverture des portes, pour changer un peu le cours des choses.
- */
-data class DoorSet(override val seq: Int, override val at: Long, val qid: String, val door: Int, val value: Int) : GameEvent
-
-/**
  * Écran de présentation d'un jeu terminé : l'animatrice a expliqué les règles et lance la première question
  * (ou la première manche) du jeu. Le chrono, la musique ou le premier tour partent seulement maintenant.
  */
 data class GameLaunched(override val seq: Int, override val at: Long) : GameEvent
 
-/** Valeurs possibles derrière une porte (points), bornes comprises. */
-val DOOR_VALUES = -500..1000
-
 /** Multiplicateurs proposés à l'animatrice pour les dernières questions du quiz ; le premier est celui par défaut. */
-val FACTORS = listOf(2, 3, 5)
-
-/** Portes mystères : l'animatrice ouvre la porte suivante (dans l'ordre de [Game.doorOrder]). */
-data class DoorOpened(override val seq: Int, override val at: Long, val qid: String) : GameEvent
+val FACTORS = listOf(2, 3, 4, 5)
 
 /**
  * Les coffres mystères : la box installe les coffres de la manche [qid] dès le lancement du jeu. [order] : ordre de jeu
@@ -358,7 +346,8 @@ data class ChronoTargetSet(override val seq: Int, override val at: Long, val qid
 
 /**
  * Le Chrono de Buzzy : le tour [tour] est lancé entre les équipes [teams] ; le 0 du chrono à [goAt] (après le décompte),
- * le drap de Buzzy tombe [cacheMs] après le 0.
+ * le drap de Buzzy tombe [cacheMs] après le 0. [manuel] : le bilan attend le « 👀 Révéler » de Sarah (cedric, 31/10) ;
+ * faux pour les tours lancés avant ce changement (relus tels qu'ils ont été joués : jugés seuls).
  */
 data class ChronoStarted(
     override val seq: Int,
@@ -368,6 +357,7 @@ data class ChronoStarted(
     val goAt: Long,
     val cacheMs: Long,
     val teams: List<String>,
+    val manuel: Boolean = false,
 ) : GameEvent
 
 /** Le Chrono de Buzzy : la tablette de [team] a buzzé, appui à [t] (heure du serveur estimée par la tablette). */

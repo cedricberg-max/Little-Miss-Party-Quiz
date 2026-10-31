@@ -113,7 +113,8 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
         arrivee.animateTo(1f, tween(900, easing = FastOutSlowInEasing))
         bras.animateTo(1f, tween(450, easing = FastOutSlowInEasing))
     }
-    Echelle(LARGEUR, HAUTEUR, modifier) {
+    Box(modifier) {
+    Echelle(LARGEUR, HAUTEUR, Modifier.matchParentSize()) {
         Scene { Rayons(ms) }
         Row(Modifier.fillMaxSize().padding(horizontal = 72.dp, vertical = 40.dp), verticalAlignment = Alignment.CenterVertically) {
             // La platine glisse en place, puis le bras vient se poser et le disque se met à tourner.
@@ -130,9 +131,9 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
             if (Look.gs) PlatineNeonGs(joue = false, manquant = false, modifier = place.aspectRatio(PlatineNeon.LARGEUR / PlatineNeon.HAUTEUR), secours = classique)
             else classique()
             Spacer(Modifier.width(56.dp))
-            Column(Modifier.weight(1f)) {
-            // Game Show : textes posés sur le décor « comme les jauges » (choix B du 31/10, n° 9-10), sans le carré du 30/10.
-            Column {
+            // Game Show : les textes sont posés à leur place sur la planche, à leur vraie taille (calque ci-dessous).
+            if (Look.gs) Spacer(Modifier.weight(1f))
+            else Column(Modifier.weight(1f)) {
                 TexteJauge(
                     "BLIND TEST", color = Neon.Or, fontSize = 100.sp, lineHeight = 106.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
                     modifier = Modifier.apparition(400, playlist), echelle = ECHELLE_SCENE_BLIND,
@@ -145,19 +146,37 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
                 }
                 Spacer(Modifier.height(24.dp))
                 TexteJauge(
-                    "Morceau 1 / $morceaux · $points points",
-                    color = Neon.Halo, fontSize = 38.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    "Morceau 1 / $morceaux · $points points", color = Neon.Halo, fontSize = 38.sp,
+                    fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.apparition(1300, playlist), echelle = ECHELLE_SCENE_BLIND,
                 )
                 Spacer(Modifier.height(8.dp))
-                // Appel (n° 11) : futur onglet néon (cedric, 31/10 09:19), texte simple en attendant.
                 Text(
                     "Prêts ? Écoutez bien…", color = Neon.Blanc, fontSize = 48.sp, lineHeight = 54.sp,
                     fontWeight = FontWeight.Black, modifier = Modifier.apparition(1700, playlist),
                 )
             }
-            }
         }
+    }
+    // Game Show : planche des onglets d'appel (31/10), positions fixes d'un écran de 1280 × 720 et tailles de la
+    // planche, quelle que soit la taille de la scène (avant, tout rapetissait avec elle : environ 60 %).
+    if (Look.gs) CalquePlanche(Modifier.matchParentSize()) {
+        // Le nom de la playlist (quand il y en a un) au-dessus du titre, la planche n'en a pas.
+        if (playlist.isNotBlank()) TexteJauge(
+            playlist, color = Neon.Blanc, fontSize = pxSp(30f), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+            modifier = Modifier.planche(400f, 150f, ancreX = 0f).apparition(900, playlist),
+        )
+        // Le titre en Bungee dégradé avec sa note jaune, validé par cedric le 31/10 à 11:12 : 76 px, bord gauche x 400, centre y 222.
+        TitreBlindTest(px(76f), Modifier.planche(400f, 222f, ancreX = 0f).apparition(400, playlist))
+        // L'info en rose, 24 px : bord gauche x 406, centre y 300.
+        TexteJauge(
+            "Morceau 1 / $morceaux · $points points", color = RoseChante, fontSize = pxSp(24f),
+            fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+            modifier = Modifier.planche(406f, 300f, ancreX = 0f).apparition(1300, playlist),
+        )
+        // L'onglet « PRÊTS ? » (299 × 116) : bord gauche x 400, centre y 398.
+        PlaqueAppel(GenrePlaque.BLIND, "PRÊTS ?", "Écoutez bien…", Modifier.planche(400f, 398f, ancreX = 0f).apparition(1700, playlist), k = k)
+    }
     }
 }
 

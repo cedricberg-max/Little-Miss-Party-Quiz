@@ -107,7 +107,10 @@ internal fun HabillageDuelWestern(equipes: List<EquipeDuel>, etape: EtapeDuel, g
                 modifier = Modifier.align(if (i == 0) Alignment.BottomStart else Alignment.BottomEnd).padding(horizontal = 72.dp, vertical = 56.dp),
             )
         }
-        textes.consigne?.let {
+        // L'annonce : l'onglet planche de saloon validé par cedric le 31/10 à 11:12 (scène de 1920 : 1 dp de l'écran = 2 dp).
+        if (etape == EtapeDuel.PRET && textes.consigne != null) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp).widthIn(max = 1700.dp)) {
+            PlaqueAppel(GenrePlaque.DUEL, "LA MAIN AU-DESSUS DU BUZZER !", "les deux joueurs", k = SCENE_L.value / 960f)
+        } else textes.consigne?.let {
             Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp).widthIn(max = if (etape == EtapeDuel.PRET) 1700.dp else 560.dp)) {
                 TexteNeon(it, GS.Orange, 46f, PoliceGsTexte, largeurMax = if (etape == EtapeDuel.PRET) 1700.dp else 560.dp, force = 0.5f, graisse = FontWeight.Bold)
             }

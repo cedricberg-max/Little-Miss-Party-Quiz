@@ -113,12 +113,13 @@ internal fun RevelationNeon(
         val lignesPhrase = if (avecMot) 2 else 3
         // Le mot et la phrase se partagent la hauteur : le mot cède de la place tant que la phrase ne tient pas en
         // entier (test du 30/10, 8 équipes : « PERSONNE N'A TROUVÉ, CE N'EST » coupé en bas du panneau).
-        val (tailleMot, taillePhrase) = remember(mot, phrase, largeur, hauteur, avecMot, densite.density) {
+        // Panneau trop bas (Qui suis-je ? à 4 équipes, pastilles sur deux rangs, CI du 31/10) : si la phrase ne tient pas
+        // en entier, le trait de néon laisse sa place ; « C'était : », le mot et la phrase restent.
+        val (tailleMot, taillePhrase, compacte) = remember(mot, phrase, largeur, hauteur, avecMot, densite.density) {
             if (!avecMot) {
-                0f to mesure.tailleQuiTient(phrase, styleNeon(PoliceGsTitre), PHRASE_SEULE_MAX, PHRASE_MIN, (largeur * 0.88f).toInt(), (hauteur * 0.7f).toInt(), 3)
+                Triple(0f, mesure.tailleQuiTient(phrase, styleNeon(PoliceGsTitre), PHRASE_SEULE_MAX, PHRASE_MIN, (largeur * 0.88f).toInt(), (hauteur * 0.7f).toInt(), 3), false)
             } else {
-                val fixe = with(densite) { (22.sp.toPx() * 1.4f) + (10 + 12 + 10 + 16).dp.toPx() }
-                partageMotPhrase(hauteur, fixe) { partMot ->
+                fun essai(fixe: Float) = partageMotPhraseTient(hauteur, fixe) { partMot ->
                     val tm = mesure.tailleQuiTient(
                         mot, styleNeon(PoliceGsTitre), MOT_MAX, MOT_MIN, (largeur * 0.84f - margeH).toInt(), (hauteur * partMot - margeV).toInt(), 2,
                     )
@@ -128,6 +129,9 @@ internal fun RevelationNeon(
                     val tp = mesure.tailleQuiTient(phrase, styleNeon(PoliceGsTitre), PHRASE_MAX, PHRASE_MIN, (largeur * 0.92f).toInt(), reste, 2)
                     Triple(tm, tp, mesure.tient(phrase, styleNeon(PoliceGsTitre), tp, (largeur * 0.92f).toInt(), reste, 2))
                 }
+                val complet = essai(with(densite) { (22.sp.toPx() * 1.4f) + (10 + 12 + 10 + 16).dp.toPx() })
+                if (complet.third) Triple(complet.first, complet.second, false)
+                else essai(with(densite) { (22.sp.toPx() * 1.4f) + 10.dp.toPx() + ESPACE_COMPACT.toPx() }).let { Triple(it.first, it.second, true) }
             }
         }
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -166,9 +170,10 @@ internal fun RevelationNeon(
                         Text(mot, maxLines = 2, style = styleMot(tailleMot, Color.White).copy(shadow = Shadow(Color.White.copy(alpha = 0.9f), Offset.Zero, tailleMot * 0.06f)))
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                if (compacte) Spacer(Modifier.height(ESPACE_COMPACT))
+                else Spacer(Modifier.height(12.dp))
                 // Le trait de néon se dessine de gauche à droite sous le mot.
-                Canvas(Modifier.width(with(LocalDensity.current) { (largeur * 0.6f).toDp() }).height(10.dp).clearAndSetSemantics {}) {
+                if (!compacte) Canvas(Modifier.width(with(LocalDensity.current) { (largeur * 0.6f).toDp() }).height(10.dp).clearAndSetSemantics {}) {
                     val y = size.height / 2f
                     val fin = size.width * trait.value
                     if (fin <= 0f) return@Canvas
@@ -177,7 +182,7 @@ internal fun RevelationNeon(
                     drawLine(degrade, Offset(0f, y), Offset(fin, y), strokeWidth = size.height * 0.45f, cap = StrokeCap.Round)
                     drawLine(Color.White.copy(alpha = 0.8f), Offset(0f, y), Offset(fin, y), strokeWidth = size.height * 0.12f, cap = StrokeCap.Round)
                 }
-                Spacer(Modifier.height(16.dp))
+                if (!compacte) Spacer(Modifier.height(16.dp))
             }
             // Filigrane A derrière la phrase : elle est posée sur le décor (cedric, 30/10).
             Box(Modifier.fillMaxWidth().apparition(if (avecMot) 450 else 0, cle).filigraneGs(10f), contentAlignment = Alignment.Center) {
@@ -227,6 +232,19 @@ internal fun partageMotPhrase(hauteur: Int, fixe: Float, essai: (Float) -> Tripl
         part -= 0.02f
     }
 }
+
+/** Comme [partageMotPhrase], et dit en plus si la phrase tient en entier avec ce partage. */
+internal fun partageMotPhraseTient(hauteur: Int, fixe: Float, essai: (Float) -> Triple<Float, Float, Boolean>): Triple<Float, Float, Boolean> {
+    var part = PART_MOT_MAX
+    while (true) {
+        val r = essai(part)
+        if (r.third || part <= PART_MOT_MIN + 1e-3f || hauteur <= fixe) return r
+        part -= 0.02f
+    }
+}
+
+/** Écart entre le mot et la phrase quand le trait de néon laisse sa place (panneau trop bas). */
+internal val ESPACE_COMPACT = 6.dp
 
 internal const val PART_MOT_MAX = 0.38f
 internal const val PART_MOT_MIN = 0.16f

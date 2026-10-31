@@ -142,11 +142,11 @@ sealed interface UiState {
         val intro: Boolean = false,
         /** Nom du jeu en cours (« Image floue », « Mimes »…), pour sa présentation. */
         val gameTitle: String? = null,
-        /** Points multipliés de la question en cours (dernières questions du quiz : ×2, ×3 ou ×5), 1 sinon. */
+        /** Points multipliés de la question en cours (dernières questions du quiz : ×2, ×3, ×4 ou ×5), 1 sinon. */
         val factor: Int = 1,
         /** Annonce « × N » avant la première question multipliée : heure (serveur) où le chrono part ; null sinon. */
         val introUntil: Long? = null,
-        /** Heure du serveur où la question s'est ouverte (Portes mystères : présentation des premières secondes). */
+        /** Heure du serveur où la question s'est ouverte. */
         val openedAt: Long? = null,
         /** Questions multipliées restantes, celle-ci comprise (pour l'annonce). */
         val multipliedLeft: Int = 0,
@@ -183,8 +183,6 @@ sealed interface UiState {
         val sounds: Map<String, String> = emptyMap(),
         /** Blind test en cours (ou qui vient de finir, au bilan), sinon null. */
         val blind: BlindUi? = null,
-        /** Portes mystères : ordre d'ouverture, portes déjà ouvertes et valeurs (null hors de ce jeu). */
-        val portes: PortesUi? = null,
         /** Les coffres mystères : les coffres du jeu en cours (null hors de ce jeu, ou avant leur installation). */
         val coffres: ChestRound? = null,
         /** Gonfleur fou : tapes reçues de chaque équipe pour la course en cours (vide hors de ce jeu). */
@@ -255,12 +253,6 @@ data class BlindUi(
 ) {
     /** Morceaux à double valeur restant à jouer, celui-ci compris. */
     val doubledLeft: Int get() = tracks.count { it.points > (tracks.minOfOrNull { t -> t.points } ?: 0) && (it.status == BlindStatus.TODO || it.status == BlindStatus.PLAYING) }
-}
-
-/** Portes mystères : [order] ordre d'ouverture des portes, [opened] combien sont ouvertes, [doors] leurs valeurs. */
-data class PortesUi(val order: List<Int>, val opened: Int, val doors: List<Int>) {
-    /** Toutes les portes sont ouvertes : place au classement final. */
-    val allOpen: Boolean get() = opened >= doors.size
 }
 
 /**
@@ -897,11 +889,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun recover() {
         val g = game ?: return
-        // Portes mystères et coffres mystères : pas de chrono, rien ne se ferme seul.
+        // Coffres mystères : pas de chrono, rien ne se ferme seul.
         // Entre deux tours de mimes, rien ne se ferme seul, sauf le bilan d'une couleur quand son heure est passée.
         val entreDeuxTours = g.state.mime != null && g.state.mime?.team == null && !g.mimeBilanDue(serverNow())
         // Duel des robots : pas de chrono ; le jugement d'un face-à-face attend son heure ([schedule]).
-        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.question?.isCoffres != true &&
+        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isCoffres != true &&
             g.question?.isDuel != true && g.question?.isSimon != true && g.question?.isChrono != true && !entreDeuxTours && g.timeOver(serverNow())
         ) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
@@ -967,12 +959,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                         },
                     )
                 }
-                // Chrono de Buzzy : OK lance le chrono du tour prêt, puis le tour suivant ; après le dernier, le jeu suivant.
+                // Chrono de Buzzy : OK lance le chrono du tour prêt, révèle quand toutes ont buzzé (comme « 👀 Révéler »),
+                // puis le tour suivant ; après le dernier, le jeu suivant.
                 else if (g.question?.isChrono == true) {
                     val c = g.state.chrono
                     val ids = teams().map { it.uid }
                     commit(
                         when {
+                            c != null && c.revelable -> g.settleChrono(serverNow(), force = true)
                             c == null || c.enCours -> null
                             c.step == "ready" -> if (ids.isEmpty()) null else g.startChrono(ids, serverNow())
                             g.chronoFini -> g.next(serverNow())
@@ -1198,9 +1192,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val replayed = (event as? Jumped)?.clear.orEmpty().associate { "answers/$it" to null } +
             // Question ouverte : ses anciennes réponses (jeu déjà joué puis repris plus tôt dans le programme)
             // sont effacées, sinon les règles refuseraient les nouvelles et la question ne rapporterait rien.
-            ((event as? QuestionOpened)?.let { mapOf("answers/${it.qid}" to null) } ?: emptyMap()) +
-            // Portes mystères : valeurs en vigueur derrière les portes (l'animatrice peut les changer), pour la régie seule.
-            (g.question?.takeIf { it.isPortes }?.let { mapOf("conducteur/doorValues/${it.id}" to g.doorsOf(it)) } ?: emptyMap())
+            ((event as? QuestionOpened)?.let { mapOf("answers/${it.qid}" to null) } ?: emptyMap())
         // Sans réseau, Firebase garde l'écriture en file d'attente et l'envoie au retour de la connexion.
         ref.updateChildren(
             mapOf(
@@ -1350,7 +1342,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 buzzTeam = s.buzz?.team,
                 buzzBlocked = s.buzz?.blocked.orEmpty(),
                 blind = q?.takeIf { it.isBlind && s.phase != Phase.LOBBY }?.let { blindUi(g) },
-                portes = q?.takeIf { it.isPortes && s.phase != Phase.LOBBY }?.let { PortesUi(g.doorOrder(), s.doorsOpened, g.doorsOf(it)) },
                 coffres = g.chestRound.takeIf { s.phase != Phase.LOBBY },
                 lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion && g.leaveTarget == null,
@@ -2240,6 +2231,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         observe(ref.child("pairing")) { snap -> snap.children.forEach(::judgePairing) }
         observe(ref.child("show"), ::judgeShow)
+        // Défis de la pause en plus de cette fête (régie) : ceux de la partie précédente ne suivent jamais.
+        DefisPause.lire(null)
+        observe(ref.child("defisFete"), DefisPause::lire)
         observe(ref.child("joinRequests")) { snap ->
             val list = snap.children.mapNotNull { r ->
                 val device = r.key ?: return@mapNotNull null
@@ -2798,10 +2792,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             // Blind test morceau par morceau : « Lancer le morceau », relance, révéler sans points, passer, bilan.
             "blindPlay" to true,
             "statues" to true,
-            // Portes mystères (jeu final) : choix d'une porte sur les tablettes, ouverture une à une.
-            "portes" to true,
-            // Portes mystères : l'animatrice peut changer les valeurs derrière les portes (commande portes_set).
-            "portesSet" to true,
             // Les coffres mystères : coffres ouverts depuis les tablettes, coffre au hasard en secours (commande chest_random).
             "coffres" to true,
             // Gonfleur fou : tapes des tablettes dans pumps/, fin de la course par la box.
@@ -2828,7 +2818,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image, "imageId" to c.imageId)) },
                     "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
                     "refrainId" to it.refrainId, "lyrics" to it.lyrics, "audioIds" to it.audioIds.ifEmpty { null },
-                    "doors" to it.doors.ifEmpty { null },
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },
                     // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.
                     "points" to it.points?.takeIf { _ -> it.isBlind }, "reveal" to it.revealSec.takeIf { _ -> it.isBlind },

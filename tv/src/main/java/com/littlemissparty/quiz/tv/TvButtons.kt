@@ -54,7 +54,7 @@ fun TvButton(
     val container by animateColorAsState(
         when {
             focused -> Palette.Gold
-            primary -> Neon.Nuit2.copy(alpha = 0.85f)
+            primary -> Neon.Plaque
             else -> Color.White.copy(alpha = 0.08f)
         },
         tween(FOCUS_MS), label = "container",

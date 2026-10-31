@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -89,7 +90,8 @@ private fun Rouleau(depart: Int, avance: () -> Float, hauteur: Dp, encre: Color,
     )
     val forme = RoundedCornerShape(hauteur * 0.12f)
     Box(
-        Modifier.size(width = hauteur * 0.62f, height = hauteur).clip(forme)
+        // Décor qui tourne sans fin : rien à lire (les chiffres coupés par la fenêtre ne sont pas du texte de l'écran).
+        Modifier.size(width = hauteur * 0.62f, height = hauteur).clip(forme).clearAndSetSemantics { }
             .background(Color.White.copy(alpha = 0.06f))
             // Haut et bas du rouleau dans l'ombre, comme un tambour qui tourne.
             .drawWithContent {

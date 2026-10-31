@@ -186,6 +186,38 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show, annonce x N (choix C du 31-10), roulement qui monte puis le boum pile sur x N, la musique repart avec lui`() {
+        // Le même pour ×2, ×3, ×4 et ×5 : le chiffre ne change pas les sons de l'annonce.
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true))
+        d.observer(q2.copy(gameShow = true, propositions = 4))
+        val o = d.observer(q2.copy(index = 8, superFinale = true, annonceFacteur = true, gameShow = true, propositions = 4))
+        val jouer = o.filterIsInstance<Ordre.Jouer>()
+        assertTrue(Ordre.Jouer(Son.ROULEMENT_LONG) in o && Ordre.Jouer(Son.MONTEE) in o)
+        assertEquals(Tempo.ANNONCE_FACTEUR_BOUM, jouer.single { it.son == Son.IMPACT }.dansMs)
+        // Rien d'autre pendant l'annonce : ni bulles (les propositions sont cachées dessous), ni cuivres.
+        assertFalse(jouer.any { it.son == Son.BT_DOUBLE || it.son.name.startsWith("POP") })
+        val musiques = o.filterIsInstance<Ordre.Musique>()
+        assertEquals(Ambiance.SILENCE, musiques.first().ambiance)
+        assertEquals(Ordre.Musique(Ambiance.DECISIVE, Tempo.ANNONCE_FACTEUR_BOUM), musiques.last())
+        // Zoom : la photo et sa montée attendent la fin de l'annonce ; quiz musical : le boum aussi, le disque après.
+        val dz = DirecteurSonore()
+        dz.observer(q2.copy(gameShow = true))
+        val zoom = dz.observer(q2.copy(index = 8, superFinale = true, annonceFacteur = true, gameShow = true, zoom = true, chronoMs = 20_000))
+        assertEquals(Tempo.PROPOSITIONS_DEBUT + ANNONCE_MULTIPLICATEUR_MS, zoom.filterIsInstance<Ordre.Jouer>().single { it.son == Son.FLOU_MONTEE }.dansMs)
+        val d2 = DirecteurSonore()
+        d2.observer(q2.copy(gameShow = true))
+        val musical = d2.observer(q2.copy(index = 8, superFinale = true, annonceFacteur = true, gameShow = true, musical = true, quizMusical = true))
+        assertEquals(Tempo.ANNONCE_FACTEUR_BOUM, musical.filterIsInstance<Ordre.Jouer>().single { it.son == Son.IMPACT }.dansMs)
+        assertEquals(ANNONCE_MULTIPLICATEUR_MS, musical.filterIsInstance<Ordre.Jouer>().single { it.son == Son.BT_DIAMANT }.dansMs)
+        // Jeux au buzzer (pas d'annonce plein écran) : l'impact d'avant, tout de suite.
+        val d3 = DirecteurSonore()
+        d3.observer(q2.copy(gameShow = true))
+        val buzz = d3.observer(q2.copy(index = 8, superFinale = true, gameShow = true, jeuBuzz = true))
+        assertEquals(0L, buzz.filterIsInstance<Ordre.Jouer>().single { it.son == Son.IMPACT }.dansMs)
+    }
+
+    @Test
     fun `Game Show, le classement en cours de partie n'a que sa musique, sans compteur ni couronne du Classique`() {
         val d = DirecteurSonore()
         d.observer(q2.copy(gameShow = true))
@@ -824,6 +856,30 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `quiz musical (cedric 31-10), la chanson continue sous le verrou et la revelation, bruitages du quiz, jamais une seconde musique`() {
+        val d = DirecteurSonore()
+        val q = Instant(Ecran.QUESTION, partie = "ABCD", index = 14, equipes = 2, propositions = 4, musical = true, quizMusical = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 13, equipes = 2))
+        d.observer(q)
+        val verrou = d.observer(q.copy(ecran = Ecran.VERROUILLEE))
+        assertTrue(Son.VERROU in verrou.sons())
+        assertFalse(verrou.any { it is Ordre.Musique && it.ambiance != Ambiance.SILENCE })
+        val revele = d.observer(q.copy(ecran = Ecran.REVELATION, gagnants = 2))
+        val sons = revele.sons()
+        assertTrue(Son.ROULEMENT_COURT in sons && Son.BONNE_REPONSE in sons && Son.IMPACT in sons && Son.POINTS in sons)
+        assertEquals(2, sons.count { it == Son.TAMPON })
+        assertFalse(revele.any { it is Ordre.Musique && it.ambiance != Ambiance.SILENCE })
+        // Au classement, Aerodynamic comme d'habitude (la chanson, elle, s'arrête avec l'écran de la question).
+        assertEquals(Ambiance.BILAN, d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 14, equipes = 2)).musique())
+        // Blind test : le verrou garde sa nappe de suspense (rien ne change pour lui).
+        val d2 = DirecteurSonore()
+        val bt = q.copy(quizMusical = false)
+        d2.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 13, equipes = 2))
+        d2.observer(bt)
+        assertEquals(Ambiance.SUSPENSE, d2.observer(bt.copy(ecran = Ecran.VERROUILLEE)).musique())
+    }
+
+    @Test
     fun `statues musicales, gel a chaque arret, elan a chaque reprise, jamais en double, rien par-dessus la musique du jeu`() {
         val d = DirecteurSonore()
         val danse = Instant(Ecran.QUESTION, partie = "ABCD", index = 15, equipes = 2, propositions = 0, musical = true)
@@ -909,12 +965,19 @@ class DirecteurSonoreTest {
         Lit.entries.forEach { assertEquals(Ambiance.FETE.volume(it), Ambiance.BILAN.volume(it), 0f) }
         assertEquals(0.8f, Ambiance.BILAN.volume(Lit.BILAN, gs = true), 0f)
         assertEquals(0f, Ambiance.BILAN.volume(Lit.COMPLET, gs = true), 0f)
-        // Super finale : en Classique, l'express un peu plus bas ; en Game Show, la musique de la manche et la nappe.
+        // Super finale : en Classique, l'express un peu plus bas ; en Game Show, seulement la boucle « tout accélère ×3 »
+        // (idée 3, cedric 31/10 : musique et nappe accélérées, pulsation grave), la même pour tous les multiplicateurs.
         assertEquals(0.6f, Ambiance.DECISIVE.volume(Lit.EXPRESS), 0f)
         assertEquals(0f, Ambiance.DECISIVE.volume(Lit.TENSION), 0f)
-        assertEquals(Ambiance.QUESTION.volume(Lit.LEGER, gs = true), Ambiance.DECISIVE.volume(Lit.LEGER, gs = true), 0f)
-        assertTrue(Ambiance.DECISIVE.volume(Lit.TENSION, gs = true) > 0f)
-        assertEquals(0f, Ambiance.DECISIVE.volume(Lit.EXPRESS, gs = true), 0f)
+        assertEquals(0f, Ambiance.DECISIVE.volume(Lit.FINALE), 0f)
+        Lit.entries.forEach { assertEquals(it.name, if (it == Lit.FINALE) 1f else 0f, Ambiance.DECISIVE.volume(it, gs = true), 0f) }
+        // Cette boucle ne joue que là.
+        Ambiance.entries.filter { it != Ambiance.DECISIVE }.forEach {
+            assertEquals(it.name, 0f, it.volume(Lit.FINALE, gs = true), 0f)
+            assertEquals(it.name, 0f, it.volume(Lit.FINALE), 0f)
+        }
+        assertEquals("gs_bed_finale", Lit.FINALE.fichierPour(true))
+        assertNull(Lit.FINALE.fichierPour(false))
         // Les ambiances sans réglage propre sonnent pareil dans les deux designs.
         Lit.entries.forEach { assertEquals(Ambiance.FETE.volume(it), Ambiance.FETE.volume(it, gs = true), 0f) }
         // Les boucles propres au Game Show ne se chargent pas en Classique.
@@ -1200,7 +1263,7 @@ class DirecteurSonoreTest {
     fun `presentation d'un jeu - la boucle fete par defaut, une boucle a soi pour les jeux qui en ont une`() {
         val blind = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "blind|", gameShow = true, famille = "blind")
         // La boucle « fête » de Digital Love sous les intros, sauf le Duel, le Simon et le Blind test (cedric, 29/10).
-        listOf("juste", "portes", "").forEach {
+        listOf("juste", "inconnu", "").forEach {
             assertEquals(it, Ambiance.PRESENTATION, ambiancePresentation(blind.copy(famille = it)))
         }
         assertEquals(Ambiance.DUEL_PRESENTATION, ambiancePresentation(blind.copy(famille = "duel", duel = true)))
@@ -1293,6 +1356,32 @@ class DirecteurSonoreTest {
         assertEquals(145_547L, repriseEnImages(Lit.DISPARU_INTRO.repriseMs, Lit.DISPARU_INTRO.repriseImage, 44_100))
         // La reprise en millisecondes (lecture de secours) reste à moins d'une milliseconde.
         assertEquals(145_547.0, Lit.DISPARU_INTRO.repriseMs * 44.1, 44.1)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
+    fun `presentation du Chrono de Buzzy - Hung Up, son debut une fois puis la boucle, et ses bruitages avec la video`() {
+        val chrono = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "chrono|", gameShow = true, famille = "chrono")
+        assertEquals("chrono", familleType(com.littlemissparty.quiz.engine.QuestionKind.CHRONO))
+        assertEquals("chrono", nomIntroJeu("chrono"))
+        assertEquals(1f, volumeIntroJeu("chrono"), 0f)
+        assertEquals(Ambiance.CHRONO_PRESENTATION, ambiancePresentation(chrono))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(chrono.copy(gameShow = false)))
+        // Le fichier est livré déjà à ×0,5 (comme les autres intros une fois leur ambiance appliquée) : joué tel quel.
+        assertEquals(1f, Ambiance.CHRONO_PRESENTATION.volume(Lit.CHRONO_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.CHRONO_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.CHRONO_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.CHRONO_INTRO.fichierPour(false))
+        assertTrue(Lit.CHRONO_INTRO.departFranc)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.CHRONO_PRESENTATION, d.observer(chrono).musique())
+        // 7,737 s de début puis 15,347 s de boucle : 1 018 004 images, la boucle repart à l'échantillon 341 202.
+        val wav = java.io.File("src/main/res/raw/gs_chrono_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(1_018_004L, e.images.toLong())
+        assertEquals(341_202L, repriseEnImages(Lit.CHRONO_INTRO.repriseMs, Lit.CHRONO_INTRO.repriseImage, 44_100))
+        assertEquals(341_202.0, Lit.CHRONO_INTRO.repriseMs * 44.1, 44.1)
         assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
     }
 
@@ -1518,10 +1607,10 @@ class DirecteurSonoreTest {
         val o = d.observer(patate)
         assertTrue(Ordre.Caler(Tempo.TRANSITION_MUSIQUE) in o)
         assertEquals(Ordre.Musique(Ambiance.PICTO_PRESENTATION, Tempo.TRANSITION_MUSIQUE), o.last())
-        // Sans intro vidéo (Juste Chiffre, Portes), en Classique, au Duel et au Simon : comme avant, sans calage.
+        // Sans intro vidéo (Juste Chiffre, famille inconnue), en Classique, au Duel et au Simon : comme avant, sans calage.
         listOf(
             patate.copy(index = 14, epreuve = "juste|", famille = "juste"),
-            patate.copy(index = 16, epreuve = "portes|", famille = "portes"),
+            patate.copy(index = 16, epreuve = "inconnu|", famille = "inconnu"),
             patate.copy(index = 18, epreuve = "duel|", famille = "duel", duel = true),
         ).forEach { i ->
             // Après un autre jeu : c'est bien un nouveau jeu, avec son rideau.

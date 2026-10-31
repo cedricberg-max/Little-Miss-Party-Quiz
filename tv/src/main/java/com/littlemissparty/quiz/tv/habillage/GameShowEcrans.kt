@@ -113,7 +113,7 @@ internal const val LOGO_FILIGRANE_COUCHES = 2
 @Composable
 fun PresentationJeuGameShow(titre: String, famille: String, modifier: Modifier = Modifier) {
     val embleme = emblemeJeu(famille)
-    // L'or des jeux classiques (quiz, coffres, portes) passe au rose néon du kit.
+    // L'or des jeux classiques (quiz, coffres) passe au rose néon du kit.
     val couleur = if (embleme.couleur == Color(0xFFF0CC92)) GS.Rose else enNeon(embleme.couleur)
     val boucle = rememberInfiniteTransition(label = "presentation-gs")
     val tour by boucle.animateFloat(0f, 360f, infiniteRepeatable(tween(24_000, easing = LinearEasing)), label = "tour")
@@ -181,7 +181,7 @@ fun PresentationJeuGameShow(titre: String, famille: String, modifier: Modifier =
             // Plaque sombre sous le titre : il passe devant les pupitres du plateau et doit rester lisible (cedric, 25/10).
             Box(
                 Modifier.padding(horizontal = 50.dp).apparition(500, titre)
-                    .background(GS.Noir.copy(alpha = 0.72f), RoundedCornerShape(18.dp))
+                    .background(GS.Plaque, RoundedCornerShape(18.dp))
                     .padding(horizontal = 28.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {

@@ -264,10 +264,9 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
             else if (state.question?.isDuel == true) DuelScreen(state, actions)
             else if (state.question?.isSimon == true) SimonScreen(state, actions)
             else if (state.question?.isChrono == true) ChronoScreen(state, actions)
-            else if (state.portes != null) PortesScreen(state, actions)
             else if (state.mime?.picto == true) PictionaryScreen(state, actions)
             else if (state.mime != null) MimeScreen(state, actions) else QuestionScreen(state, actions)
-        Phase.SCORES -> if (state.portes != null) PortesClassementScreen(state, actions) else ScoresScreen(state, actions)
+        Phase.SCORES -> ScoresScreen(state, actions)
         Phase.ENDED -> FinalScreen(state, actions)
     }
     // Le Game Show n'a pas de générique à l'accueil : le robot y dort sur Get Lucky, la grande intro vient au lancement.

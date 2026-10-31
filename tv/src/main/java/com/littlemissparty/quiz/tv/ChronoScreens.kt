@@ -17,6 +17,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -42,6 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.ChronoResult
+import com.littlemissparty.quiz.engine.ChronoBuzz
 import com.littlemissparty.quiz.engine.ChronoRound
 import com.littlemissparty.quiz.engine.centiemes
 import com.littlemissparty.quiz.tv.habillage.EchelleSansCoupe
@@ -130,7 +133,7 @@ fun ChronoScreen(state: UiState.Playing, actions: TvActions) {
         withFrameNanos { }
         actions.chronoShown()
     }
-    ChronoSons(c, ecoule, maintenant)
+    ChronoSons(c, ecoule, maintenant, state.teams.map { it.uid })
     val depuisResultat by produceState(0L, c?.result?.at, decalage) {
         val at = c?.result?.at ?: return@produceState
         while (true) {
@@ -177,8 +180,14 @@ private fun Objectif(c: ChronoRound, tours: Int, modifier: Modifier) {
     }
 }
 
-/** Un son du Chrono de Buzzy à l'instant [instant] (ms) de la révélation, à la [vitesse] donnée (hauteur). */
-internal data class SonChrono(val instant: Long, val son: Son, val vitesse: Float = 1f)
+/**
+ * Un son du Chrono de Buzzy à l'instant [instant] (ms) de la révélation, à la [vitesse] donnée (hauteur), au [volume]
+ * donné : les petits sons de la révélation à 0,7 sous la boucle B, la fanfare finale à plein volume (cedric, 31/10).
+ */
+internal data class SonChrono(val instant: Long, val son: Son, val vitesse: Float = 1f, val volume: Float = CHRONO_SFX_VOLUME)
+
+/** Volume des petits sons de la révélation (règle, drapeau, pastilles, ralenti), sous la boucle B. */
+internal const val CHRONO_SFX_VOLUME = 0.7f
 
 /**
  * Les sons de la révélation, calés sur ses images : la règle se dessine, le drapeau tombe et se plante (à 0,7 s), chaque
@@ -201,17 +210,18 @@ internal fun sonsRevelation(ecarts: Map<String, Long>, winners: List<String>): L
             winners.any { centiemes(ecarts[it] ?: Long.MAX_VALUE) == 0L } -> Son.CHRONO_PILE
             else -> Son.CHRONO_GAGNE
         },
+        volume = 1f,
     )
     return sons
 }
 
 /**
  * Le son du chrono, image par image : 3, 2, 1 (bips), le départ, puis le tic-tac une fois par seconde tant qu'on voit
- * le chrono (le tempo à garder en tête), plus rien quand le drap tombe (son lancer, le fantôme) ; un petit « tok »
- * à chaque buzz ; à la révélation, [sonsRevelation]. Un son déjà passé de plus de 300 ms n'est jamais joué en retard.
+ * le chrono (le tempo à garder en tête), plus rien quand le drap tombe (son lancer, le fantôme) ; à chaque buzz, le
+ * mot Daft Punk de l'équipe, comme dans tous les jeux au buzzer (cedric, 31/10) ; à la révélation, [sonsRevelation]. Un son déjà passé de plus de 300 ms n'est jamais joué en retard.
  */
 @Composable
-private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long) {
+private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long, equipes: List<String>) {
     val cache = c?.cacheMs
     val seconde = if (ecoule == Long.MIN_VALUE || c?.enCours != true) null else Math.floorDiv(ecoule, 1_000L)
     LaunchedEffect(seconde) {
@@ -228,7 +238,7 @@ private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long) {
     val buzz = c?.buzzes?.size ?: 0
     val vus = remember(c?.goAt) { mutableIntStateOf(buzz) }
     LaunchedEffect(buzz) {
-        if (buzz > vus.intValue && c?.enCours == true) jouerChrono(Son.CHRONO_BUZZ)
+        if (buzz > vus.intValue && c?.enCours == true) sonsNouveauxBuzz(c.buzzes, vus.intValue, equipes).forEach { jouerChrono(it) }
         vus.intValue = buzz
     }
     val r = c?.result
@@ -238,12 +248,20 @@ private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long) {
             val attente = r.at + son.instant - maintenant()
             if (attente < -300) continue
             if (attente > 0) delay(attente)
-            jouerChrono(son.son, son.vitesse)
+            jouerChrono(son.son, son.vitesse, son.volume)
         }
     }
 }
 
-private fun jouerChrono(son: Son, vitesse: Float = 1f) = Sons.executer(listOf(Ordre.Jouer(son, vitesse = vitesse)))
+/**
+ * Les buzz arrivés depuis [vus] : le mot de chaque équipe (sa place dans la partie, le même que sur sa tablette et dans
+ * les autres jeux au buzzer, cedric 31/10). Une équipe introuvable garde le petit « tok » du chrono.
+ */
+internal fun sonsNouveauxBuzz(buzzes: List<ChronoBuzz>, vus: Int, equipes: List<String>): List<Son> =
+    buzzes.drop(vus.coerceAtLeast(0)).map { b -> equipes.indexOf(b.team).let { if (it >= 0) Son.equipe(it) else Son.CHRONO_BUZZ } }
+
+private fun jouerChrono(son: Son, vitesse: Float = 1f, volume: Float = 1f) =
+    Sons.executer(listOf(Ordre.Jouer(son, gauche = volume, droite = volume, vitesse = vitesse)))
 
 /** Le tour prêt : le chrono à zéro, la consigne. */
 @Composable
@@ -257,14 +275,24 @@ private fun androidx.compose.foundation.layout.BoxScope.ChronoPret(c: ChronoRoun
 private fun androidx.compose.foundation.layout.BoxScope.ChronoEnCours(state: UiState.Playing, c: ChronoRound, ecoule: Long) {
     val cache = c.cacheMs ?: Long.MAX_VALUE
     val drap = if (ecoule == Long.MIN_VALUE || ecoule < cache) 0f else ((ecoule - cache).toFloat() / DRAP_CHUTE_MS).coerceIn(0f, 1f)
+    // Le clip du lancer à deux mains (cedric, 31/10) ; absent ou illisible : le drap dessiné d'avant tombe à sa place.
+    var clipEnPanne by remember(c.goAt) { mutableStateOf(false) }
+    val clip = lancerDisponible() && !clipEnPanne && c.cacheMs != null && c.goAt != null
     // Sous le drap : plus aucun chiffre ni aucune graduation n'est dessiné (null).
     val temps = when {
         ecoule == Long.MIN_VALUE || ecoule < 0 -> 0L
+        clip -> if (chiffresVisibles(ecoule, cache)) ecoule else null
         ecoule < cache + DRAP_COUVRE_MS -> ecoule
         else -> null
     }
     val decompte = if (ecoule != Long.MIN_VALUE && ecoule < 0) ((-ecoule + 999) / 1000).toString() else null
-    Cadran(temps, c.cible, decompte, Modifier.fillMaxSize(), drap = drap, tempsDrap = if (drap > 0f) ecoule - cache else 0L)
+    val maintenant = { System.currentTimeMillis() + (state.duelOffset ?: state.serverOffset) }
+    Cadran(
+        temps, c.cible, decompte, Modifier.fillMaxSize(), drap = if (clip) 0f else drap, tempsDrap = if (drap > 0f) ecoule - cache else 0L,
+        video = if (!clip) null else {
+            { ClipLancer(c.goAt, c.goAt!! + departLancer(cache), maintenant, { clipEnPanne = true }, Modifier.fillMaxSize()) }
+        },
+    )
     Consigne(
         when {
             decompte != null -> "Prêts ? Le chrono va partir…"
@@ -324,14 +352,21 @@ internal fun graduationsAllumees(ms: Long, cible: Int): Int = (ms * 60 / (cible 
  * plus rien n'y est dessiné. [decompte] : le 3, 2, 1 avant le départ. [drap] : avancée de la chute du drap (0 à 1).
  */
 @Composable
-private fun Cadran(temps: Long?, cible: Int, decompte: String?, modifier: Modifier, drap: Float = 0f, tempsDrap: Long = 0) {
+private fun Cadran(
+    temps: Long?, cible: Int, decompte: String?, modifier: Modifier, drap: Float = 0f, tempsDrap: Long = 0,
+    video: (@Composable () -> Unit)? = null,
+) {
     val plateau = com.littlemissparty.quiz.tv.habillage.imageAppli(PLATEAU_CHRONO)
     val drapImage = com.littlemissparty.quiz.tv.habillage.imageAppli(DRAP_IMAGE)
     val main = com.littlemissparty.quiz.tv.habillage.imageAppli(DRAP_MAIN)
     Box(modifier) {
         Canvas(Modifier.fillMaxSize()) {
-            val k = size.width / 1920f
             plateau?.let { drawImage(it, dstOffset = IntOffset.Zero, dstSize = IntSize(size.width.toInt(), size.height.toInt())) }
+        }
+        // Le clip du lancer passe sur le plateau (sa première image est le plateau), sous les chiffres du cadran.
+        video?.invoke()
+        Canvas(Modifier.fillMaxSize()) {
+            val k = size.width / 1920f
             if (temps == null) return@Canvas
             val c = Offset(CADRAN_CENTRE.x * k, CADRAN_CENTRE.y * k)
             val r = CADRAN_RAYON * k

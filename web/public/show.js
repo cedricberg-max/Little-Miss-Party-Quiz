@@ -12,17 +12,7 @@ import { propositionsDeTitre, cle, LEURRE_MAX } from "./paroles.js";
 import { lireFamille, lireNiveau } from "./rangement.js";
 
 /**
- * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
- * un malus ne fait jamais descendre une équipe sous 0 (réglé par le moteur de la TV).
- */
-export const PORTES_DOORS = [3, 4];
-export const PORTES_DEFAULT = 4;
-export const PORTES_SEC = 30;
-export const PORTES_VALUES = { 3: [300, 100, -150], 4: [300, 150, 50, -150] };
-export const PORTES_RULE = "chaque équipe choisit une porte sur sa tablette : derrière, un bonus ou un malus qui peut tout renverser ! Plusieurs équipes peuvent prendre la même porte";
-
-/**
- * Les coffres mystères (remplacent les Portes mystères) : chaque équipe à son tour ouvre un coffre sur sa tablette, bonus ou
+ * Les coffres mystères : chaque équipe à son tour ouvre un coffre sur sa tablette, bonus ou
  * malus tirés au sort par la TV à l'ouverture ; après quelques tours sans danger, une bombe se cache dans un coffre et
  * arrête le jeu. Rien à préparer. Les manches « portes » déjà enregistrées se jouent en coffres mystères.
  */
@@ -637,7 +627,7 @@ export const questionJouable = (q) => questionsEnLigne([q]).length === 1;
 /** Au plus autant de questions dans une manche Quiz (cedric, 23/10 : « 8, 10, 15, 20, 30, 50, 100 questions »). */
 export const MAX_QUESTIONS_MANCHE = 100;
 /** Multiplicateurs de la Super Finale ; le premier est celui d'office (comme sur la régie). */
-export const FACTEURS_FINALE = [2, 3, 5];
+export const FACTEURS_FINALE = [2, 3, 4, 5];
 /** Origines d'une série de questions d'une manche Quiz. */
 export const ORIGINES_SERIE = ["de", "quiz", "main", "reprise", "images"];
 /**
@@ -1987,10 +1977,10 @@ export function upcoming(shows, today = isoDay()) {
 
 /**
  * Copie d'une prestation pour un nouvel anniversaire : mêmes manches (les quiz de la bibliothèque
- * sont repris tels quels, sans être modifiés), prénom, date et âge à saisir, en brouillon.
+ * sont repris tels quels, sans être modifiés), prénom, date et âge à saisir, en brouillon. Les défis de la pause en plus ne suivent pas (propres à chaque fête).
  */
 export function duplicateShow(show) {
-  const { childName, age, date, title, status, createdAt, updatedAt, origin, pinned, keepActive, copieDe, ...rest } = show;
+  const { childName, age, date, title, status, createdAt, updatedAt, origin, pinned, keepActive, copieDe, defis, ...rest } = show;
   return { ...rest, status: "brouillon", rounds: (show.rounds ?? []).filter(Boolean).map((r) => ({ ...r })) };
 }
 

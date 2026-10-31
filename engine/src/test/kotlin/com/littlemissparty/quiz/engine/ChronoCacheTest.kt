@@ -32,6 +32,12 @@ class ChronoCacheTest {
         return state.chrono!!.goAt!!
     }
 
+    /** « 👀 Révéler » de Sarah à l'heure [at] : le bilan du tour. */
+    private fun Game.revele(at: Long): ChronoResult {
+        assertEquals(CommandStatus.APPLIED, run("chrono_reveal", at).status)
+        return state.chrono!!.result!!
+    }
+
     @Test
     fun `le premier tour est pret avec la cible reglee, sans chrono de question`() {
         val g = pret()
@@ -70,7 +76,11 @@ class ChronoCacheTest {
         assertNotNull(g.chronoBuzz("vert", zero + 31_200, zero + 31_300))
         assertNull(g.state.chrono!!.result, "rose n'a pas encore buzzé")
         assertNotNull(g.chronoBuzz("rose", zero + 30_300, zero + 30_350))
-        val r = g.state.chrono!!.result!!
+        // Toutes ont buzzé : le bilan attend le « 👀 Révéler » de Sarah, la box ne juge plus seule.
+        assertNull(g.state.chrono!!.result)
+        assertNull(g.wakeAt())
+        assertEquals(true, (Codec.publicState(g, teams = equipes)["chrono"] as Map<*, *>)["reveler"])
+        val r = g.revele(zero + 32_000)
         assertEquals(listOf("rose"), r.winners)
         assertEquals(-500L, r.ecarts["orange"])
         assertEquals(1_200L, r.ecarts["vert"])
@@ -92,7 +102,7 @@ class ChronoCacheTest {
         g.chronoBuzz("vert", go + 30_400, go + 30_420)
         g.chronoBuzz("orange", go + 30_000, go + 31_200)
         g.chronoBuzz("rose", go + 40_000, go + 40_010)
-        assertEquals(listOf("orange"), g.state.chrono!!.result!!.winners)
+        assertEquals(listOf("orange"), g.revele(go + 41_000).winners)
     }
 
     @Test
@@ -112,24 +122,26 @@ class ChronoCacheTest {
         g.chronoBuzz("orange", go + 29_500, go + 29_900)
         g.chronoBuzz("vert", go + 30_203, go + 30_300)
         g.chronoBuzz("rose", go + 30_197, go + 30_250)
-        assertEquals(setOf("vert", "rose"), g.state.chrono!!.result!!.winners.toSet())
+        assertEquals(setOf("vert", "rose"), g.revele(go + 31_000).winners.toSet())
         assertEquals(CHRONO_POINTS, g.state.scores()["vert"])
         assertEquals(CHRONO_POINTS, g.state.scores()["rose"])
         assertEquals(25, g.state.scores()["orange"], "deux 1res : la suivante est 3e")
     }
 
     @Test
-    fun `une equipe qui ne buzze pas, la box revele 15 s apres la cible, sans elle`() {
+    fun `une equipe qui ne buzze pas, rien ne se revele seul, Sarah revele sans elle`() {
         val g = pret()
         val go = g.lance(t0)
         g.chronoShown(go, go)
         g.chronoBuzz("orange", go + 28_000, go + 28_100)
         g.chronoBuzz("vert", go + 33_000, go + 33_100)
-        val due = go + 30_000 + CHRONO_ATTENTE_MS
-        assertEquals(due, g.wakeAt())
-        assertNull(g.settleChrono(due - 1_000))
-        assertNotNull(g.timeUp(due))
-        val r = g.state.chrono!!.result!!
+        val longtemps = go + 30_000 + CHRONO_ATTENTE_MS + 60_000
+        assertNull(g.wakeAt())
+        assertNull(g.settleChrono(longtemps))
+        assertNull(g.timeUp(longtemps))
+        assertNull(g.state.chrono!!.result)
+        assertNull((Codec.publicState(g, teams = equipes)["chrono"] as Map<*, *>)["reveler"], "rose compte peut-être encore")
+        val r = g.revele(longtemps)
         assertEquals(listOf("orange"), r.winners)
         assertFalse("rose" in r.ecarts)
     }
@@ -146,11 +158,39 @@ class ChronoCacheTest {
     }
 
     @Test
+    fun `toutes ont buzze avant la cible, Sarah revele sans attendre la cible`() {
+        val g = pret()
+        val go = g.lance(t0)
+        g.chronoShown(go, go)
+        g.chronoBuzz("orange", go + 12_000, go + 12_100)
+        g.chronoBuzz("vert", go + 14_000, go + 14_100)
+        assertEquals(CommandStatus.REFUSED, g.run("chrono_reveal", go + 15_000).status, "rose compte encore")
+        g.chronoBuzz("rose", go + 16_000, go + 16_100)
+        assertEquals(listOf("rose"), g.revele(go + 17_000).winners)
+        assertEquals(CommandStatus.REFUSED, g.run("chrono_reveal", go + 18_000).status, "déjà révélé")
+    }
+
+    @Test
+    fun `un tour lance avant le bouton Reveler se relit tel qu'il a ete joue, juge seul`() {
+        val g = pret()
+        val go = g.lance(t0)
+        // Journal d'une version d'avant : le lancement ne disait pas « manuel ».
+        val ancien = Game(g.quiz).apply {
+            g.events.forEach { e -> record(Codec.decode(Codec.encode(e).filterKeys { it != "manuel" })!!) }
+        }
+        assertFalse(ancien.state.chrono!!.manuel)
+        ancien.chronoShown(go, go)
+        equipes.forEachIndexed { i, t -> ancien.chronoBuzz(t, go + 30_000 + i * 100L, go + 30_100 + i * 100L) }
+        assertEquals(listOf("orange"), ancien.state.chrono!!.result!!.winners)
+        assertEquals(ancien.state, relu(ancien).state)
+    }
+
+    @Test
     fun `personne ne buzze, bilan sans points`() {
         val g = pret()
         val go = g.lance(t0)
-        assertNotNull(g.timeUp(go + 30_000 + CHRONO_ATTENTE_MS))
-        val r = g.state.chrono!!.result!!
+        assertNull(g.timeUp(go + 30_000 + CHRONO_ATTENTE_MS))
+        val r = g.revele(go + 30_000 + CHRONO_ATTENTE_MS)
         assertTrue(r.winners.isEmpty())
         assertEquals(0, r.points)
         assertTrue(g.state.scores().values.all { it == 0 })
@@ -164,7 +204,7 @@ class ChronoCacheTest {
         g.chronoBuzz("orange", go + 400 + 30_000, go + 30_500)
         g.chronoBuzz("vert", go + 31_000, go + 31_100)
         g.chronoBuzz("rose", go + 45_000, go + 45_100)
-        val r = g.state.chrono!!.result!!
+        val r = g.revele(go + 46_000)
         assertEquals(0L, r.ecarts["orange"])
         assertEquals(listOf("orange"), r.winners)
         val g2 = pret()
@@ -178,7 +218,7 @@ class ChronoCacheTest {
         val g = pret()
         val go = g.lance(t0)
         equipes.forEachIndexed { i, t -> g.chronoBuzz(t, go + 30_000 + i * 100L, go + 30_100 + i * 100L) }
-        val r = g.state.chrono!!.result!!
+        val r = g.revele(go + 31_000)
         assertEquals(0L, r.ecarts["orange"])
         assertEquals(listOf("orange"), r.winners)
     }
@@ -200,6 +240,7 @@ class ChronoCacheTest {
         val go = g.lance(t0 + 100)
         g.chronoShown(go, go)
         equipes.forEachIndexed { i, t -> g.chronoBuzz(t, go + 20_000 + i * 300L, go + 20_500 + i * 300L) }
+        g.revele(go + 22_000)
         assertFalse(g.chronoFini)
         assertEquals(CommandStatus.APPLIED, g.run("chrono_go", go + 25_000).status)
         assertEquals(2, g.state.chrono!!.tour)
@@ -208,6 +249,7 @@ class ChronoCacheTest {
         val go2 = g.lance(go + 30_000)
         g.chronoShown(go2, go2)
         equipes.forEachIndexed { i, t -> g.chronoBuzz(t, go2 + 21_000 - i * 300L, go2 + 21_500) }
+        g.revele(go2 + 22_000)
         assertTrue(g.chronoFini)
         assertEquals(CommandStatus.REFUSED, g.run("chrono_go", go2 + 25_000).status)
         // Tour 1 : orange 100, vert 50, rose 25 ; tour 2 : rose 100, vert 50, orange 25.
@@ -249,6 +291,7 @@ class ChronoCacheTest {
         val go = g.lance(t0)
         g.chronoShown(go, go)
         equipes.forEachIndexed { i, t -> g.chronoBuzz(t, go + 30_000 + i * 500L, go + 30_000 + i * 500L + 50) }
+        g.revele(go + 32_000)
         assertEquals(2 * CHRONO_POINTS, g.state.scores()["orange"])
         assertEquals(CHRONO_POINTS, g.state.scores()["vert"])
     }
@@ -260,7 +303,7 @@ class ChronoCacheTest {
         val go = g.lance(t0, huit.toSet())
         g.chronoShown(go, go)
         huit.forEachIndexed { i, t -> g.chronoBuzz(t, go + 30_000 + i * 700L, go + 30_000 + i * 700L + 50) }
-        val r = g.state.chrono!!.result!!
+        val r = g.revele(go + 36_000)
         assertEquals(mapOf("orange" to 100, "vert" to 50, "rose" to 25), r.gains)
         assertEquals(8, r.ecarts.size)
         assertEquals(0, g.state.scores()["jaune"] ?: 0)

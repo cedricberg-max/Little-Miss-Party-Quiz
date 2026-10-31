@@ -310,11 +310,11 @@ describe("réponses", () => {
     await seed({ deadline: Date.now() - 5000 });
     await assertFails(answer("rose", 1));
   });
-  test("Portes mystères : pas de chrono, une porte se choisit tant que les choix sont ouverts ; ailleurs, pas de réponse sans chrono", async () => {
+  test("pas de réponse sans chrono, même pour l'ancien jeu des portes (supprimé le 31/10)", async () => {
     await seed({ deadline: null });
     await assertFails(answer("rose", 1));
     await seed({ kind: "portes", choices: ["Porte 1", "Porte 2", "Porte 3"], deadline: null });
-    await assertSucceeds(answer("rose", 1));
+    await assertFails(answer("rose", 1));
   });
   test("proposition inexistante refusée", async () => {
     await seed({ choices: ["Vrai", "Faux"] });
@@ -592,15 +592,14 @@ describe("régie", () => {
     await assertSucceeds(command(REGIE, { type: "goto", index: 2, qid: "a1m" }));
     await assertFails(command(REGIE, { type: "goto", index: -1, qid: "q1" }));
     await assertFails(command(REGIE, { type: "goto", index: 0, qid: 12 }));
-    // Dernières questions du quiz : ×2, ×3 ou ×5 seulement.
-    await assertFails(command(REGIE, { type: "factor", factor: 4 }));
+    // Dernières questions du quiz : ×2, ×3, ×4 ou ×5 seulement (×4 : cedric, 31/10).
+    await assertFails(command(REGIE, { type: "factor", factor: 6 }));
+    // Une commande ne se réécrit pas : le ×4 passe sous un autre nom que le ×3 plus bas.
+    await assertSucceeds(set(ref(db(REGIE), `games/${CODE}/commands/c-${REGIE}-factor4`), { type: "factor", factor: 4, expectSeq: 3, by: REGIE, at: serverTimestamp() }));
     await assertFails(command(REGIE, { type: "factor", factor: "5" }));
     await assertSucceeds(command(REGIE, { type: "factor", factor: 3 }));
-    // Portes mystères : la valeur d'une porte, dans les bornes seulement.
-    await assertSucceeds(command(REGIE, { type: "portes_set", qid: "p1", door: 2, value: -150 }));
-    await assertFails(command(REGIE, { type: "portes_set", qid: "p1", door: 9, value: 100 }));
-    await assertFails(command(REGIE, { type: "portes_set", qid: "p1", door: 0, value: 5000 }));
-    await assertFails(command("rose", { type: "portes_set", qid: "p1", door: 0, value: 300 }));
+    // L'ancien jeu des portes est supprimé (31/10) : sa commande est refusée.
+    await assertFails(command(REGIE, { type: "portes_set", qid: "p1", door: 2, value: -150 }));
     await assertSucceeds(answer("rose", 1));
     await assertFails(set(ref(db("rose"), `games/${CODE}/answers/q1`), null));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/answers/q1`), null));
@@ -1413,6 +1412,42 @@ describe("défis de la pause", () => {
     await assertFails(set(ref(db("tel"), "settings/defis"), { ...DEFIS, secret: 1 }));
     await assertFails(set(ref(db("tel"), "settings/defis"), { list: ["Dansez !"], updatedAt: 1 }));
     await assertSucceeds(avec(Array.from({ length: 30 }, (_, i) => `Défi ${i}`)));
+  });
+});
+
+describe("défis de la pause en plus de la fête", () => {
+  const REGIE = "tel";
+  const chemin = `games/${CODE}/defisFete`;
+  const avec = (uid, list) => set(ref(db(uid), chemin), { list, updatedAt: serverTimestamp() });
+  async function paired() {
+    await seed();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/${REGIE}`), { pairedAt: 1, via: "pin" }));
+  }
+
+  test("la régie de la partie (même ouverte avec le code de la TV) ajoute et efface ses défis, la TV les lit", async () => {
+    await paired();
+    await assertSucceeds(avec(REGIE, ["Tout le monde imite un lion !"]));
+    await assertSucceeds(get(ref(db(REGIE), chemin)));
+    await assertSucceeds(get(ref(db(HOST), chemin)));
+    await assertSucceeds(set(ref(db(REGIE), chemin), null));
+  });
+  test("une équipe ou un inconnu ne touchent pas aux défis de la fête", async () => {
+    await paired();
+    await assertFails(avec("rose", ["Dansez !"]));
+    await assertFails(avec(null, ["Dansez !"]));
+    await assertFails(get(ref(db("rose"), chemin)));
+    await assertFails(get(ref(db(null), chemin)));
+  });
+  test("défis de la fête mal formés refusés", async () => {
+    await paired();
+    await assertFails(avec(REGIE, [""]));
+    await assertFails(avec(REGIE, ["x".repeat(121)]));
+    await assertFails(avec(REGIE, Array.from({ length: 31 }, (_, i) => `Défi ${i}`)));
+    await assertFails(avec(REGIE, [42]));
+    await assertFails(set(ref(db(REGIE), chemin), { list: ["Dansez !"], updatedAt: serverTimestamp(), secret: 1 }));
+    await assertFails(set(ref(db(REGIE), chemin), { list: ["Dansez !"], updatedAt: 1 }));
+    await assertFails(set(ref(db(REGIE), chemin), { updatedAt: serverTimestamp() }));
+    await assertSucceeds(avec(REGIE, Array.from({ length: 30 }, (_, i) => `Défi ${i}`)));
   });
 });
 

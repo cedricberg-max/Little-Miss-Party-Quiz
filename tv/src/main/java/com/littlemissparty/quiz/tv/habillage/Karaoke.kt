@@ -263,7 +263,7 @@ private fun Gagnant(cle: Any?, gagnant: Pair<String, Color>?, points: Int, doubl
     } else if (gagnants == null && gagnant != null && points > 0) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.apparition(500, cle)) {
             // Game Show : pastille sombre cernée d'un néon à la couleur de l'équipe, chiffres néon (proposition A, 24/10).
-            val pastille = if (Look.gs) Modifier.clip(CircleShape).background(GS.Noir.copy(alpha = 0.9f)).border(4.dp, gagnant.second, CircleShape)
+            val pastille = if (Look.gs) Modifier.clip(CircleShape).background(GS.Plaque).border(4.dp, gagnant.second, CircleShape)
             else Modifier.clip(CircleShape).background(gagnant.second)
             val texte = "+$points"
             val diametre = diametrePastille(texte)
