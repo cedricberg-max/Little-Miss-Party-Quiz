@@ -1002,7 +1002,7 @@ describe("pupitre", () => {
     const uid = Object.keys(await read("teams"))[0];
     const jeu = (extra) => question({ choices: null, buzzOpen: true, buzz: { blocked: [] }, ...extra });
     await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", round: "c1-1000-0" }));
-    await page.locator("#play-status", { hasText: "chantez une chanson avec le mot de la TV" }).waitFor();
+    await page.locator("#play-status", { hasText: "chantez une chanson avec ce mot" }).waitFor();
     // Le mot à chanter est aussi sur la tablette (cedric, 31/10).
     await page.locator("#chante-mot:not([hidden])", { hasText: "soleil" }).waitFor();
     await page.click("#buzz");

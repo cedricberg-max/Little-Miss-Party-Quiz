@@ -52,7 +52,7 @@ for (const id of ["app", "paused", "resume-count"]) {
 const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu"];
 const BUZZ_INVITE = {
   flou: "Image floue : buzzez dès que vous la reconnaissez !",
-  chante: "Buzzez et chantez une chanson avec le mot de la TV !",
+  chante: "À vos micros ! Buzzez et chantez une chanson avec ce mot !",
   quisuis: "Qui suis-je ? Écoutez les indices de la TV et buzzez dès que vous savez !",
   blind: "Blind test : écoutez la musique et buzzez dès que vous reconnaissez la chanson !",
   disparu: "Qui a disparu ? Buzzez dès que vous savez quel objet manque sur la TV !",
