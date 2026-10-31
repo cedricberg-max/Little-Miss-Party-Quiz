@@ -266,6 +266,22 @@
         <button id="simon-fin" class="btn secondary" type="button" hidden>⏭ Jeu suivant</button>
         <p id="simon-points" class="hint"></p>
       </section>
+      <!-- Le Chrono de Buzzy (cedric, 30/10) : le chrono part, Buzzy le cache sous un drap, chaque équipe buzze à la cible. -->
+      <section id="chrono" class="flou" hidden aria-label="Le Chrono de Buzzy">
+        <p id="chrono-info" class="mime-info"></p>
+        <div id="chrono-reglage" class="chrono-reglage" hidden>
+          <button class="btn secondary" type="button" data-pas="-5">−5</button>
+          <button class="btn secondary" type="button" data-pas="-1">−1</button>
+          <b id="chrono-cible">30 s</b>
+          <button class="btn secondary" type="button" data-pas="1">+1</button>
+          <button class="btn secondary" type="button" data-pas="5">+5</button>
+        </div>
+        <ul id="chrono-equipes" class="simon-equipes"></ul>
+        <button id="chrono-reveler" class="btn secondary" type="button" hidden>👀 Révéler sans attendre</button>
+        <button id="chrono-stop" class="btn secondary" type="button" hidden>✋ Arrêter le tour</button>
+        <button id="chrono-fin" class="btn secondary" type="button" hidden>⏭ Jeu suivant</button>
+        <p id="chrono-points" class="hint"></p>
+      </section>
       <!-- Les coffres mystères : la régie suit les coffres ; elle ne voit ni ne choisit leur contenu (tiré à l'ouverture). -->
       <section id="coffres" class="flou" hidden aria-label="Les Coffres mystères">
         <p id="coffres-info" class="mime-info"></p>

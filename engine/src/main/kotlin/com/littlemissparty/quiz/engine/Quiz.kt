@@ -118,7 +118,13 @@ enum class QuestionKind(val code: String) {
      * sur leur tablette ; une erreur élimine du tour, la dernière équipe en jeu le gagne (voir [SimonRound]). Rien à
      * préparer que le nombre de tours, le temps pour répondre et les joueurs par équipe.
      */
-    SIMON("simon");
+    SIMON("simon"),
+
+    /**
+     * ⏱️ Le Chrono de Buzzy : le chrono de la TV part, Buzzy le cache sous un drap, les équipes comptent dans leur tête et
+     * buzzent à la cible ; la plus proche gagne le tour (voir [ChronoRound]). Rien à préparer que la cible et les tours.
+     */
+    CHRONO("chrono");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -200,6 +206,10 @@ data class Question(
     val simonTours: Int = SIMON_TOURS,
     /** Le Simon de Buzzy : temps pour taper une suite (secondes, une de plus par élément au-delà de 4). */
     val simonSec: Int = SIMON_REPONSE_SEC,
+    /** Le Chrono de Buzzy : la cible (secondes) proposée à chaque tour, que Sarah peut changer avant de lancer. */
+    val chronoCible: Int = CHRONO_CIBLE_DEFAUT,
+    /** Le Chrono de Buzzy : nombre de tours, réglé dans la Régie PC. */
+    val chronoTours: Int = CHRONO_TOURS,
 ) {
     /** Paroles du refrain, phrase par phrase et mot par mot (vide : pas de paroles). */
     val paroles: List<LigneParole> by lazy { lireParoles(lyrics) }
@@ -249,6 +259,10 @@ data class Question(
             require(joueurs in 1..DUEL_JOUEURS_MAX) { "Simon de Buzzy $id : 1 à $DUEL_JOUEURS_MAX joueurs par équipe" }
             require(simonTours in 1..SIMON_TOURS_MAX) { "Simon de Buzzy $id : 1 à $SIMON_TOURS_MAX tours" }
             require(simonSec in SIMON_REPONSE_MIN_SEC..SIMON_REPONSE_MAX_SEC) { "Simon de Buzzy $id : $SIMON_REPONSE_MIN_SEC à $SIMON_REPONSE_MAX_SEC s pour répondre" }
+        } else if (kind == QuestionKind.CHRONO) {
+            require(choices.isEmpty()) { "Chrono de Buzzy $id : pas de propositions" }
+            require(chronoCible in CHRONO_CIBLE_MIN..CHRONO_CIBLE_MAX) { "Chrono de Buzzy $id : cible entre $CHRONO_CIBLE_MIN et $CHRONO_CIBLE_MAX s" }
+            require(chronoTours in 1..CHRONO_TOURS_MAX) { "Chrono de Buzzy $id : 1 à $CHRONO_TOURS_MAX tours" }
         } else if (kind == QuestionKind.GONFLEUR) {
             require(choices.isEmpty()) { "Gonfleur fou $id : pas de propositions" }
             require(durationSec in 20..180) { "Gonfleur fou $id : durée entre 20 et 180 s" }
@@ -276,6 +290,7 @@ data class Question(
     val isPatate: Boolean get() = kind == QuestionKind.PATATE
     val isDuel: Boolean get() = kind == QuestionKind.DUEL
     val isSimon: Boolean get() = kind == QuestionKind.SIMON
+    val isChrono: Boolean get() = kind == QuestionKind.CHRONO
 
     /** Jeu joué équipe par équipe, tour après tour (mimes, Pictionary) : le chrono part au lancement de chaque tour. */
     val isTurns: Boolean get() = isMime || isPicto

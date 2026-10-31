@@ -1644,6 +1644,63 @@ describe("Le Duel des robots", () => {
   });
 });
 
+describe("Le Chrono de Buzzy", () => {
+  const tour = (chrono = {}, extra = {}) => seed({
+    kind: "chrono", qid: "r9h", choices: null, deadline: null,
+    chrono: { tour: 1, cible: 30, step: "run", key: "r9h-1-100", goAt: Date.now() - 5_000, teams: ["bleu", "rose"], ...chrono }, ...extra,
+  });
+  const buzz = (uid, team = uid, key = "r9h-1-100", data = null) =>
+    set(ref(db(uid), `games/${CODE}/chrono/${key}/${team}`), data ?? { t: Date.now(), at: serverTimestamp() });
+  const troisEquipes = () => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#7CFF3A" }));
+
+  test("chaque équipe du tour buzze une seule fois, avec l'heure de son appui", async () => {
+    await tour();
+    await troisEquipes();
+    await assertFails(buzz("vert"), "arrivée après le lancement du tour");
+    await assertFails(buzz("bleu", "rose"), "jamais pour une autre équipe");
+    await assertFails(buzz("bleu", "bleu", "r9h-1-99"), "ancien tour");
+    await assertFails(buzz("bleu", "bleu", "r9h-1-100", { t: Date.now(), at: 5 }), "heure du serveur obligatoire");
+    await assertFails(buzz("bleu", "bleu", "r9h-1-100", { at: serverTimestamp() }), "heure de l'appui obligatoire");
+    await assertFails(buzz("bleu", "bleu", "r9h-1-100", { t: Date.now(), at: serverTimestamp(), ecart: 0 }));
+    await assertSucceeds(buzz("bleu", "bleu", "r9h-1-100", { t: Date.now(), at: serverTimestamp(), r: 40, o: -12 }));
+    await assertFails(buzz("bleu"), "un seul buzz par tour");
+    await assertSucceeds(buzz("rose"));
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/chrono`), null));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/chrono`), null));
+  });
+
+  test("8 équipes : la huitième buzze aussi", async () => {
+    const ids = ["e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"];
+    await tour({ teams: ids });
+    await env.withSecurityRulesDisabled((ctx) => { const base = ctx.database(); return Promise.all(ids.map((id) => set(ref(base, `games/${CODE}/teams/${id}`), { name: id, color: "#7CFF3A" }))); });
+    await assertSucceeds(buzz("e8"));
+    await assertSucceeds(buzz("e1"));
+  });
+
+  test("ni avant le lancement, ni après le bilan, ni en pause, ni dans un autre jeu", async () => {
+    await tour({ step: "ready" });
+    await assertFails(buzz("bleu"), "tour prêt, pas lancé");
+    await tour({ step: "result" });
+    await assertFails(buzz("bleu"), "tour jugé");
+    await tour({}, { paused: true });
+    await assertFails(buzz("bleu"), "pause");
+    await seed({ kind: "duel", chrono: { teams: ["bleu", "rose"], step: "run", key: "r9h-1-100" } });
+    await assertFails(buzz("bleu"), "pas dans ce jeu");
+  });
+
+  test("la régie lance, règle la cible (10 à 90 s), révèle et arrête", async () => {
+    await tour({ step: "ready" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    const envoi = (id, cmd) => set(ref(db("tel"), `games/${CODE}/commands/${id}`), { ...cmd, expectSeq: 3, by: "tel", at: serverTimestamp() });
+    for (const [id, cmd] of [["h1", { type: "chrono_go" }], ["h2", { type: "chrono_cible", cible: 45 }], ["h3", { type: "chrono_reveal" }], ["h4", { type: "chrono_stop" }]]) {
+      await assertSucceeds(envoi(id, cmd), cmd.type);
+    }
+    await assertFails(envoi("h5", { type: "chrono_cible", cible: 5 }), "trop court");
+    await assertFails(envoi("h6", { type: "chrono_cible", cible: 300 }), "trop long");
+    await assertFails(envoi("h7", { type: "next", cible: 30 }), "cible seulement pour chrono_cible");
+  });
+});
+
 describe("Le Simon de Buzzy", () => {
   const suite = (simon = {}, extra = {}) => seed({
     kind: "simon", qid: "r9s", choices: null, deadline: null,

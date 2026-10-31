@@ -245,13 +245,13 @@ function questionSuivante(st) {
   const k = (st.index ?? -1) + 1;
   const q = questions[k];
   if (!q || (next && next.start === k) || st.leaveTo != null) return null;
-  if (["portes", "coffres", "gonfleur", "patate", "statues", "duel", "simon", "mime", "pictionary", "blind"].includes(q.kind)) return null;
+  if (["portes", "coffres", "gonfleur", "patate", "statues", "duel", "simon", "chrono", "mime", "pictionary", "blind"].includes(q.kind)) return null;
   if (q.correct == null) return null;
   return { q, correct: q.correct, text: q.choices?.[q.correct] ?? "", number: q.kind === "number", flou: BUZZ_KINDS.includes(q.kind) };
 }
 
 /** Jeux qui ont déjà leur propre écran au milieu de la régie pendant la question (mimes, blind test, statues…). */
-const MILIEU_OCCUPE = ["mime", "blind", "statues", "duel", "simon", "coffres", "gonfleur", "patate"];
+const MILIEU_OCCUPE = ["mime", "blind", "statues", "duel", "simon", "chrono", "coffres", "gonfleur", "patate"];
 
 /**
  * Une tuile par équipe (1 à 8) : sa couleur, ses points, ce qu'elle fait (a répondu, réfléchit, sa réponse et ses
@@ -636,6 +636,8 @@ function nextLabel(st, teamCount) {
   if (duel) return duelBoutonPrincipal(duel, st);
   const simon = simonEtape(st);
   if (simon) return simonBoutonPrincipal(simon, st);
+  const chrono = chronoEtape(st);
+  if (chrono) return chronoBoutonPrincipal(chrono, st);
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
@@ -698,7 +700,7 @@ function render() {
 
   const portes = (q?.kind ?? st.kind) === "portes";
   // Portes et coffres mystères : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
-  const correct = portes || ["coffres", "gonfleur", "patate", "simon"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
+  const correct = portes || ["coffres", "gonfleur", "patate", "simon", "chrono"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
   answerBtn.hidden = intro || !inQuestion || (correct == null && !(portes && q?.doors));
   if (portes && q?.doors) {
@@ -724,7 +726,7 @@ function render() {
   }
   answerBtn.classList.toggle("grosse", COCKPIT && !answerBtn.hidden && !(portes && q?.doors));
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "simon" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
+  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "simon" || st.kind === "chrono" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
 
   renderGames(st);
   renderRequests(st, teams);
@@ -739,6 +741,7 @@ function render() {
   renderPatate(st);
   renderDuel(st, teams);
   renderSimon(st);
+  renderChrono(st);
   renderTeams(st, teams);
   if (COCKPIT) renderTuiles(st, teams);
   renderPoints();
@@ -779,6 +782,8 @@ function render() {
   if (duel) next.disabled = next.disabled || duel.d.step === "standoff" || (!!duel.choix && duel.choix.length !== 2);
   const simon = simonEtape(st);
   if (simon) next.disabled = next.disabled || simon.s.step === "play" || simon.s.step === "none" || simon.verif > 0;
+  const chrono = chronoEtape(st);
+  if (chrono) next.disabled = next.disabled || chrono.c.step === "run" || chrono.c.step === "none";
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
@@ -2300,6 +2305,144 @@ $("simon-fin").onclick = async () => {
 };
 
 /**
+ * ⏱️ Le Chrono de Buzzy (cedric, 30/10) : Sarah règle la cible (− / +) avant chaque tour et lance le chrono ; la box reçoit
+ * les buzz et révèle seule quand toutes les équipes ont buzzé (ou 15 s après la cible). La régie ne voit jamais l'heure
+ * des buzz avant la révélation, seulement qui a buzzé.
+ */
+let chronoStopArme = null;
+let chronoMinuteur = null;
+let chronoCibleEnvoi = null; // cible tapée, pas encore confirmée par la box (plusieurs appuis rapides s'additionnent)
+const chronoListe = (x) => (Array.isArray(x) ? x : Object.values(x ?? {}));
+const chronoEcart = (ms) => `${ms > 0 ? "+" : ms < 0 ? "−" : ""}${(Math.abs(ms) / 1000).toFixed(2).replace(".", ",")} s`;
+
+function chronoEtape(st) {
+  const c = st.chrono;
+  if (st.kind !== "chrono" || !c || (st.phase !== "question" && st.phase !== "closed")) return null;
+  return { c };
+}
+
+function renderChrono(st) {
+  const on = (st.phase === "question" || st.phase === "closed") && st.kind === "chrono";
+  $("chrono").hidden = !on;
+  clearTimeout(chronoMinuteur);
+  if (!on) { clearTimeout(chronoStopArme); chronoStopArme = null; chronoCibleEnvoi = null; return; }
+  const c = st.chrono ?? { step: "none" };
+  if (chronoCibleEnvoi === c.cible || c.step !== "ready") chronoCibleEnvoi = null;
+  const cible = chronoCibleEnvoi ?? c.cible ?? 30;
+  const busy = !!pending?.advance || st.paused === true;
+  const name = (id) => live.teams[id]?.name ?? "Une équipe";
+  const tour = (c.tours ?? 1) > 1 ? `Tour ${c.tour ?? 1} sur ${c.tours}. ` : "";
+  const maintenant = Date.now() + serverOffset;
+  const cibleAt = typeof c.goAt === "number" ? c.goAt + (c.cible ?? 30) * 1000 : null;
+  const buzzees = chronoListe(c.buzzed);
+  const equipes = chronoListe(c.teams);
+  const res = c.result ?? {};
+  const gagnantes = chronoListe(res.winners);
+  $("chrono-info").textContent = c.step === "none" ? "Le Chrono de Buzzy se prépare…"
+    : c.step === "ready" ? `${tour}Cible : ${cible} secondes. Réglez-la, puis lancez le chrono.`
+      : c.step === "run" ? (c.goAt > maintenant ? `${tour}3, 2, 1… le chrono part !` : `${tour}⏱️ Chrono en cours, cible ${c.cible} s : ${buzzees.length} / ${equipes.length} équipes ont buzzé.`)
+        : gagnantes.length ? `${tour}🏆 ${gagnantes.map(name).join(", ")} ${gagnantes.length > 1 ? "gagnent" : "gagne"} le tour.`
+          : `${tour}Personne n'a buzzé : aucun point.`;
+  // Réglage de la cible, seulement quand le tour est prêt.
+  $("chrono-reglage").hidden = c.step !== "ready";
+  $("chrono-cible").textContent = `${cible} s`;
+  $("chrono-reglage").querySelectorAll("button").forEach((b) => {
+    const v = cible + Number(b.dataset.pas);
+    b.disabled = busy || v < 10 || v > 90;
+  });
+  // Les équipes : a buzzé ou pas (jamais l'heure avant la révélation), puis leur écart, la plus proche d'abord.
+  const ecarts = res.ecarts ?? {};
+  const ids = c.step === "result"
+    ? Object.keys(live.teams ?? {}).sort((a, b) => Math.abs(ecarts[a] ?? 1e9) - Math.abs(ecarts[b] ?? 1e9))
+    : c.step === "run" ? equipes : [];
+  const lignes = ids.map((id) => {
+    const li = document.createElement("li");
+    li.style.setProperty("--team", live.teams[id]?.color ?? "#fff");
+    const nom = document.createElement("b");
+    nom.textContent = name(id);
+    const etat = document.createElement("span");
+    if (c.step === "result") {
+      const gain = res.gains?.[id];
+      etat.textContent = typeof ecarts[id] === "number" ? `${gagnantes.includes(id) ? "🏆 " : ""}${chronoEcart(ecarts[id])}${gain ? ` · +${gain}` : ""}` : "pas de buzz";
+      li.classList.toggle("eliminee", typeof ecarts[id] !== "number");
+    } else {
+      etat.textContent = buzzees.includes(id) ? "✅ a buzzé" : "compte…";
+    }
+    li.append(nom, etat);
+    return li;
+  });
+  const liste = $("chrono-equipes");
+  const cle = lignes.map((li) => li.textContent + li.className).join("|");
+  if (liste.dataset.key !== cle) { liste.dataset.key = cle; liste.replaceChildren(...lignes); }
+  // Révéler sans attendre une équipe qui ne buzze pas : seulement une fois la cible passée.
+  const reveler = $("chrono-reveler");
+  reveler.hidden = c.step !== "run" || !cibleAt || maintenant < cibleAt;
+  reveler.disabled = busy;
+  const stop = $("chrono-stop");
+  stop.hidden = c.step !== "run";
+  stop.disabled = busy;
+  stop.textContent = chronoStopArme ? "Touchez encore : arrêter, sans points" : "✋ Arrêter le tour";
+  if (c.step !== "run") { clearTimeout(chronoStopArme); chronoStopArme = null; }
+  $("chrono-fin").hidden = !["ready", "result"].includes(c.step) || (c.step === "result" && c.last === true);
+  $("chrono-fin").disabled = busy;
+  $("chrono-points").textContent = st.double ? "200, 100 et 50 points pour les 3 équipes les plus proches de la cible." : "100, 50 et 25 points pour les 3 équipes les plus proches de la cible.";
+  // Le « Révéler » apparaît à l'heure de la cible ; le décompte se met à jour.
+  if (c.step === "run") chronoMinuteur = setTimeout(render, 1000);
+}
+
+function chronoBoutonPrincipal(e, st) {
+  const c = e.c;
+  if (c.step === "none") return "Le Chrono de Buzzy se prépare…";
+  if (c.step === "run") return "Chrono en cours… ⏱️";
+  if (c.step === "ready") return `⏱️ Lancer le chrono (${chronoCibleEnvoi ?? c.cible ?? 30} s)`;
+  if (c.step === "result") return c.last === true ? finDuelLabel(st) : `▶ Tour suivant (${(c.tour ?? 1) + 1} / ${c.tours ?? 1})`;
+  return finDuelLabel(st);
+}
+
+function chronoPrincipal(e) {
+  const c = e.c;
+  if (c.step === "run" || c.step === "none") return;
+  navigator.vibrate?.(60);
+  if (c.step === "result" && c.last === true) return send("next", {}, { advance: true });
+  return send("chrono_go", {}, { advance: true });
+}
+
+$("chrono-reglage").querySelectorAll("button").forEach((b) => {
+  b.onclick = () => {
+    const c = live.state?.chrono ?? {};
+    if (c.step !== "ready") return;
+    const v = Math.min(90, Math.max(10, (chronoCibleEnvoi ?? c.cible ?? 30) + Number(b.dataset.pas)));
+    chronoCibleEnvoi = v;
+    render();
+    send("chrono_cible", { cible: v }, { advance: true }).then((r) => {
+      if (r?.status !== "applied" && chronoCibleEnvoi === v) { chronoCibleEnvoi = null; render(); }
+    });
+  };
+});
+$("chrono-reveler").onclick = () => {
+  send("chrono_reveal", {}, { advance: true }).then((r) => { if (r && r.status !== "applied") toast("Trop tôt : attendez que la cible soit passée."); });
+};
+$("chrono-stop").onclick = () => {
+  if (!chronoStopArme) {
+    chronoStopArme = setTimeout(() => { chronoStopArme = null; render(); }, 4000);
+    return render();
+  }
+  clearTimeout(chronoStopArme);
+  chronoStopArme = null;
+  send("chrono_stop", {}, { advance: true }).then((r) => { if (r?.status === "applied") toast("Tour arrêté, sans points : relancez quand les équipes sont prêtes."); });
+};
+$("chrono-fin").onclick = async () => {
+  const c = live.state?.chrono ?? {};
+  const restent = Math.max(0, (c.tours ?? 1) - (c.tour ?? 1) + (c.step === "result" ? 0 : 1));
+  const ok = await demander({
+    title: "Arrêter le Chrono de Buzzy ?",
+    text: restent ? `${restent} tour${restent > 1 ? "s" : ""} pas encore joué${restent > 1 ? "s" : ""}.` : "",
+    ok: "⏭ Jeu suivant",
+  });
+  if (ok && chronoEtape(live.state ?? {})) send("next", {}, { advance: true });
+};
+
+/**
  * Les coffres mystères : à qui le tour, combien de coffres sans danger, ce qui est sorti. Secours : ouvrir un coffre au
  * hasard pour l'équipe qui joue (deux appuis). Jamais de contenu à l'avance : il est tiré par la box à l'ouverture.
  */
@@ -3539,6 +3682,7 @@ function renderPreview() {
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
     if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; une équipe qui la garde plus de 2 secondes la voit exploser. À l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
     if (q.kind === "simon") { li.textContent = "Le robot prof montre une suite de boules qui s'allument ; un joueur de chaque équipe la retape sur sa tablette. Une erreur élimine l'équipe du tour."; list.appendChild(li); return; }
+    if (q.kind === "chrono") { li.textContent = `Le chrono part puis se cache sous le drap de Buzzy : chaque équipe buzze quand elle pense être à ${q.cible ?? 30} secondes. La plus proche gagne le tour.`; list.appendChild(li); return; }
     if (q.kind === "duel") { li.textContent = "Deux équipes face à face, un joueur de chaque : la première qui buzze après le PAN gagne, trop tôt elle perd."; list.appendChild(li); return; }
     if (q.kind === "gonfleur") { li.textContent = "Chaque équipe tapote sa tablette pour gonfler son ballon : le premier qui éclate gagne."; list.appendChild(li); return; }
     if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
@@ -3602,6 +3746,7 @@ const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer aux Coffres mys
 const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à « Ça va exploser ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_SIMON = "La TV doit être mise à jour pour jouer au Simon de Buzzy : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_CHRONO = "La TV doit être mise à jour pour jouer au Chrono de Buzzy : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DUEL = "La TV doit être mise à jour pour jouer au Duel des robots : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
@@ -3624,6 +3769,7 @@ function tvRefuses(questions) {
   if (live.plan.patate !== true && questions.some((q) => q?.kind === "patate")) return OLD_TV_PATATE;
   if (live.plan.duel !== true && questions.some((q) => q?.kind === "duel")) return OLD_TV_DUEL;
   if (live.plan.simon !== true && questions.some((q) => q?.kind === "simon")) return OLD_TV_SIMON;
+  if (live.plan.chrono !== true && questions.some((q) => q?.kind === "chrono")) return OLD_TV_CHRONO;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
   if (live.plan.blindPlay !== true && questions.some((q) => q?.kind === "blind")) return OLD_TV_BLIND;
   if (live.plan.blind !== true && questions.some((q) => q?.audioId)) return OLD_TV_BLIND;
@@ -4399,6 +4545,8 @@ $("c-next").onclick = async () => {
   if (duel) return duelPrincipal(duel, st);
   const simon = st ? simonEtape(st) : null;
   if (simon) return simonPrincipal(simon);
+  const chrono = st ? chronoEtape(st) : null;
+  if (chrono) return chronoPrincipal(chrono);
   if (statues && !statues.resultat) { $("statues-choisir").click(); return; }
   if (statues) { send("next", {}, { advance: true }); return; }
   // Blind test : « next » lance, relance ou arrête la musique (la box décide selon l'état du morceau).

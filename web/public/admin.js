@@ -20,7 +20,7 @@ import {
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
   questionsDuQuiz, ordreAvecCasesVides, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
-  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie, DUEL_JOUEURS, DUEL_DUREES, reglagesDuel, SIMON_TOURS, SIMON_REPONSES, reglagesSimon,
+  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie, DUEL_JOUEURS, DUEL_DUREES, reglagesDuel, SIMON_TOURS, SIMON_REPONSES, reglagesSimon, CHRONO_CIBLES, CHRONO_TOURS, reglagesChrono,
   DISPARU_CARTES, famillesPourLAge,
   pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX, leurresDeChanson, parolesDuHook,
 } from "./show.js";
@@ -3549,11 +3549,29 @@ function reglagesDuSimon(r) {
     h("span", { class: "hint small", text: "Rien d'autre à préparer : la suite s'allonge d'une boule à chaque fois (une seconde de plus pour taper au-delà de 4), un autre joueur de chaque équipe à chaque suite." }));
 }
 
+/**
+ * « ⏱️ Le Chrono de Buzzy » dans une prestation (cedric, 30/10) : rien à piocher ; la cible et le nombre de tours. Sarah
+ * peut changer la cible avant chaque tour sur son téléphone. Pour le rejouer, il suffit de le remettre dans la prestation.
+ */
+function reglagesDuChrono(r) {
+  const c = reglagesChrono(r);
+  Object.assign(r, c);
+  const choix = (classe, label, cle, valeurs, texte) => h("select", { class: `chrono-reglage ${classe}`, "aria-label": label, onchange: (e) => {
+    r[cle] = Number(e.target.value);
+    roundCtx.summary();
+    noterEcran();
+  } }, ...valeurs.map((n) => h("option", { value: n, selected: c[cle] === n, text: texte(n) })));
+  return h("div", { class: "grow picto-round chrono-reglages" },
+    choix("chrono-cible", "Cible en secondes", "cible", CHRONO_CIBLES, (n) => `Cible : ${n} secondes`),
+    choix("chrono-tours", "Nombre de tours", "tours", CHRONO_TOURS, (n) => `${n} tour${n > 1 ? "s" : ""} (un gagnant par tour)`),
+    h("span", { class: "hint small", text: "Rien d'autre à préparer : le chrono se cache à un moment au hasard (entre 6 et 12 s). Sur son téléphone, Sarah peut changer la cible avant chaque tour." }));
+}
+
 /** Jeux que « ＋ Ajouter un jeu » propose, par famille, dans l'ordre des tuiles de l'Accueil. */
 const jeuxProposes = () => GAME_GROUPS.map((g) => ({ title: g.title, games: g.games.filter((x) => ROUND_TYPES[x.type]) }));
 // Le « ? » de la tuile du Quiz devient ❓ hors de sa tuile (comme l'écran d'ouverture de la TV).
 const iconeJeu = (type) => (type === "quiz" ? "❓" : GAME_GROUPS.flatMap((g) => g.games).find((x) => x.type === type)?.icon ?? "");
-const SANS_CONTENU = ["coffres", "patate", "gonfleur", "duel", "simon"];
+const SANS_CONTENU = ["coffres", "patate", "gonfleur", "duel", "simon", "chrono"];
 
 /**
  * Prestation (cedric, 21/10) : on ajoute un JEU, puis ses manches. Un bloc = les manches qui se suivent du même jeu,
@@ -5087,6 +5105,8 @@ function roundFields(r) {
     ? reglagesDuDuel(r)
     : r.type === "simon"
     ? reglagesDuSimon(r)
+    : r.type === "chrono"
+    ? reglagesDuChrono(r)
     : MUSIC_GAMES[r.type]
     // Blind test, quiz musical : une playlist entière, ou des titres choisis un par un dans toutes les playlists.
     ? h("div", { class: "grow picto-round" },
@@ -5147,7 +5167,7 @@ function roundFields(r) {
         ...DISPARU_CARTES.map((n) => h("option", { value: n, selected: r.objects === n, text: `${n} cartes par tour` })))
       : null,
     // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
-    !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "duel" && r.type !== "simon" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
+    !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "duel" && r.type !== "simon" && r.type !== "chrono" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
       && !quiz
       ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Toutes les questions" }),
@@ -5306,7 +5326,7 @@ $("round-add-top").onclick = () => ouvrirChoixJeu("haut");
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
-  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate" || r.type === "duel" || r.type === "simon") return "";
+  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate" || r.type === "duel" || r.type === "simon" || r.type === "chrono") return "";
   if (r.type === "mimes") return mimeEquipes(r).some((l) => l.length) ? mancheSummary(r, { mimes }) : r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
   if (roundTirees(r).length || roundSeriesQuiz(r).length) return mancheSummary(r, { quizzes });
@@ -10730,6 +10750,7 @@ const GAME_GROUPS = [
     { type: "patate", icon: "💣", rule: "La bombe peut exploser à tout moment ! Elle passe d'équipe en équipe : sur sa tablette, l'équipe qui la tient choisit à qui l'envoyer (jamais tout de suite à l'équipe qui vient de l'envoyer, sauf à 2 équipes ; on ne peut la renvoyer que 2 secondes après l'avoir reçue). La mèche, tirée au sort, reste secrète : à chaque explosion, l'équipe qui tient la bombe perd 100 points (jamais sous 0), toutes les autres en gagnent 100. Trois bombes par partie d'office, de 1 à 6 à régler dans la prestation : après chaque explosion, une nouvelle mèche s'allume." },
     { type: "duel", icon: "🤠", rule: "Face-à-face entre un joueur de deux équipes, chacun sur sa tablette : la tension monte, les robots feintent… puis PAN ! Le premier qui tire après le PAN gagne 100 points ; celui qui tire trop tôt perd. L'appli fait passer chaque joueur une fois ; Sarah peut lancer un duel de plus depuis son téléphone." },
     { type: "simon", icon: "🔴", rule: "Le robot prof montre au tableau une suite de boules de couleur qui s'allument une à une, chacune avec sa note. À chaque suite, il en ajoute une. Dès 4 éléments, les chiffres débarquent (rouge vert bleu 4 jaune…). Sur sa tablette, un joueur de chaque équipe (un autre à chaque suite) tape la suite puis « Valider ». La TV montre en direct ce que chaque équipe tape, en « ? ». Une erreur élimine l'équipe du tour, la dernière en jeu gagne le tour (300 points). Si toutes se trompent sur la même suite, la plus avancée gagne, à égalité la plus rapide." },
+    { type: "chrono", icon: "⏱️", rule: "Le grand chrono de la TV part de 0… puis Buzzy le cache sous un drap ! Chaque équipe continue de compter dans sa tête et buzze une seule fois, quand elle pense être pile à la cible (30 secondes par exemple). La révélation montre la cible et l'écart de chaque équipe : la plus proche gagne le tour : 100 points, 50 pour la 2e, 25 pour la 3e. Sarah peut changer la cible avant chaque tour sur son téléphone." },
     { type: "gonfleur", icon: "🎈", rule: "Chaque équipe tapote sa tablette le plus vite possible pour gonfler son ballon sur la TV ; on peut se relayer. Le premier ballon qui éclate gagne 300 points, les autres équipes 150. Depuis la régie, « Arrêter la course » donne la victoire au plus gros ballon." },
   ] },
 ];
