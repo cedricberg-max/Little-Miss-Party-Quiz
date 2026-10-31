@@ -200,7 +200,12 @@ fun PlaqueAppel(genre: GenrePlaque, mot: String, ligne: String, modifier: Modifi
                 }
                 .padding(start = (s.marges[3] * u).dp, top = (s.marges[0] * u).dp, end = (s.marges[1] * u).dp, bottom = (s.marges[2] * u).dp),
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Gonfleur : seule la plaque s'écrase, les lettres gardent leurs proportions (un texte déformé passerait pour
+            // un texte rogné dans le tour des écrans, et il se lit mieux droit).
+            Column(
+                Modifier.graphicsLayer { if (genre == GenrePlaque.GONFLEUR) { scaleX = 1f / (1f + 0.03f * ecrase); scaleY = 1f / (1f - 0.06f * ecrase) } },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
                     if (genre == GenrePlaque.BLIND) { Egaliseur(boucle, u); Spacer(Modifier.width((14 * u).dp)) }
                     Text(

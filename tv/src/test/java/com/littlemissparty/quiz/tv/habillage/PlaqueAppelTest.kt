@@ -76,4 +76,11 @@ class PlaqueAppelTest {
         assertEquals(1.07f, AGRANDI_ENSEIGNE)
         assertTrue(source("habillage/QuiSuisGs.kt").contains("fontSize = 46.sp * AGRANDI_ENSEIGNE"))
     }
+
+    @Test
+    fun `Gonfleur - la plaque s'ecrase, les lettres restent droites`() {
+        val plaque = source("habillage/PlaqueAppel.kt")
+        assertTrue(plaque.contains("GenrePlaque.GONFLEUR -> { scaleX = 1f + 0.03f * ecrase; scaleY = 1f - 0.06f * ecrase }"))
+        assertTrue(plaque.contains("scaleX = 1f / (1f + 0.03f * ecrase); scaleY = 1f / (1f - 0.06f * ecrase)"))
+    }
 }
