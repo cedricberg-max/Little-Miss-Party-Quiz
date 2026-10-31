@@ -248,7 +248,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, 
         TabletteDialog(state, onClose = actions.hideTablette, onConfier = actions.confierTablette)
     }
     if (update != null && update.open) {
-        UpdateDialog(update.ui, busy = gameInProgress(state), actions = update.actions)
+        UpdateDialog(update.ui, busy = manualUpdateBlocked(state), actions = update.actions)
     } else if (update?.offer != null && !gameInProgress(state) && !confirmQuit && !pointsOpen && !cacheOpen && !(state is UiState.Playing && (state.showRegie || state.showTablette))) {
         // La proposition attend le retour à l'accueil : jamais par-dessus une partie ou une autre fenêtre.
         UpdateOfferDialog(update.offer, update.actions)

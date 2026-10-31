@@ -62,6 +62,14 @@ fun gameInProgress(state: UiState): Boolean = state is UiState.ResumeOffer || st
         else -> true
     })
 
+/**
+ * « Rechercher une mise à jour » demandé à la main : refusé seulement pendant une prestation en route (une question
+ * jouée, des scores…), jamais au salon, même avec des équipes déjà là, ni sur l'écran « Reprendre » (cedric, 31/10 :
+ * une page fantôme restée ouverte rejoignait chaque nouvelle partie, et la box refusait la mise à jour).
+ */
+fun manualUpdateBlocked(state: UiState): Boolean =
+    state is UiState.Playing && state.phase != com.littlemissparty.quiz.engine.Phase.LOBBY && state.phase != com.littlemissparty.quiz.engine.Phase.ENDED
+
 private fun mb(bytes: Long) = String.format(Locale.FRANCE, "%.1f Mo", bytes / 1_048_576.0)
 
 /** Fenêtre « Rechercher une mise à jour », entièrement utilisable à la télécommande. */
