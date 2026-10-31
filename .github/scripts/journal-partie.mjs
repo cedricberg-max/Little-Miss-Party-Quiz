@@ -15,8 +15,16 @@ if (!/^[A-Z0-9]{4,6}$/.test(code)) {
   const codes = Object.keys((await get("games", "&shallow=true")) ?? {});
   const vus = await Promise.all(codes.map(async (c) => [c, (await get(`games/${c}/hostOnline/at`)) ?? 0]));
   vus.sort((a, b) => b[1] - a[1]);
-  console.log(`${codes.length} parties ; les plus récentes : ${vus.slice(0, 4).map(([c, at]) => `${c} (${new Date(at).toISOString()})`).join(", ")}`);
+  console.log(`${codes.length} parties ; les plus récentes : ${vus.slice(0, 6).map(([c, at]) => `${c} (${new Date(at).toISOString()})`).join(", ")}`);
   code = vus[0]?.[0];
+  // Avec une fenêtre d'heures : la plus récente des 10 dernières parties qui a des événements dans cette fenêtre.
+  if (process.env.FENETRE) {
+    for (const [c] of vus.slice(0, 10)) {
+      const l = Object.values((await get(`games/${c}/log`)) ?? {});
+      const [d1, d2] = process.env.FENETRE.split("-").map((x) => x.trim());
+      if (l.some((e) => typeof e?.at === "number" && (() => { const h = new Date(e.at).toISOString().slice(11, 16); return h >= d1 && h <= d2; })())) { code = c; break; }
+    }
+  }
 }
 console.log(`Partie ${code}`);
 console.log(`Branches : ${Object.keys((await get(`games/${code}`, "&shallow=true")) ?? {}).join(", ")}`);
@@ -58,7 +66,7 @@ console.log(`\n== Buzz écrits dans la base (${lignes.length}) ==`);
 for (const [round, b] of lignes) console.log(`${heure(b.at)}  tour ${round}  ${eq(b.team)}  ${JSON.stringify(propre("", { ...b, at: undefined, team: undefined }))}`);
 
 // Présences (box, régie, tablettes) : dernières heures vues.
-for (const p of ["hostOnline", "regieOnline", "regie", "presence", "online"]) {
+for (const p of ["hostOnline", "regieOnline", "regiePresence", "regieActive", "regie", "presence", "online", "state/leftAt", "state/suite"]) {
   const v = await get(`games/${code}/${p}`);
   if (v != null) console.log(`\n== ${p} ==\n${JSON.stringify(propre(p, v)).slice(0, 2000)}`);
 }
