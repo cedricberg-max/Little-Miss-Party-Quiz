@@ -46,26 +46,18 @@ body.look-gs:not(.regie-mode) .tablet-num {
   text-shadow: 0 0 4px #fff, 0 0 18px var(--gs-rose), 0 0 40px var(--gs-rose), 0 0 4px rgba(5, 1, 13, .9);
 }
 
-/* Bouton (A, néon) : un tube de lumière cyan autour, le texte blanc qui brille. */
 body.look-gs:not(.regie-mode) .btn {
-  font-family: "GS Orbitron"; font-weight: 800; font-size: 20px; letter-spacing: 1px; color: #fff;
-  background: radial-gradient(ellipse at 50% 0%, rgba(0, 240, 255, .28), rgba(0, 240, 255, .06) 70%);
-  border: 3px solid #bffcff; border-radius: 999px;
-  box-shadow: 0 0 6px #00f0ff, 0 0 22px rgba(0, 240, 255, .75), inset 0 0 6px #00f0ff, inset 0 0 22px rgba(0, 240, 255, .4);
-  text-shadow: 0 0 6px #00f0ff, 0 0 2px rgba(5, 1, 13, .9);
-  transition: transform .08s;
+  font-family: "GS Orbitron"; font-weight: 800; font-size: 20px; letter-spacing: 1px; transition: transform .08s, box-shadow .08s;
 }
 body.look-gs:not(.regie-mode) .btn.big { font-size: 22px; padding: 18px 38px; }
-body.look-gs:not(.regie-mode) .btn:active { transform: scale(.95); }
-
-/* Bouton (B, bonbon) : bouton de jeu bombé rose-orange, lumière sur le dessus. */
-body.look-gs.tg-btn-b:not(.regie-mode) .btn {
+/* Boutons (choix B de cedric, 31/10) : bouton de jeu bombé rose-orange, lumière sur le dessus. */
+body.look-gs:not(.regie-mode) .btn {
   border: 0; color: #fff;
   background: linear-gradient(180deg, #ff7ac0 0%, #ff2d95 45%, #ff6b1a 100%);
   box-shadow: 0 6px 0 #a3105a, 0 10px 26px rgba(255, 45, 149, .55), inset 0 2px 0 rgba(255, 255, 255, .7), inset 0 -4px 10px rgba(120, 0, 60, .35);
   text-shadow: 0 2px 0 rgba(120, 0, 60, .6);
 }
-body.look-gs.tg-btn-b:not(.regie-mode) .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #a3105a, 0 4px 14px rgba(255, 45, 149, .5), inset 0 2px 0 rgba(255, 255, 255, .7); }
+body.look-gs:not(.regie-mode) .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #a3105a, 0 4px 14px rgba(255, 45, 149, .5), inset 0 2px 0 rgba(255, 255, 255, .7); }
 
 /* Paysage : Buzzy et le logo à gauche (même place qu'avant), la consigne et le bouton à droite. */
 @media (orientation: landscape) and (min-width: 600px) {
@@ -90,32 +82,3 @@ body.look-gs:not(.regie-mode) #app .logo .gs-the { font-size: clamp(26px, 4.4vh,
 body.look-gs:not(.regie-mode) #app .logo .gs-titre { font-size: clamp(44px, min(12vw, 8vh), 84px); letter-spacing: 0; }
 body.look-gs:not(.regie-mode) #app .logo .gs-by { font-size: clamp(17px, 2.6vh, 24px); letter-spacing: 1px; padding-left: 1px; }
 body.look-gs:not(.regie-mode) #app .logo.small { font-size: clamp(34px, 7vw, 56px); letter-spacing: 1px; }
-
-/* ---------- Écran 2 : le buzzer ---------- */
-/* Nom de l'équipe : plus de pastille sombre ; le nom brille dans la couleur de l'équipe, posé sur le décor, avec
-   une boule de lumière de sa couleur devant. */
-body.look-gs:not(.regie-mode) .team-banner {
-  background: none; border: 0; box-shadow: none; padding: 4px 8px; max-width: 100%;
-  font-family: "GS Bungee"; font-weight: 400; letter-spacing: .5px; line-height: 1.1;
-  color: color-mix(in srgb, var(--team) 35%, #fff);
-  text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 4px #fff, 0 0 16px var(--team), 0 0 36px var(--team);
-}
-body.look-gs:not(.regie-mode) .team-banner .team-label { overflow-wrap: anywhere; }
-body.look-gs:not(.regie-mode) .team-banner .dot {
-  flex: none; background: radial-gradient(circle at 35% 30%, #fff 0 12%, color-mix(in srgb, var(--team) 55%, #fff) 30%, var(--team) 70%);
-  box-shadow: 0 0 10px var(--team), 0 0 24px var(--team);
-}
-/* « Regardez la TV ! » : blanc, un peu plus grand, halo. */
-body.look-gs:not(.regie-mode) #play-status:not(.fete) { font-size: clamp(22px, 3.2vh, 32px); }
-
-/* « Prochain jeu » : plus de cadre ; Buzzy présente le jeu, le titre brille en rose néon. */
-body.look-gs:not(.regie-mode) .intro-jeu {
-  background: none; box-shadow: none; border: 0; padding: 0 8px; animation: tg-intro 2.6s ease-in-out infinite alternate;
-}
-body.look-gs:not(.regie-mode) .intro-jeu::before {
-  content: ""; display: block; align-self: center; width: clamp(110px, 22vh, 220px); aspect-ratio: 471 / 520; margin-bottom: 6px;
-  background: url(img/gs/buzzy-salut.webp) center / contain no-repeat; filter: drop-shadow(0 0 22px rgba(0, 240, 255, .35));
-}
-@keyframes tg-intro { to { transform: scale(1.04); } }
-body.look-gs:not(.regie-mode) .intro-jeu-label { color: #bffcff; text-shadow: var(--tg-halo), 0 0 14px var(--gs-cyan); }
-body.look-gs:not(.regie-mode) .intro-jeu-titre { color: #ffe3f1; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 22px var(--gs-rose), 0 0 44px var(--gs-rose); }
