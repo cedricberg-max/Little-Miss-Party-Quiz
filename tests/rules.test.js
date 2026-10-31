@@ -594,7 +594,8 @@ describe("régie", () => {
     await assertFails(command(REGIE, { type: "goto", index: 0, qid: 12 }));
     // Dernières questions du quiz : ×2, ×3, ×4 ou ×5 seulement (×4 : cedric, 31/10).
     await assertFails(command(REGIE, { type: "factor", factor: 6 }));
-    await assertSucceeds(command(REGIE, { type: "factor", factor: 4 }));
+    // Une commande ne se réécrit pas : le ×4 passe sous un autre nom que le ×3 plus bas.
+    await assertSucceeds(set(ref(db(REGIE), `games/${CODE}/commands/c-${REGIE}-factor4`), { type: "factor", factor: 4, expectSeq: 3, by: REGIE, at: serverTimestamp() }));
     await assertFails(command(REGIE, { type: "factor", factor: "5" }));
     await assertSucceeds(command(REGIE, { type: "factor", factor: 3 }));
     // L'ancien jeu des portes est supprimé (31/10) : sa commande est refusée.
