@@ -30,4 +30,13 @@ class UneLigneQuiTientTest {
             assertFalse(chemin, apres.substringBefore("\n                }").contains("Ellipsis"))
         }
     }
+
+    @Test
+    fun `NomUneLigne ne finit jamais par des points de suspension`() {
+        // Tour des écrans à 4 équipes (31/10, Statues) : « Les Comètes Fila… » dans une tuile BRAVO.
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/LaParole.kt").readText()
+        val corps = source.substringAfter("internal fun NomUneLigne(").substringBefore("\n}\n")
+        assertTrue(corps.contains("UneLigneQuiTient("))
+        assertFalse(corps.contains("Ellipsis"))
+    }
 }
