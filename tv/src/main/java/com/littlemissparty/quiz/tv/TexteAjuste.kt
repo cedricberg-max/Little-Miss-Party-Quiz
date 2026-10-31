@@ -16,11 +16,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.tv.habillage.TexteJauge
 
 /**
  * Texte qui tient toujours dans sa place (règle 10) : sa taille baisse, de [max] jusqu'à [min] au plus, tant qu'un mot
  * dépasse la largeur, que le texte prend plus de [lignes] lignes ou qu'il dépasse la hauteur. Jamais un mot coupé en
- * deux (« Téléphériqu / e », test du 25/10 au soir) ni une phrase rognée en bas.
+ * deux (« Téléphériqu / e », test du 25/10 au soir) ni une phrase rognée en bas. [uneLigneJusqua] : le texte reste sur
+ * une ligne tant qu'il y tient à cette taille au moins, puis passe à [lignes] lignes.
  */
 @Composable
 fun TexteAjuste(
@@ -32,24 +34,35 @@ fun TexteAjuste(
     lignes: Int = 2,
     fontWeight: FontWeight = FontWeight.Black,
     textAlign: TextAlign = TextAlign.Center,
+    uneLigneJusqua: TextUnit? = null,
+    jauge: Boolean = false,
 ) {
     val style = LocalTextStyle.current.merge(TextStyle(fontWeight = fontWeight, textAlign = textAlign))
     val mesure = rememberTextMeasurer()
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val largeur = constraints.maxWidth
         val hauteur = constraints.maxHeight
-        val taille = remember(texte, largeur, hauteur, max, min, lignes, style) {
-            tailleQuiTient(max.value, min.value) { t ->
+        val taille = remember(texte, largeur, hauteur, max, min, lignes, style, uneLigneJusqua) {
+            fun tient(t: Float, n: Int): Boolean {
                 val st = style.copy(fontSize = t.sp, lineHeight = (t * 1.12f).sp)
                 val motsTiennent = texte.split(' ', ' ', '\n').filter { it.isNotEmpty() }.all { mot ->
                     mesure.measure(mot, st, maxLines = 1, softWrap = false).size.width <= largeur
                 }
-                motsTiennent && mesure.measure(texte, st, constraints = Constraints(maxWidth = largeur)).let {
-                    it.lineCount <= lignes && (hauteur == Constraints.Infinity || it.size.height <= hauteur)
+                return motsTiennent && mesure.measure(texte, st, constraints = Constraints(maxWidth = largeur)).let {
+                    it.lineCount <= n && (hauteur == Constraints.Infinity || it.size.height <= hauteur)
                 }
             }
+            // Sur une seule ligne tant qu'elle reste assez grande (« Fantôme 5 a / buzzé ! » coupé en deux, 30/10).
+            val seule = uneLigneJusqua?.value?.coerceAtLeast(min.value)
+            if (seule != null && tient(seule, 1)) tailleQuiTient(max.value, seule) { tient(it, 1) }
+            else tailleQuiTient(max.value, min.value) { tient(it, lignes) }
         }
-        Text(
+        // [jauge] : contour néon et ombre « comme les jauges » (Game Show, choix B du 31/10), même place, même taille.
+        if (jauge) TexteJauge(
+            texte, color = color, style = style, fontSize = taille.sp, lineHeight = (taille * 1.12f).sp,
+            maxLines = lignes, overflow = TextOverflow.Ellipsis,
+        )
+        else Text(
             texte, color = color, style = style, fontSize = taille.sp, lineHeight = (taille * 1.12f).sp,
             maxLines = lignes, overflow = TextOverflow.Ellipsis,
         )

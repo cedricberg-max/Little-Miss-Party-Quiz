@@ -109,15 +109,26 @@ internal fun RevelationNeon(
         // Place pour le mot : la marge absorbe le rebond (×1,1) sans jamais sortir du panneau.
         val margeH = with(LocalDensity.current) { TUBE_MARGE_H.toPx() * 2 }
         val margeV = with(LocalDensity.current) { TUBE_MARGE_V.toPx() * 2 }
-        val tailleMot = remember(mot, largeur, hauteur) {
-            mesure.tailleQuiTient(
-                mot, styleNeon(PoliceGsTitre), MOT_MAX, MOT_MIN, (largeur * 0.84f - margeH).toInt(), (hauteur * 0.38f - margeV).toInt(), 2,
-            )
-        }
+        val densite = LocalDensity.current
         val lignesPhrase = if (avecMot) 2 else 3
-        val taillePhrase = remember(phrase, largeur, hauteur, avecMot) {
-            if (avecMot) mesure.tailleQuiTient(phrase, styleNeon(PoliceGsTitre), PHRASE_MAX, PHRASE_MIN, (largeur * 0.92f).toInt(), (hauteur * 0.26f).toInt(), 2)
-            else mesure.tailleQuiTient(phrase, styleNeon(PoliceGsTitre), PHRASE_SEULE_MAX, PHRASE_MIN, (largeur * 0.88f).toInt(), (hauteur * 0.7f).toInt(), 3)
+        // Le mot et la phrase se partagent la hauteur : le mot cède de la place tant que la phrase ne tient pas en
+        // entier (test du 30/10, 8 équipes : « PERSONNE N'A TROUVÉ, CE N'EST » coupé en bas du panneau).
+        val (tailleMot, taillePhrase) = remember(mot, phrase, largeur, hauteur, avecMot, densite.density) {
+            if (!avecMot) {
+                0f to mesure.tailleQuiTient(phrase, styleNeon(PoliceGsTitre), PHRASE_SEULE_MAX, PHRASE_MIN, (largeur * 0.88f).toInt(), (hauteur * 0.7f).toInt(), 3)
+            } else {
+                val fixe = with(densite) { (22.sp.toPx() * 1.4f) + (10 + 12 + 10 + 16).dp.toPx() }
+                partageMotPhrase(hauteur, fixe) { partMot ->
+                    val tm = mesure.tailleQuiTient(
+                        mot, styleNeon(PoliceGsTitre), MOT_MAX, MOT_MIN, (largeur * 0.84f - margeH).toInt(), (hauteur * partMot - margeV).toInt(), 2,
+                    )
+                    // Le rebond du mot (× 1,1) garde sa place.
+                    val hMot = mesure.measure(mot, styleMot(tm, Color.White), constraints = Constraints(maxWidth = (largeur * 0.84f - margeH).toInt().coerceAtLeast(1))).size.height * 1.1f + margeV
+                    val reste = (hauteur - fixe - hMot).toInt()
+                    val tp = mesure.tailleQuiTient(phrase, styleNeon(PoliceGsTitre), PHRASE_MAX, PHRASE_MIN, (largeur * 0.92f).toInt(), reste, 2)
+                    Triple(tm, tp, mesure.tient(phrase, styleNeon(PoliceGsTitre), tp, (largeur * 0.92f).toInt(), reste, 2))
+                }
+            }
         }
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             if (avecMot) {
@@ -168,7 +179,8 @@ internal fun RevelationNeon(
                 }
                 Spacer(Modifier.height(16.dp))
             }
-            Box(Modifier.fillMaxWidth().apparition(if (avecMot) 450 else 0, cle), contentAlignment = Alignment.Center) {
+            // Filigrane A derrière la phrase : elle est posée sur le décor (cedric, 30/10).
+            Box(Modifier.fillMaxWidth().apparition(if (avecMot) 450 else 0, cle).filigraneGs(10f), contentAlignment = Alignment.Center) {
                 if (!avecMot) Etincelles({ t }, { 1f }, Modifier.matchParentSize())
                 TexteNeon(phrase, taillePhrase, teinte.copy(alpha = 0.85f), taillePhrase * 0.45f, teinte, lignesPhrase, Modifier.clearAndSetSemantics {})
                 TexteNeon(phrase, taillePhrase, Color.White, taillePhrase * 0.1f, teinte, lignesPhrase)
@@ -201,6 +213,31 @@ private fun TexteNeon(texte: String, taille: Float, couleur: Color, flou: Float,
             color = couleur, fontSize = taille.sp, lineHeight = (taille * 1.08f).sp, shadow = Shadow(lueur, Offset.Zero, flou),
         ),
     )
+}
+
+/**
+ * Part de la hauteur laissée au mot : de 38 % à 16 %, la plus grande où la phrase tient encore en entier dessous.
+ * [essai] rend (taille du mot, taille de la phrase, la phrase tient) pour une part donnée.
+ */
+internal fun partageMotPhrase(hauteur: Int, fixe: Float, essai: (Float) -> Triple<Float, Float, Boolean>): Pair<Float, Float> {
+    var part = PART_MOT_MAX
+    while (true) {
+        val (tm, tp, tient) = essai(part)
+        if (tient || part <= PART_MOT_MIN + 1e-3f || hauteur <= fixe) return tm to tp
+        part -= 0.02f
+    }
+}
+
+internal const val PART_MOT_MAX = 0.38f
+internal const val PART_MOT_MIN = 0.16f
+
+/** Le texte tient-il en entier à [taille] dans [largeur] × [hauteur] pixels, en [lignes] lignes au plus, sans mot coupé ? */
+private fun TextMeasurer.tient(texte: String, style: TextStyle, taille: Float, largeur: Int, hauteur: Int, lignes: Int): Boolean {
+    if (largeur <= 0 || hauteur <= 0) return false
+    val st = style.copy(fontSize = taille.sp, lineHeight = (taille * 1.08f).sp)
+    if (texte.split(' ').filter { it.isNotBlank() }.any { measure(it, st, softWrap = false, maxLines = 1).size.width > largeur }) return false
+    val r = measure(texte, st, constraints = Constraints(maxWidth = largeur))
+    return r.lineCount <= lignes && r.size.height <= hauteur
 }
 
 /**

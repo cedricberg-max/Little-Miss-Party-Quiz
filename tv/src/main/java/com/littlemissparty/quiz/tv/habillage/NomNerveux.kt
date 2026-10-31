@@ -313,6 +313,18 @@ internal fun DrawScope.filigrane(zone: Rect, part: Float) {
     drawIntoCanvas { it.nativeCanvas.drawRoundRect(zone.left, zone.top, zone.right, zone.bottom, r, r, p) }
 }
 
+/**
+ * Filigrane A derrière un groupe de textes, en Game Show seulement : [marge] dp de plus de chaque côté (cedric, 30/10 :
+ * les textes des panneaux de jeu se confondaient avec le décor). Rien en design classique.
+ */
+internal fun Modifier.filigraneGs(marge: Float = FILIGRANE_PANNEAU_MARGE_DP): Modifier = if (!Look.gs) this else drawBehind {
+    val m = marge.dp.toPx()
+    filigrane(Rect(-m, -m, size.width + m, size.height + m), 1f)
+}
+
+/** Marge du filigrane autour des textes d'un panneau de jeu (dp) : il reste dans le panneau. */
+internal const val FILIGRANE_PANNEAU_MARGE_DP = 20f
+
 /** Peinture et flou du filigrane, faits une fois (fil principal seulement). */
 private var peintureFiligrane: android.graphics.Paint? = null
 private var flouFiligrane = -1f

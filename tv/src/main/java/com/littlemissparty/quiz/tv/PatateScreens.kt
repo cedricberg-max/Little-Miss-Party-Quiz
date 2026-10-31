@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,6 +25,9 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.POTATO_BOOM_MS
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.AnnonceBombe
+import com.littlemissparty.quiz.tv.habillage.GenrePlaque
+import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.PlaqueAppel
 import com.littlemissparty.quiz.tv.habillage.MusiquePatate
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.ScenePatate
@@ -91,8 +95,12 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
+            // Game Show : l'onglet rayé jaune et noir validé par cedric le 31/10 à 11:12, pour les trois appels de la bombe.
+            val appel = if (Look.gs && p != null && !explosion && !revele) appelBombe(annonce, secondes) else null
+            Row(Modifier.fillMaxWidth().height(if (appel != null) 84.dp else 64.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (appel != null) Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    PlaqueAppel(GenrePlaque.BOMBE, appel.first, appel.second)
+                } else Text(
                     when {
                         p == null -> ""
                         explosion && boom?.held == true -> "Gardée plus de 2 secondes ! Toutes les autres équipes gagnent ${boom?.gain ?: 0} points !"
@@ -126,4 +134,11 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
         }
         if (annonce) key(p?.bomb) { AnnonceBombe(p!!.bomb, p.total, Modifier.fillMaxSize()) }
     }
+}
+
+/** Game Show : le mot et la petite ligne de l'onglet de la bombe (nouvelle bombe, compte à rebours, sinon l'appel). */
+internal fun appelBombe(annonce: Boolean, secondes: Long?): Pair<String, String> = when {
+    annonce -> "ATTENTION !" to "une nouvelle bombe arrive"
+    secondes != null -> "VITE !" to "envoyez la bombe ! Elle explose dans $secondes…"
+    else -> "VITE !" to "envoyez la bombe à une autre équipe sur votre tablette"
 }

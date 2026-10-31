@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.ChronoResult
+import com.littlemissparty.quiz.engine.ChronoBuzz
 import com.littlemissparty.quiz.engine.ChronoRound
 import com.littlemissparty.quiz.engine.centiemes
 import com.littlemissparty.quiz.tv.habillage.EchelleSansCoupe
@@ -130,7 +131,7 @@ fun ChronoScreen(state: UiState.Playing, actions: TvActions) {
         withFrameNanos { }
         actions.chronoShown()
     }
-    ChronoSons(c, ecoule, maintenant)
+    ChronoSons(c, ecoule, maintenant, state.teams.map { it.uid })
     val depuisResultat by produceState(0L, c?.result?.at, decalage) {
         val at = c?.result?.at ?: return@produceState
         while (true) {
@@ -207,11 +208,11 @@ internal fun sonsRevelation(ecarts: Map<String, Long>, winners: List<String>): L
 
 /**
  * Le son du chrono, image par image : 3, 2, 1 (bips), le départ, puis le tic-tac une fois par seconde tant qu'on voit
- * le chrono (le tempo à garder en tête), plus rien quand le drap tombe (son lancer, le fantôme) ; un petit « tok »
- * à chaque buzz ; à la révélation, [sonsRevelation]. Un son déjà passé de plus de 300 ms n'est jamais joué en retard.
+ * le chrono (le tempo à garder en tête), plus rien quand le drap tombe (son lancer, le fantôme) ; à chaque buzz, le
+ * mot Daft Punk de l'équipe, comme dans tous les jeux au buzzer (cedric, 31/10) ; à la révélation, [sonsRevelation]. Un son déjà passé de plus de 300 ms n'est jamais joué en retard.
  */
 @Composable
-private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long) {
+private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long, equipes: List<String>) {
     val cache = c?.cacheMs
     val seconde = if (ecoule == Long.MIN_VALUE || c?.enCours != true) null else Math.floorDiv(ecoule, 1_000L)
     LaunchedEffect(seconde) {
@@ -228,7 +229,7 @@ private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long) {
     val buzz = c?.buzzes?.size ?: 0
     val vus = remember(c?.goAt) { mutableIntStateOf(buzz) }
     LaunchedEffect(buzz) {
-        if (buzz > vus.intValue && c?.enCours == true) jouerChrono(Son.CHRONO_BUZZ)
+        if (buzz > vus.intValue && c?.enCours == true) sonsNouveauxBuzz(c.buzzes, vus.intValue, equipes).forEach { jouerChrono(it) }
         vus.intValue = buzz
     }
     val r = c?.result
@@ -242,6 +243,13 @@ private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long) {
         }
     }
 }
+
+/**
+ * Les buzz arrivés depuis [vus] : le mot de chaque équipe (sa place dans la partie, le même que sur sa tablette et dans
+ * les autres jeux au buzzer, cedric 31/10). Une équipe introuvable garde le petit « tok » du chrono.
+ */
+internal fun sonsNouveauxBuzz(buzzes: List<ChronoBuzz>, vus: Int, equipes: List<String>): List<Son> =
+    buzzes.drop(vus.coerceAtLeast(0)).map { b -> equipes.indexOf(b.team).let { if (it >= 0) Son.equipe(it) else Son.CHRONO_BUZZ } }
 
 private fun jouerChrono(son: Son, vitesse: Float = 1f) = Sons.executer(listOf(Ordre.Jouer(son, vitesse = vitesse)))
 

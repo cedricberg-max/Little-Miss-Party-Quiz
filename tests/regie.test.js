@@ -1034,7 +1034,7 @@ describe("régie", () => {
   });
 
   for (const [width, height] of [[360, 640], [390, 780]]) {
-    test(`petit téléphone ${width}×${height} : pendant un buzz en pause automatique, Reprendre, le bouton principal et le verdict restent à l'écran`, async () => {
+    test(`petit téléphone ${width}×${height} : pendant un buzz, en pause puis reprise, Reprendre, le bouton principal et le verdict restent à l'écran`, async () => {
       box = startBox();
       await addTeam("rose", "Les Roses", "#FFE600");
       await addTeam("bleu", "Les Bleus");
@@ -1048,6 +1048,8 @@ describe("régie", () => {
       const page = await openRegie(context);
       await pair(page);
       await inRegie(page);
+      // Le téléphone signale sa présence : la box compte ses coupures dans ses rapports (cedric, 30/10).
+      await waitFor(async () => Object.values((await get(gameRef("regiePresence"))).val() ?? {}).some((p) => p.online === true), "présence du téléphone");
       await page.locator("#c-hold", { hasText: "Les Bleus" }).waitFor();
       await page.locator("#flou-judge:not([hidden])").waitFor();
       // Chaque bouton du bas est entièrement dans l'écran et c'est bien lui qu'un doigt touche.
@@ -1066,6 +1068,12 @@ describe("régie", () => {
       // réponse » sont entièrement dans l'écran sans rien faire défiler, même sous le bandeau des tablettes coupées,
       // et y restent quand Sarah fait défiler la régie.
       await page.locator("#r-alerte", { hasText: "Les Bleus" }).waitFor({ timeout: 8000 });
+      // En pause (test du 30/10 au soir) : le verdict attend la reprise, « Reprendre » d'abord, à portée de doigt.
+      await page.locator("#flou-info", { hasText: "appuyez sur « Reprendre », puis jugez la réponse de Les Roses" }).waitFor();
+      await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
+      await waitFor(async () => (await commands()).some((c) => c.type === "resume"), "reprise envoyée");
+      // Partie reprise, tablette des Bleus toujours coupée : le verdict en plein écran au-dessus des commandes.
+      await box.set({ paused: false, pauseReason: null, pauseTeam: null });
       await page.locator("#flou-info", { hasText: "Les Roses a buzzé ! Réponse attendue : une chanson avec le mot « roi »" }).waitFor();
       assert.equal(await page.locator("#flou-info .buzz-nom-couleur").textContent(), "JAUNE");
       // La réponse attendue sur sa propre ligne, en gros, dans le même cadre que la couleur et le verdict (cedric, 24/10).
@@ -1087,8 +1095,6 @@ describe("régie", () => {
       // Fine bande : bien moins haute que l'ancien gros carré jaune.
       assert.ok((await page.locator("#flou-info").boundingBox()).height <= 100, "bande de l'équipe fine (le gros carré jaune faisait 150 px)");
       await capture(page, `verdict-buzz-${width}x${height}`);
-      await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
-      await waitFor(async () => (await commands()).some((c) => c.type === "resume"), "reprise envoyée");
       await page.context().close();
     });
   }
@@ -1217,6 +1223,16 @@ describe("régie", () => {
     await capture(page, "cockpit-buzz-360x640", { pleinePage: false });
     await page.setViewportSize({ width: 390, height: 780 });
     await capture(page, "cockpit-buzz-390x780", { pleinePage: false });
+    // Une tablette décroche pendant la réponse orale (test du 30/10 au soir) : en pause, le verdict quitte le plein écran,
+    // « Reprendre » est à portée de doigt ; une fois la partie reprise, le verdict revient en plein écran.
+    await box.set({ paused: true, pauseReason: "team", pauseTeam: "bleu" });
+    await page.locator("#flou-verdict:not(.en-bas)").waitFor({ state: "attached" });
+    await page.locator("#flou-info", { hasText: "appuyez sur « Reprendre »" }).waitFor();
+    await page.locator("#c-pause", { hasText: "Reprendre" }).waitFor();
+    assert.ok(await dansLEcran("c-pause"), "« Reprendre » visible pendant la pause");
+    await capture(page, "cockpit-buzz-en-pause-390x780", { pleinePage: false });
+    await box.set({ paused: false, pauseReason: null, pauseTeam: null });
+    await page.locator("#flou-verdict.en-bas").waitFor();
     // Verdict : le bandeau de 2 s le confirme, la scène revient seule.
     await page.click("#flou-ko");
     await page.locator("#c-flash.mauvaise", { hasText: "✕ Mauvaise réponse · Les Roses" }).waitFor();
@@ -1832,11 +1848,11 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  /** Simon du Prof : la box publie state.simon (contrat du 27/10 au soir) ; la suite secrète n'y est jamais avant le bilan. */
+  /** Simon de Buzzy : la box publie state.simon (contrat du 27/10 au soir) ; la suite secrète n'y est jamais avant le bilan. */
   async function simonEnCours(simon, teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"]]) {
     box = startBox();
     for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
-    const plan = [{ id: "s1", kind: "simon", text: "Le Simon du Prof", round: "Le Simon du Prof", choices: [], correct: -1, double: false, tours: 2, reponse: 10, joueurs: 4 }];
+    const plan = [{ id: "s1", kind: "simon", text: "Le Simon de Buzzy", round: "Le Simon de Buzzy", choices: [], correct: -1, double: false, tours: 2, reponse: 10, joueurs: 4 }];
     await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, questions: plan });
     const etat = { tour: 1, tours: 2, suite: 3, step: "ready", teams: teams.map(([id]) => id), out: {}, players: Object.fromEntries(teams.map(([id], i) => [id, i + 1])), last: false, verdict: null, ...simon };
     await box.set({ ...questionState(1), qid: "s1", kind: "simon", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, simon: etat });
@@ -1846,7 +1862,7 @@ describe("régie", () => {
     return { page, etat };
   }
 
-  test("Simon du Prof : lancer la suite, l'arrêter en deux appuis, bilan après la vérification TV, suite et tour suivants, jeu suivant", async () => {
+  test("Simon de Buzzy : lancer la suite, l'arrêter en deux appuis, bilan après la vérification TV, suite et tour suivants, jeu suivant", async () => {
     const { page, etat } = await simonEnCours({});
     await page.locator("#simon-info", { hasText: "Tour 1 sur 2. Suite de 3 : appelez le joueur de chaque équipe." }).waitFor();
     await page.locator("#simon-equipes li", { hasText: "Les Bleus" }).locator("span", { hasText: "en jeu · joueur n°2" }).waitFor();
@@ -1896,7 +1912,7 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("Simon du Prof : « Jeu suivant » en cours de route confirmé, pause, 8 équipes lisibles", async () => {
+  test("Simon de Buzzy : « Jeu suivant » en cours de route confirmé, pause, 8 équipes lisibles", async () => {
     const huit = ["Orange", "Vert", "Rose", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"].map((n, i) => [`e${i}`, `Les ${n}s`, TEAM_COLORS_TEST[i % TEAM_COLORS_TEST.length]]);
     const { page, etat } = await simonEnCours({ out: { e3: 4 } }, huit);
     // La liste se remplit à l'arrivée de l'état de la partie : on attend la 8e équipe avant de compter.
@@ -1907,7 +1923,7 @@ describe("régie", () => {
     assert.ok(bas && bas.y + bas.height <= page.viewportSize().height + 1, "le gros bouton reste visible");
     await capture(page, "regie-simon-8-equipes");
     await page.click("#simon-fin");
-    assert.match(await respond(page, false), /Arrêter le Simon du Prof \? 2 tours pas encore gagnés/);
+    assert.match(await respond(page, false), /Arrêter le Simon de Buzzy \? 2 tours pas encore gagnés/);
     assert.equal((await commandes("next")).length, 0);
     await page.click("#simon-fin");
     await respond(page);
@@ -4057,7 +4073,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     // Le menu : Accueil, Bibliothèque, Paramètres (plus de page Jeux ni Prestations : tout part de l'Accueil).
     assert.deepEqual(await page.locator("#nav button").allInnerTexts(), ["Accueil", "Bibliothèque", "Paramètres"]);
-    // 19 jeux (dont le Quiz illustré, le Pictionary, les Coffres mystères, le Gonfleur fou, Ça va exploser !, le Duel des robots et le Simon du Prof) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
+    // 19 jeux (dont le Quiz illustré, le Pictionary, les Coffres mystères, le Gonfleur fou, Ça va exploser !, le Duel des robots et le Simon de Buzzy) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
     const tile = (type) => page.locator(`#screen-home .tile[data-game="${type}"]`);
     assert.equal(await page.locator("#screen-home .tile[data-game]").count(), 19);
     await tile("illustre").waitFor();
@@ -6048,7 +6064,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC (cedric, 27/10) : 🔴 Le Simon du Prof, nombre de tours, secondes pour taper une suite, joueurs par équipe ; dès 1 équipe", async () => {
+  test("Régie PC (cedric, 27/10) : 🔴 Le Simon de Buzzy, nombre de tours, secondes pour taper une suite, joueurs par équipe ; dès 1 équipe", async () => {
     const page = await admin();
     await page.locator('#home-games .tile[data-game=simon]', { hasText: "Rien à préparer" }).waitFor();
     await page.click("#home-new");

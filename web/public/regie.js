@@ -1,5 +1,5 @@
 import {
-  ref, get, set, update, push, onValue, serverTimestamp, query, limitToFirst,
+  ref, get, set, update, push, onValue, onDisconnect, serverTimestamp, query, limitToFirst,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { BRACELET_COLORS, CHOICE_LETTERS, MAX_TEAMS, TEAM_COLORS, TEAM_COLOR_NAMES, numeroTablette } from "./theme.js";
 import { writeProof } from "./proof.js";
@@ -457,6 +457,12 @@ function control() {
     live.connected = s.val() === true;
     $("r-offline").hidden = live.connected;
     $("c-dot").classList.toggle("on", live.connected);
+    // Présence du téléphone (cedric, 30/10) : la box compte ses coupures dans ses rapports, comme celles des tablettes.
+    if (!live.connected) return;
+    const presence = ref(db, `games/${code}/regiePresence/${uid}`);
+    onDisconnect(presence).set({ online: false, at: serverTimestamp() })
+      .then(() => set(presence, { online: true, at: serverTimestamp() }))
+      .catch(() => { /* téléphone plus relié à cette partie */ });
   });
   listen(`games/${code}/regie/${uid}`, (s) => {
     if (s.exists()) return;
@@ -1644,7 +1650,7 @@ function renderBlind(st, teams) {
   const on = blindMode(st) && ["question", "reveal", "scores"].includes(st.phase);
   $("blind").hidden = !on;
   document.querySelector(".regie .control").classList.toggle("blind-mode", on);
-  verdictEnBas("blind-verdict", on && st.phase === "question" && !!st.buzz?.team);
+  verdictEnBas("blind-verdict", on && st.phase === "question" && !!st.buzz?.team && st.paused !== true);
   if (!on) return;
   const b = st.blind;
   const name = (id) => live.teams[id]?.name ?? "Équipe";
@@ -1801,7 +1807,9 @@ function verdictEnBas(id, on) {
 function renderFlou(st) {
   const on = st.phase === "question" && BUZZ_KINDS.includes(st.kind) && !blindMode(st);
   $("flou").hidden = !on;
-  verdictEnBas("flou-verdict", on && !!st.buzz?.team);
+  // En pause, le verdict ne s'affiche pas en plein écran : il cacherait « Reprendre », et la box refuse un verdict en
+  // pause (test du 30/10 au soir : Sarah bloquée sur deux boutons inactifs après la coupure d'une tablette).
+  verdictEnBas("flou-verdict", on && !!st.buzz?.team && st.paused !== true);
   if (!on) return;
   const b = st.buzz ?? {};
   const name = (id) => live.teams[id]?.name ?? "Équipe";
@@ -1812,7 +1820,8 @@ function renderFlou(st) {
     : blind ? `« ${answer} »${q?.artist ? ` (bonus : ${q.artist})` : ""}` : answer;
   const tried = (b.blocked ?? []).filter((id) => live.teams[id]).map(name);
   const memo = st.kind === "disparu" && st.buzzOpen !== true && !b.team && !st.paused;
-  if (b.team) texteBuzz($("flou-info"), name(b.team), expected || "voir la fiche");
+  if (b.team && st.paused === true) $("flou-info").textContent = `Partie en pause : appuyez sur « Reprendre », puis jugez la réponse de ${name(b.team)}.`;
+  else if (b.team) texteBuzz($("flou-info"), name(b.team), expected || "voir la fiche");
   else $("flou-info").textContent = memo ? `Les enfants mémorisent les objets… Celui qui va disparaître : ${answer}.`
     : `En attente d'un buzz…${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
   couleurBuzz($("flou-info"), b.team);
@@ -2175,7 +2184,7 @@ $("duel-fin").onclick = async () => {
 };
 
 /**
- * Le Simon du Prof (cedric, 27/10) : la box tient la suite secrète et juge ; Sarah lance chaque suite, l'arrête si
+ * Le Simon de Buzzy (cedric, 27/10) : la box tient la suite secrète et juge ; Sarah lance chaque suite, l'arrête si
  * un enfant n'est pas prêt, puis passe à la suite ou au tour suivant. La TV vérifie colonne par colonne avant le
  * bandeau : le bouton suivant attend la fin de cette vérification.
  */
@@ -2288,7 +2297,7 @@ $("simon-fin").onclick = async () => {
   const s = live.state?.simon ?? {};
   const restent = Math.max(0, (s.tours ?? 1) - (s.tour ?? 1) + (s.step === "won" ? 0 : 1));
   const ok = await demander({
-    title: "Arrêter le Simon du Prof ?",
+    title: "Arrêter le Simon de Buzzy ?",
     text: restent ? `${restent} tour${restent > 1 ? "s" : ""} pas encore gagné${restent > 1 ? "s" : ""}.` : "",
     ok: "⏭ Jeu suivant",
   });
@@ -3736,7 +3745,7 @@ const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : s
 const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer aux Coffres mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à « Ça va exploser ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
-const OLD_TV_SIMON = "La TV doit être mise à jour pour jouer au Simon du Prof : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_SIMON = "La TV doit être mise à jour pour jouer au Simon de Buzzy : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_CHRONO = "La TV doit être mise à jour pour jouer au Chrono de Buzzy : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DUEL = "La TV doit être mise à jour pour jouer au Duel des robots : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";

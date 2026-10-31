@@ -115,24 +115,17 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
     val ecoule = q.durationMs - chronoRestant(q, state)
     Box(modifier) {
         Column(
-            Modifier.fillMaxSize().panneauJeu().padding(horizontal = 24.dp, vertical = 14.dp),
+            // Game Show : les cartes glissent de 24 dp vers la gauche, sur la grille des équipes en dessous (planche des onglets
+            // d'appel, validée par cedric le 31/10 à 11:12 : elles étaient ~36 px de 1280 trop à droite). Même largeur.
+            Modifier.fillMaxSize().padding(top = if (Look.gs) ETIQUETTE_DEBORD else 0.dp).panneauJeu()
+                .padding(start = if (Look.gs) 0.dp else 24.dp, end = if (Look.gs) DECALAGE_CARTES_DISPARU * 2 else 24.dp, top = 14.dp, bottom = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Game Show : plus d'étiquette « QUI A DISPARU ? » au-dessus des objets, le titre le dit déjà (cedric, 25/10 au
-            // soir : « n'a même pas lieu d'être ») ; « MÉMORISEZ ! » et « ABRACADABRA… » restent, ils disent l'étape.
-            val repete = etape == EtapeDisparu.CHERCHER || etape == EtapeDisparu.REPONSE
-            if (!(Look.gs && repete)) {
-                Text(
-                    when (etape) {
-                        EtapeDisparu.MEMORISER -> "MÉMORISEZ !"
-                        EtapeDisparu.MAGIE -> "ABRACADABRA…"
-                        EtapeDisparu.CHERCHER -> "QUI A DISPARU ?"
-                        EtapeDisparu.REPONSE -> "QUI A DISPARU ?"
-                    },
-                    color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
-                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp)
-                        .apparition(0, etape),
-                )
+            // Game Show : l'étiquette de l'étape est posée à cheval sur le haut du cadre, sans prendre de place : les cartes
+            // gardent la même grande taille de « MÉMORISEZ ! » à la réponse (cedric, 30/10 : visages coupés pendant la
+            // mémorisation, cartes plus grandes ensuite). Classique : au-dessus des objets, comme avant.
+            if (!Look.gs) {
+                EtiquetteEtape(etape)
                 Spacer(Modifier.height(10.dp))
             }
             val colonnes = colonnesDisparu(q.cards.size)
@@ -153,6 +146,11 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
                 }
             }
         }
+        // Game Show : plus d'étiquette « QUI A DISPARU ? », le titre le dit déjà (cedric, 25/10 au soir : « n'a même pas
+        // lieu d'être ») ; « MÉMORISEZ ! » et « ABRACADABRA… » restent, ils disent l'étape.
+        if (Look.gs && etape != EtapeDisparu.CHERCHER && etape != EtapeDisparu.REPONSE) {
+            EtiquetteEtape(etape, Modifier.align(Alignment.TopCenter))
+        }
         // L'enseigne posée par-dessus (les cartes ne bougent pas) : en grand, puis elle s'efface quand les cartes reviennent.
         if (panneau != null) {
             val visible = enseigneDisparuVisible(etape, ecoule)
@@ -170,6 +168,28 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
             }
         }
     }
+}
+
+/** Game Show : les cartes de Qui a disparu décalées vers la gauche d'autant (sur la grille des équipes). */
+internal val DECALAGE_CARTES_DISPARU = 24.dp
+
+/** Game Show : le cadre des objets descend d'autant, l'étiquette de l'étape est à cheval sur son bord haut. */
+private val ETIQUETTE_DEBORD = 15.dp
+
+/** « MÉMORISEZ ! », « ABRACADABRA… » ou « QUI A DISPARU ? » : l'étape en cours, dans sa pastille dorée. */
+@Composable
+private fun EtiquetteEtape(etape: EtapeDisparu, modifier: Modifier = Modifier) {
+    Text(
+        when (etape) {
+            EtapeDisparu.MEMORISER -> "MÉMORISEZ !"
+            EtapeDisparu.MAGIE -> "ABRACADABRA…"
+            EtapeDisparu.CHERCHER -> "QUI A DISPARU ?"
+            EtapeDisparu.REPONSE -> "QUI A DISPARU ?"
+        },
+        color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+        modifier = modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp)
+            .apparition(0, etape),
+    )
 }
 
 @Composable

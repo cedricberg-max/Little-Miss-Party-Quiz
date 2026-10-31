@@ -1,5 +1,5 @@
 /**
- * 🔴 Le Simon du Prof sur la tablette. Pendant que le robot montre la suite à la TV : « Regarde bien la TV… ». Puis le
+ * 🔴 Le Simon de Buzzy sur la tablette. Pendant que le robot montre la suite à la TV : « Regarde bien la TV… ». Puis le
  * joueur appelé tape la suite : 8 grosses boules de couleur en haut, les chiffres en dessous une fois qu'ils ont
  * débarqué, sa suite en bas (« Ta suite (5/8) »), « Effacer » le dernier élément et « Valider » quand elle est complète.
  * Chaque appui joue la note de sa couleur. Ensuite : envoyé, éliminé du tour, ou gagné. Module autonome, sans Firebase :
@@ -113,7 +113,7 @@ export function ecranSimon(hote, { surTouche, surEffacer, surValider }) {
     racine.classList.toggle("sm-sans-chiffres", !v.chiffres);
     const saisie = v.saisie ?? [];
     const n = Math.max(v.longueur ?? 0, saisie.length);
-    q(".sm-compte").textContent = n ? `Ta suite (${saisie.length}/${n})` : "";
+    q(".sm-compte").textContent = n ? `Tes couleurs (${saisie.length}/${n})` : "";
     q(".sm-suite").replaceChildren(...Array.from({ length: n }, (_, i) => pastille(saisie[i])));
     const plein = saisie.length >= n;
     hote.querySelectorAll(".sm-touche").forEach((b) => { b.disabled = !joue || plein; });

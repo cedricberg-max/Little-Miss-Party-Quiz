@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -73,7 +74,7 @@ import com.littlemissparty.quiz.tv.habillage.Tampon
 import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.apres
-import com.littlemissparty.quiz.tv.habillage.bandeTitre
+import com.littlemissparty.quiz.tv.habillage.TexteJauge
 import com.littlemissparty.quiz.tv.habillage.rebond
 import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
@@ -94,18 +95,13 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
         // Halo de la couleur de l'équipe qui joue, qui respire doucement derrière la carte.
         if (team != null) TeamGlow(team.color.toColor())
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "MIMES",
-                    color = Palette.Night, fontSize = 20.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp,
-                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Neon.Or).padding(horizontal = 16.dp, vertical = 4.dp),
-                )
+            if (team != null) EnTeteTour(state, team) else Row(verticalAlignment = Alignment.CenterVertically) {
+                BadgeMimes()
                 Spacer(Modifier.width(14.dp))
                 Text(
-                    state.question?.text.orEmpty(), color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                    sousTitreMimes(state.question?.text).orEmpty(), color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
-                if (team != null) MimeCountdown(state)
             }
             Spacer(Modifier.height(8.dp))
             // Le bandeau des équipes est mesuré d'abord : ses boutons gardent toujours leur hauteur (cedric, 24/10 :
@@ -129,17 +125,56 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
     }
 }
 
-/** Tour en cours : « Au tour des Licornes ! », la carte en très grand et le compteur de mimes trouvés. */
+@Composable
+private fun BadgeMimes() = Text(
+    "MIMES",
+    color = Palette.Night, fontSize = 20.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp,
+    modifier = Modifier.clip(RoundedCornerShape(50)).background(Neon.Or).padding(horizontal = 16.dp, vertical = 4.dp),
+)
+
+/**
+ * En-tête pendant un tour : le badge et le thème à gauche, « Au tour de » puis le nom de l'équipe dans sa couleur au
+ * milieu de l'écran (n° 18 du 31/10 : plus de « Au tour de Les… »), le chrono à droite. Le nom loge dans la hauteur du
+ * chrono : la carte garde toute sa taille, de 1 à 8 équipes (rien ne rapetisse ni ne déborde).
+ */
+@Composable
+private fun EnTeteTour(state: UiState.Playing, team: Team) {
+    val couleur = team.color.toColor()
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val centre = maxWidth * PART_NOM_EN_TETE
+        val cote = (maxWidth - centre) / 2
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.width(cote), verticalAlignment = Alignment.CenterVertically) {
+                BadgeMimes()
+                Spacer(Modifier.width(14.dp))
+                // Thème du paquet : sur deux lignes et plus petit s'il est long, jamais « … ».
+                TexteAjuste(
+                    sousTitreMimes(state.question?.text).orEmpty(), color = Palette.InkSoft, max = 22.sp, min = 14.sp,
+                    lignes = 2, fontWeight = FontWeight.Bold, textAlign = TextAlign.Start, modifier = Modifier.weight(1f),
+                )
+            }
+            // Posés sur le décor « comme les jauges ».
+            Column(Modifier.width(centre), horizontalAlignment = Alignment.CenterHorizontally) {
+                TexteJauge("Au tour de", color = Palette.Ink, fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                TexteAjuste(
+                    team.name, color = couleur, max = 30.sp, min = 18.sp, lignes = 1, jauge = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Box(Modifier.width(cote), contentAlignment = Alignment.CenterEnd) { MimeCountdown(state) }
+        }
+    }
+}
+
+/** Largeur du nom de l'équipe au milieu de l'en-tête (part de la largeur). */
+internal const val PART_NOM_EN_TETE = 0.44f
+
+/** Tour en cours : la carte en très grand et le compteur de mimes trouvés (« Au tour de… » est dans l'en-tête). */
 @Composable
 private fun Turn(state: UiState.Playing, m: MimeUi, team: Team, modifier: Modifier = Modifier) {
     val color = team.color.toColor()
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.reduitSiTropHaut(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "Au tour de ${team.name} !", color = color, fontSize = 28.sp, fontWeight = FontWeight.Black,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                 MimeCardView(m, color, state.images)
                 FoundCounter(m.found)
@@ -371,8 +406,25 @@ private fun FoundCounter(found: Int) {
     }
 }
 
-/** Côté du masque des mimes entre deux tours, en dp, pour [hauteur] dp de place : 220 au plus, 132 (l'ancien) au moins. */
-internal fun tailleMasqueMimes(hauteur: Float): Float = (hauteur - TEXTES_ENTRE_TOURS).coerceIn(132f, 220f)
+/**
+ * Côté du masque des mimes entre deux tours, en dp, pour [hauteur] dp de place : 220 au plus. Il ne prend jamais la
+ * place des textes (cedric, 30/10 : avec 8 équipes, la règle était coupée) ; sous [MASQUE_MIN] dp, il disparaît (0).
+ */
+internal fun tailleMasqueMimes(hauteur: Float): Float =
+    (hauteur - TEXTES_ENTRE_TOURS).coerceAtMost(220f).let { if (it < MASQUE_MIN) 0f else it }
+
+/** Plus petit masque montré entre deux tours (dp) : en dessous, il ne se lit plus, les textes restent seuls. */
+private const val MASQUE_MIN = 72f
+
+/**
+ * Nom du paquet à côté de la pastille « MIMES », ou null quand il la répète (cedric, 30/10 : « Mimes » écrit deux
+ * fois) : seule la pastille reste.
+ */
+internal fun sousTitreMimes(texte: String?): String? {
+    val t = texte?.trim().orEmpty()
+    val simple = java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase()
+    return t.takeIf { it.isNotEmpty() && simple !in setOf("mimes", "mime", "les mimes", "les mimes !") }
+}
 
 /** Place des textes sous le masque : bravo sur 2 lignes (nom long), points, consigne sur 3 lignes et espaces (dp). */
 private const val TEXTES_ENTRE_TOURS = 250f
@@ -392,20 +444,22 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             // Game Show : le logo néon des mimes (planche du 24/10) à la place de l'émoji.
             val logo = if (Look.gs) logoNeonJeu("mimes") else null
-            if (logo != null) Image(painterResource(logo), contentDescription = null, modifier = Modifier.size(masque).apparition(bilan, m.turns.size))
+            if (masque.value == 0f) Unit
+            else if (logo != null) Image(painterResource(logo), contentDescription = null, modifier = Modifier.size(masque).apparition(bilan, m.turns.size))
             else {
                 val taille = with(LocalDensity.current) { (masque * 0.62f).toSp() }
                 Text("🎭", fontSize = taille, lineHeight = taille * 1.07f, modifier = Modifier.apparition(bilan, m.turns.size))
             }
-            // Game Show : la bande sombre des titres (choix C, 29/10) derrière le bravo ou le titre et la règle.
-            Column(Modifier.fillMaxWidth().bandeTitre(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Game Show : plus de bande sombre, le bravo et la règle sont posés sur le décor « comme les jauges » (n° 14 du
+            // 31/10). Le titre « Les Mimes ! » ne bouge pas.
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             if (last != null && lastTeam != null) {
-                Text(
+                TexteJauge(
                     if (last.found > 0) "Bravo ${lastTeam.name} !" else "Bien essayé ${lastTeam.name} !",
                     color = lastTeam.color.toColor(), fontSize = 44.sp, lineHeight = 50.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     modifier = Modifier.apparition(bilan, m.turns.size).rebond(apres(bilan, m.turns.size)),
                 )
-                Text(
+                TexteJauge(
                     "${last.found} mime${if (last.found > 1) "s" else ""} trouvé${if (last.found > 1) "s" else ""} · +${last.found * Scoring.MIME} points",
                     color = Neon.Or, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.apparition(bilan + Tempo.TEMPS, m.turns.size),
@@ -423,14 +477,14 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                 )
             }
             Spacer(Modifier.height(10.dp))
-            Text(
+            TexteJauge(
                 when {
                     // Mimes en file (cedric, 26/10) : une couleur par manche, le bilan des scores suit tout seul.
                     state.question?.couleur != null && m.turns.isNotEmpty() -> "Place au classement !"
                     state.question?.couleur != null -> "Tous en file : le mimeur face à l'écran, les autres dos à l'écran.\nChaque mime trouvé rapporte ${Scoring.MIME} points."
                     m.turns.isEmpty() -> "Celui qui devine se met dos à la TV, ses coéquipiers miment sans parler.\nChaque mime trouvé rapporte ${Scoring.MIME} points."
                     remainingTeams(state, m).isEmpty() -> "Toutes les équipes sont passées !"
-                    else -> "Au tour de ${remainingTeams(state, m).first().name} ! Restent : ${remainingTeams(state, m).joinToString(", ") { it.name }}"
+                    else -> "Prochaine équipe : ${remainingTeams(state, m).first().name}\nRestent : ${remainingTeams(state, m).joinToString(", ") { it.name }}"
                 },
                 color = Palette.Ink, fontSize = 24.sp, textAlign = TextAlign.Center, lineHeight = 32.sp,
                 maxLines = 3, overflow = TextOverflow.Ellipsis,
@@ -444,18 +498,33 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
 private fun MimeTeamChip(team: Team, count: Int, playing: Boolean, passed: Boolean, compacte: Boolean = false, modifier: Modifier = Modifier) {
     val color = team.color.toColor()
     val taille = if (compacte) 14.sp else 16.sp
+    // Game Show : la plaque noire au contour néon du Pictionary (cedric, 30/10 : sur le décor, les cartes se lisaient
+    // mal). L'équipe qui joue : sa couleur en fond, contour plus épais.
+    val forme = RoundedCornerShape(16.dp)
     Column(
         modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (playing) color.copy(alpha = 0.45f) else Palette.Panel)
-            .border(if (playing) 3.dp else 2.dp, color, RoundedCornerShape(16.dp))
+            .then(if (Look.gs) Modifier.shadow(10.dp, forme, ambientColor = color, spotColor = color) else Modifier)
+            .clip(forme)
+            .background(
+                when {
+                    playing -> color.copy(alpha = 0.45f)
+                    Look.gs -> Neon.Nuit.copy(alpha = 0.88f)
+                    else -> Palette.Panel
+                },
+            )
+            .border(if (playing || Look.gs) 3.dp else 2.dp, color, forme)
             .padding(horizontal = if (compacte) 8.dp else 12.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(team.name, color = Palette.Ink, fontSize = taille, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(
             "$count mime${if (count > 1) "s" else ""}" + if (passed && !playing) " ✓" else "",
-            color = if (count > 0) Neon.Or else Palette.InkSoft, fontSize = taille, fontWeight = FontWeight.Bold,
+            color = when {
+                Look.gs && !playing -> color
+                count > 0 -> Neon.Or
+                else -> Palette.InkSoft
+            },
+            fontSize = taille, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }

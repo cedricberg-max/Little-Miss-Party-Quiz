@@ -82,7 +82,7 @@ class IntroJeuTest {
     }
 
     @Test
-    fun `le simon du prof a son embleme`() {
+    fun `le simon de buzzy a son embleme`() {
         assertEquals("🔴", emblemeJeu("simon").emoji)
     }
 

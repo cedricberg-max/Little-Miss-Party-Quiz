@@ -213,7 +213,7 @@ describe("équipes fantômes", () => {
       assert.ok(Math.abs(tir.t - panAt) < 7000, `tir près du PAN (écart ${tir.t - panAt} ms)`);
     }
 
-    // 🔴 Simon du Prof : la suite secrète est dans le journal dès le début du tour ; chaque joueur fantôme la tape,
+    // 🔴 Simon de Buzzy : la suite secrète est dans le journal dès le début du tour ; chaque joueur fantôme la tape,
     // élément par élément, puis valide avant la fin du chrono (une fois sur dix il se trompe d'un élément).
     await set(ref(hostDb(), `games/${CODE}/log/8`), { seq: 8, at: Date.now(), type: "simon_tour", qid: "s1", tour: 1, sequence: "rouge,vert,bleu,jaune,4", teams: ids });
     const debut = Date.now();

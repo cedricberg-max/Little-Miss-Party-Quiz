@@ -9,9 +9,21 @@ import com.littlemissparty.quiz.tv.habillage.Son
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.littlemissparty.quiz.engine.ChronoBuzz
 
 /** ⏱️ Le Chrono de Buzzy à la TV : textes du chrono et des écarts, bornes de la règle, ordre de la révélation. */
 class ChronoEcranTest {
+    /** cedric, 31/10 : chaque buzz de réponse joue le mot Daft Punk de l'équipe, dans tous les jeux (ici sous le drap). */
+    @Test
+    fun `chaque buzz sous le drap joue le mot de son equipe`() {
+        val equipes = listOf("a", "b", "c")
+        val buzz = listOf(ChronoBuzz("c", 30_100, 1), ChronoBuzz("a", 30_400, 2), ChronoBuzz("z", 31_000, 3))
+        assertEquals(listOf(Son.equipe(2), Son.equipe(0), Son.CHRONO_BUZZ), sonsNouveauxBuzz(buzz, 0, equipes))
+        // Deux buzz arrivés d'un coup : les deux mots ; ceux déjà entendus ne repassent pas.
+        assertEquals(listOf(Son.equipe(0), Son.CHRONO_BUZZ), sonsNouveauxBuzz(buzz, 1, equipes))
+        assertEquals(emptyList<Son>(), sonsNouveauxBuzz(buzz, 3, equipes))
+    }
+
 
     @Test
     fun `chrono au centieme, ecarts signes, pile`() {

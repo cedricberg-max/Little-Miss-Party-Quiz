@@ -322,7 +322,7 @@ data class DuelSettled(override val seq: Int, override val at: Long, val qid: St
 data class DuelStopped(override val seq: Int, override val at: Long, val qid: String, val n: Int) : GameEvent
 
 /**
- * Le Simon du Prof : le tour [tour] est prêt entre les équipes [teams], avec sa suite secrète [sequence] (tirée par la
+ * Le Simon de Buzzy : le tour [tour] est prêt entre les équipes [teams], avec sa suite secrète [sequence] (tirée par la
  * box) ; la suite n° 1 attend le lancement de Sarah.
  */
 data class SimonTourReady(
@@ -334,10 +334,10 @@ data class SimonTourReady(
     val teams: List<String>,
 ) : GameEvent
 
-/** Le Simon du Prof : la suite n° [suite] du tour [tour] commence (le robot la montre, puis le chrono part). */
+/** Le Simon de Buzzy : la suite n° [suite] du tour [tour] commence (le robot la montre, puis le chrono part). */
 data class SimonSuiteStarted(override val seq: Int, override val at: Long, val qid: String, val tour: Int, val suite: Int) : GameEvent
 
-/** Le Simon du Prof : la suite n° [suite] est jugée d'après ce que chaque équipe a tapé ([answers]). */
+/** Le Simon de Buzzy : la suite n° [suite] est jugée d'après ce que chaque équipe a tapé ([answers]). */
 data class SimonJudged(
     override val seq: Int,
     override val at: Long,
@@ -347,7 +347,7 @@ data class SimonJudged(
     val answers: Map<String, SimonAnswer>,
 ) : GameEvent
 
-/** Le Simon du Prof : Sarah arrête la suite en cours ; elle se relancera telle quelle, sans élimination. */
+/** Le Simon de Buzzy : Sarah arrête la suite en cours ; elle se relancera telle quelle, sans élimination. */
 data class SimonStopped(override val seq: Int, override val at: Long, val qid: String, val tour: Int, val suite: Int) : GameEvent
 
 /** Le Chrono de Buzzy : le tour [tour] est prêt, avec la [cible] (secondes) ; il attend « ▶ Lancer le chrono ». */

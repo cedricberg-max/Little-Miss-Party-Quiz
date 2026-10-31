@@ -1511,10 +1511,25 @@ function tapeGonfleur() {
   if (!gonfleur || st.kind !== "gonfleur" || st.paused || counting(st) || gonfleur.n >= cible) return;
   gonfleur.n += 1;
   if (gonfleur.n % 5 === 0) navigator.vibrate?.(8);
-  render();
+  redessinerGonfleur();
   // Ballon éclaté : envoi immédiat ; sinon au plus toutes les ENVOI_MS.
   if (gonfleur.n >= cible) { clearTimeout(gonfleur.minuterie); gonfleur.minuterie = null; envoyerTapes(); }
   else gonfleur.minuterie ??= setTimeout(() => { if (gonfleur) { gonfleur.minuterie = null; envoyerTapes(); } }, ENVOI_MS);
+}
+
+/**
+ * Après une tape : seul le ballon est redessiné, une fois par image au plus. Redessiner toute la page à chaque tape
+ * saturait une tablette modeste au départ de la course : les premières tapes semblaient sans effet, puis le ballon
+ * gonflait d'un coup (cedric, 30/10).
+ */
+let imageGonfleur = 0;
+function redessinerGonfleur() {
+  if (imageGonfleur) return;
+  imageGonfleur = requestAnimationFrame(() => {
+    imageGonfleur = 0;
+    const st = game.state;
+    if (gonfleur && st?.kind === "gonfleur" && st.phase === "question") renderGonfleur(st);
+  });
 }
 
 async function envoyerTapes() {
@@ -1641,7 +1656,7 @@ async function envoyerPatate(to) {
 }
 
 /**
- * 🔴 Le Simon du Prof (écran simon.js) : { ctl, cle, saisie, envoye, minuterie } de la suite en cours. Les étapes se
+ * 🔴 Le Simon de Buzzy (écran simon.js) : { ctl, cle, saisie, envoye, minuterie } de la suite en cours. Les étapes se
  * calculent à l'heure du serveur : annonce des chiffres, le robot montre la suite (« Regarde bien la TV… »), le chrono
  * (on tape), puis la vérification de la TV avant de dire « éliminés » ou « gagné » (jamais avant la TV).
  */
@@ -1666,31 +1681,32 @@ function renderSimon(st) {
   const verifFin = v ? (v.at ?? 0) + (v.suite ?? 1) * SIMON_VERIF_PAS_MS + SIMON_VERIF_FIN_MS : 0;
   const nom = (id) => game.teams[id]?.name ?? "une équipe";
   let etat; let titre; let texte = ""; let chrono = null; let prochain = null;
-  const joueurTexte = duTour && !sorti ? `C'est au tour du joueur ${joueur}` : "";
+  // Plus de « joueur n° » sur la tablette (cedric, 31/10 : l'équipe joue, la rotation des enfants se fait entre eux).
+  const joueurTexte = "";
   if (st.paused) { etat = "attente"; titre = "Pause"; texte = "La partie reprend bientôt."; }
   else if (sm.step === "play") {
     if (sm.chiffresAt != null && now < sm.montreAt - SIMON_REGARDEZ_MS) { etat = "chiffres"; titre = "Attention, les chiffres débarquent !"; prochain = sm.montreAt - SIMON_REGARDEZ_MS; }
-    else if (now < sm.reponseAt) { etat = "regarde"; titre = "Regarde bien la TV…"; texte = `Suite n° ${sm.suite}`; prochain = sm.reponseAt; }
-    else if (!duTour || sorti) { etat = "spectateur"; titre = "Les autres équipes jouent…"; texte = sorti ? "Éliminés de ce tour : vous rejouerez au prochain." : "Vous jouerez au prochain tour."; }
-    else if (simon.envoye) { etat = "envoye"; titre = "Suite envoyée !"; texte = "Regardez la TV : vérification à la fin du chrono."; }
+    else if (now < sm.reponseAt) { etat = "regarde"; titre = "Regarde et retiens bien les couleurs…"; texte = `Série n° ${sm.suite}`; prochain = sm.reponseAt; }
+    else if (!duTour || sorti) { etat = "spectateur"; titre = "Les autres équipes jouent…"; texte = sorti ? "Éliminé de ce tour : tu rejoueras au prochain." : "Tu joueras au prochain tour."; }
+    else if (simon.envoye) { etat = "envoye"; titre = "Couleurs envoyées !"; texte = "Regarde la TV : vérification à la fin du chrono."; }
     else if (now <= sm.finAt) {
-      etat = "joue"; titre = "À toi ! Tape la suite";
+      etat = "joue"; titre = "À toi ! Tape les couleurs";
       chrono = (sm.finAt - now) / Math.max(1, sm.finAt - sm.reponseAt);
       prochain = now + 250;
-    } else { etat = "envoye"; titre = "Temps écoulé !"; texte = "Regardez la TV."; }
-  } else if (v && now < verifFin) { etat = "regarde"; titre = "Vérification…"; texte = "Regardez la TV !"; prochain = verifFin; }
-  else if (v && (v.winners ?? []).includes(teamId)) { etat = "gagne"; titre = "Bravo, vous gagnez le tour !"; texte = v.points ? `+${v.points} points` : ""; }
-  else if (v && (v.wrong ?? []).includes(teamId)) { etat = "elimine"; titre = "Éliminés du tour…"; texte = sm.step === "won" ? "Le tour est fini." : "Vous rejouerez au prochain tour."; }
-  else if (v?.bahAlors) { etat = "attente"; titre = "Bah alors ?!"; texte = "Personne n'a trouvé : on recommence la même suite."; }
+    } else { etat = "envoye"; titre = "Temps écoulé !"; texte = "Regarde la TV."; }
+  } else if (v && now < verifFin) { etat = "regarde"; titre = "Vérification…"; texte = "Regarde la TV !"; prochain = verifFin; }
+  else if (v && (v.winners ?? []).includes(teamId)) { etat = "gagne"; titre = "Bravo, tu gagnes le tour !"; texte = v.points ? `+${v.points} points` : ""; }
+  else if (v && (v.wrong ?? []).includes(teamId)) { etat = "elimine"; titre = "Éliminé du tour…"; texte = sm.step === "won" ? "Le tour est fini." : "Tu rejoueras au prochain tour."; }
+  else if (v?.bahAlors) { etat = "attente"; titre = "Bah alors ?!"; texte = "Personne n'a trouvé : on recommence les mêmes couleurs."; }
   else if (sm.step === "won") {
     const gagnants = (v?.winners ?? []).map(nom);
     etat = "attente"; titre = gagnants.length ? `${gagnants.join(" et ")} ${gagnants.length > 1 ? "gagnent" : "gagne"} le tour !` : "Tour terminé";
     texte = sm.last ? "C'était le dernier tour !" : "Le tour suivant arrive…";
-  } else if (v && duTour && !sorti) { etat = "attente"; titre = "Bravo, vous continuez !"; texte = "La prochaine suite aura un élément de plus."; }
+  } else if (v && duTour && !sorti) { etat = "attente"; titre = "Bravo, tu continues !"; texte = "La prochaine série aura une couleur de plus."; }
   else if (sm.step === "ready" || sm.step === "judged") {
-    etat = "attente"; titre = "Le Simon du Prof";
-    texte = !duTour ? "Vous jouerez au prochain tour." : sorti ? "Éliminés de ce tour : vous rejouerez au prochain." : `Prochaine suite : joueur ${joueur}, prépare-toi !`;
-  } else { etat = "attente"; titre = "Le Simon du Prof"; texte = "Regardez la TV !"; }
+    etat = "attente"; titre = "Le Simon de Buzzy";
+    texte = !duTour ? "Tu joueras au prochain tour." : sorti ? "Éliminé de ce tour : tu rejoueras au prochain." : "Prochaine série : prépare-toi !";
+  } else { etat = "attente"; titre = "Le Simon de Buzzy"; texte = "Regarde la TV !"; }
   simon.ctl.maj({
     etat, titre, texte, chrono, joueur: etat === "joue" || etat === "regarde" ? joueurTexte : "",
     chiffres: sm.chiffres === true, saisie: simon.saisie, longueur: sm.suite ?? 0,
@@ -1699,7 +1715,7 @@ function renderSimon(st) {
   if (prochain != null) simon.minuterie = setTimeout(render, Math.max(50, Math.min(1_000, prochain - now + 20)));
 }
 
-/** Simon du Prof : envoie ce que l'équipe a tapé (à chaque appui, pour la TV en direct), [ok] = « Valider ». */
+/** Simon de Buzzy : envoie ce que l'équipe a tapé (à chaque appui, pour la TV en direct), [ok] = « Valider ». */
 async function envoyerSimon(ok = false) {
   const key = game.state?.simon?.key;
   if (!key || !simon || simon.cle !== key || simon.envoye) return;

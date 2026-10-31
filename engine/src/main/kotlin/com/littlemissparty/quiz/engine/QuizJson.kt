@@ -90,13 +90,13 @@ object QuizJson {
         val chanson = kind == QuestionKind.BLIND || (kind == QuestionKind.CLASSIC && q.optString("audioId").matches(IMAGE_ID))
         return Question(
             id = q.optString("id", "q${i + 1}"),
-            text = q.getString("text"),
+            text = q.getString("text").let { if (kind == QuestionKind.SIMON) nouveauNomSimon(it) else it },
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
             correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.PORTES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE || kind == QuestionKind.DUEL || kind == QuestionKind.SIMON || kind == QuestionKind.CHRONO) q.optInt("correct", -1) else q.getInt("correct"),
             durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else if (kind == QuestionKind.GONFLEUR) 45 else if (kind == QuestionKind.STATUES) 90 else 20),
             kind = kind,
             double = q.optBoolean("double", false),
-            roundTitle = q.optString("round").ifBlank { null },
+            roundTitle = q.optString("round").ifBlank { null }?.let { if (kind == QuestionKind.SIMON) nouveauNomSimon(it) else it },
             cards = (0 until cards.length()).map { c ->
                 val card = cards.getJSONObject(c)
                 // Photo du mot (Pictionary, préparée dans l'administration) : ignorée si mal formée.
@@ -126,7 +126,7 @@ object QuizJson {
             faceMin = q.optInt("faceMin", DUEL_FACE_DEFAUT_MIN).coerceIn(DUEL_FACE_MIN_SEC, DUEL_FACE_MAX_SEC),
             faceMax = q.optInt("faceMax", DUEL_FACE_DEFAUT_MAX).coerceIn(q.optInt("faceMin", DUEL_FACE_DEFAUT_MIN).coerceIn(DUEL_FACE_MIN_SEC, DUEL_FACE_MAX_SEC), DUEL_FACE_MAX_SEC),
             longs = q.optBoolean("longs", true),
-            // Simon du Prof : réglages hors limites ramenés dans les limites.
+            // Simon de Buzzy : réglages hors limites ramenés dans les limites.
             simonTours = q.optInt("tours", SIMON_TOURS).coerceIn(1, SIMON_TOURS_MAX),
             simonSec = q.optInt("reponse", SIMON_REPONSE_SEC).coerceIn(SIMON_REPONSE_MIN_SEC, SIMON_REPONSE_MAX_SEC),
             // Chrono de Buzzy : cible et tours hors limites ramenés dans les limites.
@@ -134,4 +134,10 @@ object QuizJson {
             chronoTours = q.optInt("tours", CHRONO_TOURS).coerceIn(1, CHRONO_TOURS_MAX),
         )
     }
+
+    /**
+     * Le « Simon du Prof » s'appelle « Simon de Buzzy » (cedric, 30/10) : les prestations préparées avant gardent l'ancien
+     * titre dans leurs questions, la TV montre le nouveau.
+     */
+    private fun nouveauNomSimon(titre: String) = titre.replace("Simon du Prof", "Simon de Buzzy").replace("SIMON DU PROF", "SIMON DE BUZZY")
 }

@@ -63,7 +63,7 @@ export function reglagesDuel(round) {
 /** Duels prévus : assez pour que chaque joueur passe une fois (arrondi supérieur de équipes × joueurs / 2). */
 export const duelsPrevus = (equipes, joueurs) => Math.ceil((equipes * joueurs) / 2);
 /**
- * « 🔴 Le Simon du Prof » (cedric, 27/10 ; contrat : /mnt/project-files/regie-pc/simon-contrat-27-octobre.md) : des
+ * « 🔴 Le Simon de Buzzy » (cedric, 27/10 ; contrat : /mnt/project-files/regie-pc/simon-contrat-27-octobre.md) : des
  * suites de boules qui s'allument, à retaper sur la tablette. Réglages de la prestation : le nombre de tours (chacun a
  * son gagnant), les secondes pour taper une suite (la box ajoute une seconde par élément au-delà de 4) et le nombre
  * approximatif de joueurs par équipe (le joueur appelé change à chaque suite).
@@ -72,7 +72,7 @@ export const SIMON_TOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 export const SIMON_TOURS_DEFAUT = 3;
 export const SIMON_REPONSES = [5, 8, 10, 15, 20, 30];
 export const SIMON_REPONSE_DEFAUT = 10;
-/** Réglages d'une manche du Simon du Prof, ramenés dans leurs limites. */
+/** Réglages d'une manche du Simon de Buzzy, ramenés dans leurs limites. */
 export const reglagesSimon = (round) => ({
   tours: dansLaListe(round?.tours, SIMON_TOURS, SIMON_TOURS_DEFAUT),
   reponse: dansLaListe(round?.reponse, SIMON_REPONSES, SIMON_REPONSE_DEFAUT),
@@ -104,7 +104,7 @@ export const roundType = (type) => (type === "portes" ? "coffres" : type);
 // Super Finale : au Quiz, au Quiz illustré et au Vrai ou Faux express (cedric, 23/10 : « à l'image du quiz »).
 export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre" || type === "express";
 
-export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots", simon: "Le Simon du Prof", chrono: "Le Chrono de Buzzy" };
+export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots", simon: "Le Simon de Buzzy", chrono: "Le Chrono de Buzzy" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -1737,7 +1737,7 @@ export const DUREE_ESTIMEE = {
   apresDessin: 30, apresStatues: 30, coffreParEquipe: 60, coffres: 60, gonfleur: 90, bombe: 50,
   // Duel des robots : par duel, le face-à-face (entre le minimum et le maximum), puis le résultat.
   apresDuel: 20,
-  // Simon du Prof : environ 3 minutes par tour (les suites qui s'allongent, les vérifications, le gagnant).
+  // Simon de Buzzy : environ 3 minutes par tour (les suites qui s'allongent, les vérifications, le gagnant).
   simonParTour: 180,
   // Chrono de Buzzy : la cible, plus environ 1 minute 30 par tour (consignes, décompte, révélation).
   chronoParTour: 90,

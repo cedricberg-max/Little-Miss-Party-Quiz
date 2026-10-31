@@ -353,6 +353,8 @@ internal fun momentRobot(s: UiState.Playing, secondes: Int, ancienMeneur: String
         }
         Phase.SCORES -> when {
             s.portes != null || s.blind != null -> null
+            // Dès 6 équipes, le tableau des scores remplit l'écran : le robot y cachait un nom (cedric, 31/10).
+            s.teams.size >= EQUIPES_SANS_ROBOT_SCORES -> null
             ancienMeneur != null && meneur(s.scores).let { it != null && it != ancienMeneur } -> MomentRobot.TETE to "scores ${s.code} ${s.index}"
             else -> MomentRobot.SCORES to "scores ${s.code} ${s.index}"
         }
@@ -360,6 +362,9 @@ internal fun momentRobot(s: UiState.Playing, secondes: Int, ancienMeneur: String
         Phase.LOBBY -> null
     }
 }
+
+/** À partir de ce nombre d'équipes, pas de robot sur le tableau des scores (de 1 à 5 équipes, il reste). */
+internal const val EQUIPES_SANS_ROBOT_SCORES = 6
 
 /** Clips déjà joués (par clé) : un même moment ne repasse pas si l'écran se recompose ou si la box se reconnecte. */
 private val clipsJoues = mutableSetOf<String>()
