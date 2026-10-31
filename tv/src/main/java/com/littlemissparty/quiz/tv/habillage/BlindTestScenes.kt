@@ -131,31 +131,28 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
             else classique()
             Spacer(Modifier.width(56.dp))
             Column(Modifier.weight(1f)) {
-            // Game Show : le filigrane A du podium derrière les textes (cedric, 30/10 : ils se perdaient dans le décor).
-            Column(if (Look.gs) Modifier.drawBehind {
-                val m = FILIGRANE_BLIND_MARGE_DP.dp.toPx()
-                filigrane(Rect(-m, -m, size.width + m, size.height + m), 1f)
-            } else Modifier) {
-                Text(
+            // Game Show : textes posés sur le décor « comme les jauges » (choix B du 31/10, n° 9-11), sans le carré du 30/10.
+            Column {
+                TexteJauge(
                     "BLIND TEST", color = Neon.Or, fontSize = 100.sp, lineHeight = 106.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
-                    modifier = Modifier.apparition(400, playlist),
+                    modifier = Modifier.apparition(400, playlist), echelle = ECHELLE_SCENE_BLIND,
                 )
                 if (playlist.isNotBlank()) {
-                    Text(
+                    TexteJauge(
                         playlist, color = Neon.Blanc, fontSize = 44.sp, lineHeight = 50.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.apparition(900, playlist),
+                        modifier = Modifier.apparition(900, playlist), echelle = ECHELLE_SCENE_BLIND,
                     )
                 }
                 Spacer(Modifier.height(24.dp))
-                Text(
+                TexteJauge(
                     "Morceau 1 / $morceaux · $points points",
                     color = Neon.Halo, fontSize = 38.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.apparition(1300, playlist),
+                    modifier = Modifier.apparition(1300, playlist), echelle = ECHELLE_SCENE_BLIND,
                 )
                 Spacer(Modifier.height(8.dp))
-                Text(
+                TexteJauge(
                     "Prêts ? Écoutez bien…", color = Neon.Blanc, fontSize = 48.sp, lineHeight = 54.sp,
-                    fontWeight = FontWeight.Black, modifier = Modifier.apparition(1700, playlist),
+                    fontWeight = FontWeight.Black, modifier = Modifier.apparition(1700, playlist), echelle = ECHELLE_SCENE_BLIND,
                 )
             }
             }
@@ -163,8 +160,8 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
     }
 }
 
-/** Le filigrane dépasse les textes de la présentation du blind test de 50 dp sur 1600 (≈ 30 dp à l'écran). */
-private const val FILIGRANE_BLIND_MARGE_DP = 50f
+/** La scène fait 1600 dp de large pour un écran de 960 : les ombres du contour sont agrandies d'autant. */
+internal const val ECHELLE_SCENE_BLIND = 1600f / 960f
 
 /**
  * Une équipe a buzzé : panneau bleu nuit cerné d'un néon de la couleur de l'équipe, qui flashe trois fois,

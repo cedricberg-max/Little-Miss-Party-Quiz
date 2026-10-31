@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.tv.habillage.TexteJauge
 
 /**
  * Texte qui tient toujours dans sa place (règle 10) : sa taille baisse, de [max] jusqu'à [min] au plus, tant qu'un mot
@@ -34,6 +35,7 @@ fun TexteAjuste(
     fontWeight: FontWeight = FontWeight.Black,
     textAlign: TextAlign = TextAlign.Center,
     uneLigneJusqua: TextUnit? = null,
+    jauge: Boolean = false,
 ) {
     val style = LocalTextStyle.current.merge(TextStyle(fontWeight = fontWeight, textAlign = textAlign))
     val mesure = rememberTextMeasurer()
@@ -55,7 +57,12 @@ fun TexteAjuste(
             if (seule != null && tient(seule, 1)) tailleQuiTient(max.value, seule) { tient(it, 1) }
             else tailleQuiTient(max.value, min.value) { tient(it, lignes) }
         }
-        Text(
+        // [jauge] : contour néon et ombre « comme les jauges » (Game Show, choix B du 31/10), même place, même taille.
+        if (jauge) TexteJauge(
+            texte, color = color, style = style, fontSize = taille.sp, lineHeight = (taille * 1.12f).sp,
+            maxLines = lignes, overflow = TextOverflow.Ellipsis,
+        )
+        else Text(
             texte, color = color, style = style, fontSize = taille.sp, lineHeight = (taille * 1.12f).sp,
             maxLines = lignes, overflow = TextOverflow.Ellipsis,
         )

@@ -30,7 +30,7 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.BlindBilan
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
-import com.littlemissparty.quiz.tv.habillage.filigraneGs
+import com.littlemissparty.quiz.tv.habillage.TexteJauge
 import com.littlemissparty.quiz.tv.habillage.BlindBuzz
 import com.littlemissparty.quiz.tv.habillage.BlindDouble
 import com.littlemissparty.quiz.tv.habillage.BlindIntro
@@ -163,82 +163,84 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Game Show : le filigrane A derrière les textes (cedric, 30/10 : ils se confondaient avec le décor).
-        Column(Modifier.filigraneGs(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        // Game Show : textes posés sur le décor « comme les jauges » (choix B du 31/10, n° 1-2), sans le carré du 30/10.
+        Column(verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             // À la révélation, le panneau garde sa hauteur pour le titre et le gagnant (960 × 540 dp sur la box) :
             // la valeur du morceau est dans le « +N ».
             if (b != null && !revele) {
-                Text("Morceau ${b.numero} / ${b.total}", color = Palette.InkSoft, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Text(
+                TexteJauge("Morceau ${b.numero} / ${b.total}", color = Palette.InkSoft, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                // Points doublés : la pastille dorée reste telle quelle, sans contour.
+                TexteJauge(
                     if (b.doubled) "POINTS DOUBLÉS · ${b.points} points" else "${b.points} points",
                     color = if (b.doubled) Palette.Night else Palette.Gold, fontSize = 22.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(50))
                         .background(if (b.doubled) Palette.Gold else Color.Transparent).padding(horizontal = 14.dp, vertical = 4.dp)
                         .apparition(0, b.numero),
+                    contour = !b.doubled,
                 )
                 Spacer(Modifier.height(18.dp))
             }
             when {
                 revele -> {
-                    Text("C'était…", color = Palette.InkSoft, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text(
+                    TexteJauge("C'était…", color = Palette.InkSoft, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    TexteJauge(
                         q.choices.getOrNull(q.correct).orEmpty(),
                         color = Palette.Gold, fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black,
                         textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.apparition(300, q.id),
                     )
                     q.artist?.takeIf { it.isNotBlank() }?.let {
-                        Text(
+                        TexteJauge(
                             it, color = Palette.Ink, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
                             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.apparition(700, q.id),
                         )
                     }
                     Spacer(Modifier.height(10.dp))
                     if (gagnant != null) {
-                        Text(
+                        TexteJauge(
                             "Bonne réponse ! Bravo ${gagnant.name}",
                             color = gagnant.color.toColor(), fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Black,
                             textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.apparition(1100, q.id),
                         )
-                        Text(
+                        TexteJauge(
                             "+${state.awards[gagnant.uid]?.points ?: 0}",
                             color = Palette.Gold, fontSize = 40.sp, fontWeight = FontWeight.Black,
                             modifier = Modifier.apparition(1400, q.id).rebond(true, 0.12f),
                         )
                     } else {
-                        Text(
+                        TexteJauge(
                             "Personne n'a trouvé, ce n'est pas grave !", color = Palette.Ink, fontSize = 22.sp, lineHeight = 28.sp,
                             fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.apparition(1100, q.id),
                         )
                     }
                 }
                 buzzer != null -> {
-                    Text(
+                    TexteJauge(
                         "${buzzer.name} a buzzé !",
                         color = buzzer.color.toColor(), fontSize = 46.sp, lineHeight = 52.sp, fontWeight = FontWeight.Black,
                         textAlign = TextAlign.Center, modifier = Modifier.apparition(0, buzzer.uid),
                     )
                     Spacer(Modifier.height(14.dp))
-                    Text("On attend sa réponse…", color = Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    TexteJauge("On attend sa réponse…", color = Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 }
-                b != null && b.waiting && !b.played -> Text(
+                b != null && b.waiting && !b.played -> TexteJauge(
                     "Prêts ? Écoutez bien…", color = Palette.Ink, fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black,
                     textAlign = TextAlign.Center, modifier = Modifier.apparition(0, "pret"),
                 )
-                b != null && b.waiting && passees.isNotEmpty() -> Text(
+                b != null && b.waiting && passees.isNotEmpty() -> TexteJauge(
                     "Pas tout à fait ! La musique va repartir…", color = Palette.Ink, fontSize = 32.sp, lineHeight = 38.sp,
                     fontWeight = FontWeight.Black, textAlign = TextAlign.Center, modifier = Modifier.apparition(0, passees.size),
                 )
-                b != null && b.waiting -> Text(
+                b != null && b.waiting -> TexteJauge(
                     "Musique en pause…", color = Palette.Ink, fontSize = 32.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
-                else -> Text(
+                else -> TexteJauge(
                     "Buzzez dès que vous reconnaissez la chanson !",
                     color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
             }
             if (passees.isNotEmpty() && state.phase == Phase.QUESTION) {
                 Spacer(Modifier.height(20.dp))
-                Text(
+                TexteJauge(
                     "Déjà essayé : " + passees.joinToString(", ") { it.name },
                     color = Palette.InkSoft, fontSize = 22.sp, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(),

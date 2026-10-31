@@ -74,7 +74,7 @@ import com.littlemissparty.quiz.tv.habillage.Tampon
 import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.apres
-import com.littlemissparty.quiz.tv.habillage.bandeTitre
+import com.littlemissparty.quiz.tv.habillage.TexteJauge
 import com.littlemissparty.quiz.tv.habillage.rebond
 import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
@@ -136,9 +136,12 @@ private fun Turn(state: UiState.Playing, m: MimeUi, team: Team, modifier: Modifi
     val color = team.color.toColor()
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.reduitSiTropHaut(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "Au tour de ${team.name} !", color = color, fontSize = 28.sp, fontWeight = FontWeight.Black,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            // « Au tour de » seul, puis le nom de l'équipe dans sa couleur (n° 18 du 31/10 : plus de « Au tour de Les… »),
+            // posés sur le décor « comme les jauges ».
+            TexteJauge("Au tour de", color = Palette.Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            TexteAjuste(
+                team.name, color = color, max = 30.sp, min = 18.sp, lignes = 1, jauge = true,
+                modifier = Modifier.fillMaxWidth(0.9f),
             )
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -416,15 +419,16 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                 val taille = with(LocalDensity.current) { (masque * 0.62f).toSp() }
                 Text("🎭", fontSize = taille, lineHeight = taille * 1.07f, modifier = Modifier.apparition(bilan, m.turns.size))
             }
-            // Game Show : la bande sombre des titres (choix C, 29/10) derrière le bravo ou le titre et la règle.
-            Column(Modifier.fillMaxWidth().bandeTitre(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Game Show : plus de bande sombre, le bravo et la règle sont posés sur le décor « comme les jauges » (n° 14 du
+            // 31/10). Le titre « Les Mimes ! » ne bouge pas.
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             if (last != null && lastTeam != null) {
-                Text(
+                TexteJauge(
                     if (last.found > 0) "Bravo ${lastTeam.name} !" else "Bien essayé ${lastTeam.name} !",
                     color = lastTeam.color.toColor(), fontSize = 44.sp, lineHeight = 50.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     modifier = Modifier.apparition(bilan, m.turns.size).rebond(apres(bilan, m.turns.size)),
                 )
-                Text(
+                TexteJauge(
                     "${last.found} mime${if (last.found > 1) "s" else ""} trouvé${if (last.found > 1) "s" else ""} · +${last.found * Scoring.MIME} points",
                     color = Neon.Or, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.apparition(bilan + Tempo.TEMPS, m.turns.size),
@@ -442,14 +446,14 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                 )
             }
             Spacer(Modifier.height(10.dp))
-            Text(
+            TexteJauge(
                 when {
                     // Mimes en file (cedric, 26/10) : une couleur par manche, le bilan des scores suit tout seul.
                     state.question?.couleur != null && m.turns.isNotEmpty() -> "Place au classement !"
                     state.question?.couleur != null -> "Tous en file : le mimeur face à l'écran, les autres dos à l'écran.\nChaque mime trouvé rapporte ${Scoring.MIME} points."
                     m.turns.isEmpty() -> "Celui qui devine se met dos à la TV, ses coéquipiers miment sans parler.\nChaque mime trouvé rapporte ${Scoring.MIME} points."
                     remainingTeams(state, m).isEmpty() -> "Toutes les équipes sont passées !"
-                    else -> "Au tour de ${remainingTeams(state, m).first().name} ! Restent : ${remainingTeams(state, m).joinToString(", ") { it.name }}"
+                    else -> "Prochaine équipe : ${remainingTeams(state, m).first().name}\nRestent : ${remainingTeams(state, m).joinToString(", ") { it.name }}"
                 },
                 color = Palette.Ink, fontSize = 24.sp, textAlign = TextAlign.Center, lineHeight = 32.sp,
                 maxLines = 3, overflow = TextOverflow.Ellipsis,

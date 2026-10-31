@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.POTATO_BOOM_MS
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.tv.habillage.TexteJauge
 import com.littlemissparty.quiz.tv.habillage.AnnonceBombe
 import com.littlemissparty.quiz.tv.habillage.MusiquePatate
 import com.littlemissparty.quiz.tv.habillage.Neon
@@ -92,7 +93,8 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
+                // Posé sur le décor « comme les jauges » (n° 24 du 31/10).
+                TexteJauge(
                     when {
                         p == null -> ""
                         explosion && boom?.held == true -> "Gardée plus de 2 secondes ! Toutes les autres équipes gagnent ${boom?.gain ?: 0} points !"

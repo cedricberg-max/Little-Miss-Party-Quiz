@@ -187,7 +187,9 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Les Mimes !")
         assertEquals("applied", regie.commande(code, "mime_start", mapOf("team" to licornes.uid)))
-        ecran.voit("Au tour de Licornes")
+        // « Au tour de » au-dessus, le nom de l'équipe en dessous (31/10).
+        ecran.voit("Au tour de")
+        ecran.voit("Licornes")
         ecran.voit("Chat")
         ecran.capture("mimes-tour")
 
@@ -233,7 +235,9 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Les Mimes !")
         assertEquals("applied", regie.commande(code, "mime_start", mapOf("team" to equipes[0].uid)))
-        ecran.voit("Au tour de Licornes")
+        // « Au tour de » au-dessus, le nom de l'équipe en dessous (31/10).
+        ecran.voit("Au tour de")
+        ecran.voit("Licornes")
         ecran.entierementVisible("Image suivante")
         ecran.entierementVisible("Trouvé !")
         ecran.entierementVisible("Arrêter le tour")

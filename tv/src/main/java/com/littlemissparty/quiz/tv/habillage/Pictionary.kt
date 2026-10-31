@@ -391,7 +391,8 @@ fun IntroPictionary(equipe: String, couleur: Color, motMontre: Boolean, modifier
                 },
             )
             Spacer(Modifier.height(30.dp))
-            Text(
+            // Posé sur le décor « comme les jauges » (n° 16 du 31/10).
+            TexteJauge(
                 "Au tour de",
                 color = Neon.Blanc.copy(alpha = 0.8f), fontSize = 28.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.apparition(300, equipe),

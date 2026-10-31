@@ -1,5 +1,7 @@
 package com.littlemissparty.quiz.tv
 
+import com.littlemissparty.quiz.tv.habillage.CONTOUR_MIN
+import com.littlemissparty.quiz.tv.habillage.TexteJauge
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -350,14 +352,18 @@ private fun Jauges(ranking: List<Pair<Team, Int>>, gains: Map<String, Int>, modi
 @Composable
 private fun NomQuiTient(nom: String, max: TextUnit, modifier: Modifier) {
     val mesure = rememberTextMeasurer()
+    val densite = LocalDensity.current
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val dispo = constraints.maxWidth
         val taille = remember(nom, dispo, max) {
             var t = max.value
-            while (t > 10f && mesure.measure(nom, TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = t.sp), maxLines = 1, softWrap = false).size.width > dispo) t -= 0.5f
+            // Le contour déborde un peu de chaque côté des lettres : on garde sa place.
+            val place = dispo - with(densite) { (CONTOUR_MIN * 2).roundToPx() }
+            while (t > 10f && mesure.measure(nom, TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = t.sp), maxLines = 1, softWrap = false).size.width > place) t -= 0.5f
             t.sp
         }
-        Text(nom, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = taille, color = GS.Encre, textAlign = TextAlign.Center))
+        // Posé sur le décor « comme les jauges » (n° 36 du 31/10), comme les tubes au-dessus.
+        TexteJauge(nom, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = taille, color = GS.Encre, textAlign = TextAlign.Center))
     }
 }
 

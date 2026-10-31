@@ -55,7 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
-import com.littlemissparty.quiz.tv.habillage.filigraneGs
+import com.littlemissparty.quiz.tv.habillage.TexteJauge
 import com.littlemissparty.quiz.tv.habillage.MotsNeon
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.ConfettisLegers
@@ -149,13 +149,13 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 if (Look.gs && q.isQuiSuis) Box(Modifier.fillMaxWidth().apparition(0, state.index), contentAlignment = Alignment.Center) { EnseigneQuiSuis() }
                 else if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index), festif = q.isMusical || q.isDisparu)
                 else if (Look.gs && q.isMusical && q.text.length <= 24) MotsNeon(q.text, 40.sp, Modifier.apparition(0, state.index))
-                else Text(
+                else TexteJauge(
                     q.text,
                     color = Palette.Ink, fontSize = selonLook(34.sp, 38.sp), fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     lineHeight = selonLook(40.sp, 42.sp), maxLines = 3, overflow = TextOverflow.Ellipsis,
-                    // Game Show : filigrane A derrière la question posée sur le décor (cedric, 30/10 : « Qu'est-ce que
-                    // c'est ? » se confondait avec le décor).
-                    modifier = Modifier.fillMaxWidth().apparition(0, state.index).wrapContentWidth().filigraneGs(),
+                    // Game Show : la question posée sur le décor prend le contour « comme les jauges » (cedric, 31/10,
+                    // n° 3), à la place du filigrane du 30/10.
+                    modifier = Modifier.fillMaxWidth().apparition(0, state.index).wrapContentWidth(),
                 )
                 Spacer(Modifier.height(if (panneau != null) 14.dp else 20.dp))
             }

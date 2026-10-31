@@ -51,7 +51,7 @@ import com.littlemissparty.quiz.tv.habillage.ScenePictionary
 import com.littlemissparty.quiz.tv.habillage.Tampon
 import com.littlemissparty.quiz.tv.habillage.TientEnHauteur
 import com.littlemissparty.quiz.tv.habillage.apparition
-import com.littlemissparty.quiz.tv.habillage.bandeTitre
+import com.littlemissparty.quiz.tv.habillage.TexteJauge
 import com.littlemissparty.quiz.tv.habillage.TraitDessin
 import com.littlemissparty.quiz.tv.habillage.rebond
 import kotlinx.coroutines.delay
@@ -197,18 +197,18 @@ private fun Presentation(state: UiState.Playing, m: MimeUi) {
         if (crayon != null) Image(painterResource(crayon), contentDescription = null, modifier = Modifier.size(120.dp).rebond(true))
         else Text("✏️", fontSize = 90.sp, lineHeight = 96.sp, modifier = Modifier.rebond(true))
         // Le nom est déjà en grand au-dessus du crayon : plus de « Pictionary ! » en double (cedric, 28/10).
-        Text(
+        // Game Show : plus de bande sombre, la règle est posée sur le décor « comme les jauges » (n° 15 du 31/10), jamais de
+        // cadre autour. Le titre PICTIONARY ne bouge pas.
+        TexteJauge(
             reglePictionary(state.question?.durationSec ?: 90, m.points, Look.gs),
             color = Palette.Ink, fontSize = 26.sp, lineHeight = 34.sp, textAlign = TextAlign.Center,
-            // Game Show : la bande sombre des titres et règles (choix C, 29/10), jamais de cadre autour.
-            modifier = Modifier.bandeTitre(),
         )
     }
 }
 
 /**
- * La règle du Pictionary ; Game Show : en trois lignes équilibrées sur la bande sombre (planche du 29/10 validée par
- * cedric), Classique : en deux lignes comme avant.
+ * La règle du Pictionary ; Game Show : en trois lignes équilibrées, contour « comme les jauges » (planche du 29/10, n° 15
+ * du 31/10), Classique : en deux lignes comme avant.
  */
 internal fun reglePictionary(secondes: Int, points: Int, gs: Boolean): String =
     (if (gs) "Un enfant dessine sur la tablette de son équipe,\nle dessin apparaît ici en direct.\n"

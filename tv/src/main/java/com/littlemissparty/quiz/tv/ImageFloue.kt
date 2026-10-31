@@ -43,7 +43,7 @@ import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.AppelBuzzQuiSuis
 import com.littlemissparty.quiz.tv.habillage.Look
-import com.littlemissparty.quiz.tv.habillage.filigraneGs
+import com.littlemissparty.quiz.tv.habillage.TexteJauge
 import com.littlemissparty.quiz.tv.habillage.RevelationNeon
 import com.littlemissparty.quiz.tv.habillage.revelationAvecMot
 import com.littlemissparty.quiz.tv.habillage.apparition
@@ -187,11 +187,10 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Game Show : le filigrane A derrière les textes (cedric, 30/10 : ils se confondaient avec le décor) ; pas derrière
-        // la révélation en néon, qui prend tout le panneau.
-        val revelationGs = (state.phase == Phase.REVEAL || state.phase == Phase.SCORES) && Look.gs
+        // Game Show : les textes posés sur le décor ont le contour « comme les jauges » (cedric, 31/10, n° 4-8), plus de
+        // filigrane derrière.
         Column(
-            if (revelationGs) Modifier else Modifier.filigraneGs(),
+            Modifier,
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -237,25 +236,25 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                     // consigne entière dessous (test du 30/10 : « Votre réponse, à voix… » rogné sous les équipes).
                     TexteAjuste(
                         "${buzzer.name} a buzzé !", color = buzzer.color.toColor(), max = 46.sp, min = 20.sp, lignes = 2, uneLigneJusqua = 30.sp,
-                        modifier = Modifier.fillMaxWidth().weight(1f, fill = false).apparition(0, buzzer.uid),
+                        jauge = true, modifier = Modifier.fillMaxWidth().weight(1f, fill = false).apparition(0, buzzer.uid),
                     )
                     Spacer(Modifier.height(14.dp))
                     TexteAjuste(
                         consigneBuzz(q.isChante, q.isBlind), color = Palette.Ink, max = 30.sp, min = 16.sp, lignes = 2, uneLigneJusqua = 22.sp,
-                        fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(),
+                        fontWeight = FontWeight.Bold, jauge = true, modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                state.phase == Phase.CLOSED -> Text(
+                state.phase == Phase.CLOSED -> TexteJauge(
                     if (q.isFlou) "Temps écoulé ! Voyons ce qui se cachait…" else if (q.isBlind) "Temps écoulé ! Écoutons la réponse…" else "Temps écoulé !",
                     color = Palette.Gold, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
                 // Qui suis-je ? du Game Show (planche du 28/10) : « BUZZEZ ! » en néon, sans buzzer dessiné, et les essais ratés.
                 appelQuiSuis -> AppelBuzzQuiSuis(passees.map { it.name })
-                q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Text(
+                q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> TexteJauge(
                     "Mémorisez bien tous les objets !",
                     color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
-                else -> Text(
+                else -> TexteJauge(
                     when {
                         q.isDisparu -> "Buzzez dès que vous savez quel objet a disparu !"
                         q.isChante -> "Buzzez et chantez une chanson avec ce mot !"
@@ -268,7 +267,7 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
             }
             if (passees.isNotEmpty() && state.phase == Phase.QUESTION && !(Look.gs && q.isQuiSuis && buzzer == null)) {
                 Spacer(Modifier.height(24.dp))
-                Text(
+                TexteJauge(
                     "Déjà essayé : " + passees.joinToString(", ") { it.name },
                     color = Palette.InkSoft, fontSize = 22.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                     // Jusqu'à 7 équipes déjà passées : deux lignes au plus, la fin s'efface en « … ».
