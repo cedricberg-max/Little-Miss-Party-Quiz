@@ -57,11 +57,14 @@ class JeuxAuBuzzerTextesTest {
 
     @Test
     fun `qui suis-je a 4 equipes, panneau bas, la phrase reste a l'ecran`() {
-        // CI du 31/10 : « Personne n'a trouvé, ce n'est pas grave ! » poussée sous le panneau. En compact, « C'était : » et le
-        // trait de néon laissent leur place ; le mot et la phrase restent.
+        // CI du 31/10 : « Personne n'a trouvé, ce n'est pas grave ! » poussée sous le panneau. En compact, seul le trait de
+        // néon laisse sa place ; « C'était : », le mot et la phrase restent. Le panneau du Qui suis-je perd aussi sa grande
+        // marge à la révélation.
         val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/RevelationNeon.kt").readText()
-        assertTrue(source.contains("if (!compacte) Text(\n                    etiquette"))
+        assertFalse("« C'était : » reste", source.contains("if (!compacte) Text("))
         assertTrue(source.contains("if (!compacte) Canvas("))
+        val panneau = java.io.File("src/main/java/com/littlemissparty/quiz/tv/ImageFloue.kt").readText()
+        assertTrue(panneau.contains("val margeReduite = appelQuiSuis || revelationQuiSuis"))
         val phrase = source.substringAfter("// Filigrane A derrière la phrase").substringBefore("\n}\n")
         assertFalse("la phrase ne dépend pas du mode compact", phrase.contains("compacte"))
     }

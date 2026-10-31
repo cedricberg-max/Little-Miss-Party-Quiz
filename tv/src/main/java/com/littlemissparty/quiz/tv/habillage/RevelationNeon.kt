@@ -114,7 +114,7 @@ internal fun RevelationNeon(
         // Le mot et la phrase se partagent la hauteur : le mot cède de la place tant que la phrase ne tient pas en
         // entier (test du 30/10, 8 équipes : « PERSONNE N'A TROUVÉ, CE N'EST » coupé en bas du panneau).
         // Panneau trop bas (Qui suis-je ? à 4 équipes, pastilles sur deux rangs, CI du 31/10) : si la phrase ne tient pas
-        // en entier, « C'était : » et le trait de néon laissent leur place, le mot et la phrase restent tous les deux.
+        // en entier, le trait de néon laisse sa place ; « C'était : », le mot et la phrase restent.
         val (tailleMot, taillePhrase, compacte) = remember(mot, phrase, largeur, hauteur, avecMot, densite.density) {
             if (!avecMot) {
                 Triple(0f, mesure.tailleQuiTient(phrase, styleNeon(PoliceGsTitre), PHRASE_SEULE_MAX, PHRASE_MIN, (largeur * 0.88f).toInt(), (hauteur * 0.7f).toInt(), 3), false)
@@ -131,19 +131,19 @@ internal fun RevelationNeon(
                 }
                 val complet = essai(with(densite) { (22.sp.toPx() * 1.4f) + (10 + 12 + 10 + 16).dp.toPx() })
                 if (complet.third) Triple(complet.first, complet.second, false)
-                else essai(with(densite) { ESPACE_COMPACT.toPx() }).let { Triple(it.first, it.second, true) }
+                else essai(with(densite) { (22.sp.toPx() * 1.4f) + 10.dp.toPx() + ESPACE_COMPACT.toPx() }).let { Triple(it.first, it.second, true) }
             }
         }
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             if (avecMot) {
-                if (!compacte) Text(
+                Text(
                     etiquette, maxLines = 1, softWrap = false, modifier = Modifier.apparition(0, cle),
                     style = TextStyle(
                         fontFamily = PoliceGsChiffres, fontSize = 22.sp, letterSpacing = 6.sp, color = GS.CyanClair,
                         shadow = Shadow(GS.Cyan, Offset.Zero, 16f),
                     ),
                 )
-                if (!compacte) Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(10.dp))
                 Box(contentAlignment = Alignment.Center) {
                     Etincelles({ t }, { allume.value }, Modifier.matchParentSize())
                     // Le mot dans son tube de néon, comme « Quel est ce titre ? » (cedric, 25/10 : « très joli »).
@@ -243,7 +243,7 @@ internal fun partageMotPhraseTient(hauteur: Int, fixe: Float, essai: (Float) -> 
     }
 }
 
-/** Écart entre le mot et la phrase quand « C'était : » et le trait laissent leur place (panneau trop bas). */
+/** Écart entre le mot et la phrase quand le trait de néon laisse sa place (panneau trop bas). */
 internal val ESPACE_COMPACT = 6.dp
 
 internal const val PART_MOT_MAX = 0.38f
