@@ -104,6 +104,18 @@ suspend fun DatabaseReference.lireUneFois(): DataSnapshot = suspendCancellableCo
 }
 
 /** Titre de l'écran des scores : « TABLEAU DES SCORES » en Game Show (le design par défaut), « Classement » en Classique. */
+/**
+ * Texte réduit en entier par un calque (largeur et hauteur à l'écran plus petites que sa mise en page, dans la même
+ * proportion, à 3 % près), pas rogné : un texte coupé par son cadre ne perd que sa largeur ou que sa hauteur, ou pas
+ * dans la même proportion.
+ */
+fun reduitEnEntier(largeurEcran: Float, hauteurEcran: Float, largeur: Int, hauteur: Int): Boolean {
+    if (largeur <= 0 || hauteur <= 0) return false
+    val sx = largeurEcran / largeur
+    val sy = hauteurEcran / hauteur
+    return sx < 1f && sy < 1f && sx > 0.3f && kotlin.math.abs(sx - sy) <= 0.03f * maxOf(sx, sy)
+}
+
 fun titreClassement() = if (Look.gs) "TABLEAU DES SCORES" else "Classement"
 
 /** La box : l'appli TV elle-même, dans le même processus que les tests. */
@@ -425,9 +437,10 @@ class Ecran(private val nomTest: () -> String) {
             val b = n.boundsInWindow
             val visible = b.width > 0 && b.height > 0 && b.bottom > 0 && b.right > 0 &&
                 b.top < fenetre.height && b.left < fenetre.width
-            // boundsInWindow est rognée par les parents : plus petite que le texte, il est coupé.
+            // boundsInWindow est rognée par les parents : plus petite que le texte, il est coupé. Un texte réduit en entier
+            // (Mimes : la colonne du tour rapetisse au lieu d'être rognée) garde ses proportions : il n'est pas coupé.
             val entier = visible && b.top >= 0 && b.left >= 0 && b.bottom <= fenetre.height && b.right <= fenetre.width &&
-                b.height >= n.size.height - 1 && b.width >= n.size.width - 1
+                (b.height >= n.size.height - 1 && b.width >= n.size.width - 1 || reduitEnEntier(b.width, b.height, n.size.width, n.size.height))
             liste += Element(textes.joinToString(" "), n.config.getOrNull(SemanticsProperties.Focused) == true, visible, entier, b.center.x, fenetre.width, b.top, b.bottom, fenetre.height)
         }
         n.children.forEach { parcourir(it, fenetre, liste) }
