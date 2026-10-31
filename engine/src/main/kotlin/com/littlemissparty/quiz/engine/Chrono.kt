@@ -70,6 +70,7 @@ data class ChronoResult(
  * [goAt] : heure prévue du 0 ; [cacheMs] : le drap tombe ce temps après le 0 ; [shownAt] : heure où le 0 est vraiment
  * apparu à la TV ; [teams] : les équipes du tour (inscrites au lancement) ; [buzzes] : un appui par équipe au plus ;
  * [result] : le bilan, une fois jugé. [gagnes] : tours gagnés par équipe dans ce jeu (celui-ci compris).
+ * [manuel] : le bilan n'arrive qu'au « 👀 Révéler » de Sarah (tours lancés depuis le 31/10), jamais seul.
  */
 data class ChronoRound(
     val tour: Int,
@@ -82,6 +83,7 @@ data class ChronoRound(
     val buzzes: List<ChronoBuzz> = emptyList(),
     val result: ChronoResult? = null,
     val gagnes: Map<String, Int> = emptyMap(),
+    val manuel: Boolean = false,
 ) {
     /** Le chrono tourne (ou le drap le cache) : lancé, pas encore jugé. */
     val enCours: Boolean get() = startAt != null && result == null
@@ -95,18 +97,27 @@ data class ChronoRound(
 
     /** Le tour s'arrête sans bilan (pause, « ✋ Arrêter ») : il reste prêt, avec la même cible. */
     fun annule(): ChronoRound =
-        if (enCours) copy(startAt = null, goAt = null, cacheMs = null, shownAt = null, teams = emptyList(), buzzes = emptyList()) else this
+        if (enCours) copy(startAt = null, goAt = null, cacheMs = null, shownAt = null, teams = emptyList(), buzzes = emptyList(), manuel = false) else this
+
+    /** Toutes les équipes du tour ont buzzé : plus personne ne compte. */
+    val toutesOntBuzze: Boolean get() = teams.isNotEmpty() && teams.all { t -> buzzes.any { it.team == t } }
+
+    /** Sarah peut révéler maintenant : tour en cours et toutes les équipes ont buzzé (la cible passée le permet aussi, voir [revelableA]). */
+    val revelable: Boolean get() = enCours && toutesOntBuzze
+
+    /** Sarah peut révéler à l'heure [at] : toutes ont buzzé, ou la cible est passée. */
+    fun revelableA(at: Long): Boolean = enCours && (toutesOntBuzze || reference?.let { at >= it + cible * 1_000L } == true)
 
     /** Le 0 de référence : tel qu'il est apparu à l'écran, sinon son heure prévue. */
     val reference: Long? get() = goAt?.let { go -> shownAt?.coerceIn(go - CHRONO_AVANCE_MAX_MS, go + CHRONO_AFFICHAGE_MAX_MS) ?: go }
 
-    /** Heure où la box doit juger le tour sans attendre d'autre buzz, ou null s'il n'y a rien à attendre. */
+    /** Heure où la box juge seule le tour (anciens tours seulement : un tour [manuel] attend le « 👀 Révéler » de Sarah), ou null. */
     val jugeAt: Long? get() {
         val go = goAt ?: return null
-        if (!enCours) return null
+        if (!enCours || manuel) return null
         // Toutes les équipes ont buzzé : on juge dès que l'heure du 0 affiché est connue (sinon 5 s après le 0 prévu,
         // bien avant la cible : l'heure prévue sert alors de référence).
-        if (teams.isNotEmpty() && teams.all { t -> buzzes.any { it.team == t } }) return if (shownAt != null) startAt else go + 5_000L
+        if (toutesOntBuzze) return if (shownAt != null) startAt else go + 5_000L
         return reference!! + cible * 1_000L + CHRONO_ATTENTE_MS
     }
 

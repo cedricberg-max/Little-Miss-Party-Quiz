@@ -358,7 +358,8 @@ data class ChronoTargetSet(override val seq: Int, override val at: Long, val qid
 
 /**
  * Le Chrono de Buzzy : le tour [tour] est lancé entre les équipes [teams] ; le 0 du chrono à [goAt] (après le décompte),
- * le drap de Buzzy tombe [cacheMs] après le 0.
+ * le drap de Buzzy tombe [cacheMs] après le 0. [manuel] : le bilan attend le « 👀 Révéler » de Sarah (cedric, 31/10) ;
+ * faux pour les tours lancés avant ce changement (relus tels qu'ils ont été joués : jugés seuls).
  */
 data class ChronoStarted(
     override val seq: Int,
@@ -368,6 +369,7 @@ data class ChronoStarted(
     val goAt: Long,
     val cacheMs: Long,
     val teams: List<String>,
+    val manuel: Boolean = false,
 ) : GameEvent
 
 /** Le Chrono de Buzzy : la tablette de [team] a buzzé, appui à [t] (heure du serveur estimée par la tablette). */

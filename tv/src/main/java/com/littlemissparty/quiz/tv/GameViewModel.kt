@@ -967,12 +967,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                         },
                     )
                 }
-                // Chrono de Buzzy : OK lance le chrono du tour prêt, puis le tour suivant ; après le dernier, le jeu suivant.
+                // Chrono de Buzzy : OK lance le chrono du tour prêt, révèle quand toutes ont buzzé (comme « 👀 Révéler »),
+                // puis le tour suivant ; après le dernier, le jeu suivant.
                 else if (g.question?.isChrono == true) {
                     val c = g.state.chrono
                     val ids = teams().map { it.uid }
                     commit(
                         when {
+                            c != null && c.revelable -> g.settleChrono(serverNow(), force = true)
                             c == null || c.enCours -> null
                             c.step == "ready" -> if (ids.isEmpty()) null else g.startChrono(ids, serverNow())
                             g.chronoFini -> g.next(serverNow())

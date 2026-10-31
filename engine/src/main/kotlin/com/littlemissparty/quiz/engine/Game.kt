@@ -855,7 +855,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             val c = s.chrono
             if (!chronoOuvert(s, e.qid, e.tour) || c == null || c.step != "ready" || e.goAt < e.at || e.cacheMs <= 0 ||
                 e.teams.isEmpty() || e.teams.distinct().size != e.teams.size) null
-            else s.copy(chrono = c.copy(startAt = e.at, goAt = e.goAt, cacheMs = e.cacheMs, teams = e.teams, buzzes = emptyList()))
+            else s.copy(chrono = c.copy(startAt = e.at, goAt = e.goAt, cacheMs = e.cacheMs, teams = e.teams, buzzes = emptyList(), manuel = e.manuel))
         }
         is ChronoBuzzed -> {
             val c = s.chrono
@@ -879,8 +879,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         is ChronoSettled -> {
             val c = s.chrono
             val due = c?.jugeAt
-            // « Révéler maintenant » de Sarah : seulement une fois la cible passée (personne ne compte encore).
-            val permis = if (e.force) c?.reference?.let { e.at >= it + c.cible * 1_000L } == true else due != null && e.at >= due - ARM_TOLERANCE_MS
+            // « 👀 Révéler » de Sarah : toutes les équipes ont buzzé, ou la cible est passée (personne ne compte encore).
+            val permis = if (e.force) c?.revelableA(e.at) == true else due != null && e.at >= due - ARM_TOLERANCE_MS
             if (!chronoOuvert(s, e.qid, e.tour) || c == null || !c.enCours || !permis) null
             else chronoJuge(s, c, c.bilan(e.at, CHRONO_POINTS * factorIn(s, s.index)))
         }
@@ -1651,7 +1651,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun startChrono(teams: Collection<String>, now: Long, random: Random = Random.Default): GameEvent? {
         val c = state.chrono?.takeIf { it.step == "ready" } ?: return null
         if (teams.isEmpty()) return null
-        return state.qid?.let { emit(ChronoStarted(nextSeq, now, it, c.tour, now + CHRONO_DECOMPTE_MS, momentDuDrap(c.cible, random), teams.distinct())) }
+        return state.qid?.let { emit(ChronoStarted(nextSeq, now, it, c.tour, now + CHRONO_DECOMPTE_MS, momentDuDrap(c.cible, random), teams.distinct(), manuel = true)) }
     }
 
     /** Chrono de Buzzy : la tablette de [team] a buzzé ; [t] = heure de l'appui (heure du serveur estimée par la tablette). */
