@@ -9,7 +9,7 @@ body.look-gs:not(.regie-mode) {
   background: #05010d url(img/gs/studio-paysage.webp) center / cover no-repeat;
 }
 @media (orientation: portrait) {
-  body.look-gs:not(.regie-mode) { background-image: url(img/gs/studio-portrait.webp); }
+  body.look-gs:not(.regie-mode) { background-image: url(img/gs/studio-portrait-2.webp); }
 }
 /* Le sol quadrillé et la ligne d'horizon de l'ancien habillage : le studio les remplace. */
 body.look-gs:not(.regie-mode)::before, body.look-gs:not(.regie-mode)::after { display: none; }
@@ -111,3 +111,120 @@ body.look-gs:not(.regie-mode) .intro-jeu::before {
 @keyframes tg-intro { to { transform: scale(1.04); } }
 body.look-gs:not(.regie-mode) .intro-jeu-label { color: #bffcff; text-shadow: var(--tg-halo), 0 0 14px var(--gs-cyan); }
 body.look-gs:not(.regie-mode) .intro-jeu-titre { color: #ffe3f1; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 22px var(--gs-rose), 0 0 44px var(--gs-rose); }
+
+/* ---------- Écran 3 : les réponses du quiz ---------- */
+/* Numéro, « Points ×2 » et chrono : posés sur le décor, sans pastille. */
+body.look-gs:not(.regie-mode) .question-head { color: #bffcff; text-shadow: var(--tg-halo), 0 0 12px var(--gs-cyan); }
+body.look-gs:not(.regie-mode) .double {
+  background: none; padding: 0; font-family: "GS Bungee"; font-weight: 400; color: #fff7a8;
+  text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 18px var(--gs-jaune), 0 0 34px var(--gs-jaune);
+}
+body.look-gs:not(.regie-mode) .question-head .timer { color: #fff; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 20px var(--gs-cyan), 0 0 40px var(--gs-cyan); }
+body.look-gs:not(.regie-mode) .question-head .timer.urgent { color: #ffe3f1; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 20px var(--gs-rose), 0 0 40px var(--gs-rose); }
+/* Réponses : boutons bonbon bombés, chacun dans sa couleur de la TV (A rose, B orange, C vert, D jaune), texte blanc
+   cerné de sombre pour rester lisible même sur le jaune. */
+body.look-gs:not(.regie-mode) .choice {
+  border: 0; color: #fff; font-family: "GS Rajdhani"; font-weight: 700;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--choice) 55%, #fff) 0%, var(--choice) 42%, color-mix(in srgb, var(--choice) 72%, #000) 100%);
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--choice) 45%, #000), 0 10px 22px color-mix(in srgb, var(--choice) 40%, transparent), inset 0 2px 0 rgba(255, 255, 255, .7), inset 0 -4px 10px rgba(0, 0, 0, .2);
+  text-shadow: 0 0 2px rgba(5, 1, 13, .95), 0 1px 3px rgba(5, 1, 13, .9), 0 0 8px rgba(5, 1, 13, .6);
+  transition: transform .08s, opacity .3s, box-shadow .08s;
+}
+body.look-gs:not(.regie-mode) .choice:active { transform: translateY(4px); box-shadow: 0 2px 0 color-mix(in srgb, var(--choice) 45%, #000), inset 0 2px 0 rgba(255, 255, 255, .7); }
+body.look-gs:not(.regie-mode) .choice .letter {
+  border-radius: 50%; background: #fff; color: color-mix(in srgb, var(--choice) 70%, #000); text-shadow: none;
+  font-family: "GS Orbitron"; font-weight: 900; box-shadow: 0 2px 0 rgba(0, 0, 0, .25), inset 0 -3px 0 rgba(0, 0, 0, .12);
+}
+body.look-gs:not(.regie-mode) .choice:disabled { opacity: .4; filter: saturate(.6); }
+/* Réponse choisie : elle reste pleine, un anneau blanc lumineux autour, un peu plus grande. */
+body.look-gs:not(.regie-mode) .choice.picked {
+  opacity: 1; filter: none; color: #fff; transform: scale(1.03);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--choice) 55%, #fff) 0%, var(--choice) 42%, color-mix(in srgb, var(--choice) 72%, #000) 100%);
+  box-shadow: 0 0 0 4px #fff, 0 0 26px #fff, 0 0 44px var(--choice);
+}
+body.look-gs:not(.regie-mode) .choice.picked .letter { background: #fff; color: color-mix(in srgb, var(--choice) 70%, #000); }
+
+/* ---------- Écran 4 : le résultat d'une question ---------- */
+/* Buzzy réagit au-dessus du symbole : pouces levés si c'est gagné, épaules haussées si c'est raté. */
+body.look-gs:not(.regie-mode) .result-icon { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+body.look-gs:not(.regie-mode) .result-icon::before {
+  content: ""; display: block; height: clamp(150px, 28vh, 320px); aspect-ratio: 201 / 280;
+  background: center / contain no-repeat; filter: drop-shadow(0 0 20px rgba(0, 240, 255, .3));
+}
+body.look-gs:not(.regie-mode) .result-icon.ok::before { background-image: url(img/gs/buzzy-pouces.webp); }
+body.look-gs:not(.regie-mode) .result-icon.ko::before { background-image: url(img/gs/buzzy-rate.webp); aspect-ratio: 237 / 280; }
+body.look-gs:not(.regie-mode) .result-icon.ok { color: #d9ffd0; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 8px #fff, 0 0 26px var(--gs-vert), 0 0 50px var(--gs-vert); }
+body.look-gs:not(.regie-mode) .result-icon.ko { color: #fff; text-shadow: var(--tg-halo); opacity: .9; }
+body.look-gs:not(.regie-mode) #app .result-icon { font-size: clamp(56px, 9vh, 110px); }
+body.look-gs:not(.regie-mode) .result-title { color: #fff; text-shadow: 0 0 2px rgba(5, 1, 13, .95), 0 0 10px rgba(5, 1, 13, .9), 0 0 22px rgba(255, 255, 255, .35); }
+/* Total et place : plus de pastille ; gros chiffres dorés qui brillent. */
+body.look-gs:not(.regie-mode) .total {
+  background: none; border: 0; box-shadow: none; padding: 0; color: #fff4c2;
+  text-shadow: 0 0 2px rgba(5, 1, 13, .95), 0 0 6px rgba(5, 1, 13, .8), 0 0 18px #ffb800, 0 0 36px rgba(255, 184, 0, .6);
+}
+
+/* ---------- Écran 5 : fin de partie, pause et compte à rebours ---------- */
+/* Fin : Buzzy applaudit au-dessus de « Bravo ! » (pendant le suspense du gagnant, il retient son souffle). */
+body.look-gs:not(.regie-mode) #screen-ended .logo.small::before {
+  content: ""; display: block; align-self: center; height: clamp(150px, 28vh, 320px); aspect-ratio: 224 / 280; margin-bottom: 6px;
+  background: url(img/gs/buzzy-applaudit.webp) center / contain no-repeat; filter: drop-shadow(0 0 20px rgba(0, 240, 255, .3));
+}
+body.look-gs:not(.regie-mode) #screen-ended.suspense .logo.small::before { background-image: url(img/gs/buzzy-suspense.webp); }
+body.look-gs:not(.regie-mode) #screen-ended .logo.small {
+  color: #fff4c2; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 22px #ffb800, 0 0 46px #ffb800;
+}
+/* Pause : le studio reste visible derrière (assombri), Buzzy recharge sa batterie, le texte est posé dessus. */
+body.look-gs:not(.regie-mode) .paused {
+  /* Fond plein (le studio, plus sombre) : l'écran de jeu dessous ne se voit plus à travers. */
+  background: linear-gradient(rgba(5, 1, 13, .55), rgba(5, 1, 13, .55)), #05010d url(img/gs/studio-paysage.webp) center / cover no-repeat;
+  color: #e9feff; letter-spacing: 1px; font-size: clamp(32px, 10vw, 64px);
+  text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 22px var(--gs-cyan), 0 0 44px var(--gs-cyan);
+}
+@media (orientation: portrait) {
+  body.look-gs:not(.regie-mode) .paused { background-image: linear-gradient(rgba(5, 1, 13, .55), rgba(5, 1, 13, .55)), url(img/gs/studio-portrait-2.webp); }
+}
+body.look-gs:not(.regie-mode) #paused::before {
+  content: ""; display: block; height: clamp(150px, 30vh, 340px); aspect-ratio: 270 / 280;
+  background: url(img/gs/buzzy-batterie.webp) center / contain no-repeat; filter: drop-shadow(0 0 20px rgba(0, 240, 255, .3));
+}
+body.look-gs:not(.regie-mode) .paused p { font-family: "GS Rajdhani"; font-weight: 700; opacity: 1; text-shadow: var(--tg-halo); }
+/* Compte à rebours : gros chiffre rose néon. */
+body.look-gs:not(.regie-mode) .countdown div {
+  font-family: "GS Orbitron"; font-weight: 900; color: #ffe3f1;
+  text-shadow: 0 0 4px #fff, 0 0 26px var(--gs-rose), 0 0 60px var(--gs-rose), 0 0 3px rgba(5, 1, 13, .9);
+}
+
+/* ---------- Plus grand, plus présent (cedric, 31/10 07:15 : « un petit peu trop minimisé ») ----------
+   Tout grossit avec l'écran (hauteur et largeur), sans jamais sortir des marges : Buzzy, nom de l'équipe, titres,
+   consignes, points, réponses. Le palier tablette de style.css (#app …) est repris ici pour passer devant. */
+body.look-gs:not(.regie-mode) #app .hint { font-size: clamp(19px, min(4.2vw, 3.6vh), 36px); max-width: 26em; }
+body.look-gs:not(.regie-mode) #app .welcome { font-size: clamp(22px, min(5vw, 4vh), 42px); }
+body.look-gs:not(.regie-mode) #app .team-banner { font-size: clamp(22px, min(5.4vw, 4.4vh), 50px); padding: 2px 8px; gap: .4em; }
+body.look-gs:not(.regie-mode) #app .team-banner.small { font-size: clamp(20px, min(4.6vw, 3.8vh), 42px); }
+body.look-gs:not(.regie-mode) #app .team-banner .dot { width: .7em; height: .7em; }
+body.look-gs:not(.regie-mode) #app .logo.small { font-size: clamp(34px, min(8vw, 6vh), 76px); }
+body.look-gs:not(.regie-mode) #app .tablet-num { font-size: clamp(44px, min(11vw, 8vh), 110px); }
+/* Buzzy : nettement plus grand partout où il apparaît. */
+body.look-gs:not(.regie-mode) .logo:not(.small)::before,
+body.look-gs:not(.regie-mode) #screen-waiting .logo.small::before,
+body.look-gs:not(.regie-mode) .intro-jeu::before { width: auto; height: clamp(140px, 34vh, 440px); }
+body.look-gs:not(.regie-mode) .result-icon::before,
+body.look-gs:not(.regie-mode) #screen-ended .logo.small::before,
+body.look-gs:not(.regie-mode) #paused::before { height: clamp(150px, 36vh, 460px); }
+body.look-gs:not(.regie-mode) #app .result-icon { font-size: clamp(44px, 7vh, 96px); }
+body.look-gs:not(.regie-mode) #app .result-title { font-size: clamp(26px, min(6.4vw, 5vh), 64px); line-height: 1.15; }
+body.look-gs:not(.regie-mode) #app .total { font-size: clamp(24px, min(5.6vw, 4.4vh), 54px); padding: 0; }
+body.look-gs:not(.regie-mode) #app .intro-jeu-label { font-size: clamp(16px, min(3.4vw, 2.6vh), 30px); }
+body.look-gs:not(.regie-mode) #app .intro-jeu-titre { font-size: clamp(36px, min(9vw, 7vh), 92px); }
+body.look-gs:not(.regie-mode) #play-status:not(.fete) { font-size: clamp(22px, min(5vw, 4.2vh), 42px); }
+/* Pause et reprise. */
+body.look-gs:not(.regie-mode) .paused { font-size: clamp(34px, min(11vw, 8vh), 100px); }
+body.look-gs:not(.regie-mode) #app ~ .paused p, body.look-gs:not(.regie-mode) .paused p { font-size: clamp(20px, min(4.8vw, 4vh), 40px); max-width: 22em; }
+body.look-gs:not(.regie-mode) .countdown div { font-size: clamp(120px, 26vh, 300px); }
+/* Question : en-tête, chrono et réponses plus grands. */
+body.look-gs:not(.regie-mode) #app .question-head { font-size: clamp(18px, min(4vw, 3.2vh), 34px); max-width: 900px; }
+body.look-gs:not(.regie-mode) #app .question-head .timer { font-size: clamp(34px, min(8vw, 6vh), 72px); }
+body.look-gs:not(.regie-mode) #app .double { font-size: clamp(16px, min(3.6vw, 2.8vh), 30px); padding: 0; }
+body.look-gs:not(.regie-mode) #app .choices:not(.number) { max-width: 900px; }
+body.look-gs:not(.regie-mode) #app .choice:not(.with-photo) { font-size: clamp(20px, min(4.6vw, 3.4vh), 38px); min-height: clamp(70px, 9vh, 130px); }
+body.look-gs:not(.regie-mode) #app .choice .letter { width: 1.6em; height: 1.6em; font-size: 1em; }
