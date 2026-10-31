@@ -142,7 +142,7 @@ sealed interface UiState {
         val intro: Boolean = false,
         /** Nom du jeu en cours (« Image floue », « Mimes »…), pour sa présentation. */
         val gameTitle: String? = null,
-        /** Points multipliés de la question en cours (dernières questions du quiz : ×2, ×3 ou ×5), 1 sinon. */
+        /** Points multipliés de la question en cours (dernières questions du quiz : ×2, ×3, ×4 ou ×5), 1 sinon. */
         val factor: Int = 1,
         /** Annonce « × N » avant la première question multipliée : heure (serveur) où le chrono part ; null sinon. */
         val introUntil: Long? = null,

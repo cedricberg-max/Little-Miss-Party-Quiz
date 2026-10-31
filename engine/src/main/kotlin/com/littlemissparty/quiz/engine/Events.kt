@@ -79,7 +79,7 @@ data class FactorChosen(override val seq: Int, override val at: Long, val start:
 data class GameLaunched(override val seq: Int, override val at: Long) : GameEvent
 
 /** Multiplicateurs proposés à l'animatrice pour les dernières questions du quiz ; le premier est celui par défaut. */
-val FACTORS = listOf(2, 3, 5)
+val FACTORS = listOf(2, 3, 4, 5)
 
 /**
  * Les coffres mystères : la box installe les coffres de la manche [qid] dès le lancement du jeu. [order] : ordre de jeu

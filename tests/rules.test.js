@@ -592,8 +592,9 @@ describe("régie", () => {
     await assertSucceeds(command(REGIE, { type: "goto", index: 2, qid: "a1m" }));
     await assertFails(command(REGIE, { type: "goto", index: -1, qid: "q1" }));
     await assertFails(command(REGIE, { type: "goto", index: 0, qid: 12 }));
-    // Dernières questions du quiz : ×2, ×3 ou ×5 seulement.
-    await assertFails(command(REGIE, { type: "factor", factor: 4 }));
+    // Dernières questions du quiz : ×2, ×3, ×4 ou ×5 seulement (×4 : cedric, 31/10).
+    await assertFails(command(REGIE, { type: "factor", factor: 6 }));
+    await assertSucceeds(command(REGIE, { type: "factor", factor: 4 }));
     await assertFails(command(REGIE, { type: "factor", factor: "5" }));
     await assertSucceeds(command(REGIE, { type: "factor", factor: 3 }));
     // L'ancien jeu des portes est supprimé (31/10) : sa commande est refusée.

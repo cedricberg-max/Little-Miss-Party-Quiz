@@ -2418,7 +2418,7 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("juste avant les dernières questions du quiz, l'animatrice choisit ×2, ×3 ou ×5", async () => {
+  test("juste avant les dernières questions du quiz, l'animatrice choisit ×2, ×3, ×4 ou ×5", async () => {
     box = startBox();
     const page = await openRegie();
     await pair(page);
@@ -2430,6 +2430,10 @@ describe("régie", () => {
     await page.click("#c-factor [data-factor='3']");
     await waitFor(async () => (await commands()).find((c) => c.type === "factor" && c.factor === 3), "commande ×3");
     await page.locator("#c-factor [data-factor='3'].on").waitFor();
+    // ×4 aussi (cedric, 31/10).
+    await page.click("#c-factor [data-factor='4']");
+    await waitFor(async () => (await commands()).find((c) => c.type === "factor" && c.factor === 4), "commande ×4");
+    await page.locator("#c-factor [data-factor='4'].on").waitFor();
     // Question multipliée lancée : plus de choix, la régie affiche la valeur.
     await box.set({ ...questionState(box.state.seq + 1, 1), double: true, factor: 3, factorChoice: null, game: { label: "Quiz · question 2 / 2" } });
     await page.locator("#c-step", { hasText: "Quiz · question 2 / 2 · ×3" }).waitFor();
@@ -4070,7 +4074,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#screen-home .tile[data-game="quiz"]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
     assert.equal(await tile("finale").count(), 0);
     await openGamePage(page, "quiz");
-    await page.locator("#game-rule", { hasText: "les dernières questions du quiz peuvent compter ×2, ×3 ou ×5" }).waitFor();
+    await page.locator("#game-rule", { hasText: "les dernières questions du quiz peuvent compter ×2, ×3, ×4 ou ×5" }).waitFor();
     // Les pages d'un jeu gardent l'onglet Accueil allumé ; son fil d'Ariane y ramène.
     assert.equal(await page.locator("#nav button.active").textContent(), "Accueil");
     // Mimes : l'onglet Collections mène aux collections de cartes (ce que Sarah ne trouvait pas).

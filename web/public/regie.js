@@ -791,7 +791,7 @@ function render() {
 /** Super Finales dont le multiplicateur de la Régie PC a déjà été envoyé à la TV (une fois chacune). */
 const facteursProposes = new Set();
 
-/** Juste avant les dernières questions du quiz : l'animatrice choisit ×2, ×3 ou ×5 (×2 par défaut). */
+/** Juste avant les dernières questions du quiz : l'animatrice choisit ×2, ×3, ×4 ou ×5 (×2 par défaut ; ×4 : cedric, 31/10). */
 function renderFactor(st) {
   const choice = st.factorChoice;
   const box = $("c-factor");
@@ -800,7 +800,7 @@ function renderFactor(st) {
   // Multiplicateur choisi dans la Régie PC (cedric, 23/10 : ×2 d'office) : proposé une fois, Sarah peut encore le changer.
   const voulu = live.facteurs?.[live.plan?.questions?.[choice.start]?.id];
   const cle = `${live.plan?.id ?? ""}:${choice.start}`;
-  if ([3, 5].includes(voulu) && choice.factor !== voulu && !facteursProposes.has(cle)) {
+  if ([3, 4, 5].includes(voulu) && choice.factor !== voulu && !facteursProposes.has(cle)) {
     facteursProposes.add(cle);
     send("factor", { factor: voulu });
   }

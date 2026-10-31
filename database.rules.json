@@ -294,7 +294,7 @@
               ".validate": "newData.isString() && newData.val().length <= 40"
             },
             "factor": {
-              ".validate": "newData.val() === 2 || newData.val() === 3 || newData.val() === 5"
+              ".validate": "newData.val() === 2 || newData.val() === 3 || newData.val() === 4 || newData.val() === 5"
             },
             "name": {
               ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"

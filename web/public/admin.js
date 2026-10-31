@@ -10727,7 +10727,7 @@ const plural = (n, word, many = `${word}s`) => `${n} ${n > 1 ? many : word}`;
 /** Les jeux par famille : ce qui se prépare dans la bibliothèque, ce qui vient d'un quiz, ce qui est intégré. */
 const GAME_GROUPS = [
   { title: "Avec vos contenus", hint: "Vous préparez le contenu dans la bibliothèque, une fois, et vous le réutilisez dans toutes les prestations.", games: [
-    { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 réponses écrites sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre) et montrer une petite photo à la révélation. Super Finale : dans la prestation, les dernières questions du quiz peuvent compter ×2, ×3 ou ×5 (choisi en direct sur la régie).",
+    { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 réponses écrites sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre) et montrer une petite photo à la révélation. Super Finale : dans la prestation, les dernières questions du quiz peuvent compter ×2, ×3, ×4 ou ×5 (choisi en direct sur la régie).",
       status: () => quizTileLine(quizQuestions), },
     { type: "illustre", icon: "📷", rule: "Pour les petits, dès 5 ans : l'animatrice lit la question, chaque réponse est une photo avec son mot, sur la TV et les tablettes. Toutes les équipes qui trouvent marquent, comme au Quiz. Les questions se piochent dans la banque des tout-petits (388 mots en photos) ou se font à la main.",
       status: () => quizTileLine(illustreQuestions), },
@@ -10741,7 +10741,7 @@ const GAME_GROUPS = [
       status: () => plural(statuesChoices(playlists).length, "chanson disponible", "chansons disponibles"), },
   ] },
   { title: "Tirés d'un quiz", hint: "Rien de plus à préparer : ces jeux reprennent les questions d'un quiz de la bibliothèque. Dans la prestation, choisissez le quiz et combien de questions.", games: [
-    { type: "express", icon: "✔", rule: "Des affirmations Vrai / Faux au chrono court du profil : tirées au 🎲 dans le Vrai ou Faux tout prêt, reprises d'un ancien anniversaire ou de vos quiz. Super Finale : les dernières affirmations peuvent compter ×2, ×3 ou ×5 (choisi en direct sur la régie).", needs: "Vrai / Faux validées" },
+    { type: "express", icon: "✔", rule: "Des affirmations Vrai / Faux au chrono court du profil : tirées au 🎲 dans le Vrai ou Faux tout prêt, reprises d'un ancien anniversaire ou de vos quiz. Super Finale : les dernières affirmations peuvent compter ×2, ×3, ×4 ou ×5 (choisi en direct sur la régie).", needs: "Vrai / Faux validées" },
     { type: "zoom", icon: "🔍", rule: "Une photo d'un quiz ou de la banque se dévoile peu à peu.", needs: "photos" },
     { type: "flou", icon: "🌫", rule: "Une photo d'un quiz ou de la banque devient nette peu à peu, le premier qui buzze répond.", needs: "photos" },
   ] },

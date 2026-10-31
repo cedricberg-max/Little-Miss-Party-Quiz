@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 /**
- * Dernières questions du quiz : l'animatrice choisit ×2, ×3 ou ×5 juste avant la première (×2 si elle ne
+ * Dernières questions du quiz : l'animatrice choisit ×2, ×3, ×4 ou ×5 juste avant la première (×2 si elle ne
  * touche à rien). Un réglage de la manche Quiz, jamais un jeu à part.
  */
 class MultiplicateurTest {
@@ -66,6 +66,17 @@ class MultiplicateurTest {
     }
 
     @Test
+    fun `×4 possible (cedric, 31-10)`() {
+        val g = Game(quiz)
+        var t = jouer(g, t0)
+        assertEquals(CommandStatus.APPLIED, g.execute(Command.Factor("x", g.state.lastSeq, 4), t, teams).status)
+        t = jouer(g, t)
+        jouer(g, t)
+        assertEquals(400, gagne(g, "a2"))
+        assertEquals(400, gagne(g, "a3"))
+    }
+
+    @Test
     fun `chaque manche de quiz a son propre multiplicateur, ×2 par défaut`() {
         val g = Game(quiz)
         var t = jouer(g, t0)
@@ -85,7 +96,7 @@ class MultiplicateurTest {
     fun `multiplicateur inconnu ou hors des dernières questions refusé`() {
         val g = Game(quiz)
         assertNull(g.factorChoice())
-        assertEquals("bad_factor", g.execute(Command.Factor("x", 0, 4), t0, teams).reason)
+        assertEquals("bad_factor", g.execute(Command.Factor("x", 0, 6), t0, teams).reason)
         assertEquals(CommandStatus.REFUSED, g.execute(Command.Factor("y", 0, 3), t0, teams).status)
     }
 

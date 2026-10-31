@@ -627,7 +627,7 @@ export const questionJouable = (q) => questionsEnLigne([q]).length === 1;
 /** Au plus autant de questions dans une manche Quiz (cedric, 23/10 : « 8, 10, 15, 20, 30, 50, 100 questions »). */
 export const MAX_QUESTIONS_MANCHE = 100;
 /** Multiplicateurs de la Super Finale ; le premier est celui d'office (comme sur la régie). */
-export const FACTEURS_FINALE = [2, 3, 5];
+export const FACTEURS_FINALE = [2, 3, 4, 5];
 /** Origines d'une série de questions d'une manche Quiz. */
 export const ORIGINES_SERIE = ["de", "quiz", "main", "reprise", "images"];
 /**
