@@ -965,12 +965,23 @@ class DirecteurSonoreTest {
         Lit.entries.forEach { assertEquals(Ambiance.FETE.volume(it), Ambiance.BILAN.volume(it), 0f) }
         assertEquals(0.8f, Ambiance.BILAN.volume(Lit.BILAN, gs = true), 0f)
         assertEquals(0f, Ambiance.BILAN.volume(Lit.COMPLET, gs = true), 0f)
-        // Super finale : en Classique, l'express un peu plus bas ; en Game Show, la musique de la manche et la nappe.
+        // Super finale : en Classique, l'express un peu plus bas ; en Game Show, la musique de la manche un peu plus bas,
+        // la nappe nettement plus forte que la musique et la pulsation grave (idée 3, cedric 31/10).
         assertEquals(0.6f, Ambiance.DECISIVE.volume(Lit.EXPRESS), 0f)
         assertEquals(0f, Ambiance.DECISIVE.volume(Lit.TENSION), 0f)
-        assertEquals(Ambiance.QUESTION.volume(Lit.LEGER, gs = true), Ambiance.DECISIVE.volume(Lit.LEGER, gs = true), 0f)
-        assertTrue(Ambiance.DECISIVE.volume(Lit.TENSION, gs = true) > 0f)
+        assertEquals(0f, Ambiance.DECISIVE.volume(Lit.POULS), 0f)
+        val musique = Ambiance.DECISIVE.volume(Lit.LEGER, gs = true)
+        assertTrue(musique > 0f && musique < Ambiance.QUESTION.volume(Lit.LEGER, gs = true))
+        assertTrue(Ambiance.DECISIVE.volume(Lit.TENSION, gs = true) > musique)
+        assertTrue(Ambiance.DECISIVE.volume(Lit.POULS, gs = true) > 0f)
         assertEquals(0f, Ambiance.DECISIVE.volume(Lit.EXPRESS, gs = true), 0f)
+        // La pulsation ne joue que là : aucune autre ambiance ne la fait entendre.
+        Ambiance.entries.filter { it != Ambiance.DECISIVE }.forEach {
+            assertEquals(it.name, 0f, it.volume(Lit.POULS, gs = true), 0f)
+            assertEquals(it.name, 0f, it.volume(Lit.POULS), 0f)
+        }
+        assertEquals("gs_bed_pouls", Lit.POULS.fichierPour(true))
+        assertNull(Lit.POULS.fichierPour(false))
         // Les ambiances sans réglage propre sonnent pareil dans les deux designs.
         Lit.entries.forEach { assertEquals(Ambiance.FETE.volume(it), Ambiance.FETE.volume(it, gs = true), 0f) }
         // Les boucles propres au Game Show ne se chargent pas en Classique.

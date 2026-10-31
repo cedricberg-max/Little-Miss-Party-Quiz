@@ -782,6 +782,11 @@ enum class Lit(
     BILAN(null, "gs_bed_bilan"),
     /** Game Show : nappe de tension sans note, par-dessus la musique de la manche pendant la Super finale. */
     TENSION(null, "gs_bed_tension"),
+    /**
+     * Game Show, Super finale : pulsation grave sur chaque temps, un demi-ton plus haut toutes les 2 mesures, doublée sur
+     * les 2 dernières (« tout accélère », idée 3 choisie par cedric le 31/10), la même quel que soit le multiplicateur.
+     */
+    POULS(null, "gs_bed_pouls"),
     /** Game Show : le dernier groove d'Aerodynamic, sous l'écran de fin après le podium (cedric, 23 octobre). */
     FIN(null, "gs_bed_fin"),
     /**
@@ -986,9 +991,10 @@ enum class Ambiance(
     EXPRESS(express = 0.75f),
     /**
      * Dernières questions du quiz à points multipliés : la rythmique nerveuse de l'express, un peu plus bas. Game Show :
-     * la musique de la manche continue, avec la nappe de tension par-dessus (cedric, 23 octobre).
+     * la musique continue un peu plus bas, la nappe de tension nettement plus forte et la pulsation grave qui monte
+     * (cedric, 31/10, idée 3), le même son pour ×2, ×3, ×4 et ×5. Somme des crêtes sous 1 : pas de saturation.
      */
-    DECISIVE(express = 0.6f, gameShow = mapOf(Lit.LEGER to 0.7f, Lit.TENSION to 0.55f)),
+    DECISIVE(express = 0.6f, gameShow = mapOf(Lit.LEGER to 0.55f, Lit.TENSION to 0.72f, Lit.POULS to 0.2f)),
     /** Bilan des scores entre deux jeux : la musique de fête ; Game Show : le riff d'Aerodynamic. */
     BILAN(complete = 0.8f, gameShow = mapOf(Lit.BILAN to 0.8f)),
     /** Écran de fin, après le podium du Game Show : le dernier groove d'Aerodynamic ; Classique : la musique de fête. */
@@ -1008,7 +1014,7 @@ enum class Ambiance(
             Lit.PAUSE -> pause
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
-            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
+            Lit.BILAN, Lit.TENSION, Lit.POULS, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
             Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.CHRONO_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PICTO_INTRO, Lit.SIMON_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
