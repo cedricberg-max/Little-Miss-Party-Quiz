@@ -89,6 +89,9 @@ internal const val ANNEAU_RANG_A = 3.5f
 /** Marge libre (dp à l'échelle 1) entre l'anneau du rang et le bord de la carte, en haut comme en bas. */
 internal fun margeRangA(g: GeometrieClassementA): Float = (g.hauteurCarte - (PASTILLE_RANG_A + 2 * ANNEAU_RANG_A) * g.f) / 2f
 
+/** Instant (s, temps du classement) où la carte [i] a fini d'arriver depuis la gauche (apparition en 0,3 s, décalées de 0,05 s). */
+internal fun arriveeCarteA(i: Int): Float = 0.35f + i * 0.05f
+
 internal data class GeometrieClassementA(val pas: Float, val f: Float, val haut: Float) {
     val hauteurCarte get() = pas - 7f * f
 }
@@ -201,6 +204,9 @@ private fun CarteClassementA(
     val forme = RoundedCornerShape((13f * f).dp)
     val nouveauxRangs by remember(evo) { derivedStateOf { t() >= TempsClassementA.NOUVEAUX_RANGS } }
     val premierFete by remember(evo) { derivedStateOf { evo.rangApres == 0 && t() > TempsClassementA.FETE } }
+    // Tant que la carte glisse depuis la gauche (ou attend, transparente, pendant l'ouverture du coffre), ses textes ne
+    // sont pas encore à l'écran : ils n'y entrent qu'une fois la carte arrivée à sa place.
+    val arrivee by remember(evo) { derivedStateOf { t() >= arriveeCarteA(i) } }
     Box(
         Modifier
             .zIndex(if (joue) 5f else 1f)
@@ -213,7 +219,7 @@ private fun CarteClassementA(
                 val u = if (joue) lisseA(b) else rebondA((s - TempsClassementA.BOUGE - 0.25f) / 0.9f)
                 val rang = evo.rangAvant + (evo.rangApres - evo.rangAvant) * u
                 val arc = if (joue) sin(PI.toFloat() * b) else 0f
-                val app = lisseA((s - 0.05f - i * 0.05f) / 0.3f)
+                val app = lisseA((s - arriveeCarteA(i) + 0.3f) / 0.3f)
                 val boing = if (joue && s > TempsClassementA.FETE) 0.03f * sin((s - TempsClassementA.FETE) * 10f) * exp(-(s - TempsClassementA.FETE) * 2f) else 0f
                 translationX = (arc * 35f + (1f - app) * -150f) * density
                 translationY = rang * g.pas * density
@@ -241,7 +247,7 @@ private fun CarteClassementA(
                     size = Size(size.width - 4f * f * density, size.height - 4f * f * density), cornerRadius = coin, style = Stroke(5f * f * density))
             }
             .border((2f * f).dp, e.couleur, forme)
-            .semantics { contentDescription = "${e.nom} : ${evo.rangApres + 1}" },
+            .then(if (arrivee) Modifier.semantics { contentDescription = "${e.nom} : ${evo.rangApres + 1}" } else Modifier.clearAndSetSemantics { }),
     ) {
         Row(
             Modifier.fillMaxSize().padding(start = (9f * f).dp, end = (17f * f).dp),
