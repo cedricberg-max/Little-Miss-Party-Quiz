@@ -710,6 +710,55 @@ describe("pupitre", () => {
     for (const p of [roses, bleus, verts]) await p.context().close();
   });
 
+  test("Le Chrono de Buzzy (cedric, 30/10) : on compte dans sa tête, un seul buzz après le 0, jamais l'heure à l'écran ; écart et points au bilan", async () => {
+    const capt = async (page, nom) => { if (process.env.CAPTURES) await page.screenshot({ path: `${process.env.CAPTURES}/${nom}.png` }); };
+    const roses = await openPupitre();
+    await joinTeam(roses, "Les Roses");
+    const bleus = await openPupitre();
+    await joinTeam(bleus, "Les Bleus");
+    const verts = await openPupitre();
+    await joinTeam(verts, "Les Verts");
+    await roses.setViewportSize({ width: 1280, height: 800 });
+    const teams = await read("teams");
+    const id = (name) => Object.keys(teams).find((t) => teams[t].name === name);
+    const [r, b, v] = [id("Les Roses"), id("Les Bleus"), id("Les Verts")];
+    const chrono = (c) => question({ qid: "ch", kind: "chrono", text: "Le Chrono de Buzzy", choices: null, deadline: null, durationMs: null,
+      chrono: { tour: 1, tours: 3, cible: 30, step: "ready", key: "ch-1-0", teams: null, ...c } });
+    await hostState(chrono({}));
+    await roses.locator("#play-status", { hasText: "Tour 1 : comptez jusqu'à 30" }).waitFor();
+    assert.equal(await roses.locator("#buzz").isDisabled(), true, "pas de buzz avant le départ");
+    await capt(roses, "tablette-pret");
+    await capt(verts, "telephone-tablette-pret");
+    // Départ dans 1,5 s : le bouton s'allume au 0, l'heure n'est jamais écrite.
+    const goAt = Date.now() + 1_500;
+    await hostState(chrono({ step: "run", key: "ch-1-100", goAt, cacheMs: 8000, teams: [r, b] }));
+    await roses.locator("#play-status", { hasText: "Prêts ? Le chrono va partir" }).waitFor();
+    await verts.locator("#play-status", { hasText: "Ce tour a commencé sans vous" }).waitFor();
+    await waitFor(async () => !(await roses.locator("#buzz").isDisabled()), "buzz permis après le 0", 5_000);
+    await roses.locator("#play-status", { hasText: "Buzzez à 30 secondes pile" }).waitFor();
+    assert.doesNotMatch(await roses.locator("#screen-play").innerText(), /\d+,\d\d/, "aucun temps affiché");
+    await capt(roses, "tablette-compte");
+    // Game Show : le gros bouton respire sans arrêt (jamais « stable » pour Playwright).
+    await roses.click("#buzz", { force: true });
+    await waitFor(async () => typeof (await read(`chrono/ch-1-100/${r}`))?.t === "number", "buzz des Roses enregistré");
+    const envoi = await read(`chrono/ch-1-100/${r}`);
+    assert.ok(envoi.t <= envoi.at + 50, "l'appui est avant l'arrivée");
+    await roses.locator("#play-status", { hasText: "Buzz envoyé !" }).waitFor();
+    assert.equal(await roses.locator("#buzz").isDisabled(), true, "un seul buzz par tour");
+    await capt(roses, "tablette-buzz-envoye");
+    await bleus.keyboard.press("Enter");
+    await waitFor(async () => typeof (await read(`chrono/ch-1-100/${b}`))?.t === "number", "buzz des Bleus au buzzer USB");
+    // Bilan : écart de chacune, 100 à la plus proche, 50 à la 2e.
+    await hostState(chrono({ step: "result", key: "ch-1-100", teams: [r, b],
+      result: { ecarts: { [r]: -380, [b]: 1240 }, winners: [r], points: 100, gains: { [r]: 100, [b]: 50 }, at: Date.now() } }));
+    await roses.locator("#play-status", { hasText: "BRAVO ! La plus proche : −0,38" }).waitFor();
+    await bleus.locator("#play-status", { hasText: "Bien joué : +50 points !" }).waitFor();
+    await verts.locator("#play-status", { hasText: "Pas de buzz pour vous ce tour-ci" }).waitFor();
+    await capt(roses, "tablette-gagne");
+    await capt(bleus, "telephone-tablette-deuxieme");
+    for (const p of [roses, bleus, verts]) await p.context().close();
+  });
+
   test("Le Simon de Buzzy (cedric, 27/10) : on regarde la TV, puis le joueur appelé tape la suite et valide ; éliminés ou gagné après la vérification", async () => {
     const roses = await openPupitre();
     await joinTeam(roses, "Les Roses");

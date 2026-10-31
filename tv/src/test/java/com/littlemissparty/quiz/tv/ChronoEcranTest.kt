@@ -60,4 +60,42 @@ class ChronoEcranTest {
         d.observer(q.copy(chronoEtape = "result"))
         assertEquals(Ambiance.SUSPENSE, d.observer(q.copy(chronoEtape = "ready")).filterIsInstance<Ordre.Musique>().last().ambiance)
     }
+
+    @Test
+    fun `le gagnant s'accorde au pluriel, et sa ligne arrive avec le son gagne`() {
+        assertEquals("LES PANDAS GAGNENT LE TOUR !", phraseGagnant("Les Pandas"))
+        assertEquals("LES SIRÈNES BLEUES GAGNENT LE TOUR !", phraseGagnant("les Sirènes bleues"))
+        assertEquals("ORANGE GAGNE LE TOUR !", phraseGagnant("Orange"))
+        assertEquals("LESLIE GAGNE LE TOUR !", phraseGagnant("Leslie"))
+        val ecarts = mapOf("orange" to -500L, "vert" to 1_200L, "rose" to 300L)
+        val gagne = sonsRevelation(ecarts, listOf("rose")).last()
+        val r = com.littlemissparty.quiz.engine.ChronoResult(ecarts = ecarts, winners = listOf("rose"), points = 100, at = 0L)
+        assertEquals(gagne.instant, finRevelation(r))
+    }
+
+    @Test
+    fun `le drap fantome tombe, couvre le cadran avant que les chiffres disparaissent, puis se pose`() {
+        val (haut, _) = positionDrap(0f, 0L)
+        assertTrue("il part de haut", haut < -900f)
+        // Les chiffres s'effacent à DRAP_COUVRE_MS : le drap est alors presque posé (le cadran va de 253 à 719 px,
+        // l'ourlet du drap est à 871 px une fois posé).
+        val (couvre, _) = positionDrap(DRAP_COUVRE_MS.toFloat() / DRAP_CHUTE_MS, DRAP_COUVRE_MS)
+        assertTrue("le drap couvre le cadran ($couvre)", couvre > -140f)
+        val (pose, ecrase) = positionDrap(1f, DRAP_CHUTE_MS + 130L)
+        assertEquals(0f, pose, 0.01f)
+        assertTrue("il s'écrase un peu en arrivant", ecrase < 0.97f)
+        val (_, calme) = positionDrap(1f, DRAP_CHUTE_MS + 5_000L)
+        assertEquals(1f, calme, 0.01f)
+    }
+
+    @Test
+    fun `etiquettes sous la regle : jamais deux qui se touchent sur la meme rangee a 8 equipes`() {
+        // Le cas des captures du 31/10 : Ninjas et Pirates du lac côte à côte sur la même rangée.
+        val x = listOf(300f, 420f, 560f, 640f, 1180f, 1260f, 1400f, 1600f)
+        val r = rangeesEtiquettes(x)
+        for (i in x.indices) for (j in i + 1 until x.size) if (r[i] == r[j]) assertTrue("$i et $j se touchent", x[j] - x[i] >= ETIQUETTE_L)
+        assertTrue(r.all { it in 0..3 })
+        assertEquals(listOf(0, 1, 2, 3), rangeesEtiquettes(listOf(100f, 110f, 120f, 130f)))
+        assertEquals(listOf(0, 0), rangeesEtiquettes(listOf(100f, 900f)))
+    }
 }
