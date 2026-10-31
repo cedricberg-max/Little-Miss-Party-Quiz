@@ -567,6 +567,7 @@ function render() {
     if ($("buzz").textContent !== "BUZZ") $("buzz").textContent = "BUZZ";
   }
   $("play-intro").hidden = true;
+  $("chante-mot").hidden = true;
   $("play-status").classList.remove("fete");
   switch (st.phase) {
     case "question":
@@ -759,6 +760,10 @@ function renderFlou(st) {
   const blocked = tried && !(rebuzzIn != null && rebuzzIn <= 0);
   const open = st.phase === "question" && st.buzzOpen === true && !st.paused && !counting(st) && !b.team && !blocked;
   buzz.disabled = !open;
+  // Chante le mot ! : le mot de la TV en grand au-dessus du BUZZ, pour que l'équipe l'ait sous les yeux.
+  const mot = st.kind === "chante" && st.phase === "question" ? String(st.text ?? "").trim() : "";
+  $("chante-mot").hidden = !mot;
+  if ($("chante-mot").textContent !== mot) $("chante-mot").textContent = mot;
   buzz.classList.toggle("winner", b.team === teamId);
   const chante = st.kind === "chante";
   if (b.team === teamId) $("play-status").textContent = chante ? "Vous avez buzzé ! À vous de chanter !" : st.kind === "blind" ? "Vous avez buzzé ! Le titre, à voix haute !" : "Vous avez buzzé ! Donnez votre réponse à voix haute.";

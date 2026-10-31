@@ -544,3 +544,9 @@ body.look-gs:not(.regie-mode) #app .statues-phrase { font-size: clamp(20px, min(
   body.look-gs:not(.regie-mode) #app .statues-phrase { font-size: 18px; }
 }
 @media (prefers-reduced-motion: reduce) { body.look-gs:not(.regie-mode) #app .statues-mot { animation: none; } }
+/* Chante le mot ! : le mot de la TV en néon rose sur la tablette (cedric, 31/10), comme le mot secret du Pictionary. */
+body.look-gs:not(.regie-mode) #app .chante-mot {
+  font-family: "GS Bungee"; font-weight: 400; font-size: clamp(38px, min(11vw, 7.4vh), 96px); text-transform: uppercase; max-width: 100%;
+  color: #ffe3f1; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 22px var(--gs-rose), 0 0 44px var(--gs-rose);
+}
+@media (orientation: landscape) and (max-height: 520px) { body.look-gs:not(.regie-mode) #app .chante-mot { font-size: 34px; } }
