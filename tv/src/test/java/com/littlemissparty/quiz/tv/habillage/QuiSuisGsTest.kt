@@ -50,7 +50,7 @@ class QuiSuisGsTest {
         // Trois essais (4 équipes) tiennent dans un panneau d'une centaine de dp, au plus petit facteur.
         assertTrue(besoinAppelBuzz(3) * 0.4f <= 110f)
         val source = File("src/main/java/com/littlemissparty/quiz/tv/habillage/QuiSuisGs.kt").readText()
-        assertTrue(source.contains("if (dejaEssaye.isEmpty()) {"))
+        assertTrue(source.contains("PlaqueAppel(GenrePlaque.QUISUIS, \"BUZZEZ !\", if (dejaEssaye.isEmpty()) \"dès que vous savez\\nqui je suis\" else \"\", k = e)"))
     }
 
     /** cedric 28/10 : plus de buzzer rouge dessiné, ni de grand « ? » ; le texte des indices n'est jamais coupé. */

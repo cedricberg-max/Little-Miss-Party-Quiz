@@ -28,6 +28,9 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.CyanAppel
+import com.littlemissparty.quiz.tv.habillage.GenrePlaque
+import com.littlemissparty.quiz.tv.habillage.PlaqueAppel
 import com.littlemissparty.quiz.tv.habillage.BlindBilan
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import com.littlemissparty.quiz.tv.habillage.TexteJauge
@@ -169,11 +172,16 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
             // À la révélation, le panneau garde sa hauteur pour le titre et le gagnant (960 × 540 dp sur la box) :
             // la valeur du morceau est dans le « +N ».
             if (b != null && !revele) {
-                TexteJauge("Morceau ${b.numero} / ${b.total}", color = Palette.InkSoft, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                // Game Show (planche des onglets d'appel, 31/10) : « Morceau » en blanc, les points en cyan, 26 px de 1280.
+                TexteJauge(
+                    "Morceau ${b.numero} / ${b.total}", color = if (Look.gs) Palette.Ink else Palette.InkSoft,
+                    fontSize = if (Look.gs) 19.5.sp else 24.sp, fontWeight = FontWeight.Bold,
+                )
                 // Points doublés : la pastille dorée reste telle quelle, sans contour.
                 TexteJauge(
                     if (b.doubled) "POINTS DOUBLÉS · ${b.points} points" else "${b.points} points",
-                    color = if (b.doubled) Palette.Night else Palette.Gold, fontSize = 22.sp, fontWeight = FontWeight.Black,
+                    color = if (b.doubled) Palette.Night else if (Look.gs) CyanAppel else Palette.Gold,
+                    fontSize = if (Look.gs && !b.doubled) 19.5.sp else 22.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(50))
                         .background(if (b.doubled) Palette.Gold else Color.Transparent).padding(horizontal = 14.dp, vertical = 4.dp)
                         .apparition(0, b.numero),
@@ -223,7 +231,8 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
                     Spacer(Modifier.height(14.dp))
                     TexteJauge("On attend sa réponse…", color = Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 }
-                // Appels et conseils (n° 2, cedric 09:19) : futurs onglets néon, texte simple en attendant.
+                // Game Show : les onglets d'appel néon validés par cedric le 31/10 à 11:12.
+                Look.gs && b != null && b.waiting && !b.played -> PlaqueAppel(GenrePlaque.BLIND, "PRÊTS ?", "Écoutez bien…", Modifier.apparition(0, "pret"))
                 b != null && b.waiting && !b.played -> Text(
                     "Prêts ? Écoutez bien…", color = Palette.Ink, fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black,
                     textAlign = TextAlign.Center, modifier = Modifier.apparition(0, "pret"),
@@ -235,6 +244,7 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
                 b != null && b.waiting -> Text(
                     "Musique en pause…", color = Palette.Ink, fontSize = 32.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
+                Look.gs && (b == null || !b.waiting) -> PlaqueAppel(GenrePlaque.BLIND, "BUZZEZ !", "dès que vous reconnaissez\nla chanson")
                 else -> Text(
                     "Buzzez dès que vous reconnaissez la chanson !",
                     color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -21,6 +22,9 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.PUMP_TARGET
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.DepartGonfleur
+import com.littlemissparty.quiz.tv.habillage.GenrePlaque
+import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.PlaqueAppel
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.SceneGonfleur
 import com.littlemissparty.quiz.tv.habillage.styleCentre
@@ -55,8 +59,12 @@ fun GonfleurScreen(state: UiState.Playing, actions: TvActions) {
                 )
             }
             Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
+            // Game Show : l'onglet « TAPEZ ! » validé par cedric le 31/10 à 11:12 (un peu plus haut que l'ancienne ligne).
+            val onglet = Look.gs && !revele && !depart
+            Row(Modifier.fillMaxWidth().height(if (onglet) 84.dp else 64.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (onglet) Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    PlaqueAppel(GenrePlaque.GONFLEUR, "TAPEZ !", "sur vos tablettes : le premier ballon qui éclate gagne")
+                } else Text(
                     when {
                         revele && gagnant == null -> "Personne n'a tapé : tout le monde marque ses points de participation"
                         revele || depart -> ""

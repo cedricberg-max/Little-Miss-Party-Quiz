@@ -133,7 +133,9 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
             Column(Modifier.weight(1f)) {
             // Game Show : textes posés sur le décor « comme les jauges » (choix B du 31/10, n° 9-10), sans le carré du 30/10.
             Column {
-                TexteJauge(
+                // Game Show : le titre en Bungee dégradé avec sa note jaune, validé par cedric le 31/10 à 11:12 (76 px de 1280).
+                if (Look.gs) TitreBlindTest((76f * 0.75f * ECHELLE_SCENE_BLIND).dp, Modifier.apparition(400, playlist))
+                else TexteJauge(
                     "BLIND TEST", color = Neon.Or, fontSize = 100.sp, lineHeight = 106.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
                     modifier = Modifier.apparition(400, playlist), echelle = ECHELLE_SCENE_BLIND,
                 )
@@ -144,14 +146,16 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
                     )
                 }
                 Spacer(Modifier.height(24.dp))
+                // Game Show : l'info en rose (24 px de 1280), puis l'onglet « PRÊTS ? » (planche des onglets d'appel, 31/10).
                 TexteJauge(
                     "Morceau 1 / $morceaux · $points points",
-                    color = Neon.Halo, fontSize = 38.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = if (Look.gs) RoseChante else Neon.Halo, fontSize = if (Look.gs) (24f * 0.75f * ECHELLE_SCENE_BLIND).sp else 38.sp,
+                    fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.apparition(1300, playlist), echelle = ECHELLE_SCENE_BLIND,
                 )
-                Spacer(Modifier.height(8.dp))
-                // Appel (n° 11) : futur onglet néon (cedric, 31/10 09:19), texte simple en attendant.
-                Text(
+                Spacer(Modifier.height(if (Look.gs) 40.dp else 8.dp))
+                if (Look.gs) PlaqueAppel(GenrePlaque.BLIND, "PRÊTS ?", "Écoutez bien…", Modifier.apparition(1700, playlist), k = ECHELLE_SCENE_BLIND)
+                else Text(
                     "Prêts ? Écoutez bien…", color = Neon.Blanc, fontSize = 48.sp, lineHeight = 54.sp,
                     fontWeight = FontWeight.Black, modifier = Modifier.apparition(1700, playlist),
                 )

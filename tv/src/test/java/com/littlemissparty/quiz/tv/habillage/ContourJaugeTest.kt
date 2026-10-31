@@ -55,7 +55,9 @@ class ContourJaugeTest {
         assertFalse(source("GonfleurScreens.kt").contains("TexteJauge("))
         assertFalse(source("PatateScreens.kt").contains("TexteJauge("))
         assertFalse(source("habillage/StatuesGameShow.kt").contains("TexteJauge("))
+        // Classique : l'appel en texte simple ; Game Show : l'onglet d'appel néon, sans contour jauges (31/10 à 11:12).
         assertTrue(source("BlindTestEcrans.kt").contains("else -> Text(\n                    \"Buzzez dès que vous reconnaissez la chanson !\""))
+        assertTrue(source("BlindTestEcrans.kt").contains("PlaqueAppel(GenrePlaque.BLIND, \"BUZZEZ !\""))
     }
 
     @Test

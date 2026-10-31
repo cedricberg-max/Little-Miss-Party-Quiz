@@ -115,7 +115,10 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
     val ecoule = q.durationMs - chronoRestant(q, state)
     Box(modifier) {
         Column(
-            Modifier.fillMaxSize().padding(top = if (Look.gs) ETIQUETTE_DEBORD else 0.dp).panneauJeu().padding(horizontal = 24.dp, vertical = 14.dp),
+            // Game Show : les cartes glissent de 24 dp vers la gauche, sur la grille des équipes en dessous (planche des onglets
+            // d'appel, validée par cedric le 31/10 à 11:12 : elles étaient ~36 px de 1280 trop à droite). Même largeur.
+            Modifier.fillMaxSize().padding(top = if (Look.gs) ETIQUETTE_DEBORD else 0.dp).panneauJeu()
+                .padding(start = if (Look.gs) 0.dp else 24.dp, end = if (Look.gs) DECALAGE_CARTES_DISPARU * 2 else 24.dp, top = 14.dp, bottom = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Game Show : l'étiquette de l'étape est posée à cheval sur le haut du cadre, sans prendre de place : les cartes
@@ -166,6 +169,9 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
         }
     }
 }
+
+/** Game Show : les cartes de Qui a disparu décalées vers la gauche d'autant (sur la grille des équipes). */
+internal val DECALAGE_CARTES_DISPARU = 24.dp
 
 /** Game Show : le cadre des objets descend d'autant, l'étiquette de l'étape est à cheval sur son bord haut. */
 private val ETIQUETTE_DEBORD = 15.dp

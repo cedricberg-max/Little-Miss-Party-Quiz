@@ -40,6 +40,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.GenrePlaque
+import com.littlemissparty.quiz.tv.habillage.OeilMemorise
+import com.littlemissparty.quiz.tv.habillage.PlaqueAppel
 import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.AppelBuzzQuiSuis
 import com.littlemissparty.quiz.tv.habillage.Look
@@ -173,6 +176,15 @@ internal fun consigneBuzz(chante: Boolean, blind: Boolean) = when {
     else -> "On écoute sa réponse…"
 }
 
+/** Game Show : l'onglet « BUZZEZ ! » de chaque jeu au buzzer et sa petite ligne (planche du 31/10, validée à 11:12). */
+internal fun appelGs(q: Question): Pair<GenrePlaque, String> = when {
+    q.isDisparu -> GenrePlaque.DISPARU to "dès que vous savez\nquel objet a disparu"
+    q.isChante -> GenrePlaque.CHANTE to "et chantez une chanson\navec ce mot"
+    q.isQuiSuis -> GenrePlaque.QUISUIS to "dès que vous savez\nqui je suis"
+    q.isBlind -> GenrePlaque.BLIND to "dès que vous reconnaissez\nla chanson"
+    else -> GenrePlaque.FLOUE to "dès que vous reconnaissez l'image"
+}
+
 /** Panneau des jeux au buzzer (image floue, chante le mot, qui suis-je) : consigne, équipe qui a buzzé, équipes déjà passées, puis la réponse. */
 @Composable
 fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
@@ -250,6 +262,13 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 )
                 // Qui suis-je ? du Game Show (planche du 28/10) : « BUZZEZ ! » en néon, sans buzzer dessiné, et les essais ratés.
                 appelQuiSuis -> AppelBuzzQuiSuis(passees.map { it.name })
+                // Game Show : les onglets d'appel néon validés par cedric le 31/10 à 11:12 (planche des onglets d'appel).
+                Look.gs && q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    OeilMemorise()
+                    Spacer(Modifier.height(10.dp))
+                    PlaqueAppel(GenrePlaque.DISPARU, "MÉMORISEZ !", "bien tous les objets")
+                }
+                Look.gs -> appelGs(q).let { (genre, ligne) -> PlaqueAppel(genre, "BUZZEZ !", ligne) }
                 q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Text(
                     "Mémorisez bien tous les objets !",
                     color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
