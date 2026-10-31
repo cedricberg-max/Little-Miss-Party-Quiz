@@ -11121,6 +11121,9 @@ function openGame(type) {
   renderGame();
 }
 
+/** Version des vidéos de présentation des jeux (apercus-jeux/) : à changer quand elles changent. */
+const APERCUS_V = 2;
+
 function renderGame() {
   const type = gameType;
   if (!type) return;
@@ -11129,12 +11132,13 @@ function renderGame() {
   $("game-h1").textContent = `${g.icon ?? ""} ${ROUND_TYPES[type]}`.trim();
   $("game-rule").textContent = gameInfo(g).rule;
   $("game-tabs").replaceChildren(...gameTabs(type, "manches"));
-  // Aperçu de l'écran d'ouverture du jeu sur la TV (vidéo en boucle, l'image en attendant).
+  // Vidéo de présentation du jeu, celle de la TV (cedric, 31/10) : petite, sans son, chargée seulement à l'ouverture
+  // du jeu, puis gardée par le navigateur (une semaine) ; changer APERCUS_V quand les vidéos changent.
   const apercu = $("game-apercu");
   if (apercu.dataset.jeu !== type) {
     apercu.dataset.jeu = type;
-    apercu.poster = `apercus-jeux/${type}.webp`;
-    apercu.src = `apercus-jeux/${type}.mp4`;
+    apercu.poster = `apercus-jeux/${type}.webp?v=${APERCUS_V}`;
+    apercu.src = `apercus-jeux/${type}.mp4?v=${APERCUS_V}`;
     apercu.play?.()?.catch?.(() => {});
   }
   // Les manches se composent dans les prestations (cedric, 21/10) : ici, celles qui y ont été faites, à réutiliser.
