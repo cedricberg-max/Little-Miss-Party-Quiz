@@ -782,7 +782,8 @@ describe("pupitre", () => {
     assert.equal(await roses.locator(".sm-pave").isVisible(), false, "rien à toucher pendant que le robot montre");
     // Le chrono part : le joueur appelé tape, chaque appui part en direct vers la TV.
     await roses.locator(".sm-titre", { hasText: "À toi ! Tape les couleurs" }).waitFor({ timeout: 5_000 });
-    await roses.locator(".sm-joueur", { hasText: "C'est au tour du joueur 2" }).waitFor();
+    // Plus de « joueur n° » sur la tablette (cedric, 31/10) : l'équipe joue, la rotation se fait entre eux.
+    assert.equal(await roses.locator(".sm-joueur").isVisible(), false, "pas de numéro de joueur");
     assert.equal(await roses.locator(".sm-chiffres").isVisible(), true, "les chiffres sont là");
     assert.equal(await verts.locator(".sm-pave").isVisible(), false, "pas du tour : on regarde");
     await verts.locator(".sm-titre", { hasText: "Les autres équipes jouent…" }).waitFor();

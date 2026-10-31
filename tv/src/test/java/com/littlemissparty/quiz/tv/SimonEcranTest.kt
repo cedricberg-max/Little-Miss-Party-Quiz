@@ -133,4 +133,12 @@ class SimonEcranTest {
         }
         assertTrue(tailleBouleSimon(20, 100f, 1676f) < tailleBouleSimon(5, 100f, 1676f))
     }
+
+    @Test
+    fun `plus jamais de « joueur n° » a l'ecran, l'equipe joue (choix A de cedric, 31 octobre)`() {
+        val src = java.io.File("src/main/java/com/littlemissparty/quiz/tv/SimonScreens.kt").readText()
+        assertFalse(src.contains("\"joueur n°"))
+        assertFalse(src.contains("joueur appelé prend"))
+        assertTrue(src.contains("if (dehors) \"éliminés\" else \"encore en jeu\""))
+    }
 }

@@ -226,7 +226,8 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
                     when {
                         r!!.tour > 1 && r.suite == 1 -> "Nouveau tour : tout le monde rejoue !"
                         r.suite == 1 -> "Le robot montre une suite : retenez-la bien !"
-                        else -> "Suite de ${r.suite} : le joueur appelé prend la tablette"
+                        // Plus de « joueur » à l'écran (cedric, 31/10) : l'équipe joue, la rotation se fait entre eux.
+                        else -> "Série de ${r.suite} : à vos tablettes !"
                     },
                     cle,
                 )
@@ -240,11 +241,11 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
         // Devant le tableau : sa règle passe par-dessus le cadre, comme sur la planche.
         RobotProf(poseSimon(vue.etape, v), if (lignes) 700f else 820f, Modifier.align(Alignment.BottomStart).offset(x = (-40).dp, y = (-30).dp))
         if (!lignes && r != null) {
-            val prets = vue.etape == EtapeSimon.PRET
             Plaques(
                 r.teams.map { uid ->
                     val dehors = uid in r.out
-                    Plaque(nom(uid), couleur(uid), if (dehors) "éliminés" else if (prets) "joueur n° ${r.joueur(uid, state.simonJoueurs)}" else "encore en jeu", dehors)
+                    // « encore en jeu » ou « éliminés », jamais de « joueur n° » (choix A de cedric, 31/10).
+                    Plaque(nom(uid), couleur(uid), if (dehors) "éliminés" else "encore en jeu", dehors)
                 },
                 1920f - gauche - 40f,
                 Modifier.align(Alignment.BottomEnd).padding(start = gauche.dp, end = 40.dp, bottom = 36.dp),
@@ -698,7 +699,7 @@ private fun BoxScope.ChiffresDebarquent(cle: Any?) {
     }
 }
 
-/** Les plaques des équipes du tour, sous le tableau : en jeu, joueur appelé, ou éliminées (pâlies). */
+/** Les plaques des équipes du tour, sous le tableau : en jeu ou éliminées (pâlies). */
 private class Plaque(val nom: String, val couleur: Color, val etat: String, val eteinte: Boolean)
 
 @Composable

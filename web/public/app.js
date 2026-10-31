@@ -1681,7 +1681,8 @@ function renderSimon(st) {
   const verifFin = v ? (v.at ?? 0) + (v.suite ?? 1) * SIMON_VERIF_PAS_MS + SIMON_VERIF_FIN_MS : 0;
   const nom = (id) => game.teams[id]?.name ?? "une équipe";
   let etat; let titre; let texte = ""; let chrono = null; let prochain = null;
-  const joueurTexte = duTour && !sorti ? `C'est au tour du joueur ${joueur}` : "";
+  // Plus de « joueur n° » sur la tablette (cedric, 31/10 : l'équipe joue, la rotation des enfants se fait entre eux).
+  const joueurTexte = "";
   if (st.paused) { etat = "attente"; titre = "Pause"; texte = "La partie reprend bientôt."; }
   else if (sm.step === "play") {
     if (sm.chiffresAt != null && now < sm.montreAt - SIMON_REGARDEZ_MS) { etat = "chiffres"; titre = "Attention, les chiffres débarquent !"; prochain = sm.montreAt - SIMON_REGARDEZ_MS; }
