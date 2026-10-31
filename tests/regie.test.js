@@ -7661,6 +7661,82 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 31/10) : Zoom mystère, la première image de la TV dans le « complet » ; « Départ du zoom » règle le point et la force ; enregistré dans la question (zoomDepart, lu par la TV) et gardé pour la photo ; sans réglage, le départ que choisirait la TV est enregistré", async () => {
+    const { departZoom, buildSnapshot } = await import("../web/public/show.js");
+    const { pivotDetail, fenetreDuDepart, departCentreSur } = await import("../web/public/departzoom.js");
+    // Les calculs : bornes, fenêtre vue au départ, départ centré sur un point, détail le plus fort.
+    assert.deepEqual(departZoom({ x: 1.4, y: -2, z: 30 }), { x: 1, y: 0, z: 10 });
+    assert.equal(departZoom({ x: "a", y: 0, z: 6 }), null);
+    assert.deepEqual(fenetreDuDepart({ x: 1, y: 0, z: 4 }), { gauche: 0.75, haut: 0, taille: 0.25 });
+    assert.deepEqual(departCentreSur(0.5, 0.5, 6), { x: 0.5, y: 0.5, z: 6 });
+    assert.deepEqual(departCentreSur(0, 1, 9), { x: 0, y: 1, z: 9 });
+    const blanc = new Uint8ClampedArray(40 * 30 * 4).fill(255);
+    assert.equal(pivotDetail(blanc, 40, 30, 7), null, "photo uniforme : pas de détail");
+    for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) { const k = (j * 40 + i) * 4; blanc[k] = (i + j) % 2 ? 0 : 255; blanc[k + 1] = blanc[k + 2] = blanc[k]; }
+    const p = pivotDetail(blanc, 40, 30, 7);
+    assert.ok(p.x <= 0.3 && p.y <= 0.35, `départ sur le détail, en haut à gauche (${JSON.stringify(p)})`);
+
+    const PNG = `data:image/png;base64,${pngHalves(400, 300, [220, 30, 30], [30, 60, 220]).toString("base64")}`;
+    const LION = "b4b4b4b4b4b4b4b4";
+    await seedLibrary("images", { [LION]: PNG });
+    await seedLibrary("medias", { [LION]: { name: "Lion", cat: "Animaux", createdAt: 1, updatedAt: 1 } });
+    const page = await admin();
+    const nouvelle = async (prenom) => {
+      await page.click("#nav button[data-screen=home]");
+      await page.click("#home-new");
+      await page.fill("#show-child", prenom);
+      await ajouterJeu(page, "zoom");
+      const round = page.locator("#show-rounds .round").nth(0);
+      await round.locator(".vos-images-cherche").fill("lion");
+      await round.locator(`.vos-images-tuile[data-image="${LION}"]`).click();
+      return round.locator(".quiz-complet .quiz-complet-q .zoom-depart");
+    };
+    const zoomDe = (mini) => mini.locator("img").evaluate((el) => [el.style.transform, el.style.transformOrigin]);
+    const enregistrer = async (prenom) => {
+      await page.click("#show-save");
+      await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+      const show = Object.values(await library("shows")).find((x) => x.childName === prenom);
+      return { show, q: show.rounds[0].seriesQuiz.flatMap((x) => x.questions ?? []).find((q) => q && !q.vide) };
+    };
+    // Sans réglage : la première image au zoom moyen (×6), et ce départ est enregistré avec la prestation.
+    let mini = await nouvelle("Nina");
+    await mini.locator("img").waitFor();
+    assert.equal((await zoomDe(mini))[0], "scale(6)");
+    const auto = (await enregistrer("Nina")).q.zoomDepart;
+    assert.equal(auto.z, 6);
+    assert.ok(auto.x >= 0 && auto.x <= 1 && auto.y >= 0 && auto.y <= 1, JSON.stringify(auto));
+    // Le réglage : « Fort », le cadre glissé en haut à gauche ; Annuler d'abord ne change rien.
+    await mini.click();
+    await page.locator(".dz-boite").waitFor();
+    await page.locator(".dz-boite button", { hasText: "Annuler" }).click();
+    await page.locator(".dz-boite").waitFor({ state: "detached" });
+    assert.equal((await zoomDe(mini))[0], "scale(6)");
+    await mini.click();
+    await page.locator(".dz-forces button", { hasText: "Fort" }).click();
+    const scene = await page.locator(".dz-scene").boundingBox();
+    await page.mouse.move(scene.x + scene.width / 2, scene.y + scene.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(scene.x + 2, scene.y + 2, { steps: 5 });
+    await page.mouse.up();
+    assert.equal(await page.locator(".dz-apercu img").evaluate((el) => el.style.transform), "scale(9)", "l'aperçu en grand suit");
+    await page.locator(".dz-boite button", { hasText: "Valider le départ" }).click();
+    await page.locator(".dz-boite").waitFor({ state: "detached" });
+    await page.waitForFunction(() => document.querySelector(".zoom-depart img")?.style.transform === "scale(9)");
+    assert.deepEqual(await zoomDe(mini), ["scale(9)", "0% 0%"]);
+    const { show, q } = await enregistrer("Nina");
+    assert.deepEqual(q.zoomDepart, { x: 0, y: 0, z: 9 });
+    assert.equal(q.imageId, LION, "la photo ne change pas");
+    await waitFor(async () => (await library(`departsZoom/${LION}`))?.z === 9, "départ gardé pour la photo");
+    // La TV le reçoit dans la question du Zoom mystère.
+    const { snapshot } = buildSnapshot("nina", show, {}, {}, () => 0.5);
+    assert.deepEqual(snapshot.quiz.questions.find((x) => x.kind === "zoom").zoomDepart, { x: 0, y: 0, z: 9 });
+    // Une autre prestation avec la même photo : le même départ, tout seul.
+    mini = await nouvelle("Lou");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(9)");
+    assert.deepEqual((await enregistrer("Lou")).q.zoomDepart, { x: 0, y: 0, z: 9 });
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 29/10) : le cadrage d'une photo est gardé pour ce jeu et cette forme : la même photo dans le Zoom mystère d'une autre prestation le reprend tout seul ; l'Image floue garde l'image d'origine ; l'image d'origine n'est jamais modifiée", async () => {
     const PNG = `data:image/png;base64,${png([30, 120, 200]).toString("base64")}`;
     const OURS = "a9a9a9a9a9a9a9a9";
