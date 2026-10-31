@@ -89,7 +89,7 @@ class ChronoEcranTest {
     }
 
     @Test
-    fun `etiquettes sous la regle : jamais deux qui se touchent sur la meme rangee a 8 equipes`() {
+    fun `etiquettes sous la regle, jamais deux qui se touchent sur la meme rangee a 8 equipes`() {
         // Le cas des captures du 31/10 : Ninjas et Pirates du lac côte à côte sur la même rangée.
         val x = listOf(300f, 420f, 560f, 640f, 1180f, 1260f, 1400f, 1600f)
         val r = rangeesEtiquettes(x)
