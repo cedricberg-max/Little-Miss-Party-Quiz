@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
 import com.littlemissparty.quiz.tv.TexteAjuste
+import com.littlemissparty.quiz.tv.UneLigneQuiTient
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -316,12 +317,15 @@ fun ScenePatate(
                         modifier = Modifier.fillMaxWidth().height(46.dp).background(Neon.Plaque, RoundedCornerShape(12.dp))
                             .border(if (i == p) 3.dp else 2.dp, couleur, RoundedCornerShape(12.dp)).padding(horizontal = 5.dp, vertical = 3.dp),
                     )
-                } else Text(
-                    nom, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.background(Neon.Plaque, RoundedCornerShape(12.dp))
-                        .border(if (i == p) 3.dp else 2.dp, couleur, RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
-                    style = stylePatate.copy(fontSize = 16.sp, lineHeight = 1.1.em, color = Neon.PlaqueTexte),
-                )
+                } else UneLigneQuiTient {
+                    // 1 à 5 équipes : une ligne, l'étiquette rapetisse un peu plutôt que de couper un nom long (tour du 31/10).
+                    Text(
+                        nom, maxLines = 1, softWrap = false, textAlign = TextAlign.Center,
+                        modifier = Modifier.background(Neon.Plaque, RoundedCornerShape(12.dp))
+                            .border(if (i == p) 3.dp else 2.dp, couleur, RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
+                        style = stylePatate.copy(fontSize = 16.sp, lineHeight = 1.1.em, color = Neon.PlaqueTexte),
+                    )
+                }
                 if (i == precedent && i != p && !explosion) {
                     Text("vient de l'envoyer", maxLines = 2, textAlign = TextAlign.Center, style = stylePatate.copy(fontSize = 12.sp, lineHeight = 1.05.em, color = Neon.Blanc.copy(alpha = 0.6f)))
                 }

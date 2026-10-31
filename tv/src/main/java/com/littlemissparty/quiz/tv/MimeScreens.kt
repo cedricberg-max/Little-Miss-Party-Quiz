@@ -310,7 +310,8 @@ private fun RelaisFace(color: Color, cle: Any?, modifier: Modifier) {
                     alpha = v.coerceIn(0f, 1f)
                 },
             ) {
-                Text("🔄", fontSize = 64.sp, lineHeight = 70.sp)
+                // Décor (pas un texte à lire) : en tournant, son cadre dépasse celui de la lettre ; le tour des écrans l'ignore.
+                Text("🔄", fontSize = 64.sp, lineHeight = 70.sp, modifier = Modifier.clearAndSetSemantics { })
                 Text(
                     "ON TOURNE !",
                     textAlign = TextAlign.Center, maxLines = 1,
@@ -323,7 +324,7 @@ private fun RelaisFace(color: Color, cle: Any?, modifier: Modifier) {
             }
         } else if (etape == 2) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("🔄", fontSize = 76.sp, lineHeight = 84.sp, modifier = Modifier.graphicsLayer { rotationZ = tour }.scale(0.92f + 0.08f * respire))
+                Text("🔄", fontSize = 76.sp, lineHeight = 84.sp, modifier = Modifier.clearAndSetSemantics { }.graphicsLayer { rotationZ = tour }.scale(0.92f + 0.08f * respire))
                 Text(
                     "Au mimeur suivant !", color = Neon.Blanc, fontSize = 38.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black,
                     textAlign = TextAlign.Center, maxLines = 1,

@@ -286,4 +286,13 @@ class PodiumGameShowTest {
         val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/PodiumGameShow.kt").readText()
         assertTrue(source.contains("places.indices.minOfOrNull { k -> tailleNomTube(textes[k], places[k], mesure, densite) }"))
     }
+
+    @Test
+    fun `la bande du nom du gagnant reste dans l'ecran, filigrane et points compris`() {
+        // Tour des écrans à 5 équipes (31/10) : la bande de 230 dp dépassait le bas de l'écran de 2,5 dp.
+        val source = File("src/main/java/com/littlemissparty/quiz/tv/habillage/PodiumGameShow.kt").readText()
+        assertTrue(source.contains("val ligneNom = if (classement.size >= 6) 439.dp else 452.5.dp"))
+        assertTrue(452.5f - 140f + NOM_BANDE_DP <= 540f)
+        assertTrue(NOM_BANDE_DP >= 140f + POINTS_SOUS_NOM_DP + 14f)
+    }
 }

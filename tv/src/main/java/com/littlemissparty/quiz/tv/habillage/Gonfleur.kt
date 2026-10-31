@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
 import com.littlemissparty.quiz.tv.TexteAjuste
+import com.littlemissparty.quiz.tv.UneLigneQuiTient
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -228,12 +229,15 @@ fun SceneGonfleur(equipes: List<Triple<String, Color, Float>>, gagnante: Int?, m
                             .background(Neon.Plaque, RoundedCornerShape(12.dp)).border(2.dp, couleur, RoundedCornerShape(12.dp))
                             .padding(horizontal = 5.dp, vertical = 3.dp),
                     )
-                } else Text(
-                    nom, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 3.dp).background(Neon.Plaque, RoundedCornerShape(50.dp))
-                        .border(2.dp, couleur, RoundedCornerShape(50.dp)).padding(horizontal = 10.dp, vertical = 2.dp),
-                    style = styleGonfleur.copy(fontSize = 17.sp, lineHeight = 1.1.em, color = Neon.PlaqueTexte),
-                )
+                } else UneLigneQuiTient(Modifier.padding(horizontal = 3.dp)) {
+                    // 1 à 5 équipes : une ligne, l'étiquette rapetisse un peu plutôt que de couper un nom long (tour du 31/10).
+                    Text(
+                        nom, maxLines = 1, softWrap = false, textAlign = TextAlign.Center,
+                        modifier = Modifier.background(Neon.Plaque, RoundedCornerShape(50.dp))
+                            .border(2.dp, couleur, RoundedCornerShape(50.dp)).padding(horizontal = 10.dp, vertical = 2.dp),
+                        style = styleGonfleur.copy(fontSize = 17.sp, lineHeight = 1.1.em, color = Neon.PlaqueTexte),
+                    )
+                }
             }
             if (gagnante != null && !gagne) {
                 Text(
