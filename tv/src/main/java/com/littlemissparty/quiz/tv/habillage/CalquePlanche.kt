@@ -82,7 +82,7 @@ internal fun CalquePlanche(modifier: Modifier = Modifier, contenu: @Composable C
                 Rect(gauche, haut, gauche + p.width, haut + p.height)
             }
             val (e, decalage) = ajusteALaPlace(cadres, w.toFloat(), h.toFloat())
-            val centre = cadres.reduceOrNull { a, b -> a.union(b) }?.center ?: Offset.Zero
+            val centre = cadres.reduceOrNull(::unir)?.center ?: Offset.Zero
             enfants.forEachIndexed { i, p ->
                 val cc = centre + (cadres[i].center - centre) * e + decalage
                 p.placeWithLayer((cc.x - p.width / 2f).roundToInt(), (cc.y - p.height / 2f).roundToInt()) { scaleX = e; scaleY = e }
@@ -96,7 +96,7 @@ internal fun CalquePlanche(modifier: Modifier = Modifier, contenu: @Composable C
  * de l'ensemble) et le décalage qui les font tenir en entier. Ce qui tient déjà ne bouge pas : facteur 1, décalage nul.
  */
 internal fun ajusteALaPlace(cadres: List<Rect>, largeur: Float, hauteur: Float): Pair<Float, Offset> {
-    val tout = cadres.reduceOrNull { a, b -> a.union(b) } ?: return 1f to Offset.Zero
+    val tout = cadres.reduceOrNull(::unir) ?: return 1f to Offset.Zero
     val e = minOf(1f, largeur / tout.width.coerceAtLeast(1f), hauteur / tout.height.coerceAtLeast(1f))
     val apres = Rect(
         tout.center.x - tout.width * e / 2, tout.center.y - tout.height * e / 2,
@@ -109,3 +109,6 @@ internal fun ajusteALaPlace(cadres: List<Rect>, largeur: Float, hauteur: Float):
     }
     return e to Offset(recale(apres.left, apres.right, largeur), recale(apres.top, apres.bottom, hauteur))
 }
+
+/** Le plus petit cadre qui contient [a] et [b]. */
+internal fun unir(a: Rect, b: Rect) = Rect(minOf(a.left, b.left), minOf(a.top, b.top), maxOf(a.right, b.right), maxOf(a.bottom, b.bottom))
