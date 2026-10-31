@@ -670,6 +670,19 @@ export const roundSeriesQuiz = (round) => (estEnSeries(round?.type) ? listOf(rou
 export const cleQuestion = (serie, q, type) => `${serie?.id ?? ""}|${serie?.origine !== "quiz" && typeof q?.id === "string" && q.id ? q.id : `t:${signatureQuestion(q, type)}`}`;
 
 /** Questions jouées d'une série d'une manche de [type], avec leur clé : { cle, q } (q au format d'une question de quiz). */
+/**
+ * Départ du Zoom mystère (cedric, 31/10 ; format validé avec la TV) : le point d'où part le zoom (x, y : fraction du
+ * cadre 4/3 de la TV, la photo le remplissant centrée) et le zoom de départ z (de 2 à 10 ; 6 avant ce réglage). La TV
+ * finit toujours à 1,6. Ramené dans ses limites ; illisible : null (la TV choisit alors son départ toute seule).
+ */
+export function departZoom(v) {
+  if (!v || typeof v !== "object") return null;
+  const [x, y, z] = [v.x, v.y, v.z].map((n) => (n === null || n === "" ? NaN : Number(n)));
+  if (![x, y, z].every(Number.isFinite)) return null;
+  const borne = (n, a, b, p) => Math.round(Math.min(b, Math.max(a, n)) * p) / p;
+  return { x: borne(x, 0, 1, 1000), y: borne(y, 0, 1, 1000), z: borne(z, 2, 10, 10) };
+}
+
 function itemsDeLaSerie(serie, quizzes = {}, type = "quiz") {
   if (serie?.origine === "quiz") {
     const quiz = quizzes?.[serie.quizId];
@@ -682,7 +695,8 @@ function itemsDeLaSerie(serie, quizzes = {}, type = "quiz") {
       ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.emoji ? { image: q.emoji } : {}),
       // Quiz illustré : réponses en photos de la banque (tirées au 🎲) ou en images déjà copiées (série reprise).
       ...(Array.isArray(q.choiceBanque) ? { choiceBanque: q.choiceBanque } : {}),
-      ...(q.choiceImages && typeof q.choiceImages === "object" ? { choiceImages: q.choiceImages } : {}) } }));
+      ...(q.choiceImages && typeof q.choiceImages === "object" ? { choiceImages: q.choiceImages } : {}),
+      ...(type === "zoom" && departZoom(q.zoomDepart) ? { zoomDepart: departZoom(q.zoomDepart) } : {}) } }));
 }
 
 /**
@@ -1541,6 +1555,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         kind: round.type, double: false, round: label, ...(q.image ? { image: q.image } : {}),
         // Photo de la banque : copiée dans la partie par la régie au chargement, qui met alors son identifiant.
         ...(q.banque ? { banque: q.banque } : { imageId: q.imageId }),
+        // Zoom mystère : le départ du zoom réglé dans la Régie PC (cedric, 31/10).
+        ...(round.type === "zoom" && departZoom(q.zoomDepart) ? { zoomDepart: departZoom(q.zoomDepart) } : {}),
       }));
       return;
     }

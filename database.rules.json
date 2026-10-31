@@ -461,6 +461,15 @@
           }
         }
       },
+      "departsZoom": {
+        "$cle": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || ($cle.matches(/^[-\\w]{2,80}$/) && newData.child('x').isNumber() && newData.child('x').val() >= 0 && newData.child('x').val() <= 1 && newData.child('y').isNumber() && newData.child('y').val() >= 0 && newData.child('y').val() <= 1 && newData.child('z').isNumber() && newData.child('z').val() >= 2 && newData.child('z').val() <= 10 && newData.child('at').val() === now)",
+          "$other": {
+            ".validate": "$other === 'x' || $other === 'y' || $other === 'z' || $other === 'at'"
+          }
+        }
+      },
       "sounds": {
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && (!data.exists() || !newData.exists())",

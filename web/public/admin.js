@@ -23,6 +23,7 @@ import {
   estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie, DUEL_JOUEURS, DUEL_DUREES, reglagesDuel, SIMON_TOURS, SIMON_REPONSES, reglagesSimon,
   DISPARU_CARTES, famillesPourLAge,
   pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX, leurresDeChanson, parolesDuHook,
+  departZoom,
 } from "./show.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre, questionBanque } from "./banque-photos.js";
@@ -54,6 +55,7 @@ import { lireZipEtSesZip } from "./zip.js";
 import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks, sourceDuDe, avecSesImages } from "./pioche-packs.js";
 import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage, dossierDe, garderLesQuestionsIllustrees } from "./pack-zip.js";
 import { ouvrirCadrage } from "./cadrage.js";
+import { ZOOM_MOYEN, graineDe, departAuto, premiereImage, ouvrirDepartZoom } from "./departzoom.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
 import {
@@ -471,6 +473,7 @@ function enter() {
   stops.push(onValue(ref(db, "boxes/requests"), (s) => { boxRequests = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   stops.push(onValue(ref(db, "boxes/allowed"), (s) => { boxAllowed = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   // Cadrages gardés : même tolérance (règles pas encore publiées) ; une prestation ouverte les reprend.
+  stops.push(onValue(ref(db, "library/departsZoom"), (s) => { departsZoom = s.val() ?? {}; }, (e) => console.error(e)));
   stops.push(onValue(ref(db, "library/cadrages"), (s) => { cadrages = s.val() ?? {}; if (editing && appliquerCadrages(editing.rounds)) refreshRounds(); }, (e) => console.error(e)));
   // Prestations lancées sur une box (en cours, interrompue, terminée) : une lecture refusée (règles pas encore
   // publiées) ne ferme pas l'administration. Relu chaque minute : une box peut se couper sans que rien d'autre change.
@@ -2280,6 +2283,64 @@ function memoriserCadrage(type, forme, src, crop) {
 }
 /** Le cadrage gardé pour cette image dans ce jeu et cette forme (identifiant de l'image recadrée), sinon null. */
 const cadrageGarde = (type, forme, src) => (src ? cadrages[cleCadrage(type, forme, src)]?.crop ?? null : null);
+
+/**
+ * Départ du Zoom mystère (cedric, 31/10) : la première image de la TV, réglable (le point de départ et la force du zoom).
+ * Le départ choisi va dans la question de la prestation (zoomDepart, lu par la TV) et reste gardé pour la photo :
+ * `library/departsZoom/{photo}` = { x, y, z, at }, reproposé quand la photo revient dans une autre prestation. Sans
+ * réglage, la Régie PC calcule le départ comme la TV et l'enregistre avec la prestation : la TV montre ce que Sarah a vu.
+ */
+let departsZoom = {};
+const cleDepart = (src) => `${src}`.replace(/[^-\w]/g, "_").slice(0, 80);
+/** La photo d'une question du Zoom mystère : son identifiant, ou « b-… » pour une photo libre de l'appli. */
+const photoDuZoom = (q) => (IMAGE_ID.test(q?.imageId ?? "") ? q.imageId : typeof q?.banque === "string" && q.banque ? `b-${q.banque}` : null);
+function memoriserDepart(src, d) {
+  const cle = cleDepart(src);
+  departsZoom[cle] = { ...d, at: Date.now() };
+  set(ref(db, `library/departsZoom/${cle}`), { ...d, at: serverTimestamp() }).catch((e) => console.error(e));
+}
+/** Le départ d'une photo : celui de la question, sinon celui gardé pour la photo, sinon celui que choisirait la TV. */
+async function departDeLaPhoto(q) {
+  const src = photoDuZoom(q);
+  if (!src) return null;
+  return departZoom(q.zoomDepart) ?? departZoom(departsZoom[cleDepart(src)]) ?? departAuto(await sourceDuCadrage(src), graineDe(src), ZOOM_MOYEN);
+}
+/** À l'enregistrement : chaque photo du Zoom mystère gardée dans la prestation reçoit son départ (voir plus haut). */
+async function completerDepartsZoom(rounds) {
+  for (const r of rounds ?? []) {
+    if (r?.type !== "zoom") continue;
+    for (const serie of roundSeriesQuiz(r)) {
+      if (serie?.origine === "quiz") continue;
+      for (const q of Array.isArray(serie.questions) ? serie.questions : Object.values(serie.questions ?? {})) {
+        if (!q || departZoom(q.zoomDepart) || !photoDuZoom(q)) continue;
+        try { q.zoomDepart = await departDeLaPhoto(q); } catch (e) { console.error(e); }
+      }
+    }
+  }
+}
+/**
+ * Dans « Zoom mystère complet » : la première image de la TV en petit ; un clic ouvre le réglage du départ (pour cette
+ * prestation, et gardé pour la photo). Une question d'un quiz rappelé en entier se règle dans la Bibliothèque : rien à cliquer.
+ */
+function departZoomMini(r, x, changer) {
+  const gardee = questionGardee(r, x);
+  const q = gardee ?? x.q;
+  const src = photoDuZoom(q);
+  if (!src) return null;
+  const bouton = h("button", { type: "button", class: "zoom-depart", disabled: !gardee, title: gardee ? "La première image sur la TV · cliquer pour régler le départ du zoom" : "La première image sur la TV",
+    "aria-label": `Départ du zoom de « ${reponsePhoto(x.q)} »` });
+  Promise.all([sourceDuCadrage(src), departDeLaPhoto(q)]).then(([adresse, d]) => { if (adresse && d) bouton.replaceChildren(premiereImage(adresse, d)); }).catch((e) => console.error(e));
+  if (gardee) bouton.onclick = async (e) => {
+    e.stopPropagation();
+    const adresse = await sourceDuCadrage(src);
+    const choisi = await ouvrirDepartZoom(adresse, await departDeLaPhoto(gardee), (z) => departAuto(adresse, graineDe(src), z));
+    if (!choisi) return;
+    gardee.zoomDepart = departZoom(choisi);
+    memoriserDepart(src, gardee.zoomDepart);
+    changer();
+  };
+  return bouton;
+}
 
 /** L'image d'un objet (carte, mot, personnage) : son identifiant, ou « b-… » pour une photo libre de l'appli. */
 const sourceImage = (o) => (IMAGE_ID.test(o?.imageId ?? "") ? o.imageId : typeof o?.banque === "string" && o.banque ? `b-${o.banque}` : null);
@@ -5009,6 +5070,7 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
       photos ? recadrable(apercuPhoto(x.q), r, x, changer) : null,
+      r.type === "zoom" ? departZoomMini(r, x, changer) : null,
       photos ? nomDePhoto(r, x, changer) : h("span", { class: "tirage-texte", text: `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
       themeDePack(x.cle),
       photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q, (img, k) => recadrable(img, r, x, changer, k))
@@ -5362,6 +5424,7 @@ $("show-form").onsubmit = (e) => {
 /** Enregistre la prestation ouverte ; rend vrai une fois enregistrée (même gardée « À compléter »). */
 async function enregistrerPrestation() {
   await cadrageEnCours;
+  await completerDepartsZoom(editing.rounds);
   const s = formShow();
   // « À compléter » s'enregistre même incomplète (cedric, 21/10). « À venir » = prête pour la régie : s'il manque
   // quelque chose (prénom, âge, date, jeu prêt), elle est gardée « À compléter » et le message dit quoi.

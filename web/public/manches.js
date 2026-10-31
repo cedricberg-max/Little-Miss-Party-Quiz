@@ -14,6 +14,7 @@ import {
   estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES,
   chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND, JEUX_DE_CHANSONS, leurresDeLaManche, chansonsStatues,
   estJeuDeMots, seriesMots, motsDuJeu, MAX_MOTS, pictoToursBruts, pictoTours, pictoPropositions, pictoPassages, bombesDe, reglagesDuel, reglagesSimon,
+  departZoom,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
 import { FAMILLES_PETITS } from "./banque-petits.js";
@@ -391,6 +392,8 @@ function questionNettoyee(q, brouillon) {
     // Toutes les réponses ont leur image (une case vide ne se garderait pas dans la base) : sinon, rien.
     ...(banques.length === choices.length && banques.every(Boolean) ? { choiceBanque: banques } : {}),
     ...(images.some(Boolean) ? { choiceImages: images } : {}),
+    // Zoom mystère : le départ du zoom réglé dans la Régie PC (cedric, 31/10).
+    ...(departZoom(q.zoomDepart) ? { zoomDepart: departZoom(q.zoomDepart) } : {}),
   };
 }
 
