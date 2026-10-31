@@ -390,10 +390,18 @@ class DirecteurSonore {
             if (i.duel && i.duelEtape != p.duelEtape) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.duelEtape == "standoff") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
-            // Le Chrono de Buzzy : la musique légère au tour prêt ; elle se tait au départ du chrono (on n'entend plus
-            // que son tic-tac, puis rien sous le drap : aucun rythme ne doit aider à compter) et pendant la révélation.
+            // Le Chrono de Buzzy (cedric, 31/10) : Around the World doux au tour prêt ; il se tait net au départ du chrono
+            // (on n'entend plus que son tic-tac) ; sous le drap, la nappe stressante entre doucement (sans rythme : rien
+            // n'aide à compter) ; à la révélation, la boucle B d'Around the World, plus forte, part net.
             if (i.chronoEtape.isNotEmpty() && i.chronoEtape != p.chronoEtape) {
-                o += Ordre.Musique(ambiance(i), fonduMs = if (i.chronoEtape == "run") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
+                o += Ordre.Musique(
+                    ambiance(i),
+                    fonduMs = when (i.chronoEtape) {
+                        "run", "result" -> Tempo.FONDU_RELAIS
+                        "drap" -> Tempo.CHRONO_NAPPE_ENTREE
+                        else -> Tempo.FONDU_MUSIQUE
+                    },
+                )
             }
             // Simon de Buzzy : la musique change net quand une suite démarre (Classique : elle se tait), revient après.
             if (i.simonSuite != p.simonSuite || i.simonChiffres != p.simonChiffres) {
@@ -493,7 +501,12 @@ class DirecteurSonore {
                 "ready" -> Ambiance.DUEL_ANNONCE
                 else -> Ambiance.DUEL_ENTRE
             }
-            i.chronoEtape.isNotEmpty() -> if (i.chronoEtape == "ready") Ambiance.SUSPENSE else Ambiance.SILENCE
+            i.chronoEtape.isNotEmpty() -> when (i.chronoEtape) {
+                "ready" -> Ambiance.CHRONO_PRET
+                "drap" -> Ambiance.CHRONO_NAPPE
+                "result" -> Ambiance.CHRONO_REVELATION
+                else -> Ambiance.SILENCE
+            }
             // Le Simon de Buzzy : la boucle douce entre deux suites, celle aux percussions pendant une suite (la note de
             // chaque boule passe par-dessus), la partie où tout joue quand les chiffres arrivent.
             i.simon && i.ecran == Ecran.QUESTION -> when {
@@ -595,7 +608,10 @@ data class Instant(
      */
     val duel: Boolean = false,
     val duelEtape: String = "",
-    /** Le Chrono de Buzzy : étape du tour (« ready », « run », « result »), vide pour les autres jeux. */
+    /**
+     * Le Chrono de Buzzy : étape du tour (« ready », « run » pendant le décompte et le tic-tac, « drap » une fois le
+     * chrono caché, « result »), vide pour les autres jeux.
+     */
     val chronoEtape: String = "",
     /** Le Simon de Buzzy : sa question est à l'écran ; une suite est en cours (le robot la montre, les équipes la tapent). */
     val simon: Boolean = false,
@@ -838,6 +854,16 @@ enum class Lit(
      * dans le fichier (le même que le podium) : son ambiance le joue à plein volume.
      */
     PODIUM_ATTENTE(null, "gs_podium_attente", repriseMs = PODIUM_ATTENTE_REPRISE_MS),
+    /**
+     * Game Show, le Chrono de Buzzy sous le drap (cedric, 31/10) : nappe grave et stressante, sans aucun rythme (rien ne
+     * doit aider à compter), 27,3 s fondues sur leur début (3 s), −16 LUFS.
+     */
+    CHRONO_NAPPE(null, "gs_chrono_nappe"),
+    /**
+     * Game Show, le Chrono de Buzzy pendant la révélation (cedric, 31/10 : « boucle B ») : Around the World pris à 1:03,5,
+     * 8 mesures ramenées à 120 BPM comme gs_bed_light, 16,000 s, raccord fondu 25 ms, −16 LUFS.
+     */
+    CHRONO_REVELATION(null, "gs_chrono_revelation"),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -918,6 +944,12 @@ enum class Ambiance(
     PATATE_PRESENTATION(gameShow = mapOf(Lit.PATATE_INTRO to 0.5f)),
     /** Présentation du Pictionary (Game Show) : Take On Me, au volume de la boucle « fête ». */
     PICTO_PRESENTATION(gameShow = mapOf(Lit.PICTO_INTRO to 0.5f)),
+    /** Le Chrono de Buzzy, tour prêt (« Prêts ? ») : Around the World (0:31,9 à 0:47,7) doux, à 0,4 (cedric, 31/10). */
+    CHRONO_PRET(legere = 0.4f),
+    /** Le Chrono de Buzzy sous le drap, Game Show : la nappe stressante, légère ; Classique : silence. */
+    CHRONO_NAPPE(gameShow = mapOf(Lit.CHRONO_NAPPE to 0.5f)),
+    /** Le Chrono de Buzzy, révélation, Game Show : la boucle B d'Around the World, plus forte, à 0,75 ; Classique : silence. */
+    CHRONO_REVELATION(gameShow = mapOf(Lit.CHRONO_REVELATION to 0.75f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -1148,6 +1180,8 @@ object Tempo {
     /** Temps fort qui suit la dernière note du générique (16 temps) : la musique du salon prend le relais. */
     const val GENERIQUE_RELAIS = 8_000L
     const val FONDU_RELAIS = 120L
+    /** Le Chrono de Buzzy : la nappe entre doucement sous le drap, après son « fffouf ». */
+    const val CHRONO_NAPPE_ENTREE = 1_500L
     /** Blind test : la musique d'attente entre à la fin du générique court (4,8 s). */
     const val BT_ATTENTE_APRES_GENERIQUE = 4_500L
     /** Duel des robots : la boucle western prend le relais à la fin de son début (gs_duel_intro_debut, 2,95 s). */
