@@ -66,15 +66,19 @@ internal fun TexteJauge(
         Text(texte, modifier, maxLines = maxLines, softWrap = softWrap, overflow = overflow, style = base)
         return
     }
+    // Gras au moins, comme la planche (Rajdhani Bold) : en demi-gras, le contour mange les lettres et le blanc paraît
+    // cyan (captures du 31/10).
+    val plein = base.copy(fontWeight = maxOf(base.fontWeight ?: FontWeight.Normal, FontWeight.Bold))
     val densite = LocalDensity.current
     fun px(d: Dp) = with(densite) { d.toPx() } * echelle
-    val taille = with(densite) { (if (base.fontSize.isSpecified) base.fontSize else 16.sp).toPx() }
+    val taille = with(densite) { (if (plein.fontSize.isSpecified) plein.fontSize else 16.sp).toPx() }
     val trait = maxOf(taille * CONTOUR_PART_TAILLE, px(CONTOUR_MIN))
     val calques = listOf(
-        base.copy(color = NuitContour, drawStyle = Stroke(trait), shadow = Shadow(NuitContour.copy(alpha = 0.9f), Offset.Zero, px(OMBRE_LARGE))),
-        base.copy(color = NuitContour, drawStyle = Stroke(trait), shadow = Shadow(NuitContour, Offset.Zero, px(OMBRE_MOYENNE))),
-        base.copy(color = NuitContour, drawStyle = Stroke(trait), shadow = Shadow(NuitContour, Offset(0f, px(OMBRE_BAS_DECALAGE)), px(OMBRE_SERREE))),
-        base.copy(color = CyanContour, drawStyle = Stroke(trait), shadow = Shadow(CyanContour, Offset.Zero, px(LUEUR_CYAN))),
+        plein.copy(color = NuitContour, drawStyle = Stroke(trait), shadow = Shadow(NuitContour.copy(alpha = 0.9f), Offset.Zero, px(OMBRE_LARGE))),
+        plein.copy(color = NuitContour, drawStyle = Stroke(trait), shadow = Shadow(NuitContour, Offset.Zero, px(OMBRE_MOYENNE))),
+        plein.copy(color = NuitContour, drawStyle = Stroke(trait), shadow = Shadow(NuitContour, Offset.Zero, px(OMBRE_PROCHE))),
+        plein.copy(color = NuitContour, drawStyle = Stroke(trait), shadow = Shadow(NuitContour, Offset(0f, px(OMBRE_BAS_DECALAGE)), px(OMBRE_SERREE))),
+        plein.copy(color = CyanContour, drawStyle = Stroke(trait), shadow = Shadow(CyanContour, Offset.Zero, px(LUEUR_CYAN))),
     )
     // Le texte plein mesure la boîte ; les calques, dessinés dessous, prennent exactement sa place. Les contraintes
     // minimales passent au texte : avec une largeur imposée (fillMaxWidth, weight), il la prend comme un Text, et son
@@ -84,7 +88,7 @@ internal fun TexteJauge(
             // Calques muets : seul le texte plein est lu (lecteur d'écran, tests).
             Text(texte, Modifier.matchParentSize().clearAndSetSemantics {}, maxLines = maxLines, softWrap = softWrap, overflow = overflow, style = st)
         }
-        Text(texte, maxLines = maxLines, softWrap = softWrap, overflow = overflow, style = base)
+        Text(texte, maxLines = maxLines, softWrap = softWrap, overflow = overflow, style = plein)
     }
 }
 
@@ -100,10 +104,12 @@ internal val CONTOUR_MIN = 2.25.dp
 
 /*
  * Rayons des ombres, en dp sur 960 (1 dp = 1,33 px de la référence 1280). Un flou CSS b vaut un écart type b / 2 ; le
- * rayon d'une ombre Android vaut environ 0,87 × b : 54 px → 35 dp, 34 px → 22 dp, 10-20 px → 10 dp, lueur 5 px → 3,3 dp.
+ * rayon d'une ombre Android vaut environ 0,87 × b : 54 px → 35 dp, 34 px → 22 dp, 20 px → 13 dp, 10 px et l'ombre
+ * de 4 px vers le bas → 6,5 dp, lueur 5 px → 3,3 dp. Une ombre de moins que la planche paraissait trop claire (31/10).
  */
 internal val OMBRE_LARGE = 35.dp
 internal val OMBRE_MOYENNE = 22.dp
-internal val OMBRE_SERREE = 10.dp
+internal val OMBRE_PROCHE = 13.dp
+internal val OMBRE_SERREE = 6.5.dp
 internal val OMBRE_BAS_DECALAGE = 3.dp
 internal val LUEUR_CYAN = 3.3.dp

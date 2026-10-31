@@ -22,7 +22,7 @@ class ContourJaugeTest {
         // 3 px sur 1280 = 2,25 dp sur 960.
         assertEquals(2.25f, CONTOUR_MIN.value, 0.01f)
         // Ombres : la plus large (54 px) > la moyenne (34 px) > la serrée (10-20 px) > la lueur cyan (5 px).
-        assertTrue(OMBRE_LARGE > OMBRE_MOYENNE && OMBRE_MOYENNE > OMBRE_SERREE && OMBRE_SERREE > LUEUR_CYAN)
+        assertTrue(OMBRE_LARGE > OMBRE_MOYENNE && OMBRE_MOYENNE > OMBRE_PROCHE && OMBRE_PROCHE > OMBRE_SERREE && OMBRE_SERREE > LUEUR_CYAN)
         assertEquals(1600f / 960f, ECHELLE_SCENE_BLIND, 0.001f)
     }
 
@@ -68,5 +68,13 @@ class ContourJaugeTest {
         val tour = s.substringAfter("private fun Turn(").substringBefore("\n}\n")
         assertFalse(tour.contains("Au tour de"))
         assertTrue(PART_NOM_EN_TETE in 0.3f..0.5f)
+    }
+
+    @Test
+    fun `contour - lettres en gras au moins, comme la planche (le blanc ne doit pas paraitre cyan)`() {
+        val s = source("habillage/ContourJauge.kt")
+        assertTrue(s.contains("maxOf(base.fontWeight ?: FontWeight.Normal, FontWeight.Bold)"))
+        assertTrue(s.contains("style = plein)"))
+        assertFalse(s.contains("base.copy(color = "))
     }
 }
