@@ -357,7 +357,7 @@ body.look-gs:not(.regie-mode) .sp-bulle::after { display: none; }
 body.look-gs:not(.regie-mode) .sp-bandeau { background: none; color: #fff; font-size: clamp(18px, min(4.2vw, 3.4vh), 34px); text-shadow: var(--tg-halo); }
 body.look-gs:not(.regie-mode) .sp-scene-zone { width: min(94vw, calc((100vh - 330px) * 1.48), 900px); }
 
-/* ---------- Écran 9 : Juste Chiffre et Portes mystères ---------- */
+/* ---------- Écran 9 : Juste Chiffre ---------- */
 /* Juste Chiffre : le nombre tapé brille en or sur le décor (un trait de néon dessous, plus de cadre) ; les touches
    deviennent des boutons bonbon violets, « ⌫ » en rose, « Valider » en vert comme partout. */
 body.look-gs:not(.regie-mode) #app .number-screen {
@@ -369,7 +369,7 @@ body.look-gs:not(.regie-mode) #app .number-key {
   background: linear-gradient(180deg, #b38cff 0%, #8b2cff 45%, #5a17b0 100%);
   box-shadow: 0 6px 0 #3d0c80, 0 10px 22px rgba(139, 44, 255, .4), inset 0 2px 0 rgba(255, 255, 255, .6);
 }
-body.look-gs:not(.regie-mode) #app .number-key[data-key="⌫"], body.look-gs:not(.regie-mode) #app .number-key[data-key="−"] {
+body.look-gs:not(.regie-mode) #app .number-key[data-key="⌫"] {
   color: #fff; background: linear-gradient(180deg, #ff7ac0 0%, #ff2d95 45%, #ff6b1a 100%); box-shadow: 0 6px 0 #a3105a, 0 10px 22px rgba(255, 45, 149, .4), inset 0 2px 0 rgba(255, 255, 255, .7); text-shadow: 0 2px 0 rgba(120, 0, 60, .6);
 }
 body.look-gs:not(.regie-mode) #app .number-key:active:not(:disabled) { transform: translateY(4px); }
@@ -377,22 +377,6 @@ body.look-gs:not(.regie-mode) #app .number-send {
   font-family: "GS Orbitron"; font-weight: 800; color: #fff; border: 0; text-shadow: 0 2px 0 rgba(0, 60, 15, .6);
   background: linear-gradient(180deg, #9dffad 0%, #2bd94a 45%, #168a2c 100%);
   box-shadow: 0 6px 0 #0d5a1c, 0 10px 22px rgba(43, 217, 74, .45), inset 0 2px 0 rgba(255, 255, 255, .7);
-}
-/* Portes mystères : les portes et le titre doré ne changent pas ; plus de pastille derrière le nom de l'équipe,
-   « Touchez une porte » et les points, et les petits textes grossissent. */
-body.look-gs:not(.regie-mode) .pm-equipe { background: none; box-shadow: none; padding: 0; font-family: "GS Bungee"; font-weight: 400; font-size: clamp(18px, min(4.4vw, 3.4vh), 36px); color: color-mix(in srgb, var(--eq, #fff) 35%, #fff); text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 14px var(--eq, #fff); }
-body.look-gs:not(.regie-mode) .pm-titre { font-size: clamp(26px, min(6.6vw, 5vh), 60px); text-shadow: var(--tg-halo), 0 0 18px rgba(243, 215, 156, .5); }
-body.look-gs:not(.regie-mode) .pm-texte { font-size: clamp(20px, min(5vw, 3.8vh), 40px); color: #fff; opacity: 1; text-shadow: var(--tg-halo); max-width: 26em; }
-body.look-gs:not(.regie-mode) .pm-choisir { background: none; box-shadow: none; color: #fff3d1; font-size: clamp(20px, min(5vw, 3.8vh), 40px); text-shadow: var(--tg-halo), 0 0 16px rgba(233, 194, 122, .7); }
-body.look-gs:not(.regie-mode) .pm-points { background: none; color: #fff7a8; font-family: "GS Orbitron"; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 18px var(--gs-jaune), 0 0 34px var(--gs-jaune); }
-
-@media (orientation: landscape) and (max-height: 520px) {
-  /* Téléphone couché : la porte ouverte et ses textes tiennent dans la hauteur. */
-  body.look-gs:not(.regie-mode) .pm-resultat { width: min(46vw, 200px, 30vh); }
-  body.look-gs:not(.regie-mode) .pm-titre { font-size: 20px; }
-  body.look-gs:not(.regie-mode) .pm-equipe { font-size: 15px; }
-  body.look-gs:not(.regie-mode) .pm-texte, body.look-gs:not(.regie-mode) .pm-choisir { font-size: 16px; }
-  body.look-gs:not(.regie-mode) .pm-points { font-size: 24px; }
 }
 /* ---------- Plus grand, plus présent (cedric, 31/10 07:15 : « un petit peu trop minimisé ») ----------
    Tout grossit avec l'écran (hauteur et largeur), sans jamais sortir des marges : Buzzy, nom de l'équipe, titres,
