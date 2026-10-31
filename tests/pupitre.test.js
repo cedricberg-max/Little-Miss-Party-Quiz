@@ -653,8 +653,8 @@ describe("pupitre", () => {
     const duel = (d) => question({ qid: "d1", kind: "duel", text: "Le Duel des robots", choices: null, deadline: null, durationMs: null,
       duel: { n: 3, total: 6, teams: [r, b], players: [2, 1], step: "ready", key: null, ...d } });
     await hostState(duel({}));
-    await roses.locator("#play-status", { hasText: "Duel n° 3 : à toi, joueur n° 2 !" }).waitFor();
-    await bleus.locator("#play-status", { hasText: "à toi, joueur n° 1 !" }).waitFor();
+    await roses.locator("#play-status", { hasText: "Duel n° 3 : à toi ! Viens te placer" }).waitFor();
+    await bleus.locator("#play-status", { hasText: "Duel n° 3 : à toi ! Viens te placer" }).waitFor();
     await verts.locator("#play-status", { hasText: "Duel n° 3 : Les Roses contre Les Bleus. Regardez la TV !" }).waitFor();
     assert.equal(await verts.locator("#buzz").isVisible(), false, "les autres équipes regardent");
     assert.equal(await roses.locator("#buzz").isDisabled(), true, "pas avant le lancement du duel");
