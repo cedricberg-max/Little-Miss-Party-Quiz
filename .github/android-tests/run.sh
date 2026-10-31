@@ -44,6 +44,10 @@ adb shell mkdir -p "$CAPTURES"
 ARGS=(-Pandroid.testInstrumentationRunnerArguments.design="${DESIGN_TESTS:-gs}")
 if [ -n "${CLASSES_TESTS:-}" ]; then
   ARGS+=(-Pandroid.testInstrumentationRunnerArguments.class="$(echo "$CLASSES_TESTS" | tr -d ' ' | sed 's/\([^,]*\)/com.littlemissparty.quiz.tv.test.\1/g')")
+else
+  # Le tour de tous les écrans de 1 à 8 équipes (une heure et plus) ne tourne que demandé par son nom
+  # (classes « tour.TourDesEcrans12Test », etc.), jamais dans le passage complet.
+  ARGS+=(-Pandroid.testInstrumentationRunnerArguments.notPackage=com.littlemissparty.quiz.tv.test.tour)
 fi
 echo "Décor des tests : ${DESIGN_TESTS:-gs} ; classes : ${CLASSES_TESTS:-toutes}"
 ./gradlew :tv:connectedDebugAndroidTest "${ARGS[@]}" --stacktrace

@@ -40,9 +40,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.GenrePlaque
+import com.littlemissparty.quiz.tv.habillage.OeilMemorise
+import com.littlemissparty.quiz.tv.habillage.PlaqueAppel
 import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.AppelBuzzQuiSuis
 import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.TexteJauge
 import com.littlemissparty.quiz.tv.habillage.RevelationNeon
 import com.littlemissparty.quiz.tv.habillage.revelationAvecMot
 import com.littlemissparty.quiz.tv.habillage.apparition
@@ -162,92 +166,136 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     }
 }
 
+/**
+ * Sous « X a buzzé ! » : ce qui se passe maintenant, en mots simples (cedric, 30/10 : « Votre réponse, à voix haute ! »
+ * ne se comprenait pas). L'équipe parle, l'animatrice écoute puis décide.
+ */
+internal fun consigneBuzz(chante: Boolean, blind: Boolean) = when {
+    chante -> "À vous de chanter !"
+    blind -> "On écoute le titre…"
+    else -> "On écoute sa réponse…"
+}
+
+/** Game Show : l'onglet « BUZZEZ ! » de chaque jeu au buzzer et sa petite ligne (planche du 31/10, validée à 11:12). */
+internal fun appelGs(q: Question): Pair<GenrePlaque, String> = when {
+    q.isDisparu -> GenrePlaque.DISPARU to "dès que vous savez\nquel objet a disparu"
+    q.isChante -> GenrePlaque.CHANTE to "et chantez une chanson\navec ce mot"
+    q.isQuiSuis -> GenrePlaque.QUISUIS to "dès que vous savez\nqui je suis"
+    q.isBlind -> GenrePlaque.BLIND to "dès que vous reconnaissez\nla chanson"
+    else -> GenrePlaque.FLOUE to "dès que vous reconnaissez l'image"
+}
+
 /** Panneau des jeux au buzzer (image floue, chante le mot, qui suis-je) : consigne, équipe qui a buzzé, équipes déjà passées, puis la réponse. */
 @Composable
 fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
     val buzzer = state.teams.find { it.uid == state.buzzTeam }
     val passees = state.teams.filter { it.uid in state.buzzBlocked }
     val gagnant = state.teams.find { (state.awards[it.uid]?.points ?: 0) > 0 }
+    // Qui suis-je ? du Game Show : marge réduite, « BUZZEZ ! » et les équipes déjà essayées tiennent même à 4 équipes,
+    // où les pastilles hautes laissent peu de hauteur au panneau (test du 30/10 au soir).
+    val appelQuiSuis = Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION && buzzer == null
+    // Révélation du Qui suis-je ? (Game Show) : même petite marge, la phrase garde sa place à 4 équipes (CI du 31/10).
+    val revelationQuiSuis = Look.gs && q.isQuiSuis && (state.phase == Phase.REVEAL || state.phase == Phase.SCORES)
+    val margeReduite = appelQuiSuis || revelationQuiSuis
     Column(
-        modifier.panneauJeu(0.08f).padding(28.dp),
+        modifier.panneauJeu(0.08f).padding(if (margeReduite) 12.dp else 28.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        when {
-            // Game Show : la révélation en néon, le mot dans son tube (cedric, 25/10 au soir : « plus festif, plus néon »).
-            (state.phase == Phase.REVEAL || state.phase == Phase.SCORES) && Look.gs -> RevelationNeon(
-                etiquette = if (q.isChante) "Le mot :" else "C'était :",
-                mot = q.choices.getOrNull(q.correct).orEmpty(),
-                phrase = when {
-                    gagnant != null && q.isChante -> "Bravo ${gagnant.name}, quelle voix !"
-                    gagnant != null -> "Bravo ${gagnant.name} !"
-                    q.isChante -> "Personne n'a chanté, ce n'est pas grave !"
-                    else -> "Personne n'a trouvé, ce n'est pas grave !"
-                },
-                teinte = gagnant?.color?.toColor() ?: GS.Rose,
-                cle = state.question?.id,
-                modifier = Modifier.fillMaxSize(),
-                avecMot = revelationAvecMot(q.isChante),
-            )
-            state.phase == Phase.REVEAL || state.phase == Phase.SCORES -> {
-                Text(if (q.isChante) "Le mot :" else "C'était :", color = Palette.InkSoft, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                // Le mot entier, jamais coupé (« Téléphériqu / e », 25/10) : il rétrécit selon sa longueur, et la phrase
-                // dessous garde toujours sa place, entière, à 8 équipes comme à 1.
-                TexteAjuste(
-                    q.choices.getOrNull(q.correct).orEmpty(), color = Palette.Gold, max = 52.sp, min = 22.sp, lignes = 2,
-                    modifier = Modifier.fillMaxWidth().weight(1f, fill = false).apparition(0, state.phase),
-                )
-                Spacer(Modifier.height(20.dp))
-                TexteAjuste(
-                    when {
+        // Game Show : plus de filigrane derrière. Le nom de l'équipe qui a buzzé et « Déjà essayé » ont le contour « comme les
+        // jauges » ; les appels et conseils (n° 4-8) deviendront des onglets néon (cedric, 31/10 09:19), texte simple en attendant.
+        Column(
+            Modifier,
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            when {
+                // Game Show : la révélation en néon, le mot dans son tube (cedric, 25/10 au soir : « plus festif, plus néon »).
+                (state.phase == Phase.REVEAL || state.phase == Phase.SCORES) && Look.gs -> RevelationNeon(
+                    etiquette = if (q.isChante) "Le mot :" else "C'était :",
+                    mot = q.choices.getOrNull(q.correct).orEmpty(),
+                    phrase = when {
                         gagnant != null && q.isChante -> "Bravo ${gagnant.name}, quelle voix !"
                         gagnant != null -> "Bravo ${gagnant.name} !"
                         q.isChante -> "Personne n'a chanté, ce n'est pas grave !"
                         else -> "Personne n'a trouvé, ce n'est pas grave !"
                     },
-                    color = gagnant?.color?.toColor() ?: Palette.Ink, max = 30.sp, min = 16.sp, lignes = 3,
-                    modifier = Modifier.fillMaxWidth(),
+                    teinte = gagnant?.color?.toColor() ?: GS.Rose,
+                    cle = state.question?.id,
+                    modifier = Modifier.fillMaxSize(),
+                    avecMot = revelationAvecMot(q.isChante),
+                )
+                state.phase == Phase.REVEAL || state.phase == Phase.SCORES -> {
+                    Text(if (q.isChante) "Le mot :" else "C'était :", color = Palette.InkSoft, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    // Le mot entier, jamais coupé (« Téléphériqu / e », 25/10) : il rétrécit selon sa longueur, et la phrase
+                    // dessous garde toujours sa place, entière, à 8 équipes comme à 1.
+                    TexteAjuste(
+                        q.choices.getOrNull(q.correct).orEmpty(), color = Palette.Gold, max = 52.sp, min = 22.sp, lignes = 2,
+                        modifier = Modifier.fillMaxWidth().weight(1f, fill = false).apparition(0, state.phase),
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    TexteAjuste(
+                        when {
+                            gagnant != null && q.isChante -> "Bravo ${gagnant.name}, quelle voix !"
+                            gagnant != null -> "Bravo ${gagnant.name} !"
+                            q.isChante -> "Personne n'a chanté, ce n'est pas grave !"
+                            else -> "Personne n'a trouvé, ce n'est pas grave !"
+                        },
+                        color = gagnant?.color?.toColor() ?: Palette.Ink, max = 30.sp, min = 16.sp, lignes = 3,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                buzzer != null -> {
+                    // De 1 à 8 équipes, tout tient dans le panneau : le nom sur une ligne tant qu'il reste grand, la
+                    // consigne entière dessous (test du 30/10 : « Votre réponse, à voix… » rogné sous les équipes).
+                    TexteAjuste(
+                        "${buzzer.name} a buzzé !", color = buzzer.color.toColor(), max = 46.sp, min = 20.sp, lignes = 2, uneLigneJusqua = 30.sp,
+                        jauge = true, modifier = Modifier.fillMaxWidth().weight(1f, fill = false).apparition(0, buzzer.uid),
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    TexteAjuste(
+                        consigneBuzz(q.isChante, q.isBlind), color = Palette.Ink, max = 30.sp, min = 16.sp, lignes = 2, uneLigneJusqua = 22.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                state.phase == Phase.CLOSED -> Text(
+                    if (q.isFlou) "Temps écoulé ! Voyons ce qui se cachait…" else if (q.isBlind) "Temps écoulé ! Écoutons la réponse…" else "Temps écoulé !",
+                    color = Palette.Gold, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+                )
+                // Qui suis-je ? du Game Show (planche du 28/10) : « BUZZEZ ! » en néon, sans buzzer dessiné, et les essais ratés.
+                appelQuiSuis -> AppelBuzzQuiSuis(passees.map { it.name })
+                // Game Show : les onglets d'appel néon validés par cedric le 31/10 à 11:12 (planche des onglets d'appel).
+                Look.gs && q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    OeilMemorise()
+                    Spacer(Modifier.height(10.dp))
+                    PlaqueAppel(GenrePlaque.DISPARU, "MÉMORISEZ !", "bien tous les objets")
+                }
+                Look.gs -> appelGs(q).let { (genre, ligne) -> PlaqueAppel(genre, "BUZZEZ !", ligne) }
+                q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Text(
+                    "Mémorisez bien tous les objets !",
+                    color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+                )
+                else -> Text(
+                    when {
+                        q.isDisparu -> "Buzzez dès que vous savez quel objet a disparu !"
+                        q.isChante -> "Buzzez et chantez une chanson avec ce mot !"
+                        q.isQuiSuis -> "Buzzez dès que vous savez qui je suis !"
+                        q.isBlind -> "Buzzez dès que vous reconnaissez la chanson !"
+                        else -> "Buzzez dès que vous reconnaissez l'image !"
+                    },
+                    color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
             }
-            buzzer != null -> {
-                Text(
-                    "${buzzer.name} a buzzé !",
-                    color = buzzer.color.toColor(), fontSize = 46.sp, lineHeight = 52.sp, fontWeight = FontWeight.Black,
-                    textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.apparition(0, buzzer.uid),
+            if (passees.isNotEmpty() && state.phase == Phase.QUESTION && !(Look.gs && q.isQuiSuis && buzzer == null)) {
+                Spacer(Modifier.height(24.dp))
+                TexteJauge(
+                    "Déjà essayé : " + passees.joinToString(", ") { it.name },
+                    color = Palette.InkSoft, fontSize = 22.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+                    // Jusqu'à 7 équipes déjà passées : deux lignes au plus, la fin s'efface en « … ».
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(14.dp))
-                Text(if (q.isChante) "À vous de chanter !" else if (q.isBlind) "Le titre, à voix haute !" else "Votre réponse, à voix haute !", color = Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
-            state.phase == Phase.CLOSED -> Text(
-                if (q.isFlou) "Temps écoulé ! Voyons ce qui se cachait…" else if (q.isBlind) "Temps écoulé ! Écoutons la réponse…" else "Temps écoulé !",
-                color = Palette.Gold, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
-            )
-            // Qui suis-je ? du Game Show (planche du 28/10) : « BUZZEZ ! » en néon, sans buzzer dessiné, et les essais ratés.
-            Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION -> AppelBuzzQuiSuis(passees.map { it.name })
-            q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Text(
-                "Mémorisez bien tous les objets !",
-                color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
-            )
-            else -> Text(
-                when {
-                    q.isDisparu -> "Buzzez dès que vous savez quel objet a disparu !"
-                    q.isChante -> "Buzzez et chantez une chanson avec ce mot !"
-                    q.isQuiSuis -> "Buzzez dès que vous savez qui je suis !"
-                    q.isBlind -> "Buzzez dès que vous reconnaissez la chanson !"
-                    else -> "Buzzez dès que vous reconnaissez l'image !"
-                },
-                color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
-            )
-        }
-        if (passees.isNotEmpty() && state.phase == Phase.QUESTION && !(Look.gs && q.isQuiSuis && buzzer == null)) {
-            Spacer(Modifier.height(24.dp))
-            Text(
-                "Déjà essayé : " + passees.joinToString(", ") { it.name },
-                color = Palette.InkSoft, fontSize = 22.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
-                // Jusqu'à 7 équipes déjà passées : deux lignes au plus, la fin s'efface en « … ».
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-            )
         }
     }
 }

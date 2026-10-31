@@ -103,7 +103,9 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
     val cap = lettres.tailleTexte * CAP_SUR_TAILLE
     val u = { (ms() - Tempo.PODIUM_REVELATION) / 1000f }
     Box(
-        modifier.fillMaxWidth().height(230.dp).offset(y = haut)
+        // 226 dp : la bande finit au-dessus du bas de l'écran même avec la ligne de base la plus basse (452,5 dp à 1-5 équipes) ;
+        // le dessin n'est pas coupé à la bande (filigrane et points s'arrêtent 56 dp sous la ligne de base).
+        modifier.fillMaxWidth().height(NOM_BANDE_DP.dp).offset(y = haut)
             .clearAndSetSemantics { text = AnnotatedString("Victoire de ${g.nom}") },
     ) {
         // Derrière : voile sombre, onde de choc au mot complet, copies cyan / magenta du glitch.
@@ -313,6 +315,18 @@ internal fun DrawScope.filigrane(zone: Rect, part: Float) {
     drawIntoCanvas { it.nativeCanvas.drawRoundRect(zone.left, zone.top, zone.right, zone.bottom, r, r, p) }
 }
 
+/**
+ * Filigrane A derrière un groupe de textes, en Game Show seulement : [marge] dp de plus de chaque côté (cedric, 30/10 :
+ * les textes des panneaux de jeu se confondaient avec le décor). Rien en design classique.
+ */
+internal fun Modifier.filigraneGs(marge: Float = FILIGRANE_PANNEAU_MARGE_DP): Modifier = if (!Look.gs) this else drawBehind {
+    val m = marge.dp.toPx()
+    filigrane(Rect(-m, -m, size.width + m, size.height + m), 1f)
+}
+
+/** Marge du filigrane autour des textes d'un panneau de jeu (dp) : il reste dans le panneau. */
+internal const val FILIGRANE_PANNEAU_MARGE_DP = 20f
+
 /** Peinture et flou du filigrane, faits une fois (fil principal seulement). */
 private var peintureFiligrane: android.graphics.Paint? = null
 private var flouFiligrane = -1f
@@ -323,6 +337,9 @@ internal const val FILIGRANE_FLOU_DP = 38f
 internal const val FILIGRANE_MARGE_DP = 45f
 /** Ligne de base des points sous celle du nom ([PodiumGameShow]). */
 internal const val POINTS_SOUS_NOM_DP = 42f
+
+/** Hauteur de la bande du nom du gagnant, dont 140 dp au-dessus de sa ligne de base. */
+internal const val NOM_BANDE_DP = 226f
 internal const val NOM_CONTOUR_DP = 4f
 internal const val NOM_LUEUR_SERREE_DP = 17f
 internal const val NOM_LUEUR_LARGE_DP = 38f

@@ -65,4 +65,36 @@ class ClassementCoffreGsTest {
         val classement = File("src/main/java/com/littlemissparty/quiz/tv/habillage/ClassementCoffreGs.kt").readText()
         assertFalse(classement.contains("painterResource") || classement.contains("R.raw.") || classement.contains("R.drawable."))
     }
+
+    @Test
+    fun `le rond du rang respire dans sa carte, de 1 a 8 equipes`() {
+        // cedric, 30/10 : le rond touchait le cadre ; au moins 2 dp de bordure plus 3,5 dp d'air, en haut et en bas.
+        for (n in 1..8) {
+            val g = geometrieClassementA(n)
+            assertTrue("$n équipes : marge ${margeRangA(g)}", margeRangA(g) >= 5.5f * g.f)
+        }
+    }
+
+    @Test
+    fun `les textes d'une carte n'entrent a l'ecran qu'une fois la carte arrivee, avant que les rangs bougent`() {
+        // Tour des écrans du 31/10 à 8 équipes : les cartes encore transparentes, décalées à gauche pendant l'ouverture du
+        // coffre, comptaient comme des textes « à cheval sur le bord ».
+        for (i in 0 until 8) {
+            assertTrue(arriveeCarteA(i) > 0.3f)
+            assertTrue("carte $i", arriveeCarteA(i) < TempsClassementA.BOUGE)
+        }
+        assertTrue((1 until 8).all { arriveeCarteA(it) > arriveeCarteA(it - 1) })
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/ClassementCoffreGs.kt").readText()
+        assertTrue(source.contains("if (arrivee) Modifier.semantics"))
+        // Les rouleaux du Juste Chiffre tournent sans fin : décor sans texte à lire.
+        val compteur = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/CompteurMystere.kt").readText()
+        assertTrue(compteur.contains(".clearAndSetSemantics { }"))
+    }
+
+    @Test
+    fun `l'autocollant reste dans l'ecran, meme au plus fort du ressort`() {
+        // Tour des écrans à 3 équipes (31/10) : « GARDE SA PLACE » touchait le bord droit.
+        val ressortMax = (0..1000).maxOf { rebondA(it / 1000f) }
+        assertTrue(110f + 560f + AUTOCOLLANT_ECART_DP + AUTOCOLLANT_MAX_DP * ressortMax <= 960f)
+    }
 }

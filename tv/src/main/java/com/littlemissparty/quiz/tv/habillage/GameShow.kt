@@ -64,6 +64,12 @@ object GS {
     val Noir = Color(0xFF05010D)
     val Nuit = Color(0xFF0E0820)
     val Encre = Color(0xFFF4F1FF)
+    /**
+     * Cadres sombres à texte clair (règle de cedric du 31/10, choix « Doux 2 ») : bleu nuit à 86 %, jamais noir pur, et
+     * un texte blanc cassé, jamais blanc pur. Pour tous les cadres et ovales sombres qui portent un texte.
+     */
+    val Plaque = Color(0xDB263060)
+    val PlaqueTexte = Color(0xFFE6EBF7)
     /** Juste / faux à la révélation. */
     val Juste = Color(0xFF39FF14)
     val JusteProfond = Color(0xFF16C60C)

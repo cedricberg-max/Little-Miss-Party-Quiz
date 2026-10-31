@@ -90,6 +90,7 @@ class MainActivity : ComponentActivity() {
                     potatoRandom = viewModel::potatoRandom,
                     statuesSongEnded = viewModel::statuesSongEnded,
                     duelPanShown = viewModel::duelPanShown,
+                    chronoShown = viewModel::chronoShown,
                     givePoints = viewModel::givePoints,
                     requestAgain = viewModel::requestAgain,
                     viderCache = viewModel::viderCacheMedias,

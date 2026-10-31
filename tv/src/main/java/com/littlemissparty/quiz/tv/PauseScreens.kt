@@ -77,8 +77,6 @@ import com.littlemissparty.quiz.tv.habillage.PoliceLmp
  */
 @Composable
 fun PauseLayer(state: UiState.Playing, onResume: () -> Unit) {
-    // Les défis de la régie sont gardés en copie sur la box dès le début de la partie, prêts même sans Internet.
-    LaunchedEffect(Unit) { DefisPause.suivre() }
     AnimatedVisibility(state.paused, enter = fadeIn(tween(500)), exit = fadeOut(tween(400))) {
         Intermission(state, onResume)
     }
@@ -192,8 +190,9 @@ private fun TitreOndule(texte: String, phase: () -> Float, modifier: Modifier = 
 @Composable
 private fun DefiPause(prenom: String) {
     // Toujours un défi à l'écran, dès le début de la pause, puis un nouveau toutes les 8 secondes.
-    val enregistres by DefisPause.enregistres
-    val defis = remember(prenom, enregistres) { defisPour(prenom, enregistres) }
+    // Au hasard parmi les défis de base et ceux en plus de la fête, sans en remontrer un avant d'avoir vu tous les autres.
+    val enPlus by DefisPause.enPlus
+    val defis = remember(prenom, enPlus) { defisPour(prenom, enPlus).shuffled() }
     var k by remember { mutableIntStateOf(0) }
     LaunchedEffect(defis) {
         while (true) {

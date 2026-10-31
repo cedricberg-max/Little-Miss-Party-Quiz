@@ -9,11 +9,14 @@ import org.json.JSONObject
  * plus `"cards": [{"word", "image"}]` pour une manche de mimes ou de Pictionary (`"kind": "mime"` ou
  * `"pictionary"`, sans propositions ; `"points"` : valeur d'un dessin trouvé ; `"couleur"` : équipe seule d'une manche de mimes),
  * l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo), des réponses en images
- * (`"choiceImages"`, une photo par proposition), les valeurs des Portes mystères (`"doors"`), et pour la
+ * (`"choiceImages"`, une photo par proposition), et pour la
  * musique `"audioId"` (extrait), `"artist"`, `"refrainId"` et `"lyrics"` (blind test et quiz musical).
  * Toute erreur est signalée avec la question concernée, pour pouvoir la corriger.
  */
 object QuizJson {
+    /** Ancien jeu supprimé le 31/10 (cedric) : ses questions sont ignorées à la lecture. */
+    const val ANCIEN_JEU_PORTES = "portes"
+
     /** Identifiant d'une photo d'illustration : empreinte de son contenu, 16 caractères hexadécimaux. */
     val IMAGE_ID = Regex("[0-9a-f]{16}")
 
@@ -58,7 +61,10 @@ object QuizJson {
         return Quiz(
             id = o.getString("id"),
             title = o.optString("title", o.getString("id")),
-            questions = (0 until questions.length()).map { i -> question(questions.getJSONObject(i), i) },
+            // Ancien jeu « Portes mystères » (supprimé le 31/10, cedric) : ses questions, s'il en reste dans un vieux pack,
+            // sont laissées de côté (le pack se joue sans elles, rien n'est effacé).
+            questions = (0 until questions.length()).map { questions.getJSONObject(it) }
+                .withIndex().filter { it.value.optString("kind") != ANCIEN_JEU_PORTES }.map { (i, q) -> question(q, i) },
             intros = o.optBoolean("intros", false),
         )
     }
@@ -84,19 +90,18 @@ object QuizJson {
         val choices: JSONArray = q.optJSONArray("choices") ?: JSONArray()
         val cards: JSONArray = q.optJSONArray("cards") ?: JSONArray()
         val turns = kind == QuestionKind.MIME || kind == QuestionKind.PICTIONARY
-        val doors: JSONArray = q.optJSONArray("doors") ?: JSONArray()
         // Blind test, ou Quiz musical (question à propositions avec un extrait) : l'artiste, le refrain et ses paroles
         // de la révélation (cedric, 24/10 : la révélation du Quiz musical reprend celle du blind test, en plus court).
         val chanson = kind == QuestionKind.BLIND || (kind == QuestionKind.CLASSIC && q.optString("audioId").matches(IMAGE_ID))
         return Question(
             id = q.optString("id", "q${i + 1}"),
-            text = q.getString("text"),
+            text = q.getString("text").let { if (kind == QuestionKind.SIMON) nouveauNomSimon(it) else it },
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
-            correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.PORTES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE || kind == QuestionKind.DUEL || kind == QuestionKind.SIMON) q.optInt("correct", -1) else q.getInt("correct"),
+            correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE || kind == QuestionKind.DUEL || kind == QuestionKind.SIMON || kind == QuestionKind.CHRONO) q.optInt("correct", -1) else q.getInt("correct"),
             durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else if (kind == QuestionKind.GONFLEUR) 45 else if (kind == QuestionKind.STATUES) 90 else 20),
             kind = kind,
             double = q.optBoolean("double", false),
-            roundTitle = q.optString("round").ifBlank { null },
+            roundTitle = q.optString("round").ifBlank { null }?.let { if (kind == QuestionKind.SIMON) nouveauNomSimon(it) else it },
             cards = (0 until cards.length()).map { c ->
                 val card = cards.getJSONObject(c)
                 // Photo du mot (Pictionary, préparée dans l'administration) : ignorée si mal formée.
@@ -106,7 +111,6 @@ object QuizJson {
             emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && !turns },
             imageId = imageId?.takeIf { !turns },
             choiceImages = choiceImages(q.optJSONArray("choiceImages"), choices.length(), kind),
-            doors = if (kind == QuestionKind.PORTES) (0 until doors.length()).map { doors.getInt(it) } else emptyList(),
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && chanson }?.take(MAX_ARTIST),
             audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && !turns },
             refrainId = q.optString("refrainId").takeIf { it.matches(IMAGE_ID) && chanson },
@@ -126,9 +130,18 @@ object QuizJson {
             faceMin = q.optInt("faceMin", DUEL_FACE_DEFAUT_MIN).coerceIn(DUEL_FACE_MIN_SEC, DUEL_FACE_MAX_SEC),
             faceMax = q.optInt("faceMax", DUEL_FACE_DEFAUT_MAX).coerceIn(q.optInt("faceMin", DUEL_FACE_DEFAUT_MIN).coerceIn(DUEL_FACE_MIN_SEC, DUEL_FACE_MAX_SEC), DUEL_FACE_MAX_SEC),
             longs = q.optBoolean("longs", true),
-            // Simon du Prof : réglages hors limites ramenés dans les limites.
+            // Simon de Buzzy : réglages hors limites ramenés dans les limites.
             simonTours = q.optInt("tours", SIMON_TOURS).coerceIn(1, SIMON_TOURS_MAX),
             simonSec = q.optInt("reponse", SIMON_REPONSE_SEC).coerceIn(SIMON_REPONSE_MIN_SEC, SIMON_REPONSE_MAX_SEC),
+            // Chrono de Buzzy : cible et tours hors limites ramenés dans les limites.
+            chronoCible = q.optInt("cible", CHRONO_CIBLE_DEFAUT).coerceIn(CHRONO_CIBLE_MIN, CHRONO_CIBLE_MAX),
+            chronoTours = q.optInt("tours", CHRONO_TOURS).coerceIn(1, CHRONO_TOURS_MAX),
         )
     }
+
+    /**
+     * Le « Simon du Prof » s'appelle « Simon de Buzzy » (cedric, 30/10) : les prestations préparées avant gardent l'ancien
+     * titre dans leurs questions, la TV montre le nouveau.
+     */
+    private fun nouveauNomSimon(titre: String) = titre.replace("Simon du Prof", "Simon de Buzzy").replace("SIMON DU PROF", "SIMON DE BUZZY")
 }

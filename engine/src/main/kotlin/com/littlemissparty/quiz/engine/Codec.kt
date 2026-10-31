@@ -29,8 +29,6 @@ object Codec {
             is ScoresShown -> mapOf("type" to "scores")
             is GameLeft -> mapOf("type" to "leave", "qid" to e.qid)
             is FactorChosen -> mapOf("type" to "factor", "start" to e.start, "factor" to e.factor)
-            is DoorOpened -> mapOf("type" to "door", "qid" to e.qid)
-            is DoorSet -> mapOf("type" to "doorset", "qid" to e.qid, "door" to e.door, "value" to e.value)
             is GameLaunched -> mapOf("type" to "launch")
             is ChestsDealt -> mapOf("type" to "chests", "qid" to e.qid, "order" to e.order, "count" to e.count, "safe" to e.safe)
             is ChestOpened -> mapOf("type" to "chest", "qid" to e.qid, "team" to e.team, "chest" to e.chest, "delta" to e.delta, "bomb" to e.bomb, "gold" to e.gold)
@@ -74,6 +72,13 @@ object Codec {
             is DuelSettled -> mapOf("type" to "duel_settle", "qid" to e.qid, "n" to e.n)
             is DuelStopped -> mapOf("type" to "duel_stop", "qid" to e.qid, "n" to e.n)
             is DuelPanShown -> mapOf("type" to "duel_pan", "qid" to e.qid, "n" to e.n, "shownAt" to e.shownAt)
+            is ChronoReady -> mapOf("type" to "chrono_ready", "qid" to e.qid, "tour" to e.tour, "cible" to e.cible)
+            is ChronoTargetSet -> mapOf("type" to "chrono_cible", "qid" to e.qid, "tour" to e.tour, "cible" to e.cible)
+            is ChronoStarted -> mapOf("type" to "chrono_start", "qid" to e.qid, "tour" to e.tour, "goAt" to e.goAt, "cacheMs" to e.cacheMs, "teams" to e.teams) + listOfNotNull(("manuel" to true).takeIf { e.manuel })
+            is ChronoBuzzed -> mapOf("type" to "chrono_buzz", "qid" to e.qid, "tour" to e.tour, "team" to e.team, "t" to e.t)
+            is ChronoShown -> mapOf("type" to "chrono_shown", "qid" to e.qid, "tour" to e.tour, "shownAt" to e.shownAt)
+            is ChronoSettled -> mapOf("type" to "chrono_settle", "qid" to e.qid, "tour" to e.tour, "force" to e.force.takeIf { it })
+            is ChronoStopped -> mapOf("type" to "chrono_stop", "qid" to e.qid, "tour" to e.tour)
             is SimonTourReady -> mapOf("type" to "simon_tour", "qid" to e.qid, "tour" to e.tour, "sequence" to e.sequence.joinToString(","), "teams" to e.teams)
             is SimonSuiteStarted -> mapOf("type" to "simon_start", "qid" to e.qid, "tour" to e.tour, "suite" to e.suite)
             // Réponses : les éléments tapés en une chaîne (« rouge,vert,4 »), absents si rien n'a été tapé.
@@ -113,8 +118,7 @@ object Codec {
             "scores" -> ScoresShown(seq, at)
             "leave" -> GameLeft(seq, at, m["qid"] as String)
             "factor" -> FactorChosen(seq, at, m.num("start").toInt(), m.num("factor").toInt())
-            "door" -> DoorOpened(seq, at, m["qid"] as String)
-            "doorset" -> DoorSet(seq, at, m["qid"] as String, m.num("door").toInt(), m.num("value").toInt())
+            // Ancien jeu « Portes mystères » (supprimé le 31/10, cedric) : ses événements des anciennes parties sont ignorés.
             "launch" -> GameLaunched(seq, at)
             "chests" -> ChestsDealt(seq, at, m["qid"] as String, (m["order"] as List<*>).map { it as String }, m.num("count").toInt(), m.num("safe").toInt())
             "chest" -> ChestOpened(seq, at, m["qid"] as String, m["team"] as String, m.num("chest").toInt(), m.num("delta").toInt(), m["bomb"] == true, m["gold"] == true)
@@ -164,6 +168,16 @@ object Codec {
             "duel_settle" -> DuelSettled(seq, at, m["qid"] as String, m.num("n").toInt())
             "duel_stop" -> DuelStopped(seq, at, m["qid"] as String, m.num("n").toInt())
             "duel_pan" -> DuelPanShown(seq, at, m["qid"] as String, m.num("n").toInt(), m.num("shownAt"))
+            "chrono_ready" -> ChronoReady(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("cible").toInt())
+            "chrono_cible" -> ChronoTargetSet(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("cible").toInt())
+            "chrono_start" -> ChronoStarted(
+                seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("goAt"), m.num("cacheMs"), (m["teams"] as List<*>).map { it as String },
+                manuel = m["manuel"] == true,
+            )
+            "chrono_buzz" -> ChronoBuzzed(seq, at, m["qid"] as String, m.num("tour").toInt(), m["team"] as String, m.num("t"))
+            "chrono_shown" -> ChronoShown(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("shownAt"))
+            "chrono_settle" -> ChronoSettled(seq, at, m["qid"] as String, m.num("tour").toInt(), m["force"] == true)
+            "chrono_stop" -> ChronoStopped(seq, at, m["qid"] as String, m.num("tour").toInt())
             "simon_tour" -> SimonTourReady(
                 seq, at, m["qid"] as String, m.num("tour").toInt(), (m["sequence"] as String).split(","), (m["teams"] as List<*>).map { it as String },
             )
@@ -289,10 +303,10 @@ object Codec {
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
                 // « Ça va exploser ! » : la mèche reste un secret, même pour les tablettes.
                 // Statues musicales (depuis le 27/10) : plus de chrono, chaque chanson dure ce qu'elle dure.
-                "durationMs" to q.durationMs.takeIf { !q.isPatate && !q.isStatues && !q.isDuel && !q.isSimon },
+                "durationMs" to q.durationMs.takeIf { !q.isPatate && !q.isStatues && !q.isDuel && !q.isSimon && !q.isChrono },
                 "deadline" to game.deadline().takeIf { !q.isPatate },
-                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && !q.isStatues && !q.isDuel && !q.isSimon && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
-                "correct" to if (revealed && !q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate) q.correct else null,
+                "remainingMs" to if (!q.isCoffres && !q.isGonfleur && !q.isPatate && !q.isStatues && !q.isDuel && !q.isSimon && !q.isChrono && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "correct" to if (revealed && !q.isCoffres && !q.isGonfleur && !q.isPatate) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
                 "artist" to if (revealed) q.artist else null,
@@ -300,12 +314,12 @@ object Codec {
                     mapOf("correct" to a.correct, "points" to a.points, "bonus" to a.bonus)
                 } else null,
             )
-            if (q.isPortes) out["portes"] = portesState(game)
             if (q.isCoffres) out["chests"] = chestState(game)
             if (q.isPatate) out["potato"] = potatoState(game)
             if (q.isStatues) out["statues"] = statuesState(game)
             if (q.isDuel) out["duel"] = duelState(game, teams)
             if (q.isSimon) out["simon"] = simonState(game)
+            if (q.isChrono) out["chrono"] = chronoState(game)
             if (q.isGonfleur) out["pump"] = pumpKey(game)?.let { mapOf("key" to it, "goAt" to game.pumpGoAt, "target" to PUMP_TARGET) }
             if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
@@ -347,7 +361,41 @@ object Codec {
         )
     }
 
-    /** Simon du Prof : clé des réponses des tablettes pour la suite en cours (`simon/<clé>/<équipe>`), ou null. */
+    /** Chrono de Buzzy : clé du buzz des tablettes pour le tour en cours (`chrono/<clé>/<équipe>`), ou null. */
+    fun chronoKey(game: Game): String? {
+        val c = game.state.chrono?.takeIf { it.enCours } ?: return null
+        if (game.question?.isChrono != true || game.state.paused) return null
+        return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${c.tour}-${c.startAt}"
+    }
+
+    /**
+     * Chrono de Buzzy, pour la TV, la régie et les tablettes : le tour, la cible, l'étape, l'heure du 0 et du drap, les
+     * équipes du tour et celles qui ont déjà buzzé (sans leur heure), puis le bilan (écart de chaque équipe, gagnantes).
+     */
+    fun chronoState(game: Game): Map<String, Any?> {
+        val c = game.state.chrono
+        val q = game.question
+        return mapOf(
+            "tour" to c?.tour,
+            "tours" to (q?.chronoTours ?: CHRONO_TOURS),
+            "cible" to c?.cible,
+            "step" to (c?.step ?: "none"),
+            "key" to chronoKey(game),
+            "goAt" to c?.takeIf { it.enCours }?.goAt,
+            "cacheMs" to c?.takeIf { it.enCours }?.cacheMs,
+            "teams" to c?.teams?.ifEmpty { null },
+            "buzzed" to c?.takeIf { it.enCours }?.buzzes?.map { it.team }?.ifEmpty { null },
+            // Toutes les équipes ont buzzé : la régie propose « 👀 Révéler » (le bilan attend Sarah).
+            "reveler" to c?.takeIf { it.enCours }?.revelable?.takeIf { it },
+            "result" to c?.result?.let { r ->
+                mapOf("ecarts" to r.ecarts.ifEmpty { null }, "winners" to r.winners.ifEmpty { null }, "points" to r.points, "gains" to r.gains.ifEmpty { null }, "at" to r.at)
+            },
+            "gagnes" to c?.gagnes?.ifEmpty { null },
+            "last" to game.chronoFini,
+        )
+    }
+
+    /** Simon de Buzzy : clé des réponses des tablettes pour la suite en cours (`simon/<clé>/<équipe>`), ou null. */
     fun simonKey(game: Game): String? {
         val r = game.state.simon?.takeIf { it.enCours } ?: return null
         if (game.question?.isSimon != true || game.state.paused) return null
@@ -355,7 +403,7 @@ object Codec {
     }
 
     /**
-     * Simon du Prof, pour la TV, la régie et les tablettes : le tour, la suite (sa longueur), ses heures (montrée, chrono,
+     * Simon de Buzzy, pour la TV, la régie et les tablettes : le tour, la suite (sa longueur), ses heures (montrée, chrono,
      * fin), les équipes du tour et les éliminées, le joueur appelé dans chaque équipe, et le bilan une fois jugée. La suite
      * secrète n'y est jamais avant le bilan (seule la box la connaît) ; ensuite, la bonne suite pour la vérification.
      */
@@ -399,26 +447,6 @@ object Codec {
                     "at" to it.at,
                 )
             },
-        )
-    }
-
-    /**
-     * Portes mystères, pour la TV, la régie et les pupitres : rien n'est dit avant la révélation ; ensuite l'ordre
-     * d'ouverture, le nombre de portes ouvertes, la valeur des seules portes ouvertes et le choix de chaque équipe.
-     */
-    fun portesState(game: Game): Map<String, Any?> {
-        val q = game.question ?: return emptyMap()
-        val s = game.state
-        if (s.phase != Phase.REVEAL && s.phase != Phase.SCORES) return mapOf("count" to q.choices.size)
-        val order = game.doorOrder()
-        val open = order.take(s.doorsOpened).toSet()
-        return mapOf(
-            "count" to q.choices.size,
-            "order" to order,
-            "opened" to s.doorsOpened,
-            "values" to game.doorsOf(q).mapIndexed { i, v -> if (i in open) v else null }.withIndex().filter { it.value != null }
-                .associate { it.index.toString() to it.value },
-            "picks" to s.awards[q.id].orEmpty().mapValues { it.value.choice },
         )
     }
 

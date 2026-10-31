@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -75,7 +76,14 @@ internal fun lerpVers(a: Color, b: Color, t: Float) = Color(a.red + (b.red - a.r
 @Composable
 fun LogoGameShow(hauteur: Dp, modifier: Modifier = Modifier, aligne: Alignment.Horizontal = Alignment.Start) {
     val taille = (hauteur.value * 0.82f).sp
-    Column(modifier, horizontalAlignment = aligne) {
+    // Filigrane A bien marqué derrière tout le logo, posé deux fois (cedric, 30/10 : « GAME SHOW » se confondait
+    // avec le décor, au tableau des scores comme ailleurs). Il suit l'opacité donnée au logo.
+    val fond = Modifier.drawBehind {
+        val m = hauteur.toPx() * LOGO_FILIGRANE_MARGE
+        val zone = Rect(-m, -m, size.width + m, size.height + m)
+        repeat(LOGO_FILIGRANE_COUCHES) { filigrane(zone, 1f) }
+    }
+    Column(modifier.then(fond), horizontalAlignment = aligne) {
         // « THE » fait partie du nom (cedric, 22/10) : bien lisible, pas une petite étiquette.
         // L'espacement des lettres s'ajoute aussi après le E : on recentre d'autant.
         val espacement = (hauteur.value * 0.08f).sp
@@ -92,6 +100,10 @@ fun LogoGameShow(hauteur: Dp, modifier: Modifier = Modifier, aligne: Alignment.H
     }
 }
 
+/** Marge du filigrane autour du logo, en part de sa hauteur, et nombre de couches (deux : plus sombre que le A). */
+internal const val LOGO_FILIGRANE_MARGE = 0.35f
+internal const val LOGO_FILIGRANE_COUCHES = 2
+
 /**
  * Écran de présentation d'un jeu, design Game Show : « PROCHAIN JEU » en capitales cyan, l'emblème du jeu qui flotte
  * dans un anneau néon (cyan, et violet en pointillés qui tourne lentement), le nom du jeu en grand titre néon de la
@@ -101,7 +113,7 @@ fun LogoGameShow(hauteur: Dp, modifier: Modifier = Modifier, aligne: Alignment.H
 @Composable
 fun PresentationJeuGameShow(titre: String, famille: String, modifier: Modifier = Modifier) {
     val embleme = emblemeJeu(famille)
-    // L'or des jeux classiques (quiz, coffres, portes) passe au rose néon du kit.
+    // L'or des jeux classiques (quiz, coffres) passe au rose néon du kit.
     val couleur = if (embleme.couleur == Color(0xFFF0CC92)) GS.Rose else enNeon(embleme.couleur)
     val boucle = rememberInfiniteTransition(label = "presentation-gs")
     val tour by boucle.animateFloat(0f, 360f, infiniteRepeatable(tween(24_000, easing = LinearEasing)), label = "tour")
@@ -169,7 +181,7 @@ fun PresentationJeuGameShow(titre: String, famille: String, modifier: Modifier =
             // Plaque sombre sous le titre : il passe devant les pupitres du plateau et doit rester lisible (cedric, 25/10).
             Box(
                 Modifier.padding(horizontal = 50.dp).apparition(500, titre)
-                    .background(GS.Noir.copy(alpha = 0.72f), RoundedCornerShape(18.dp))
+                    .background(GS.Plaque, RoundedCornerShape(18.dp))
                     .padding(horizontal = 28.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {

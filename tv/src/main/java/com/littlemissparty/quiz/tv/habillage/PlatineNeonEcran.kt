@@ -171,10 +171,10 @@ internal fun PlatineNeonGs(joue: Boolean, manquant: Boolean, modifier: Modifier 
         }
         if (manquant) {
             Text(
-                "Extrait indisponible : l'animatrice peut passer.", color = GS.Encre, fontSize = 20.sp, lineHeight = 24.sp,
+                "Extrait indisponible : l'animatrice peut passer.", color = GS.PlaqueTexte, fontSize = 20.sp, lineHeight = 24.sp,
                 fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp)
-                    .clip(RoundedCornerShape(14.dp)).background(GS.Noir.copy(alpha = 0.75f)).padding(horizontal = 14.dp, vertical = 6.dp),
+                    .clip(RoundedCornerShape(14.dp)).background(GS.Plaque).padding(horizontal = 14.dp, vertical = 6.dp),
             )
         }
     }

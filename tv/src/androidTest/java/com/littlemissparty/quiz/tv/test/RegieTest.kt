@@ -187,7 +187,9 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Les Mimes !")
         assertEquals("applied", regie.commande(code, "mime_start", mapOf("team" to licornes.uid)))
-        ecran.voit("Au tour de Licornes")
+        // « Au tour de » au-dessus, le nom de l'équipe en dessous (31/10).
+        ecran.voit("Au tour de")
+        ecran.voit("Licornes")
         ecran.voit("Chat")
         ecran.capture("mimes-tour")
 
@@ -233,7 +235,9 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Les Mimes !")
         assertEquals("applied", regie.commande(code, "mime_start", mapOf("team" to equipes[0].uid)))
-        ecran.voit("Au tour de Licornes")
+        // « Au tour de » au-dessus, le nom de l'équipe en dessous (31/10).
+        ecran.voit("Au tour de")
+        ecran.voit("Licornes")
         ecran.entierementVisible("Image suivante")
         ecran.entierementVisible("Trouvé !")
         ecran.entierementVisible("Arrêter le tour")
@@ -573,7 +577,9 @@ class RegieTest : TestTv() {
 
         assertEquals("applied", regie.commande(code, "next"))
         if (!Look.gs) ecran.voit("IMAGE FLOUE") // Game Show : le titre est dans l'enseigne (planche du 27/10)
-        ecran.voit("Buzzez dès que vous reconnaissez l'image !")
+        // Game Show : l'onglet d'appel néon (cedric, 31/10 à 11:12).
+        if (Look.gs) { ecran.voit("BUZZEZ !"); ecran.entierementVisible("dès que vous reconnaissez l'image") }
+        else ecran.voit("Buzzez dès que vous reconnaissez l'image !")
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "f1" && it.child("buzzOpen").value == true } }
         assertTrue(licornes.buzzer(code))
         ecran.voit("Licornes a buzzé !")
@@ -682,9 +688,12 @@ class RegieTest : TestTv() {
         // Game Show : la présentation montre déjà la platine néon, jamais l'ancienne (cedric, 25/10).
         if (Look.gs) assertFalse("ancienne platine à la présentation du blind test", Habillage.platineIntroClassique)
         ecran.voit("Morceau 1 / 2")
-        ecran.voit("Prêts ? Écoutez bien…")
+        // Game Show : l'onglet « PRÊTS ? / Écoutez bien… » (cedric, 31/10 à 11:12).
+        val pret = if (Look.gs) "Écoutez bien…" else "Prêts ? Écoutez bien…"
+        ecran.voit(pret)
+        if (Look.gs) ecran.voit("PRÊTS ?")
         // La présentation tient au-dessus des équipes et des boutons.
-        ecran.entierementVisible("Prêts ? Écoutez bien…")
+        ecran.entierementVisible(pret)
         ecran.entierementVisible("Lancer le morceau")
         ecran.capture("blind-test-presentation")
         assertFalse("pas de buzz avant la musique", licornes.buzzer(code))
@@ -702,7 +711,9 @@ class RegieTest : TestTv() {
 
         // Mauvaise réponse : la musique reste arrêtée jusqu'à la relance, les Licornes ne rebuzzent pas.
         assertEquals("applied", regie.commande(code, "buzz_ko"))
-        ecran.voit("Pas tout à fait ! La musique va repartir…")
+        // Game Show : le message est sur deux lignes dans la planche (092a58e, 31/10) ; on lit chaque ligne.
+        ecran.voit("Pas tout à fait !")
+        ecran.voit("La musique va repartir…")
         assertFalse(dragons.buzzer(code))
         assertEquals("applied", regie.commande(code, "blind_play"))
         attendreQue("buzzer rouvert aux autres") { dragons.etat(code).takeIf { it.child("buzzOpen").value == true } }
@@ -893,7 +904,7 @@ class RegieTest : TestTv() {
         val carte = { mot: String -> if (Look.gs) mot.uppercase() else mot }
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("MÉMORISEZ !")
-        ecran.voit("Mémorisez bien tous les objets !")
+        ecran.voit(if (Look.gs) "bien tous les objets" else "Mémorisez bien tous les objets !")
         ecran.voit(carte("Téléphérique"))
         ecran.motsEntiers(carte("Bateau à voile"))
         attendreQue("question ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "d1" } }
@@ -901,7 +912,7 @@ class RegieTest : TestTv() {
         assertFalse("pas de buzz pendant la mémorisation", licornes.buzzer(code))
         ecran.capture("qui-a-disparu-memoriser")
         // 4 objets : 10 s pour mémoriser, 3 s de tour de magie, puis le buzzer s'ouvre.
-        ecran.voit("Buzzez dès que vous savez quel objet a disparu !", 20_000)
+        ecran.voit(if (Look.gs) "quel objet a disparu" else "Buzzez dès que vous savez quel objet a disparu !", 20_000)
         assertFalse("l'objet disparu n'est plus affiché", ecran.affiche(carte("Téléphérique")))
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("buzzOpen").value == true } }
         ecran.capture("qui-a-disparu-chercher")
@@ -920,7 +931,7 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("deuxième tour ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "d2" } }
-        ecran.voit("Buzzez dès que vous savez quel objet a disparu !", 30_000)
+        ecran.voit(if (Look.gs) "quel objet a disparu" else "Buzzez dès que vous savez quel objet a disparu !", 30_000)
         // L'écran change un instant avant l'état publié : sinon la commande part sur l'étape d'avant (« stale »).
         attendreQue("buzzer du deuxième tour ouvert") { licornes.etat(code).takeIf { it.child("buzzOpen").value == true } }
         assertEquals("applied", regie.commande(code, "next"))
@@ -1061,63 +1072,6 @@ class RegieTest : TestTv() {
     fun rangerRegies() = regies.forEach { it.close() }
 
     @Test
-    fun portesMysteresApresUnQuizOuvertesUneAUneJusquAuClassementFinalPuisLaFin() {
-        val code = lancerBoite()
-        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
-        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
-        val regie = regie()
-        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
-        @Suppress("UNCHECKED_CAST")
-        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
-        val portes = mapOf(
-            "id" to "pm", "text" to "Portes mystères", "choices" to listOf("Porte 1", "Porte 2", "Porte 3"), "correct" to -1,
-            "duration" to 30, "kind" to "portes", "double" to false, "round" to "Portes mystères", "doors" to listOf(150, -150, 300),
-        )
-        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), portes)))
-
-        // Un jeu avant les portes : les Licornes marquent.
-        assertEquals("applied", regie.commande(code, "next"))
-        attendreQue("question du quiz ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] && it.child("phase").value == "question" } }
-        assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
-        attendreQue("points du quiz") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } ?: run { regie.commande(code, "next"); null } }
-        val avant = points(licornes, code, licornes.uid)
-
-        // Jeu suivant : les portes, sans rien bloquer.
-        attendreQue("choix des portes ouvert", 30_000) {
-            val e = licornes.etat(code)
-            if (e.child("qid").value == "pm" && e.child("phase").value == "question") true
-            else { regie.commande(code, "next"); null }
-        }
-        ecran.voit("Fermer les choix")
-        assertEquals(3L, (licornes.etat(code).child("portes/count").value as Number).toLong())
-        assertNull("aucune valeur avant l'ouverture", licornes.etat(code).child("portes/values").value)
-        ecran.capture("portes-choix")
-        assertTrue(licornes.repondre(code, "pm", 1))
-        assertTrue(dragons.repondre(code, "pm", 2))
-        ecran.voit("Les jeux sont faits")
-
-        // L'animatrice ferme les choix puis ouvre les portes une à une, de gauche à droite.
-        attendreQue("portes prêtes à s'ouvrir") {
-            licornes.etat(code).takeIf { it.child("phase").value == "reveal" } ?: run { regie.commande(code, "next"); null }
-        }
-        ecran.voit("Ouvrir la porte suivante")
-        for (k in 0 until 3) {
-            assertEquals("applied", regie.commande(code, "next"))
-            attendreQue("porte ${k + 1} ouverte") { licornes.etat(code).takeIf { (it.child("portes/opened").value as? Number)?.toInt() == k + 1 } }
-        }
-        // Dernier jeu de la prestation : plus de classement, le bouton lance les résultats finaux (cedric, 27/10).
-        ecran.voit("Résultats finaux")
-        ecran.capture("portes-ouvertes")
-        assertEquals(maxOf(0L, avant - 150), points(licornes, code, licornes.uid))
-        assertEquals(300L, points(dragons, code, dragons.uid))
-
-        // Puis directement la grande finale : scores gardés, rien ne bloque.
-        assertEquals("applied", regie.commande(code, "next"))
-        attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
-        assertEquals(300L, points(dragons, code, dragons.uid))
-    }
-
-    @Test
     fun bombeCacheeApresUnQuizChacunSonTourJusquALaBombePuisLaFin() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
@@ -1222,7 +1176,8 @@ class RegieTest : TestTv() {
         }
         val goAt = (licornes.etat(code).child("pump/goAt").value as Number).toLong()
         attendreQue("départ") { (System.currentTimeMillis() > goAt + 6_000).takeIf { it } }
-        ecran.voit("Tapez sur vos tablettes")
+        ecran.voit(if (Look.gs) "le premier ballon qui éclate gagne" else "Tapez sur vos tablettes")
+        if (Look.gs) ecran.entierementVisible("TAPEZ !")
         // Les Licornes tapent, les Dragons font éclater leur ballon : la box termine la course.
         assertTrue(licornes.gonfler(code, 60))
         assertTrue(dragons.gonfler(code, 80))
@@ -1351,7 +1306,7 @@ class RegieTest : TestTv() {
         val e = licornes.etat(code)
         assertEquals("2 équipes × 2 joueurs : 2 duels", 2L, (e.child("duel/total").value as Number).toLong())
         assertEquals(listOf(1L, 1L), e.child("duel/players").children.map { (it.value as Number).toLong() })
-        ecran.voit("Les deux joueurs, la main au-dessus du buzzer !")
+        ecran.voit(if (Look.gs) "LA MAIN AU-DESSUS DU BUZZER !" else "Les deux joueurs, la main au-dessus du buzzer !")
         ecran.voit(if (Look.gs) "LE DUEL DES ROBOTS 1 / 2" else "Duel 1 sur 2")
         ecran.capture("duel-pret")
         assertEquals("pas de buzz avant le face-à-face", false, dragons.buzzerDuel(code, 0))
@@ -1416,11 +1371,11 @@ class RegieTest : TestTv() {
         assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
         @Suppress("UNCHECKED_CAST")
         val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
-        // Exactement ce qu'envoie la régie pour une manche « Le Simon du Prof » (web/public/show.js) : un seul tour,
+        // Exactement ce qu'envoie la régie pour une manche « Le Simon de Buzzy » (web/public/show.js) : un seul tour,
         // 5 s pour taper, 2 joueurs par équipe.
         val simon = mapOf(
-            "id" to "sm", "text" to "Le Simon du Prof", "choices" to emptyList<String>(), "correct" to -1,
-            "kind" to "simon", "double" to false, "round" to "Le Simon du Prof", "tours" to 1, "reponse" to 5, "joueurs" to 2,
+            "id" to "sm", "text" to "Le Simon de Buzzy", "choices" to emptyList<String>(), "correct" to -1,
+            "kind" to "simon", "double" to false, "round" to "Le Simon de Buzzy", "tours" to 1, "reponse" to 5, "joueurs" to 2,
         )
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), simon)))
         assertEquals("applied", regie.commande(code, "next"))
@@ -1434,7 +1389,7 @@ class RegieTest : TestTv() {
         }
         assertEquals(1L, (licornes.etat(code).child("simon/suite").value as Number).toLong())
         ecran.voit("PRÊTS ?")
-        ecran.voit("LE SIMON DU PROF · TOUR 1")
+        ecran.voit("LE SIMON DE BUZZY · TOUR 1")
         ecran.capture("simon-pret")
         assertEquals("rien à taper avant la suite", false, licornes.repondreSimon(code, listOf("rouge")))
 

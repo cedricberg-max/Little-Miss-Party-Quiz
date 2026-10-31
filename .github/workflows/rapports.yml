@@ -20,6 +20,12 @@ on:
       prestation:
         description: "Avec audit : un mot du nom de la prestation à vérifier (ses questions à réponses en images)"
         default: ""
+      touki:
+        description: "Prestation de test : « apercu » ou « ecrire » (ajoute, ne remplace ni n'efface rien) ; « menage4 » liste ce qui serait effacé, « menage4ecrire » efface les prestations de test nommées dans quoi"
+        default: ""
+      quoi:
+        description: "Avec touki : « diddy » (Anniversaire P Diddy, 31/10) ; avec menage4ecrire, les prestations à effacer, séparées par des virgules"
+        default: ""
       noms:
         description: "Captures à afficher, séparées par des virgules"
         default: "question-1,question-8-equipes,revelation,revelation-8-equipes,question-fermee,reponses-en-images,reponses-en-images-revelation,express-affirmation,zoom-mystere-question,zoom-mystere-revelation,image-floue-buzz,image-floue-revelation,juste-chiffre-question,juste-chiffre-revelation,quiz-musical-revelation,mimes-tour,mimes-6-equipes-tour"
@@ -34,6 +40,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       actions: read
+      # Les planches (noms avec « * ») sont aussi poussées sur une branche à part, « captures-<passage> » : le journal
+      # n'est pas toujours téléchargeable. Rien d'autre n'est écrit dans le dépôt.
+      contents: write
     env:
       PASSAGE: ${{ inputs.captures }}
       NOMS: ${{ inputs.noms }}
@@ -62,20 +71,44 @@ jobs:
           command -v convert >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick >/dev/null; }
           echo "== Toutes les captures du passage =="
           find archive -name '*.png' -printf '%f\n' | sort
-          # Une capture s'appelle « <Test>-<n°>-<nom>.png » ; un même nom peut venir de plusieurs tests.
+          # Une capture s'appelle « <Test>-<n°>-<nom>.png » ; un même nom peut venir de plusieurs tests. Le nom d'un test
+          # à paramètres contient des espaces (« [3 équipes] ») : lu ligne à ligne. Un nom avec « * » (ex. « tour-* »)
+          # prend toutes les captures qui correspondent, plus petites (planche des 1 à 8 équipes).
+          set -f
           for nom in $(printf '%s' "$NOMS" | tr ',' ' '); do
-            case "$nom" in *[!a-zA-Z0-9-]*) echo "Nom ignoré : $nom"; continue ;; esac
+            case "$nom" in *[!a-zA-Z0-9*-]*) echo "Nom ignoré : $nom"; continue ;; esac
+            case "$nom" in *'*'*) combien=400; taille='640x>'; qualite=60 ;; *) combien=3; taille='960x>'; qualite=72 ;; esac
             trouve=
-            for png in $(find archive -name "*-[0-9][0-9]-$nom.png" -o -name "$nom.png" | sort | head -3); do
+            while IFS= read -r png; do
+              [ -n "$png" ] || continue
               trouve=1
-              fichier=$(basename "$png" .png)
-              convert "$png" -resize '960x>' -quality 72 "$RUNNER_TEMP/$fichier.jpg"
+              fichier=$(basename "$png" .png | tr -c 'a-zA-Z0-9.\n-' '_')
+              convert "$png" -resize "$taille" -quality "$qualite" "$RUNNER_TEMP/$fichier.jpg"
               echo "=== CAPTURE $fichier $(identify -format '%wx%h' "$png") $(wc -c < "$RUNNER_TEMP/$fichier.jpg")"
-              base64 -w 1000 "$RUNNER_TEMP/$fichier.jpg" | sed 's/^/B64 /'
+              case "$nom" in
+                *'*'*) mkdir -p "$RUNNER_TEMP/planche" && cp "$RUNNER_TEMP/$fichier.jpg" "$RUNNER_TEMP/planche/" ;;
+                *) base64 -w 1000 "$RUNNER_TEMP/$fichier.jpg" | sed 's/^/B64 /' ;;
+              esac
               echo "=== FIN $fichier"
-            done
+            done < <(find archive \( -name "*-[0-9][0-9]-$nom.png" -o -name "$nom.png" \) | sort | head -"$combien")
             [ -n "$trouve" ] || echo "=== ABSENTE $nom"
           done
+      - name: Rapport du tour des écrans (1 à 8 équipes)
+        if: contains(inputs.noms, 'tour')
+        run: |
+          mkdir -p "$RUNNER_TEMP/planche"
+          find archive -name 'logcat.txt' -exec grep -h 'TOUR|' {} + | sed 's/^.*TOUR|/TOUR|/' | sort -u | tee "$RUNNER_TEMP/planche/tour.txt" || echo "=== ABSENT rapport du tour"
+      - name: Pousser la planche sur sa branche
+        if: contains(inputs.noms, '*')
+        run: |
+          [ -d "$RUNNER_TEMP/planche" ] || { echo "Pas de planche"; exit 0; }
+          cd "$RUNNER_TEMP/planche"
+          git init -q -b "captures-$PASSAGE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -q -m "Captures du passage $PASSAGE des tests émulateur"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "captures-$PASSAGE"
+          echo "Branche captures-$PASSAGE : $(ls | wc -l) fichiers"
       - name: Afficher les films (aperçus)
         if: contains(inputs.noms, 'apercu')
         run: |
@@ -181,7 +214,7 @@ jobs:
           node .github/scripts/etat-partie.mjs
 
   lire:
-    if: inputs.captures == '' && inputs.audit == ''
+    if: inputs.captures == '' && inputs.audit == '' && inputs.touki == ''
     runs-on: ubuntu-24.04
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -205,3 +238,20 @@ jobs:
           echo "== Plantages, en entier =="
           jq -r '[.[]?] | map(select(.kind == "crash")) | .[] | "--- \(.at / 1000 | strftime("%Y-%m-%d %H:%M:%SZ")) \(.version) \(.device)\n\(.text)"' \
             "$RUNNER_TEMP/rapports.json"
+
+  touki:
+    if: inputs.touki == 'apercu' || inputs.touki == 'ecrire' || inputs.touki == 'menage4' || inputs.touki == 'menage4ecrire'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      MODE: ${{ inputs.touki }}
+      QUOI: ${{ inputs.quoi }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prestation de test remplie avec les packs
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npm i --no-save --silent google-auth-library@9 > /dev/null
+          node .github/scripts/prestation-touki.mjs

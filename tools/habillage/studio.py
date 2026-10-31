@@ -1280,18 +1280,7 @@ def pictio_crayon():
     y[:nx] = x[:nx] * f + x[n:n + nx] * (1 - f)
     return stereo(y.astype(np.float32), width=.2)
 
-# ---------------------------------------------------------------- Portes mystères
-def portes_ouvre():
-    """Une porte mystère s'ouvre : grincement de bois, coup de timbale, crash et souffle de lumière qui monte."""
-    mx = Mix(2.5, tail=2)
-    mx.add('fx', _glisse(lambda t: 95 + 70 * t / .55 + 18 * np.sin(2 * np.pi * 23 * t), .55, (1, .7, .5, .35, .2), .35), 0)
-    mx.add('drums', note('timpani', 36, 1.2, 1.0), .5)
-    mx.add('kick', kick(1.0), .5)
-    mx.add('fx', crash(.8, 2.5), .5)
-    mx.add('fx', sub_boom(.6), .5)
-    mx.add('bells', note('glockenspiel', 96, .4, .35, release=1.0), .55)
-    return mx.render(duck=0)
-
+# ---------------------------------------------------------------- Classements des Coffres mystères
 def portes_jackpot():
     """Jackpot : cascade de pièces, arpège qui grimpe, grand accord de cuivres et pluie de clochettes."""
     mx = Mix(4, tail=2.5)
@@ -1542,7 +1531,7 @@ PIECES = {
     'bed_magie': (bed_magie, -18.5), 'magie': (magie, -19), 'magie_pouf': (magie_pouf, -17),
     'bonus': (bonus, -17), 'malus': (malus, -20), 'pictio_top': (pictio_top, -16), 'pictio_trouve': (pictio_trouve, -16),
     'pictio_crayon': (pictio_crayon, -24),
-    'portes_ouvre': (portes_ouvre, -16), 'portes_jackpot': (portes_jackpot, -16), 'portes_tuile': (portes_tuile, -18),
+    'portes_jackpot': (portes_jackpot, -16), 'portes_tuile': (portes_tuile, -18),
     'portes_renversement': (portes_renversement, -15),
     'coffre_secoue': (coffre_secoue, -20), 'coffre_ouvre': (coffre_ouvre, -17), 'coffre_or': (coffre_or, -17),
     'bombe_alerte': (bombe_alerte, -15), 'bombe_meche': (bombe_meche, -21), 'bombe_boum': (bombe_boum, -14),

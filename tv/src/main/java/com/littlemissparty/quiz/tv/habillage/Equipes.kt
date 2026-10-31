@@ -233,3 +233,28 @@ fun Echelle(largeur: Dp, hauteur: Dp, modifier: Modifier = Modifier, maxi: Float
         }
     }
 }
+
+/**
+ * Le contenu garde sa taille s'il tient dans la hauteur ; sinon il rapetisse d'un bloc (textes, images et marges
+ * ensemble) juste assez pour tenir, centré. Avec 8 équipes sur deux rangées, rien ne passe plus sous leurs cartes
+ * (cedric, 30/10 : la règle du Pictionary à moitié mangée).
+ */
+@Composable
+fun TientEnHauteur(modifier: Modifier = Modifier, contenu: @Composable () -> Unit) {
+    val d = LocalDensity.current
+    SubcomposeLayout(modifier) { c ->
+        val libre = c.copy(minWidth = 0, minHeight = 0, maxHeight = Constraints.Infinity)
+        val naturelle = subcompose("mesure", contenu).maxOfOrNull { it.measure(libre).height } ?: 0
+        val k = echelleQuiTient(naturelle, if (c.hasBoundedHeight) c.maxHeight else Constraints.Infinity)
+        val places = subcompose("place") {
+            CompositionLocalProvider(LocalDensity provides Density(d.density * k, d.fontScale)) { contenu() }
+        }.map { it.measure(c.copy(minWidth = 0, minHeight = 0)) }
+        val largeur = if (c.hasBoundedWidth) c.maxWidth else places.maxOfOrNull { it.width } ?: 0
+        val hauteur = if (c.hasBoundedHeight) c.maxHeight else places.maxOfOrNull { it.height } ?: 0
+        layout(largeur, hauteur) { places.forEach { p -> p.place((largeur - p.width) / 2, (hauteur - p.height) / 2) } }
+    }
+}
+
+/** Échelle (≤ 1) pour qu'un contenu haut de [naturelle] px tienne dans [place] px ; 1 s'il tient déjà. */
+internal fun echelleQuiTient(naturelle: Int, place: Int): Float =
+    if (naturelle <= 0 || naturelle <= place) 1f else (place.toFloat() / naturelle).coerceIn(0.2f, 1f)
