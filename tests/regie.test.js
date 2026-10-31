@@ -6650,6 +6650,8 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.evaluate(() => document.body.classList.contains("regie-gs")), true);
     await page.locator("#screen-home .vitrine-titre", { hasText: "GAME SHOW" }).waitFor();
     await page.locator("#screen-home .hero-buzzy").waitFor();
+    // Le nombre d'épreuves = les jeux de l'Accueil.
+    assert.equal(await page.locator("#vitrine-jeux").textContent(), String(await page.locator("#home-games .tile").count()));
     assert.equal(await page.locator("#screen-home .hero-logo").isVisible(), false, "l'ancien logo seul est caché");
     // Fond clair : jamais de fond sombre (cedric).
     const clair = (rgb) => { const [r, g, b] = rgb.match(/\d+/g).map(Number); return 0.2126 * r + 0.7152 * g + 0.0722 * b > 235; };
