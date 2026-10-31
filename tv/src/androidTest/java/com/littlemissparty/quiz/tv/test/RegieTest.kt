@@ -711,7 +711,9 @@ class RegieTest : TestTv() {
 
         // Mauvaise réponse : la musique reste arrêtée jusqu'à la relance, les Licornes ne rebuzzent pas.
         assertEquals("applied", regie.commande(code, "buzz_ko"))
-        ecran.voit("Pas tout à fait ! La musique va repartir…")
+        // Game Show : le message est sur deux lignes dans la planche (092a58e, 31/10) ; on lit chaque ligne.
+        ecran.voit("Pas tout à fait !")
+        ecran.voit("La musique va repartir…")
         assertFalse(dragons.buzzer(code))
         assertEquals("applied", regie.commande(code, "blind_play"))
         attendreQue("buzzer rouvert aux autres") { dragons.etat(code).takeIf { it.child("buzzOpen").value == true } }
