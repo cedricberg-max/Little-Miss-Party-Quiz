@@ -12,12 +12,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
+import com.littlemissparty.quiz.tv.TexteAjuste
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -304,11 +308,19 @@ fun ScenePatate(
             val (x, y, s) = placePatate(i, n)
             val larg = (780f / n - 6f).coerceAtMost(200f)
             Column(Modifier.offset(x = (x - larg / 2).dp, y = (y + 22f * s).dp).width(larg.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    nom, maxLines = if (n > 5) 2 else 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
+                // 6 à 8 équipes (audit du 31/10, choix A de cedric) : étiquette au contour de l'équipe, le nom plus grand, sur
+                // deux lignes, la même taille d'étiquette pour toutes ; il rapetisse un peu plutôt que d'être coupé.
+                if (n > 5) ProvideTextStyle(stylePatate) {
+                    TexteAjuste(
+                        nom, color = Neon.PlaqueTexte, max = 16.sp, min = 11.sp, lignes = 2, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth().height(46.dp).background(Neon.Plaque, RoundedCornerShape(12.dp))
+                            .border(if (i == p) 3.dp else 2.dp, couleur, RoundedCornerShape(12.dp)).padding(horizontal = 5.dp, vertical = 3.dp),
+                    )
+                } else Text(
+                    nom, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                    modifier = Modifier.background(Neon.Plaque, RoundedCornerShape(12.dp))
                         .border(if (i == p) 3.dp else 2.dp, couleur, RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
-                    style = stylePatate.copy(fontSize = if (n > 5) 12.sp else 16.sp, lineHeight = 1.1.em, color = Neon.Blanc),
+                    style = stylePatate.copy(fontSize = 16.sp, lineHeight = 1.1.em, color = Neon.PlaqueTexte),
                 )
                 if (i == precedent && i != p && !explosion) {
                     Text("vient de l'envoyer", maxLines = 2, textAlign = TextAlign.Center, style = stylePatate.copy(fontSize = 12.sp, lineHeight = 1.05.em, color = Neon.Blanc.copy(alpha = 0.6f)))
@@ -325,7 +337,7 @@ fun ScenePatate(
                         val sc = if (u <= 0f) 0.5f else rebondSortie(u)
                         scaleX = sc; scaleY = sc
                     }
-                    .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(3.dp, couleurP, RoundedCornerShape(50))
+                    .background(Neon.Plaque, RoundedCornerShape(50)).border(3.dp, couleurP, RoundedCornerShape(50))
                     .padding(horizontal = 26.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -346,7 +358,7 @@ fun ScenePatate(
                 Text("BOUM !", maxLines = 1, style = stylePatate.copy(fontSize = 80.sp, color = Color(0xFFFFB347), shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 4f), 14f)))
                 Text(
                     "La bombe a explosé chez $nomP !", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(3.dp, couleurP, RoundedCornerShape(50)).padding(horizontal = 24.dp, vertical = 5.dp),
+                    modifier = Modifier.background(Neon.Plaque, RoundedCornerShape(50)).border(3.dp, couleurP, RoundedCornerShape(50)).padding(horizontal = 24.dp, vertical = 5.dp),
                     style = stylePatate.copy(fontSize = 30.sp, color = couleurP),
                 )
                 if (pointsPerdus != null) {
@@ -394,7 +406,7 @@ fun AnnonceBombe(numero: Int, total: Int, modifier: Modifier = Modifier, jouer: 
                 val sc = if (u <= 0f) 0.5f else rebondSortie(u); scaleX = sc; scaleY = sc
             }
                 // Sur un panneau : le message ne chevauche jamais les socles ni les noms des équipes.
-                .background(Neon.Nuit2.copy(alpha = 0.94f), RoundedCornerShape(32.dp)).border(3.dp, Color(0xFFFFB347), RoundedCornerShape(32.dp))
+                .background(Neon.Plaque, RoundedCornerShape(32.dp)).border(3.dp, Color(0xFFFFB347), RoundedCornerShape(32.dp))
                 .padding(horizontal = 48.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

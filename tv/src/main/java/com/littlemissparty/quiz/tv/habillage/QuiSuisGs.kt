@@ -159,7 +159,7 @@ internal fun CarteIndiceGs(numero: Int, texte: String, modifier: Modifier = Modi
                 }
                 .shadow((10f + 14f * exp(-depuis.value / 330f)).dp, forme, ambientColor = couleur, spotColor = couleur)
                 .clip(forme)
-                .background(Color(0xE00E0622))
+                .background(GS.Plaque)
                 .border(3.dp, couleur, forme)
                 .padding(horizontal = 18.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,

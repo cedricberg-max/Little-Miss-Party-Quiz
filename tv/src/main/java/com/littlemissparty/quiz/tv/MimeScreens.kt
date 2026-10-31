@@ -19,6 +19,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -497,35 +498,40 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
 @Composable
 private fun MimeTeamChip(team: Team, count: Int, playing: Boolean, passed: Boolean, compacte: Boolean = false, modifier: Modifier = Modifier) {
     val color = team.color.toColor()
-    val taille = if (compacte) 14.sp else 16.sp
-    // Game Show : la plaque noire au contour néon du Pictionary (cedric, 30/10 : sur le décor, les cartes se lisaient
-    // mal). L'équipe qui joue : sa couleur en fond, contour plus épais.
+    val taille = if (compacte) 15.sp else 17.sp
+    // Game Show : la plaque sombre au contour néon du Pictionary (cedric, 30/10 : sur le décor, les cartes se lisaient
+    // mal), en « Doux 2 » (31/10). L'équipe qui joue : sa couleur en fond, contour plus épais.
+    // Audit du 31/10, choix B de cedric : le nom en entier sur une ligne (il rapetisse plutôt que d'être coupé), le
+    // nombre de mimes en pastille sur le coin.
     val forme = RoundedCornerShape(16.dp)
-    Column(
-        modifier
-            .then(if (Look.gs) Modifier.shadow(10.dp, forme, ambientColor = color, spotColor = color) else Modifier)
-            .clip(forme)
-            .background(
-                when {
-                    playing -> color.copy(alpha = 0.45f)
-                    Look.gs -> Neon.Nuit.copy(alpha = 0.88f)
-                    else -> Palette.Panel
-                },
-            )
-            .border(if (playing || Look.gs) 3.dp else 2.dp, color, forme)
-            .padding(horizontal = if (compacte) 8.dp else 12.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(team.name, color = Palette.Ink, fontSize = taille, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Box(modifier) {
+        Box(
+            Modifier
+                .then(if (Look.gs) Modifier.shadow(10.dp, forme, ambientColor = color, spotColor = color) else Modifier)
+                .clip(forme)
+                .background(
+                    when {
+                        playing -> color.copy(alpha = 0.45f)
+                        Look.gs -> Neon.Plaque
+                        else -> Palette.Panel
+                    },
+                )
+                .border(if (playing || Look.gs) 3.dp else 2.dp, color, forme)
+                .padding(horizontal = if (compacte) 8.dp else 12.dp, vertical = if (compacte) 8.dp else 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            UneLigneQuiTient {
+                Text(
+                    team.name, color = if (Look.gs) Neon.PlaqueTexte else Palette.Ink, fontSize = taille, fontWeight = FontWeight.Bold,
+                    maxLines = 1, softWrap = false,
+                )
+            }
+        }
         Text(
             "$count mime${if (count > 1) "s" else ""}" + if (passed && !playing) " ✓" else "",
-            color = when {
-                Look.gs && !playing -> color
-                count > 0 -> Neon.Or
-                else -> Palette.InkSoft
-            },
-            fontSize = taille, fontWeight = FontWeight.Bold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            color = Color(0xFF0E0820), fontSize = if (compacte) 11.sp else 13.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+            modifier = Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-10).dp)
+                .background(color, RoundedCornerShape(50)).padding(horizontal = 7.dp, vertical = 1.dp),
         )
     }
 }

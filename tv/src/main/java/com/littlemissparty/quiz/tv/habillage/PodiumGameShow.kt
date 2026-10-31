@@ -402,7 +402,7 @@ private fun TubesPodium(colonnes: List<Classee>, scores: List<Int>, ms: () -> Fl
             )
         }
     }
-    // Les noms sous les tubes : réduits pour tenir dans leur place, jamais coupés ; décalés un sur deux à 3 et 4 par côté.
+    // Les noms sous les tubes : chacun sous le sien, sur deux lignes à 3 et 4 par côté, réduits pour tenir, jamais coupés.
     Box(
         Modifier.fillMaxSize().graphicsLayer {
             alpha = 1f - ((ms() - (DESCENTE_DEBUT - 250f)) / 250f).coerceIn(0f, 1f)
@@ -411,15 +411,16 @@ private fun TubesPodium(colonnes: List<Classee>, scores: List<Int>, ms: () -> Fl
     ) {
         places.forEachIndexed { k, p ->
             val e = colonnes[k]
-            val taille = remember(e.nom, p, densite) {
+            val texte = if (p.deuxLignes) nomSurDeuxLignes(e.nom) else e.nom
+            val taille = remember(texte, p, densite) {
                 val t0 = maxOf(16f, 19f * p.echelle)
-                val l = mesure.measure(e.nom, styleNomTube(t0), maxLines = 1, softWrap = false).size.width.toFloat()
+                val l = texte.lines().maxOf { mesure.measure(it, styleNomTube(t0), maxLines = 1, softWrap = false).size.width }.toFloat()
                 val maxPx = with(densite) { p.placeNom.dp.toPx() }
                 if (l > maxPx) t0 * maxPx / l else t0
             }
             Text(
-                e.nom, maxLines = 1, softWrap = false, style = styleNomTube(taille),
-                modifier = Modifier.centreSurLigneDeBase(p.centre.dp, (TUBE_HAUT + TUBE_HAUTEUR + 22f * p.echelle + if (p.decale) 22f else 0f).dp),
+                texte, maxLines = 2, softWrap = false, style = styleNomTube(taille).copy(textAlign = TextAlign.Center, lineHeight = (taille * 1.08f).sp),
+                modifier = Modifier.centreSurLigneDeBase(p.centre.dp, (TUBE_HAUT + TUBE_HAUTEUR + 22f * p.echelle).dp),
             )
         }
     }
@@ -435,6 +436,17 @@ private fun styleNomTube(taille: Float) = TextStyle(
     fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = taille.sp, color = GS.Encre,
     shadow = Shadow(Color.Black.copy(alpha = 0.85f), Offset.Zero, 10f),
 )
+
+/**
+ * Le nom d'une équipe sur deux lignes à peu près égales, coupé à l'espace qui donne la ligne la plus longue la plus
+ * courte (« Les Panthères » / « Noires ») ; un seul mot reste sur une ligne.
+ */
+internal fun nomSurDeuxLignes(nom: String): String {
+    val mots = nom.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    if (mots.size < 2) return nom.trim()
+    val k = (1 until mots.size).minBy { i -> maxOf(mots.take(i).joinToString(" ").length, mots.drop(i).joinToString(" ").length) }
+    return mots.take(k).joinToString(" ") + "\n" + mots.drop(k).joinToString(" ")
+}
 
 /** Place un texte centré sur [x] (dp depuis la gauche du parent), sa ligne de base à [ligne] du haut du parent. */
 private fun Modifier.centreSurLigneDeBase(x: androidx.compose.ui.unit.Dp, ligne: androidx.compose.ui.unit.Dp): Modifier = layout { mesurable, contraintes ->
@@ -619,9 +631,10 @@ internal fun descenteTubes(ms: Float): Float {
 
 /**
  * Place d'un tube (dp sur 960) : [centre], [largeur] du verre, [echelle] des textes, [place] entre deux tubes,
- * [placeNom] largeur où son nom doit tenir, [decale] : nom une ligne plus bas (un sur deux à 3 et 4 tubes par côté).
+ * [placeNom] largeur où son nom doit tenir (sous son tube, jamais chez le voisin), [deuxLignes] : nom sur deux lignes
+ * (3 et 4 tubes par côté ; audit du 31/10, choix A de cedric, à la place des noms décalés un sur deux).
  */
-internal data class PlaceTube(val centre: Float, val largeur: Float, val echelle: Float, val place: Float, val placeNom: Float, val decale: Boolean)
+internal data class PlaceTube(val centre: Float, val largeur: Float, val echelle: Float, val place: Float, val placeNom: Float, val deuxLignes: Boolean)
 
 /**
  * Les tubes de 1 à 8 équipes : la moitié (arrondie au-dessus) à gauche de l'arche, le reste à droite, dans les mêmes
@@ -635,13 +648,13 @@ internal fun dispositionTubes(n: Int): List<PlaceTube> {
     val place = minOf(122.5f, 280f / k)
     val largeur = minOf(64f, place * 0.6f)
     val echelle = minOf(1.15f, largeur / 64f * 1.15f * (if (k >= 3) 1.08f else 1f))
-    val decale = k >= 3
+    val deuxLignes = k >= 3
     return listOf(gauche to 165f, droite to 795f).flatMap { (m, zone) ->
         (0 until m).map { i ->
             val x = zone + (i - (m - 1) / 2f) * place
-            // Le nom reste à l'écran : sa place ne dépasse jamais 8 dp du bord.
-            val nom = minOf((if (decale) place * 2 else place) * 0.94f, 2 * (x - 8f), 2 * (952f - x))
-            PlaceTube(x, largeur, echelle, place, nom, decale && i % 2 == 1)
+            // Le nom reste sous son tube et à l'écran : sa place ne dépasse jamais 8 dp du bord.
+            val nom = minOf(place * 0.94f, 2 * (x - 8f), 2 * (952f - x))
+            PlaceTube(x, largeur, echelle, place, nom, deuxLignes)
         }
     }
 }

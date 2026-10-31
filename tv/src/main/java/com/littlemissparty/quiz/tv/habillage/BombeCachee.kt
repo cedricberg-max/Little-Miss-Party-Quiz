@@ -524,7 +524,7 @@ private fun BandeauTour(auTour: Pair<String, Color>?, modifier: Modifier = Modif
     if (Look.gs) return BandeauTourGs(auTour, modifier)
     val couleur = auTour?.second ?: Neon.Or
     Row(
-        modifier.widthIn(max = 700.dp).background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
+        modifier.widthIn(max = 700.dp).background(Neon.Plaque, RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
             .padding(horizontal = 26.dp, vertical = 6.dp).apparition(0, auTour?.first),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -828,7 +828,7 @@ fun OuvertureCoffre(
             Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
                 .graphicsLayer { alpha = if (carte) 1f - ((t.value - tVerdict) / 220f).coerceIn(0f, 1f) else 1f }
                 .apparition(0, index)
-                .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
+                .background(Neon.Plaque, RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
                 .padding(horizontal = 22.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1202,7 +1202,7 @@ fun BilanBombe(lignes: List<Triple<String, Color, Int>>, modifier: Modifier = Mo
     Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
         Column(Modifier.align(Alignment.TopCenter).padding(top = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(
-                Modifier.background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50)).padding(horizontal = 26.dp, vertical = 6.dp),
+                Modifier.background(Neon.Plaque, RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50)).padding(horizontal = 26.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("💣", style = TextStyle(fontSize = 24.sp))
@@ -1239,13 +1239,13 @@ private fun LigneBilan(nom: String, couleur: Color, points: Int, i: Int, largeur
                 alpha = u
                 translationX = (1f - u) * 60f * density
             }
-            .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(20.dp)).border(3.dp, couleur, RoundedCornerShape(20.dp))
+            .background(Neon.Plaque, RoundedCornerShape(20.dp)).border(3.dp, couleur, RoundedCornerShape(20.dp))
             .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(22.dp).background(couleur, CircleShape).border(2.dp, Color.White.copy(alpha = 0.8f), CircleShape))
         Spacer(Modifier.width(14.dp))
-        Text(nom, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), style = styleBandeau.copy(fontSize = if (hauteur > 66.dp) 28.sp else 24.sp, color = Neon.Blanc))
+        Text(nom, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), style = styleBandeau.copy(fontSize = if (hauteur > 66.dp) 28.sp else 24.sp, color = Neon.PlaqueTexte))
         val teinte = when { points > 0 -> BONUS_VERT; points < 0 -> MALUS_CORAIL; else -> Neon.OrClair }
         Text(
             if (points == 0) "0" else texteValeur(points), maxLines = 1, softWrap = false,
@@ -1287,7 +1287,7 @@ fun ClassementCoffre(lignes: List<LigneClassement>, joue: Int, modifier: Modifie
         Box(Modifier.fillMaxSize().clearAndSetSemantics {}.background(Neon.Nuit.copy(alpha = 0.86f)))
         Row(
             Modifier.align(Alignment.TopCenter).padding(top = 22.dp).graphicsLayer { alpha = (t.value / 250f).coerceIn(0f, 1f) }
-                .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50))
+                .background(Neon.Plaque, RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50))
                 .padding(horizontal = 26.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

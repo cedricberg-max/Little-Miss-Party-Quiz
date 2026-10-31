@@ -181,7 +181,7 @@ fun PresentationJeuGameShow(titre: String, famille: String, modifier: Modifier =
             // Plaque sombre sous le titre : il passe devant les pupitres du plateau et doit rester lisible (cedric, 25/10).
             Box(
                 Modifier.padding(horizontal = 50.dp).apparition(500, titre)
-                    .background(GS.Noir.copy(alpha = 0.72f), RoundedCornerShape(18.dp))
+                    .background(GS.Plaque, RoundedCornerShape(18.dp))
                     .padding(horizontal = 28.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {

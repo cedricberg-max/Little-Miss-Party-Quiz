@@ -314,12 +314,12 @@ private fun DrawScope.halo(couleur: Color, rayon: Float, n: Int) {
 private fun TubeSimon(texte: String, couleur: Color, modifier: Modifier) {
     val forme = RoundedCornerShape(50.dp)
     Box(
-        modifier.drawBehind { halo(couleur, 50.dp.toPx(), 3) }.background(Color(0xCC0A0618), forme)
+        modifier.drawBehind { halo(couleur, 50.dp.toPx(), 3) }.background(GS.Plaque, forme)
             .border(4.dp, Color.White, forme).padding(4.dp).border(4.dp, couleur, forme).padding(horizontal = 30.dp, vertical = 8.dp),
     ) {
         Text(
             texte, maxLines = 1, softWrap = false,
-            style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = 30.sp, letterSpacing = 0.14.em, color = Color.White, shadow = Shadow(couleur, Offset.Zero, 14f)),
+            style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = 30.sp, letterSpacing = 0.14.em, color = GS.PlaqueTexte, shadow = Shadow(couleur, Offset.Zero, 14f)),
         )
     }
 }
@@ -505,7 +505,7 @@ private fun LigneSimon(l: Ligne, h: Dp, taille: Dp, ecart: Dp) {
     val forme = RoundedCornerShape(22.dp)
     Row(
         Modifier.fillMaxWidth().height(h).alpha(if (l.eteinte) 0.35f else 1f)
-            .background(Color(0xE60C0718), forme).border(3.dp, if (l.eteinte) Color.White.copy(alpha = 0.3f) else l.couleur, forme)
+            .background(GS.Plaque, forme).border(3.dp, if (l.eteinte) Color.White.copy(alpha = 0.3f) else l.couleur, forme)
             .padding(horizontal = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -712,7 +712,7 @@ private fun Plaques(plaques: List<Plaque>, largeur: Float, modifier: Modifier) {
             Column(
                 Modifier.width(l).height(112.dp).alpha(if (p.eteinte) 0.4f else 1f)
                     .drawBehind { if (!p.eteinte) halo(p.couleur, 22.dp.toPx(), 2) }
-                    .background(Color(0xE60A0618), forme).border(4.dp, if (p.eteinte) Color.White.copy(alpha = 0.4f) else p.couleur, forme)
+                    .background(GS.Plaque, forme).border(4.dp, if (p.eteinte) Color.White.copy(alpha = 0.4f) else p.couleur, forme)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
             ) {

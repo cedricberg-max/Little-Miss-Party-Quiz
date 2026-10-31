@@ -31,6 +31,10 @@ import kotlinx.coroutines.delay
 object Neon {
     val Nuit: Color get() = selonLook(Color(0xFF0B0614), GS.Noir)
     val Nuit2: Color get() = selonLook(Color(0xFF1A0B2E), GS.Nuit)
+    /** Fond des cadres et ovales sombres qui portent un texte (Game Show : « Doux 2 », [GS.Plaque]). */
+    val Plaque: Color get() = selonLook(Color(0xE61A0B2E), GS.Plaque)
+    /** Texte clair posé sur [Plaque] (Game Show : blanc cassé, [GS.PlaqueTexte]). */
+    val PlaqueTexte: Color get() = selonLook(Color(0xFFFFF4F2), GS.PlaqueTexte)
     /** Fonds de l'appli (plateau, intermèdes, fenêtres) : le violet un peu plus clair validé sur l'écran du blind test. */
     val FondHaut: Color get() = selonLook(Color(0xFF3A1466), GS.VioletProfond)
     val Fond: Color get() = selonLook(Color(0xFF221040), GS.Nuit)

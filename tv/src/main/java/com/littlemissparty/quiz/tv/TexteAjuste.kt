@@ -10,12 +10,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
+import kotlin.math.max
 import com.littlemissparty.quiz.tv.habillage.TexteJauge
 
 /**
@@ -78,3 +80,24 @@ internal fun tailleQuiTient(max: Float, min: Float, tient: (Float) -> Boolean): 
     }
     return min
 }
+
+/**
+ * Une ligne jamais coupée (règle 10) : mesurée en entier, puis rapetissée d'un même facteur (jusqu'à [echelleMin]) si
+ * elle dépasse sa place, centrée. Un simple Layout : il se laisse mesurer par les bandeaux qui demandent la largeur
+ * naturelle de leurs pastilles (BandeauEquipes), ce que TexteAjuste ne permet pas.
+ */
+@Composable
+fun UneLigneQuiTient(modifier: Modifier = Modifier, echelleMin: Float = 0.55f, contenu: @Composable () -> Unit) {
+    Layout(contenu, modifier) { mesurables, c ->
+        val p = mesurables.firstOrNull()?.measure(Constraints(maxHeight = c.maxHeight)) ?: return@Layout layout(0, 0) {}
+        val w = p.width.coerceIn(c.minWidth, c.maxWidth)
+        val e = echelleUneLigne(p.width, c.maxWidth, echelleMin)
+        layout(w, p.height.coerceAtLeast(c.minHeight)) {
+            p.placeWithLayer((w - p.width) / 2, (p.height.coerceAtLeast(c.minHeight) - p.height) / 2) { scaleX = e; scaleY = e }
+        }
+    }
+}
+
+/** Facteur qui fait tenir [naturelle] dans [place] (1 si elle tient déjà), jamais sous [min]. */
+internal fun echelleUneLigne(naturelle: Int, place: Int, min: Float): Float =
+    if (naturelle <= place || naturelle <= 0) 1f else max(min, place.toFloat() / naturelle)

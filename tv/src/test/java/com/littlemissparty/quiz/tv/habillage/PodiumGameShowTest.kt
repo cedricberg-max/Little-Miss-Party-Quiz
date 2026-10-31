@@ -134,6 +134,14 @@ class PodiumGameShowTest {
     }
 
     @Test
+    fun `nom sur deux lignes a peu pres egales, un seul mot reste entier`() {
+        assertEquals("Les Panthères\nNoires", nomSurDeuxLignes("Les Panthères Noires"))
+        assertEquals("Les Pirates\ndu Lac", nomSurDeuxLignes("Les Pirates du Lac"))
+        assertEquals("Licornes", nomSurDeuxLignes("  Licornes "))
+        assertEquals("Les\nRoses", nomSurDeuxLignes("Les  Roses"))
+    }
+
+    @Test
     fun `de 1 a 8 equipes, les tubes et leurs noms tiennent a l'ecran sans se toucher ni cacher le robot`() {
         for (n in 1..8) {
             val p = dispositionTubes(n)
@@ -145,14 +153,14 @@ class PodiumGameShowTest {
                 assertTrue("$n : nom hors écran", it.centre - it.placeNom / 2 >= 7.9f && it.centre + it.placeNom / 2 <= 952.1f)
                 assertTrue(it.echelle in 0.5f..1.15f)
             }
-            // Deux tubes voisins ne se touchent pas ; deux noms sur la même ligne non plus.
+            // Deux tubes voisins ne se touchent pas ; chaque nom reste sous son tube, sans toucher celui du voisin.
             val tries = p.sortedBy { it.centre }
             tries.zipWithNext { a, b -> assertTrue("$n : tubes collés", b.centre - a.centre >= (a.largeur + b.largeur) / 2 + 8f) }
-            for (ligne in listOf(true, false)) {
-                p.filter { it.decale == ligne }.sortedBy { it.centre }.zipWithNext { a, b ->
-                    assertTrue("$n : noms qui se chevauchent", b.centre - a.centre >= (a.placeNom + b.placeNom) / 2 - 0.01f)
-                }
+            tries.zipWithNext { a, b ->
+                assertTrue("$n : noms qui se chevauchent", b.centre - a.centre >= (a.placeNom + b.placeNom) / 2 - 0.01f)
             }
+            // 3 et 4 tubes par côté : tous les noms sur deux lignes (audit du 31/10, choix A), plus de noms décalés.
+            assertTrue(p.all { it.deuxLignes == (n >= 5) })
         }
         // Moitié (arrondie au-dessus) à gauche de l'arche, le reste à droite.
         assertEquals(4, dispositionTubes(7).count { it.centre < 480f })

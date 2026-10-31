@@ -128,7 +128,7 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                 "💣 Bombe ${p.bomb} sur ${p.total}", maxLines = 1,
                 style = styleCentre(20.sp, Neon.OrClair),
                 modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 16.dp)
-                    .background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.dp, Neon.Or, RoundedCornerShape(50))
+                    .background(Neon.Plaque, RoundedCornerShape(50)).border(2.dp, Neon.Or, RoundedCornerShape(50))
                     .padding(horizontal = 14.dp, vertical = 4.dp),
             )
         }
