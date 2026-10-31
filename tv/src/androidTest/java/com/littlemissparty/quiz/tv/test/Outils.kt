@@ -527,6 +527,18 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
     }.onFailure { Log.i(TAG, "Buzz du duel refusé : ${it.message}") }.isSuccess
 
     /**
+     * Le Chrono de Buzzy : la tablette buzze une fois ; l'heure annoncée [t] est ramenée par la box dans les 1,5 s avant
+     * l'arrivée (Long.MAX_VALUE : l'heure d'arrivée) ; false si le serveur refuse (pas de chrono en cours, déjà buzzé).
+     */
+    fun buzzerChrono(code: String, t: Long = Long.MAX_VALUE): Boolean = runCatching {
+        val cle = etat(code).child("chrono/key").value?.toString() ?: error("pas de chrono en cours")
+        bloquer {
+            base.getReference("games/$code/chrono/$cle/$uid")
+                .setValue(mapOf("t" to t, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Buzz du chrono refusé : ${it.message}") }.isSuccess
+
+    /**
      * Le Simon du Prof : la tablette envoie la suite tapée ([items], codes du moteur), validée ou non ([ok]) ; false
      * si le serveur refuse (pas de suite en cours, équipe éliminée, chrono pas parti ou fini, déjà validé).
      */
