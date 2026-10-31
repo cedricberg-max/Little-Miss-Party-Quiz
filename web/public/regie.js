@@ -463,6 +463,41 @@ function listen(path, fn) {
   unsubscribers.push(onValue(ref(db, path), fn, (e) => console.error(path, e)));
 }
 
+/**
+ * Pictogrammes « lecteur » (cedric, 31/10) : le caractère ⏭ des polices a ses deux triangles plus bas que la barre.
+ * En tête d'un bouton (ou de son libellé), ⏭ ⏮ ⏩ ⏪ ⏸ ⏯ passent dans un petit span que regie-gs.css dessine proprement
+ * (triangles centrés sur la barre) ; le caractère reste dans le texte, invisible (lecture d'écran, tests).
+ */
+const PICTOS_LECTEUR = { "⏭": "suivant", "⏮": "precedent", "⏩": "avance", "⏪": "recul", "⏸": "pause", "⏯": "lecture-pause" };
+const PICTO_EN_TETE = /^([⏭⏮⏩⏪⏸⏯])\uFE0F?/u;
+
+function dessinerPicto(el) {
+  const t = el.firstChild;
+  if (!t || t.nodeType !== Node.TEXT_NODE) return;
+  const m = PICTO_EN_TETE.exec(t.data);
+  if (!m) return;
+  const picto = document.createElement("span");
+  picto.className = `picto picto-${PICTOS_LECTEUR[m[1]]}`;
+  picto.textContent = m[0];
+  t.data = t.data.slice(m[0].length);
+  el.insertBefore(picto, t);
+}
+
+function dessinerPictos(racine) {
+  if (racine.matches?.("button, .label")) dessinerPicto(racine);
+  racine.querySelectorAll?.("button, .label").forEach(dessinerPicto);
+}
+
+new MutationObserver((changements) => {
+  for (const c of changements) {
+    const el = c.target.nodeType === Node.TEXT_NODE ? c.target.parentElement : c.target;
+    const bouton = el?.closest?.("button, .label");
+    if (bouton) dessinerPicto(bouton);
+    for (const n of c.addedNodes) if (n.nodeType === Node.ELEMENT_NODE) dessinerPictos(n);
+  }
+}).observe($("regie"), { subtree: true, childList: true, characterData: true });
+dessinerPictos($("regie"));
+
 function control() {
   installerCockpit();
   stopListening();

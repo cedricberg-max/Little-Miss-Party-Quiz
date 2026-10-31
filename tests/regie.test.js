@@ -2779,6 +2779,9 @@ describe("régie", () => {
     assert.equal(await page.locator("#c-end").getAttribute("hidden"), "", "rien à terminer au salon");
     await box.set({ ...questionState(1), qid: "q1", text: deuxJeux[0].text, choices: deuxJeux[0].choices, total: 2 });
     await page.click("#c-plus");
+    // ⏭ dessiné (cedric, 31/10) : triangles centrés sur la barre ; le texte du bouton ne change pas.
+    assert.equal(await page.locator("#c-end .picto-suivant").count(), 1);
+    assert.match(await page.locator("#c-end").textContent(), /^⏭ Terminer/);
     await page.locator("#plus #c-end", { hasText: "⏭ Terminer" }).click();
     await page.locator("#ask-line", { hasText: "Vous allez passer au jeu suivant : «\u00a0Animaux\u00a0»." }).waitFor();
     await capture(page, "terminer-jeu-suivant", { pleinePage: false });
