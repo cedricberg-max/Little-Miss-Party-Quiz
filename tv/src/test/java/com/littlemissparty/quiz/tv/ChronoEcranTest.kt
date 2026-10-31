@@ -72,4 +72,19 @@ class ChronoEcranTest {
         val r = com.littlemissparty.quiz.engine.ChronoResult(ecarts = ecarts, winners = listOf("rose"), points = 100, at = 0L)
         assertEquals(gagne.instant, finRevelation(r))
     }
+
+    @Test
+    fun `le drap fantome tombe, couvre le cadran avant que les chiffres disparaissent, puis se pose`() {
+        val (haut, _) = positionDrap(0f, 0L)
+        assertTrue("il part de haut", haut < -900f)
+        // Les chiffres s'effacent à DRAP_COUVRE_MS : le drap est alors presque posé (le cadran va de 253 à 719 px,
+        // l'ourlet du drap est à 871 px une fois posé).
+        val (couvre, _) = positionDrap(DRAP_COUVRE_MS.toFloat() / DRAP_CHUTE_MS, DRAP_COUVRE_MS)
+        assertTrue("le drap couvre le cadran ($couvre)", couvre > -140f)
+        val (pose, ecrase) = positionDrap(1f, DRAP_CHUTE_MS + 130L)
+        assertEquals(0f, pose, 0.01f)
+        assertTrue("il s'écrase un peu en arrivant", ecrase < 0.97f)
+        val (_, calme) = positionDrap(1f, DRAP_CHUTE_MS + 5_000L)
+        assertEquals(1f, calme, 0.01f)
+    }
 }
