@@ -98,4 +98,28 @@ class ChronoEcranTest {
         assertEquals(listOf(0, 1, 2, 3), rangeesEtiquettes(listOf(100f, 110f, 120f, 130f)))
         assertEquals(listOf(0, 0), rangeesEtiquettes(listOf(100f, 900f)))
     }
+
+    @Test
+    fun `huit equipes serrees, les etiquettes se decalent mais ne se touchent jamais`() {
+        // Le cas des captures du 31/10 (8 h) : Panthères, Dragons dorés, Pirates du lac, Sirènes bleues à droite, serrées.
+        val x = listOf(600f, 820f, 969f, 1025f, 1170f, 1206f, 1236f, 1330f)
+        val noms = listOf("Les Fusées", "Les Comètes", "Les Ninjas", "Les Licornes roses", "Les Panthères", "Les Dragons dorés", "Les Pirates du lac", "Les Sirènes bleues")
+        val l = noms.map { largeurEtiquette(it, "+2,68 s · +100") }
+        val p = placesEtiquettes(x, l)
+        for (i in x.indices) for (j in i + 1 until x.size) if (p[i].first == p[j].first) {
+            assertTrue("$i et $j se touchent", p[j].second - l[j] / 2 >= p[i].second + l[i] / 2)
+        }
+        p.forEachIndexed { i, (_, cx) -> assertTrue("dans l'écran", cx - l[i] / 2 >= 0f && cx + l[i] / 2 <= 1920f) }
+        // Sans voisine, l'étiquette reste juste sous sa pastille.
+        assertEquals(600f, p[0].second, 0.01f)
+    }
+
+    @Test
+    fun `la largeur estimee d une etiquette colle a la capture TV`() {
+        // Capture du 31/10 (8 h 30) : « LES FUSÉES » occupe environ 260 px de la scène, « +0,35 s · +100 » environ 255 px.
+        assertTrue(largeurEtiquette("Les Fusées", "") >= 262f)
+        assertTrue(largeurEtiquette("", "+0,35 s · +100") >= 255f)
+        // Un nom très long reste plafonné : le texte se réduit au lieu de déborder.
+        assertEquals(ETIQUETTE_L, largeurEtiquette("Les Supers Licornes Arc-en-ciel", ""), 0.01f)
+    }
 }
