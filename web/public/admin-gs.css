@@ -169,3 +169,13 @@ body.regie-gs {
 .regie-gs .round { background: var(--bg-2); border: 1px solid #ebe4f8; }
 .regie-gs .round .num { background: var(--neon-violet); }
 .regie-gs .icon { border-color: var(--line-2); }
+
+/* Petit téléphone : l'en-tête tient dans la largeur (« Administration » se cache). */
+@media (max-width: 480px) {
+  .regie-gs header { padding-left: 14px; padding-right: 14px; }
+  .regie-gs .brand small { display: none; }
+  .regie-gs .brand .wm-gs { font-size: 20px; }
+  .regie-gs .logo-band { padding: 14px; }
+  .regie-gs .vitrine .vitrine-titre { font-size: 8px; }
+  .regie-gs .vitrine-buzzy { width: 76px; }
+}

@@ -6666,6 +6666,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.goto(page.url().replace(/[?].*$/, "?emu=1&look=gs"));
     await page.locator("#screen-home:not([hidden]), #screen-login:not([hidden])").first().waitFor();
     assert.equal(await page.evaluate(() => document.body.classList.contains("regie-gs")), true);
+    // Sur un petit téléphone, rien ne dépasse de l'écran.
+    await page.setViewportSize({ width: 360, height: 740 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "pas de défilement de côté");
     await page.context().close();
   });
 
