@@ -361,3 +361,5 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .statues-phrase { display: block; margin-top: .4em; }
 /* Chante le mot ! : le mot à chanter, en grand. */
 .chante-mot { margin: 0; font-size: clamp(34px, 9vw, 64px); font-weight: 900; line-height: 1.05; text-align: center; overflow-wrap: anywhere; color: #ff2d8a; }
+.mimes-titre { display: block; font-size: 1.6em; font-weight: 900; line-height: 1.1; }
+.mimes-phrase { display: block; margin-top: .4em; }
