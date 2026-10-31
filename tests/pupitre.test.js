@@ -392,8 +392,9 @@ describe("pupitre", () => {
     // Dix tapes : envoyées à la base peu après, sans attendre chaque tape.
     for (let i = 0; i < 10; i++) await page.locator(".gf-pompe").click();
     await waitFor(async () => (await read(`pumps/gf-1/${uid}`))?.n === 10, "10 tapes reçues");
-    // Le ballon éclate à 12 : au-delà, plus rien ne compte et le bouton disparaît.
-    for (let i = 0; i < 2; i++) await page.locator(".gf-pompe").click();
+    // Le ballon éclate à 12 : au-delà, plus rien ne compte et le bouton disparaît. Les 2 dernières tapes viennent du gros
+    // buzzer USB (une touche Entrée), qui gonfle comme le doigt (cedric, 31/10).
+    for (let i = 0; i < 2; i++) await page.keyboard.press("Enter");
     await waitFor(async () => (await read(`pumps/gf-1/${uid}`))?.n === 12, "ballon éclaté envoyé tout de suite");
     await page.locator(".gf-titre", { hasText: "BOUM !" }).waitFor();
     assert.equal(await page.locator(".gf-pompe").isVisible(), false);

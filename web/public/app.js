@@ -1781,7 +1781,9 @@ $("buzz").onclick = async () => {
 
 // Gros buzzer USB branché sur la tablette : elle le voit comme un clavier d'une seule touche. Un appui sur n'importe
 // quelle touche fait comme un toucher du BUZZ de l'écran, seulement quand il est affiché ; sans buzzer, rien ne change.
+// Au Gonfleur fou, chaque appui gonfle le ballon comme une tape sur le bouton (cedric, 31/10 : « vérifie dans tous les jeux »).
 const buzzAffiche = () => !$("buzz").hidden && $("screen-play").classList.contains("active");
+const gonfleurAffiche = () => !!gonfleur && $("screen-gonfleur").classList.contains("active");
 const TOUCHES_SYSTEME = /^(Shift|Control|Alt|Meta|OS|Fn|Hyper|Super|CapsLock|NumLock|ScrollLock|Tab|Escape|Unidentified|Dead|Process|Audio|Media|Browser|Launch|Power|Brightness|Volume|Help|ContextMenu|PrintScreen)/;
 const enFrappe = (e) => e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]");
 document.addEventListener("keydown", (e) => {
@@ -1795,7 +1797,7 @@ document.addEventListener("keydown", (e) => {
   if (!e.repeat && buzzAffiche()) {
     dernierAppui = e.timeStamp || performance.now();
     $("buzz").click();
-  }
+  } else if (!e.repeat && gonfleurAffiche()) gonfleur.ctl.appuyer();
 });
 // Espace appuie sur un bouton au relâché : même garde.
 document.addEventListener("keyup", (e) => { if (e.key === " " && !enFrappe(e) && !document.body.classList.contains("regie-mode")) e.preventDefault(); });
