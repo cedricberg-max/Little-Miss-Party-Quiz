@@ -305,39 +305,6 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
-  test("Portes mystères : choix secret d'une porte, résultat caché jusqu'à l'ouverture de sa porte sur la TV", async () => {
-    const page = await openPupitre();
-    await joinTeam(page, "Les Roses");
-    const uid = Object.keys(await read("teams"))[0];
-    const portes = { qid: "pm", kind: "portes", text: "Portes mystères", choices: ["Porte 1", "Porte 2", "Porte 3"], correct: null };
-    await hostState(question({ ...portes, portes: { count: 3 } }));
-    await page.locator("#q-number", { hasText: "Portes mystères !" }).waitFor();
-    assert.equal(await page.locator("#portes-host .pm-mini").count(), 3);
-    assert.equal(await page.locator("#choices").isVisible(), false);
-    await page.locator("#portes-host .pm-mini").nth(1).click();
-    await page.click("#portes-host .pm-choisir");
-    await waitFor(async () => (await read(`answers/pm/${uid}`))?.choice === 1, "porte 2 enregistrée");
-    await page.locator("#portes-host .pm-titre", { hasText: "Porte 2 choisie" }).waitFor();
-    // Porte 1 ouverte, pas encore la sienne : rien n'est dit.
-    const award = { [uid]: { choice: 1, correct: false, points: -150, bonus: 0 } };
-    const reveal = (opened, values) => hostState(question({ ...portes, phase: "reveal", awards: award, scores: { [uid]: 50 }, portes: { count: 3, order: [0, 1, 2], opened, values } }));
-    await reveal(1, { 0: 300 });
-    await page.locator("#r-title", { hasText: "Porte 2… suspense !" }).waitFor();
-    await page.locator("#r-total", { hasText: "Classement à la fin des portes" }).waitFor();
-    // Sa porte s'ouvre : la tuile, points exacts ; le total arrive quand toutes les portes sont ouvertes.
-    await reveal(2, { 0: 300, 1: -150 });
-    await page.locator("#r-portes .pm-titre", { hasText: "Aïe, la tuile !" }).waitFor();
-    await page.locator("#r-portes .pm-points", { hasText: "−150 POINTS" }).waitFor();
-    assert.equal(await page.locator("#r-title").isVisible(), false);
-    await reveal(3, { 0: 300, 1: -150, 2: 150 });
-    await page.locator("#r-total", { hasText: "50 points · 1re place" }).waitFor();
-    // Question suivante ordinaire : les boutons habituels reviennent.
-    await hostState(question({ qid: "q9", text: "Couleur du ciel ?" }));
-    await page.locator(".choice .text", { hasText: "Bleu" }).waitFor();
-    assert.equal(await page.locator("#portes-host").isVisible(), false);
-    await page.context().close();
-  });
-
   test("Les coffres mystères : l'équipe qui joue ouvre un coffre, les autres regardent, le contenu attend la TV, puis le bilan", async () => {
     const roses = await openPupitre();
     await joinTeam(roses, "Les Roses");
@@ -425,8 +392,9 @@ describe("pupitre", () => {
     // Dix tapes : envoyées à la base peu après, sans attendre chaque tape.
     for (let i = 0; i < 10; i++) await page.locator(".gf-pompe").click();
     await waitFor(async () => (await read(`pumps/gf-1/${uid}`))?.n === 10, "10 tapes reçues");
-    // Le ballon éclate à 12 : au-delà, plus rien ne compte et le bouton disparaît.
-    for (let i = 0; i < 2; i++) await page.locator(".gf-pompe").click();
+    // Le ballon éclate à 12 : au-delà, plus rien ne compte et le bouton disparaît. Les 2 dernières tapes viennent du gros
+    // buzzer USB (une touche Entrée), qui gonfle comme le doigt (cedric, 31/10).
+    for (let i = 0; i < 2; i++) await page.keyboard.press("Enter");
     await waitFor(async () => (await read(`pumps/gf-1/${uid}`))?.n === 12, "ballon éclaté envoyé tout de suite");
     await page.locator(".gf-titre", { hasText: "BOUM !" }).waitFor();
     assert.equal(await page.locator(".gf-pompe").isVisible(), false);
@@ -440,6 +408,22 @@ describe("pupitre", () => {
     await waitFor(() => page.locator(".gf-pompe").isEnabled(), "nouvelle course");
     await page.locator(".gf-pompe").click();
     await waitFor(async () => (await read(`pumps/gf-2/${uid}`))?.n === 1, "on repart de zéro");
+    // Tapes en rafale (cedric, 30/10 : les premières semblaient sans effet, puis tout d'un coup) : le ballon les montre
+    // toutes dès l'image suivante, sans redessiner toute la page à chaque tape.
+    const rafale = await page.evaluate(() => new Promise((ok) => {
+      const pompe = document.querySelector(".gf-pompe");
+      let pages = 0;
+      const surveille = new MutationObserver((m) => { pages += m.filter((x) => x.target === document.getElementById("paused")).length; });
+      surveille.observe(document.body, { attributes: true, subtree: true });
+      for (let i = 0; i < 5; i++) pompe.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        surveille.disconnect();
+        ok({ p: getComputedStyle(document.querySelector(".gf-ballon")).getPropertyValue("--p").trim(), jauge: document.querySelector(".gf-plein").style.width, pages });
+      }));
+    }));
+    assert.deepEqual({ p: rafale.p, jauge: rafale.jauge }, { p: "0.500", jauge: "50%" }, "6 tapes sur 12 : ballon à moitié, tout de suite");
+    assert.equal(rafale.pages, 0, "la page entière n'est pas redessinée à chaque tape");
+    await waitFor(async () => (await read(`pumps/gf-2/${uid}`))?.n === 6, "rafale envoyée");
     await hostState(question({ qid: "q9", text: "Couleur du ciel ?" }));
     await page.locator(".choice .text", { hasText: "Bleu" }).waitFor();
     assert.equal(await page.locator("#gonfleur-host .gf").count(), 0, "écran du Gonfleur retiré");
@@ -609,10 +593,10 @@ describe("pupitre", () => {
     const uid = Object.keys(await read("teams"))[0];
     const statues = (s) => question({ qid: "s1", kind: "statues", choices: null, text: "Statues musicales", statues: { songs: 3, annonceMs: 8000, song: 0, dancing: true, playedMs: 0, ended: false, ...s } });
     await hostState(statues({ since: Date.now() }));
-    await page.locator("#play-status", { hasText: "DANSEZ !" }).waitFor();
+    await page.locator("#play-status .statues-mot", { hasText: "DANSE !" }).waitFor();
     assert.equal(await page.locator("#buzz").isVisible(), false, "rien à toucher");
     await hostState(statues({ dancing: false, playedMs: 12000 }));
-    await page.locator("#play-status", { hasText: "STATUE !" }).waitFor();
+    await page.locator("#play-status .statues-mot", { hasText: "STATUE !" }).waitFor();
     await hostState(statues({ dancing: false, ended: true }));
     await page.locator("#play-status", { hasText: "Fin de la chanson !" }).waitFor();
     // Gagnantes désignées : la TV fait le suspense (la tablette ne dit rien), puis la tablette montre ses points.
@@ -637,8 +621,8 @@ describe("pupitre", () => {
     const duel = (d) => question({ qid: "d1", kind: "duel", text: "Le Duel des robots", choices: null, deadline: null, durationMs: null,
       duel: { n: 3, total: 6, teams: [r, b], players: [2, 1], step: "ready", key: null, ...d } });
     await hostState(duel({}));
-    await roses.locator("#play-status", { hasText: "Duel n° 3 : à toi, joueur n° 2 !" }).waitFor();
-    await bleus.locator("#play-status", { hasText: "à toi, joueur n° 1 !" }).waitFor();
+    await roses.locator("#play-status", { hasText: "Duel n° 3 : à toi ! Viens te placer" }).waitFor();
+    await bleus.locator("#play-status", { hasText: "Duel n° 3 : à toi ! Viens te placer" }).waitFor();
     await verts.locator("#play-status", { hasText: "Duel n° 3 : Les Roses contre Les Bleus. Regardez la TV !" }).waitFor();
     assert.equal(await verts.locator("#buzz").isVisible(), false, "les autres équipes regardent");
     assert.equal(await roses.locator("#buzz").isDisabled(), true, "pas avant le lancement du duel");
@@ -694,7 +678,56 @@ describe("pupitre", () => {
     for (const p of [roses, bleus, verts]) await p.context().close();
   });
 
-  test("Le Simon du Prof (cedric, 27/10) : on regarde la TV, puis le joueur appelé tape la suite et valide ; éliminés ou gagné après la vérification", async () => {
+  test("Le Chrono de Buzzy (cedric, 30/10) : on compte dans sa tête, un seul buzz après le 0, jamais l'heure à l'écran ; écart et points au bilan", async () => {
+    const capt = async (page, nom) => { if (process.env.CAPTURES) await page.screenshot({ path: `${process.env.CAPTURES}/${nom}.png` }); };
+    const roses = await openPupitre();
+    await joinTeam(roses, "Les Roses");
+    const bleus = await openPupitre();
+    await joinTeam(bleus, "Les Bleus");
+    const verts = await openPupitre();
+    await joinTeam(verts, "Les Verts");
+    await roses.setViewportSize({ width: 1280, height: 800 });
+    const teams = await read("teams");
+    const id = (name) => Object.keys(teams).find((t) => teams[t].name === name);
+    const [r, b, v] = [id("Les Roses"), id("Les Bleus"), id("Les Verts")];
+    const chrono = (c) => question({ qid: "ch", kind: "chrono", text: "Le Chrono de Buzzy", choices: null, deadline: null, durationMs: null,
+      chrono: { tour: 1, tours: 3, cible: 30, step: "ready", key: "ch-1-0", teams: null, ...c } });
+    await hostState(chrono({}));
+    await roses.locator("#play-status", { hasText: "Tour 1 : comptez jusqu'à 30" }).waitFor();
+    assert.equal(await roses.locator("#buzz").isDisabled(), true, "pas de buzz avant le départ");
+    await capt(roses, "tablette-pret");
+    await capt(verts, "telephone-tablette-pret");
+    // Départ dans 1,5 s : le bouton s'allume au 0, l'heure n'est jamais écrite.
+    const goAt = Date.now() + 1_500;
+    await hostState(chrono({ step: "run", key: "ch-1-100", goAt, cacheMs: 8000, teams: [r, b] }));
+    await roses.locator("#play-status", { hasText: "Prêts ? Le chrono va partir" }).waitFor();
+    await verts.locator("#play-status", { hasText: "Ce tour a commencé sans vous" }).waitFor();
+    await waitFor(async () => !(await roses.locator("#buzz").isDisabled()), "buzz permis après le 0", 5_000);
+    await roses.locator("#play-status", { hasText: "Buzzez à 30 secondes pile" }).waitFor();
+    assert.doesNotMatch(await roses.locator("#screen-play").innerText(), /\d+,\d\d/, "aucun temps affiché");
+    await capt(roses, "tablette-compte");
+    // Game Show : le gros bouton respire sans arrêt (jamais « stable » pour Playwright).
+    await roses.click("#buzz", { force: true });
+    await waitFor(async () => typeof (await read(`chrono/ch-1-100/${r}`))?.t === "number", "buzz des Roses enregistré");
+    const envoi = await read(`chrono/ch-1-100/${r}`);
+    assert.ok(envoi.t <= envoi.at + 50, "l'appui est avant l'arrivée");
+    await roses.locator("#play-status", { hasText: "Buzz envoyé !" }).waitFor();
+    assert.equal(await roses.locator("#buzz").isDisabled(), true, "un seul buzz par tour");
+    await capt(roses, "tablette-buzz-envoye");
+    await bleus.keyboard.press("Enter");
+    await waitFor(async () => typeof (await read(`chrono/ch-1-100/${b}`))?.t === "number", "buzz des Bleus au buzzer USB");
+    // Bilan : écart de chacune, 100 à la plus proche, 50 à la 2e.
+    await hostState(chrono({ step: "result", key: "ch-1-100", teams: [r, b],
+      result: { ecarts: { [r]: -380, [b]: 1240 }, winners: [r], points: 100, gains: { [r]: 100, [b]: 50 }, at: Date.now() } }));
+    await roses.locator("#play-status", { hasText: "BRAVO ! La plus proche : −0,38" }).waitFor();
+    await bleus.locator("#play-status", { hasText: "Bien joué : +50 points !" }).waitFor();
+    await verts.locator("#play-status", { hasText: "Pas de buzz pour vous ce tour-ci" }).waitFor();
+    await capt(roses, "tablette-gagne");
+    await capt(bleus, "telephone-tablette-deuxieme");
+    for (const p of [roses, bleus, verts]) await p.context().close();
+  });
+
+  test("Le Simon de Buzzy (cedric, 27/10) : on regarde la TV, puis le joueur appelé tape la suite et valide ; éliminés ou gagné après la vérification", async () => {
     const roses = await openPupitre();
     await joinTeam(roses, "Les Roses");
     const bleus = await openPupitre();
@@ -704,20 +737,21 @@ describe("pupitre", () => {
     const teams = await read("teams");
     const id = (name) => Object.keys(teams).find((t) => teams[t].name === name);
     const [r, b, v] = [id("Les Roses"), id("Les Bleus"), id("Les Verts")];
-    const simon = (sm) => question({ qid: "s1", kind: "simon", text: "Le Simon du Prof", choices: null, deadline: null, durationMs: null,
+    const simon = (sm) => question({ qid: "s1", kind: "simon", text: "Le Simon de Buzzy", choices: null, deadline: null, durationMs: null,
       simon: { tour: 1, tours: 3, suite: 4, step: "ready", key: null, teams: [r, b], players: { [r]: 2, [b]: 1 }, chiffres: false, ...sm } });
     await hostState(simon({}));
-    await roses.locator(".sm-texte", { hasText: "Prochaine suite : joueur 2, prépare-toi !" }).waitFor();
-    await verts.locator(".sm-texte", { hasText: "Vous jouerez au prochain tour." }).waitFor();
+    await roses.locator(".sm-texte", { hasText: "Prochaine série : prépare-toi !" }).waitFor();
+    await verts.locator(".sm-texte", { hasText: "Tu joueras au prochain tour." }).waitFor();
     // Les chiffres débarquent, puis le robot montre la suite : on regarde la TV, rien à toucher.
     const t = Date.now();
     await hostState(simon({ step: "play", key: "s1-1-4-100", startAt: t, chiffresAt: t, montreAt: t + 2_500, reponseAt: t + 4_500, finAt: t + 60_000, chiffres: true }));
     await roses.locator(".sm-titre", { hasText: "Attention, les chiffres débarquent !" }).waitFor();
-    await roses.locator(".sm-titre", { hasText: "Regarde bien la TV…" }).waitFor({ timeout: 5_000 });
+    await roses.locator(".sm-titre", { hasText: "Regarde et retiens bien les couleurs…" }).waitFor({ timeout: 5_000 });
     assert.equal(await roses.locator(".sm-pave").isVisible(), false, "rien à toucher pendant que le robot montre");
     // Le chrono part : le joueur appelé tape, chaque appui part en direct vers la TV.
-    await roses.locator(".sm-titre", { hasText: "À toi ! Tape la suite" }).waitFor({ timeout: 5_000 });
-    await roses.locator(".sm-joueur", { hasText: "C'est au tour du joueur 2" }).waitFor();
+    await roses.locator(".sm-titre", { hasText: "À toi ! Tape les couleurs" }).waitFor({ timeout: 5_000 });
+    // Plus de « joueur n° » sur la tablette (cedric, 31/10) : l'équipe joue, la rotation se fait entre eux.
+    assert.equal(await roses.locator(".sm-joueur").isVisible(), false, "pas de numéro de joueur");
     assert.equal(await roses.locator(".sm-chiffres").isVisible(), true, "les chiffres sont là");
     assert.equal(await verts.locator(".sm-pave").isVisible(), false, "pas du tour : on regarde");
     await verts.locator(".sm-titre", { hasText: "Les autres équipes jouent…" }).waitFor();
@@ -727,21 +761,21 @@ describe("pupitre", () => {
     await roses.locator(".sm-boule[data-item=bleu]").dispatchEvent("pointerdown");
     await roses.locator(".sm-effacer").dispatchEvent("pointerdown");
     for (const item of ["vert", "jaune", "4"]) await roses.locator(`.sm-touche[data-item="${item}"]`).dispatchEvent("pointerdown");
-    await roses.locator(".sm-compte", { hasText: "Ta suite (4/4)" }).waitFor();
+    await roses.locator(".sm-compte", { hasText: "Tes couleurs (4/4)" }).waitFor();
     assert.equal(await roses.locator(".sm-touche[data-item=orange]").isDisabled(), true, "suite complète : plus d'appui");
     await roses.locator(".sm-valider").dispatchEvent("pointerdown");
     await waitFor(async () => (await read(`simon/s1-1-4-100/${r}`))?.ok === true, "suite validée");
     const envoi = await read(`simon/s1-1-4-100/${r}`);
     assert.equal(envoi.items, "rouge,vert,jaune,4");
     assert.equal(typeof envoi.at, "number");
-    await roses.locator(".sm-titre", { hasText: "Suite envoyée !" }).waitFor();
+    await roses.locator(".sm-titre", { hasText: "Couleurs envoyées !" }).waitFor();
     // Jugée : la TV vérifie colonne par colonne, la tablette attend avant de dire le résultat.
     const verdict = { suite: 4, solution: "rouge,vert,jaune,4", wrong: [b], winners: [r], points: 300, at: Date.now() };
     await hostState(simon({ step: "won", out: { [b]: 4 }, verdict }));
     await bleus.locator(".sm-titre", { hasText: "Vérification…" }).waitFor();
-    await roses.locator(".sm-titre", { hasText: "Bravo, vous gagnez le tour !" }).waitFor({ timeout: 8_000 });
+    await roses.locator(".sm-titre", { hasText: "Bravo, tu gagnes le tour !" }).waitFor({ timeout: 8_000 });
     await roses.locator(".sm-texte", { hasText: "+300 points" }).waitFor();
-    await bleus.locator(".sm-titre", { hasText: "Éliminés du tour…" }).waitFor();
+    await bleus.locator(".sm-titre", { hasText: "Éliminé du tour…" }).waitFor();
     await verts.locator(".sm-titre", { hasText: "Les Roses gagne le tour !" }).waitFor();
     // Toutes en erreur dès la première suite : « Bah alors ?! ».
     await hostState(simon({ step: "judged", suite: 1, verdict: { suite: 1, bahAlors: true, points: 0, at: Date.now() - 10_000 } }));
@@ -749,7 +783,7 @@ describe("pupitre", () => {
     // Nouvelle suite : nouvelle clé, la saisie repart de zéro.
     const t2 = Date.now();
     await hostState(simon({ step: "play", suite: 1, key: "s1-1-1-200", startAt: t2 - 4_000, montreAt: t2 - 2_000, reponseAt: t2 - 1_000, finAt: t2 + 60_000 }));
-    await roses.locator(".sm-compte", { hasText: "Ta suite (0/1)" }).waitFor();
+    await roses.locator(".sm-compte", { hasText: "Tes couleurs (0/1)" }).waitFor();
     // Que des couleurs (cedric, 29/10) : pas de chiffres, les 8 boules prennent la place, entières, droit comme couché.
     assert.equal(await roses.locator(".sm-chiffres").isVisible(), false, "plus de chiffres");
     const FORMATS = { "téléphone droit": [390, 844, 70], "téléphone couché": [844, 390, 60], "tablette posée": [1280, 800, 150], "tablette droite": [800, 1280, 150] };
@@ -969,7 +1003,9 @@ describe("pupitre", () => {
     const uid = Object.keys(await read("teams"))[0];
     const jeu = (extra) => question({ choices: null, buzzOpen: true, buzz: { blocked: [] }, ...extra });
     await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", round: "c1-1000-0" }));
-    await page.locator("#play-status", { hasText: "chantez une chanson avec le mot de la TV" }).waitFor();
+    await page.locator("#play-status", { hasText: "chantez une chanson avec ce mot" }).waitFor();
+    // Le mot à chanter est aussi sur la tablette (cedric, 31/10).
+    await page.locator("#chante-mot:not([hidden])", { hasText: "soleil" }).waitFor();
     await page.click("#buzz");
     await waitFor(async () => (await read("buzz/c1-1000-0"))?.team === uid, "buzz enregistré");
     await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", round: "c1-1000-0", buzzOpen: false, buzz: { team: uid, blocked: [] } }));
@@ -978,6 +1014,7 @@ describe("pupitre", () => {
     await page.locator("#r-detail", { hasText: "Le mot : soleil" }).waitFor();
     await hostState(jeu({ qid: "p1", kind: "quisuis", text: "Qui suis-je ?", round: "p1-1000-0" }));
     await page.locator("#play-status", { hasText: "Écoutez les indices de la TV" }).waitFor();
+    assert.equal(await page.locator("#chante-mot").isVisible(), false, "plus de mot hors de Chante le mot");
     assert.equal(await page.locator("#buzz").isDisabled(), false);
     // Qui a disparu ? : pas de buzz pendant qu'on mémorise, puis le buzzer s'ouvre quand l'objet a disparu.
     await hostState(jeu({ qid: "d1", kind: "disparu", text: "Qui a disparu ?", round: "d1-1000-0", buzzOpen: false }));

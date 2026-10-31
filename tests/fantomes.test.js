@@ -213,7 +213,7 @@ describe("équipes fantômes", () => {
       assert.ok(Math.abs(tir.t - panAt) < 7000, `tir près du PAN (écart ${tir.t - panAt} ms)`);
     }
 
-    // 🔴 Simon du Prof : la suite secrète est dans le journal dès le début du tour ; chaque joueur fantôme la tape,
+    // 🔴 Simon de Buzzy : la suite secrète est dans le journal dès le début du tour ; chaque joueur fantôme la tape,
     // élément par élément, puis valide avant la fin du chrono (une fois sur dix il se trompe d'un élément).
     await set(ref(hostDb(), `games/${CODE}/log/8`), { seq: 8, at: Date.now(), type: "simon_tour", qid: "s1", tour: 1, sequence: "rouge,vert,bleu,jaune,4", teams: ids });
     const debut = Date.now();
@@ -229,6 +229,23 @@ describe("équipes fantômes", () => {
       assert.equal(items.length, 3, "autant d'éléments que la suite");
       assert.ok(items.filter((x, k) => x === ["rouge", "vert", "bleu"][k]).length >= 2, `suite ${r.items} presque juste`);
     }
+    // « Les fantômes ne se trompent jamais » (cedric, 31/10) : une longue suite, tapée juste à chaque fois.
+    await page.check("#simon-fort");
+    const longue = ["rouge", "vert", "bleu", "jaune", "rouge", "vert", "bleu", "jaune", "rouge", "vert", "bleu", "jaune"];
+    for (const essai of [1, 2, 3]) {
+      await set(ref(hostDb(), `games/${CODE}/log/${8 + essai}`), { seq: 8 + essai, at: Date.now(), type: "simon_tour", qid: "s1", tour: 1 + essai, sequence: longue.join(","), teams: ids });
+      const t0 = Date.now();
+      const cle = `s1-${1 + essai}-12-1`;
+      await hostState({ phase: "question", kind: "simon", qid: "s1", choices: null, deadline: null,
+        simon: { tour: 1 + essai, tours: 5, suite: 12, step: "play", key: cle, startAt: t0, montreAt: t0, reponseAt: t0, finAt: t0 + 18000,
+          chiffres: false, teams: ids, players: Object.fromEntries(ids.map((id) => [id, 1])) } });
+      const justes = await waitFor(async () => {
+        const r = await read(`simon/${cle}`);
+        return r && Object.values(r).filter((x) => x.ok === true).length === 2 && r;
+      }, "les 2 fantômes valident la longue suite", 20000);
+      for (const r of Object.values(justes)) assert.equal(r.items, longue.join(","), "suite de 12 tapée juste");
+    }
+    await page.uncheck("#simon-fort");
 
     // Pendant la pause, aucun tir.
     await hostState({ phase: "question", kind: "duel", qid: "d1", choices: null, deadline: null, paused: true,

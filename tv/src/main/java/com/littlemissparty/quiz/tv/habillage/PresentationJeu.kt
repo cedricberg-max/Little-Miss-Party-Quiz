@@ -71,7 +71,7 @@ class EmblemeJeu(val emoji: String, val couleur: Color)
 
 /**
  * Emblème d'après la famille du jeu (« quiz », « mimes », « blind », « musical », « express », « juste », « zoom »,
- * « flou », « chante », « quisuis », « disparu », « statues », « pictionary », « portes », « bombe », « gonfleur »,
+ * « flou », « chante », « quisuis », « disparu », « statues », « pictionary », « bombe », « gonfleur »,
  * « patate », « duel ») ; un mot inconnu donne celui du quiz.
  */
 fun emblemeJeu(famille: String): EmblemeJeu = when (famille.lowercase()) {
@@ -87,12 +87,12 @@ fun emblemeJeu(famille: String): EmblemeJeu = when (famille.lowercase()) {
     "disparu" -> EmblemeJeu("👀", Color(0xFF7CFF3A))
     "statues" -> EmblemeJeu("🗿", Color(0xFF6FA8FF))
     "pictionary" -> EmblemeJeu("🎨", Color(0xFFFF2D8A))
-    "portes" -> EmblemeJeu("🚪", Color(0xFFF0CC92))
     "bombe", "coffres", "bombecachee" -> EmblemeJeu("🗝️", Color(0xFFF0CC92))
     "gonfleur", "ballons" -> EmblemeJeu("🎈", Color(0xFFFF2D8A))
     "patate", "patatechaude" -> EmblemeJeu("💣", Color(0xFFFF5A1F))
     "duel" -> EmblemeJeu("🤠", Color(0xFFFFB347))
     "simon" -> EmblemeJeu("🔴", Color(0xFFFF2A2A))
+    "chrono" -> EmblemeJeu("⏱️", Color(0xFF00F0FF))
     else -> EmblemeJeu("❓", Color(0xFFF0CC92))
 }
 

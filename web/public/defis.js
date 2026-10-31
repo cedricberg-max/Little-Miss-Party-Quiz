@@ -1,9 +1,11 @@
 import { ref, get, set, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 
-// Défis de la pause : la TV en affiche un toutes les quelques secondes pendant « PAUSE FUN ! ».
-// La régie (et l'administration) les modifient dans settings/defis ; sans liste enregistrée, la TV garde les siens.
+// Défis de la pause : la TV en affiche un toutes les 8 secondes pendant « PAUSE FUN ! », au hasard parmi les défis de
+// base (toujours là) et ceux en plus de cette fête (cedric, 31/10, proposition A). Les défis en plus sont préparés dans
+// la Régie PC (fiche de la prestation, copiés dans la partie au lancement), puis ajoutés ou effacés ici pendant la fête.
+// Ils sont gardés dans la partie (games/<code>/defisFete) : jamais repris à la fête suivante.
 
-/** Défis d'origine, les mêmes que ceux intégrés à l'appli TV (PauseScreens.kt). */
+/** Défis de base, les mêmes que ceux intégrés à l'appli TV (DefisPause.kt). Ils ne se modifient pas. */
 export const DEFIS_PAR_DEFAUT = [
   "Tout le monde fait la ola !",
   "Un tonnerre d'applaudissements pour [prénom] !",
@@ -16,80 +18,87 @@ export const DEFIS_PAR_DEFAUT = [
 export const DEFIS_MAX = 30;
 export const DEFI_LONGUEUR_MAX = 120;
 
-/** Liste propre à enregistrer : textes nettoyés, vides retirés, au plus 30 de 120 caractères. */
+/** Liste propre à enregistrer : textes nettoyés, vides et doublons retirés, au plus 30 de 120 caractères. */
 export function nettoyerDefis(list) {
-  return (list ?? [])
+  const textes = (Array.isArray(list) ? list : [])
     .map((t) => String(t ?? "").replace(/\s+/g, " ").trim().slice(0, DEFI_LONGUEUR_MAX))
-    .filter(Boolean)
-    .slice(0, DEFIS_MAX);
+    .filter(Boolean);
+  return [...new Set(textes)].slice(0, DEFIS_MAX);
 }
 
-let defis = null;
-let erreur = null;
-
-/** Affiche la rubrique « Défis de la pause » dans [box] ; chaque changement est enregistré tout de suite. */
-export async function ouvrirDefis(db, box, toast, demander) {
-  if (defis === null) {
-    box.innerHTML = '<p class="hint">Chargement des défis…</p>';
-    try {
-      const v = (await get(ref(db, "settings/defis"))).val();
-      defis = Array.isArray(v?.list) ? nettoyerDefis(v.list) : [...DEFIS_PAR_DEFAUT];
-      erreur = null;
-    } catch (e) {
-      console.error(e);
-      erreur = "Impossible de lire les défis : vérifiez la connexion, puis rouvrez l'onglet.";
-    }
-  }
-  dessiner(db, box, toast, demander);
+/** Valeur à écrire dans games/<code>/defisFete pour ces défis en plus (null : aucun, le nœud est retiré). */
+export function valeurDefisFete(list) {
+  const propres = nettoyerDefis(list);
+  return propres.length ? { list: propres, updatedAt: serverTimestamp() } : null;
 }
 
-async function enregistrer(db, box, toast, demander, suivant) {
-  const list = nettoyerDefis(suivant);
+/** Défis en plus d'une fiche de prestation, écrits un par ligne dans la Régie PC. */
+export function defisDuTexte(texte) {
+  return nettoyerDefis(String(texte ?? "").split(/\r?\n/));
+}
+
+/** Affiche l'onglet « Défis » de la partie [code] dans [box] ; chaque changement est enregistré tout de suite. */
+export async function ouvrirDefis(db, code, box, toast) {
+  box.innerHTML = '<p class="hint">Chargement des défis…</p>';
+  let enPlus;
   try {
-    await set(ref(db, "settings/defis"), list.length ? { list, updatedAt: serverTimestamp() } : { updatedAt: serverTimestamp() });
-    defis = list.length ? list : [...DEFIS_PAR_DEFAUT];
-    toast(list.length ? "Défis enregistrés : la TV les affichera à la prochaine pause." : "Liste vide : la TV reprend les défis d'origine.");
+    const v = (await get(ref(db, `games/${code}/defisFete`))).val();
+    enPlus = nettoyerDefis(v?.list);
   } catch (e) {
     console.error(e);
-    // Ouverte avec le code à 4 chiffres de la TV, la régie n'a pas le droit de modifier les défis.
-    toast(/permission/i.test(String(e?.message ?? e))
-      ? "Pour modifier les défis, ouvrez la régie avec son mot de passe (pas le code de la TV)."
-      : "Les défis n'ont pas pu être enregistrés. Vérifiez la connexion et réessayez.");
-  }
-  dessiner(db, box, toast, demander);
-}
-
-function dessiner(db, box, toast, demander) {
-  box.innerHTML = "";
-  if (erreur) {
-    box.innerHTML = `<p class="hint">${erreur}</p>`;
-    defis = null;
+    box.innerHTML = '<p class="hint">Impossible de lire les défis : vérifiez la connexion, puis rouvrez l\'onglet.</p>';
     return;
   }
+  dessiner(db, code, box, toast, enPlus);
+}
+
+async function enregistrer(db, code, box, toast, avant, suivant) {
+  const list = nettoyerDefis(suivant);
+  try {
+    await set(ref(db, `games/${code}/defisFete`), valeurDefisFete(list));
+    toast(list.length > avant.length ? "Défi ajouté : la TV le montrera aux prochaines pauses."
+      : list.length < avant.length ? "Défi effacé." : "Défi modifié.");
+    dessiner(db, code, box, toast, list);
+  } catch (e) {
+    console.error(e);
+    toast("Le défi n'a pas pu être enregistré. Vérifiez la connexion et réessayez.");
+    dessiner(db, code, box, toast, avant);
+  }
+}
+
+function dessiner(db, code, box, toast, enPlus) {
+  box.innerHTML = "";
   const intro = document.createElement("p");
   intro.className = "hint";
-  intro.textContent = "Pendant la pause, la TV affiche un de ces défis toutes les 8 secondes. Écrivez [prénom] pour le prénom de l'enfant.";
+  intro.textContent = "Pendant la pause, la TV affiche un défi toutes les 8 secondes, au hasard parmi les défis de base et ceux de cette fête. Écrivez [prénom] pour le prénom de l'enfant.";
   box.appendChild(intro);
 
+  const titreFete = document.createElement("h3");
+  titreFete.className = "defis-titre";
+  titreFete.textContent = "Défis en plus pour cette fête";
+  box.appendChild(titreFete);
+  if (!enPlus.length) {
+    box.insertAdjacentHTML("beforeend", '<p class="hint defis-vide">Aucun pour l\'instant. Ajoutez-en ici, ou préparez-les dans la Régie PC (fiche de la prestation).</p>');
+  }
   const liste = document.createElement("ol");
   liste.className = "defis";
-  defis.forEach((texte, i) => {
+  enPlus.forEach((texte, i) => {
     const li = document.createElement("li");
     const champ = document.createElement("input");
     champ.type = "text";
     champ.value = texte;
     champ.maxLength = DEFI_LONGUEUR_MAX;
-    champ.setAttribute("aria-label", `Défi ${i + 1}`);
+    champ.setAttribute("aria-label", `Défi en plus ${i + 1}`);
     champ.onchange = () => {
-      const suivant = [...defis];
+      const suivant = [...enPlus];
       suivant[i] = champ.value;
-      enregistrer(db, box, toast, demander, suivant);
+      enregistrer(db, code, box, toast, enPlus, suivant);
     };
     const effacer = document.createElement("button");
     effacer.type = "button";
     effacer.className = "btn secondary defi-effacer";
     effacer.textContent = "Effacer";
-    effacer.onclick = () => enregistrer(db, box, toast, demander, defis.filter((_, k) => k !== i));
+    effacer.onclick = () => enregistrer(db, code, box, toast, enPlus, enPlus.filter((_, k) => k !== i));
     li.append(champ, effacer);
     liste.appendChild(li);
   });
@@ -106,24 +115,27 @@ function dessiner(db, box, toast, demander) {
   ajouter.type = "submit";
   ajouter.className = "btn main";
   ajouter.textContent = "＋ Ajouter le défi";
-  const plein = defis.length >= DEFIS_MAX;
+  const plein = enPlus.length >= DEFIS_MAX;
   nouveau.disabled = ajouter.disabled = plein;
   ajout.append(nouveau, ajouter);
   ajout.onsubmit = (e) => {
     e.preventDefault();
     if (!nouveau.value.trim()) { toast("Écrivez d'abord le défi."); return; }
-    enregistrer(db, box, toast, demander, [...defis, nouveau.value]);
+    enregistrer(db, code, box, toast, enPlus, [...enPlus, nouveau.value]);
   };
   box.appendChild(ajout);
-  if (plein) box.insertAdjacentHTML("beforeend", `<p class="hint">${DEFIS_MAX} défis au maximum : effacez-en un pour en ajouter un autre.</p>`);
+  if (plein) box.insertAdjacentHTML("beforeend", `<p class="hint">${DEFIS_MAX} défis en plus au maximum : effacez-en un pour en ajouter un autre.</p>`);
 
-  const origine = document.createElement("button");
-  origine.type = "button";
-  origine.className = "link";
-  origine.textContent = "Remettre les défis d'origine";
-  origine.onclick = async () => {
-    const oui = await demander({ title: "Remettre les défis d'origine ?", text: "La liste actuelle sera remplacée.", ok: "Remettre", alert: true });
-    if (oui) enregistrer(db, box, toast, demander, DEFIS_PAR_DEFAUT);
-  };
-  box.appendChild(origine);
+  const titreBase = document.createElement("h3");
+  titreBase.className = "defis-titre";
+  titreBase.textContent = "Défis de base (toujours là)";
+  box.appendChild(titreBase);
+  const base = document.createElement("ul");
+  base.className = "defis-base";
+  DEFIS_PAR_DEFAUT.forEach((texte) => {
+    const li = document.createElement("li");
+    li.textContent = texte;
+    base.appendChild(li);
+  });
+  box.appendChild(base);
 }

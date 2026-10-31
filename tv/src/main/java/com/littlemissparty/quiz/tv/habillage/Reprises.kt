@@ -3,7 +3,7 @@ package com.littlemissparty.quiz.tv.habillage
 /**
  * Lecteur en erreur : quand le refaire. Test du 24 octobre : la box, à court de sorties audio, a mis « lmp_bed_full »
  * en erreur 19 fois en 2 s ; chaque lecteur refait aussitôt retombait en erreur, et cette avalanche privait les autres
- * sons (scores, Super Finale, portes muets). Un son est donc refait de plus en plus tard ([delais]), et au plus autant
+ * sons (scores, Super Finale muets). Un son est donc refait de plus en plus tard ([delais]), et au plus autant
  * de fois que [delais] en compte sur [fenetreMs] ; au-delà, il attend qu'une tentative sorte de la fenêtre.
  */
 internal class Reprises(

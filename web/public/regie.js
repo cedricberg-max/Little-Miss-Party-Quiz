@@ -1,5 +1,5 @@
 import {
-  ref, get, set, update, push, onValue, serverTimestamp, query, limitToFirst,
+  ref, get, set, update, push, onValue, onDisconnect, serverTimestamp, query, limitToFirst,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { BRACELET_COLORS, CHOICE_LETTERS, MAX_TEAMS, TEAM_COLORS, TEAM_COLOR_NAMES, numeroTablette } from "./theme.js";
 import { writeProof } from "./proof.js";
@@ -8,9 +8,9 @@ import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
-  isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, roundTirees, roundSeriesQuiz, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
+  uniqueRoundTitle, roundQuizIds, roundTirees, roundSeriesQuiz, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
   isArchived, isPhotoTheme, disparuGroup, statuesChoices, quizQuestions, jeuDeLaManche, quizKind,
-  launchStates, launchLabel, jourHeure, isoDay, couleurMimeEquipe, chansonJouable,
+  launchStates, launchLabel, jourHeure, isoDay, couleurMimeEquipe, chansonJouable, couleursEquipes, MIME_RESERVE,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
@@ -20,7 +20,7 @@ import {
 } from "./manches.js";
 import { profileForAge } from "./profiles.js";
 import { setAwake } from "./awake.js";
-import { ouvrirDefis } from "./defis.js";
+import { ouvrirDefis, nettoyerDefis, valeurDefisFete } from "./defis.js";
 import { BANQUE, PHOTOS_BANQUE, avecPhoto, resolveBanque, lirePhotoBanque, emojiEnImage, cheminPhotoBanque } from "./banque-photos.js";
 
 // Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
@@ -163,12 +163,23 @@ function installerCockpit() {
   $("c-pause").after(plus);
   const grille = $("plus-grille");
   // « ⏭ Terminer » rangé ici aussi (cedric, 30/10 : trop dangereux sur l'écran principal en pleine partie), juste
-  // avant « ⛔ Arrêter la partie ».
-  for (const id of ["c-add", "c-replay", "c-recommencer", "c-rescue", "c-points", "c-equipe", "c-tablette", "c-box", "c-end", "c-arret"]) grille.append($(id));
+  // avant « ⛔ Terminer la partie ».
+  // « 📋 Conducteur » (cedric, 30/10) : à la place de « Changer de jeu », il ouvre le conducteur en plein écran.
+  const conducteur = document.createElement("button");
+  conducteur.id = "c-conducteur";
+  conducteur.className = "btn secondary";
+  conducteur.type = "button";
+  conducteur.innerHTML = '<span class="icone" aria-hidden="true">📋</span>Conducteur';
+  conducteur.onclick = ouvrirConducteur;
+  $("c-recommencer").after(conducteur);
+  for (const id of ["c-add", "c-recommencer", "c-conducteur", "c-points", "c-equipe", "c-tablette", "c-box", "c-end", "c-arret"]) grille.append($(id));
+  $("conducteur-corps").append($("panel-plan"));
+  $("panel-plan").hidden = false;
+  $("tab-plan").hidden = true;
   $("c-end").querySelector(".label").textContent = "⏭ Terminer";
   $("plus-onglets").append($("c-notes"), document.querySelector(".regie .tabs"),
-    $("panel-teams"), $("panel-plan"), $("panel-show"), $("panel-defis"));
-  // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer » : appui long, elle reste).
+    $("panel-teams"), $("panel-show"), $("panel-defis"));
+  // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer la partie » : appui long, elle reste).
   grille.addEventListener("click", (e) => {
     const bouton = e.target.closest("button");
     if (bouton && bouton.id !== "c-arret") fermerPlus();
@@ -215,6 +226,16 @@ function fermerPlus() {
   $("plus-fond").hidden = true;
 }
 
+function ouvrirConducteur() {
+  fermerPlus();
+  $("conducteur").hidden = false;
+  render();
+}
+
+function fermerConducteur() {
+  $("conducteur").hidden = true;
+}
+
 window.addEventListener("resize", caleSurLeBas);
 
 /**
@@ -245,13 +266,13 @@ function questionSuivante(st) {
   const k = (st.index ?? -1) + 1;
   const q = questions[k];
   if (!q || (next && next.start === k) || st.leaveTo != null) return null;
-  if (["portes", "coffres", "gonfleur", "patate", "statues", "duel", "simon", "mime", "pictionary", "blind"].includes(q.kind)) return null;
+  if (["coffres", "gonfleur", "patate", "statues", "duel", "simon", "chrono", "mime", "pictionary", "blind"].includes(q.kind)) return null;
   if (q.correct == null) return null;
   return { q, correct: q.correct, text: q.choices?.[q.correct] ?? "", number: q.kind === "number", flou: BUZZ_KINDS.includes(q.kind) };
 }
 
 /** Jeux qui ont déjà leur propre écran au milieu de la régie pendant la question (mimes, blind test, statues…). */
-const MILIEU_OCCUPE = ["mime", "blind", "statues", "duel", "simon", "coffres", "gonfleur", "patate"];
+const MILIEU_OCCUPE = ["mime", "blind", "statues", "duel", "simon", "chrono", "coffres", "gonfleur", "patate"];
 
 /**
  * Une tuile par équipe (1 à 8) : sa couleur, ses points, ce qu'elle fait (a répondu, réfléchit, sa réponse et ses
@@ -313,13 +334,12 @@ function renderTuiles(st, teams) {
     }
     b.append(nom, score, etat);
     b.setAttribute("aria-label", `${t.name ?? "Équipe"} : ${scores[id] ?? 0} points${etat.textContent ? `, ${etat.textContent}` : ""}`);
-    b.disabled = st.phase === "ended" && !coupee;
-    b.onclick = coupee ? ouvrirTablette : () => choosePoints(id, true);
+    // Bonus et malus seulement par « ± Points » dans ☰ Plus (cedric, 30/10) : une tuile ne réagit que tablette coupée (QR code).
+    b.disabled = !coupee;
+    if (coupee) b.onclick = ouvrirTablette;
     return b;
   });
-  const astuce = Object.assign(document.createElement("p"), { className: "t-astuce", textContent: "Touchez une équipe : bonus ou malus" });
-  astuce.hidden = st.phase === "ended";
-  box.replaceChildren(...tuiles, astuce);
+  box.replaceChildren(...tuiles);
 }
 
 /**
@@ -443,6 +463,41 @@ function listen(path, fn) {
   unsubscribers.push(onValue(ref(db, path), fn, (e) => console.error(path, e)));
 }
 
+/**
+ * Pictogrammes « lecteur » (cedric, 31/10) : le caractère ⏭ des polices a ses deux triangles plus bas que la barre.
+ * En tête d'un bouton (ou de son libellé), ⏭ ⏮ ⏩ ⏪ ⏸ ⏯ passent dans un petit span que regie-gs.css dessine proprement
+ * (triangles centrés sur la barre) ; le caractère reste dans le texte, invisible (lecture d'écran, tests).
+ */
+const PICTOS_LECTEUR = { "⏭": "suivant", "⏮": "precedent", "⏩": "avance", "⏪": "recul", "⏸": "pause", "⏯": "lecture-pause" };
+const PICTO_EN_TETE = /^([⏭⏮⏩⏪⏸⏯])\uFE0F?/u;
+
+function dessinerPicto(el) {
+  const t = el.firstChild;
+  if (!t || t.nodeType !== Node.TEXT_NODE) return;
+  const m = PICTO_EN_TETE.exec(t.data);
+  if (!m) return;
+  const picto = document.createElement("span");
+  picto.className = `picto picto-${PICTOS_LECTEUR[m[1]]}`;
+  picto.textContent = m[0];
+  t.data = t.data.slice(m[0].length);
+  el.insertBefore(picto, t);
+}
+
+function dessinerPictos(racine) {
+  if (racine.matches?.("button, .label")) dessinerPicto(racine);
+  racine.querySelectorAll?.("button, .label").forEach(dessinerPicto);
+}
+
+new MutationObserver((changements) => {
+  for (const c of changements) {
+    const el = c.target.nodeType === Node.TEXT_NODE ? c.target.parentElement : c.target;
+    const bouton = el?.closest?.("button, .label");
+    if (bouton) dessinerPicto(bouton);
+    for (const n of c.addedNodes) if (n.nodeType === Node.ELEMENT_NODE) dessinerPictos(n);
+  }
+}).observe($("regie"), { subtree: true, childList: true, characterData: true });
+dessinerPictos($("regie"));
+
 function control() {
   installerCockpit();
   stopListening();
@@ -457,6 +512,12 @@ function control() {
     live.connected = s.val() === true;
     $("r-offline").hidden = live.connected;
     $("c-dot").classList.toggle("on", live.connected);
+    // Présence du téléphone (cedric, 30/10) : la box compte ses coupures dans ses rapports, comme celles des tablettes.
+    if (!live.connected) return;
+    const presence = ref(db, `games/${code}/regiePresence/${uid}`);
+    onDisconnect(presence).set({ online: false, at: serverTimestamp() })
+      .then(() => set(presence, { online: true, at: serverTimestamp() }))
+      .catch(() => { /* téléphone plus relié à cette partie */ });
   });
   listen(`games/${code}/regie/${uid}`, (s) => {
     if (s.exists()) return;
@@ -630,15 +691,16 @@ function nextLabel(st, teamCount) {
   if (duel) return duelBoutonPrincipal(duel, st);
   const simon = simonEtape(st);
   if (simon) return simonBoutonPrincipal(simon, st);
+  const chrono = chronoEtape(st);
+  if (chrono) return chronoBoutonPrincipal(chrono, st);
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
     case "intro": return "▶ Lancer l'épreuve";
     // Les coffres mystères : ce sont les équipes qui ouvrent les coffres, le bouton principal attend l'explosion.
-    case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : versClassement(st, "Voir le classement")) : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
-    case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
-    // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
-    case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : versClassement(st, "Classement final 🏆")) : expressSuivante(st) ? "Affirmation suivante ▶" : st.kind === "coffres" ? finCoffresLabel(st) : versClassement(st, "Voir les scores");
+    case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : versClassement(st, "Voir le classement")) : "Arrêter le chrono";
+    case "closed": return "Révéler la réponse";
+    case "reveal": return expressSuivante(st) ? "Affirmation suivante ▶" : st.kind === "coffres" ? finCoffresLabel(st) : versClassement(st, "Voir les scores");
     case "scores": {
       const { next, questions } = gamesOf(st);
       // Bilan d'un jeu quitté en cours de route (cedric, 24/10) : « suivant » ouvre le jeu choisi.
@@ -682,7 +744,6 @@ function render() {
   renderHold(st, teams);
   renderAlerte(st, teams);
   renderFactor(st);
-  renderDoors(st, q);
   $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? ""
     : st.phase === "ended" ? (st.leftAt ? "🏁 Fête terminée. La TV est revenue à l'accueil, prête pour la prochaine fête. Merci !"
       : gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre."
@@ -690,17 +751,11 @@ function render() {
       : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu). Sinon : « 🏁 Fin de la fête ».")
     : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
-  const portes = (q?.kind ?? st.kind) === "portes";
-  // Portes et coffres mystères : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
-  const correct = portes || ["coffres", "gonfleur", "patate", "simon"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
+  // Coffres mystères : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
+  const correct = ["coffres", "gonfleur", "patate", "simon", "chrono"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
-  answerBtn.hidden = intro || !inQuestion || (correct == null && !(portes && q?.doors));
-  if (portes && q?.doors) {
-    // Portes mystères : ce qu'il y a derrière chaque porte, pour l'animatrice seulement (masquable comme une réponse).
-    const values = doorValues(q).map((v, k) => `${k + 1} : ${v > 0 ? "+" : "−"}${Math.abs(v)}`).join(" · ");
-    answerBtn.textContent = answerMasked ? "Portes masquées · toucher pour voir" : `Derrière les portes · ${values}`;
-    answerBtn.classList.toggle("masked", answerMasked);
-  } else if (correct != null) {
+  answerBtn.hidden = intro || !inQuestion || correct == null;
+  if (correct != null) {
     const text = (st.choices ?? q?.choices ?? [])[correct] ?? "";
     const number = (q?.kind ?? st.kind) === "number";
     const flou = BUZZ_KINDS.includes(q?.kind ?? st.kind);
@@ -716,9 +771,9 @@ function render() {
     grosseReponse(answerBtn, { ...suite, prochaine: true });
     answerBtn.classList.toggle("masked", answerMasked);
   }
-  answerBtn.classList.toggle("grosse", COCKPIT && !answerBtn.hidden && !(portes && q?.doors));
+  answerBtn.classList.toggle("grosse", COCKPIT && !answerBtn.hidden);
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "simon" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
+  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "duel" || st.kind === "simon" || st.kind === "chrono" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ont répondu` : "";
 
   renderGames(st);
   renderRequests(st, teams);
@@ -733,10 +788,12 @@ function render() {
   renderPatate(st);
   renderDuel(st, teams);
   renderSimon(st);
+  renderChrono(st);
   renderTeams(st, teams);
   if (COCKPIT) renderTuiles(st, teams);
   renderPoints();
   renderPlan(st);
+  renderCarte();
   renderShows(st);
   runTimer(st);
 
@@ -773,6 +830,8 @@ function render() {
   if (duel) next.disabled = next.disabled || duel.d.step === "standoff" || (!!duel.choix && duel.choix.length !== 2);
   const simon = simonEtape(st);
   if (simon) next.disabled = next.disabled || simon.s.step === "play" || simon.s.step === "none" || simon.verif > 0;
+  const chrono = chronoEtape(st);
+  if (chrono) next.disabled = next.disabled || (chrono.c.step === "run" && chrono.c.reveler !== true) || chrono.c.step === "none";
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
@@ -788,7 +847,7 @@ function render() {
 /** Super Finales dont le multiplicateur de la Régie PC a déjà été envoyé à la TV (une fois chacune). */
 const facteursProposes = new Set();
 
-/** Juste avant les dernières questions du quiz : l'animatrice choisit ×2, ×3 ou ×5 (×2 par défaut). */
+/** Juste avant les dernières questions du quiz : l'animatrice choisit ×2, ×3, ×4 ou ×5 (×2 par défaut ; ×4 : cedric, 31/10). */
 function renderFactor(st) {
   const choice = st.factorChoice;
   const box = $("c-factor");
@@ -797,7 +856,7 @@ function renderFactor(st) {
   // Multiplicateur choisi dans la Régie PC (cedric, 23/10 : ×2 d'office) : proposé une fois, Sarah peut encore le changer.
   const voulu = live.facteurs?.[live.plan?.questions?.[choice.start]?.id];
   const cle = `${live.plan?.id ?? ""}:${choice.start}`;
-  if ([3, 5].includes(voulu) && choice.factor !== voulu && !facteursProposes.has(cle)) {
+  if ([3, 4, 5].includes(voulu) && choice.factor !== voulu && !facteursProposes.has(cle)) {
     facteursProposes.add(cle);
     send("factor", { factor: voulu });
   }
@@ -812,47 +871,6 @@ function renderFactor(st) {
     b.classList.toggle("on", on);
     b.setAttribute("aria-pressed", String(on));
   });
-}
-
-/** Portes mystères : valeurs en vigueur derrière les portes (celles changées par l'animatrice comprises). */
-function doorValues(q) {
-  const changed = live.plan?.doorValues?.[q.id];
-  return q.doors.map((v, k) => (typeof changed?.[k] === "number" ? changed[k] : v));
-}
-
-/** Valeurs proposées pour une porte (points) ; une valeur tirée au hasard hors de la liste reste choisie. */
-const DOOR_CHOICES = [-300, -150, -100, -50, 0, 50, 100, 150, 200, 300, 500];
-
-/**
- * Portes mystères, avant l'ouverture : l'animatrice change la valeur d'une porte pour changer un peu le cours des
- * choses. Replié par défaut, pour que les enfants qui regardent le téléphone ne voient rien.
- */
-function renderDoors(st, q) {
-  const box = $("c-doors");
-  const open = q?.kind === "portes" && Array.isArray(q.doors) && (st.phase === "question" || st.phase === "closed") && live.plan?.portesSet === true;
-  box.hidden = !open || isDemo();
-  if (box.hidden) return;
-  const values = doorValues(q);
-  const key = `${q.id}:${values.join(",")}`;
-  if (box.dataset.key === key) return;
-  box.dataset.key = key;
-  const sign = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${Math.abs(v)}` : "0");
-  $("c-doors-list").replaceChildren(...values.map((v, k) => {
-    const select = document.createElement("select");
-    select.setAttribute("aria-label", `Porte ${k + 1}`);
-    for (const n of [...new Set([...DOOR_CHOICES, v])].sort((a, b) => a - b)) {
-      const o = document.createElement("option");
-      o.value = n;
-      o.textContent = `${sign(n)} points`;
-      o.selected = n === v;
-      select.appendChild(o);
-    }
-    select.onchange = () => send("portes_set", { qid: q.id, door: k, value: Number(select.value) });
-    const label = document.createElement("label");
-    label.className = "door-value";
-    label.append(`🚪 Porte ${k + 1}`, select);
-    return label;
-  }));
 }
 
 /** Bandeau d'alerte : une tablette d'équipe coupée depuis 4 s (comme la pause de la TV), à tout moment de la fête. */
@@ -1464,7 +1482,6 @@ function basculerVers(fete) {
     console.warn("Adresse de la page non mise à jour", e);
   }
   wrongShow = false;
-  rescueOpen = false;
   boxOpen = false;
   control();
 }
@@ -1639,7 +1656,7 @@ function renderBlind(st, teams) {
   const on = blindMode(st) && ["question", "reveal", "scores"].includes(st.phase);
   $("blind").hidden = !on;
   document.querySelector(".regie .control").classList.toggle("blind-mode", on);
-  verdictEnBas("blind-verdict", on && st.phase === "question" && !!st.buzz?.team);
+  verdictEnBas("blind-verdict", on && st.phase === "question" && !!st.buzz?.team && st.paused !== true);
   if (!on) return;
   const b = st.blind;
   const name = (id) => live.teams[id]?.name ?? "Équipe";
@@ -1796,7 +1813,9 @@ function verdictEnBas(id, on) {
 function renderFlou(st) {
   const on = st.phase === "question" && BUZZ_KINDS.includes(st.kind) && !blindMode(st);
   $("flou").hidden = !on;
-  verdictEnBas("flou-verdict", on && !!st.buzz?.team);
+  // En pause, le verdict ne s'affiche pas en plein écran : il cacherait « Reprendre », et la box refuse un verdict en
+  // pause (test du 30/10 au soir : Sarah bloquée sur deux boutons inactifs après la coupure d'une tablette).
+  verdictEnBas("flou-verdict", on && !!st.buzz?.team && st.paused !== true);
   if (!on) return;
   const b = st.buzz ?? {};
   const name = (id) => live.teams[id]?.name ?? "Équipe";
@@ -1807,7 +1826,8 @@ function renderFlou(st) {
     : blind ? `« ${answer} »${q?.artist ? ` (bonus : ${q.artist})` : ""}` : answer;
   const tried = (b.blocked ?? []).filter((id) => live.teams[id]).map(name);
   const memo = st.kind === "disparu" && st.buzzOpen !== true && !b.team && !st.paused;
-  if (b.team) texteBuzz($("flou-info"), name(b.team), expected || "voir la fiche");
+  if (b.team && st.paused === true) $("flou-info").textContent = `Partie en pause : appuyez sur « Reprendre », puis jugez la réponse de ${name(b.team)}.`;
+  else if (b.team) texteBuzz($("flou-info"), name(b.team), expected || "voir la fiche");
   else $("flou-info").textContent = memo ? `Les enfants mémorisent les objets… Celui qui va disparaître : ${answer}.`
     : `En attente d'un buzz…${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
   couleurBuzz($("flou-info"), b.team);
@@ -2170,7 +2190,7 @@ $("duel-fin").onclick = async () => {
 };
 
 /**
- * Le Simon du Prof (cedric, 27/10) : la box tient la suite secrète et juge ; Sarah lance chaque suite, l'arrête si
+ * Le Simon de Buzzy (cedric, 27/10) : la box tient la suite secrète et juge ; Sarah lance chaque suite, l'arrête si
  * un enfant n'est pas prêt, puis passe à la suite ou au tour suivant. La TV vérifie colonne par colonne avant le
  * bandeau : le bouton suivant attend la fin de cette vérification.
  */
@@ -2283,11 +2303,153 @@ $("simon-fin").onclick = async () => {
   const s = live.state?.simon ?? {};
   const restent = Math.max(0, (s.tours ?? 1) - (s.tour ?? 1) + (s.step === "won" ? 0 : 1));
   const ok = await demander({
-    title: "Arrêter le Simon du Prof ?",
+    title: "Arrêter le Simon de Buzzy ?",
     text: restent ? `${restent} tour${restent > 1 ? "s" : ""} pas encore gagné${restent > 1 ? "s" : ""}.` : "",
     ok: "⏭ Jeu suivant",
   });
   if (ok && simonEtape(live.state ?? {})) send("next", {}, { advance: true });
+};
+
+/**
+ * ⏱️ Le Chrono de Buzzy (cedric, 30/10) : Sarah règle la cible (− / +) avant chaque tour et lance le chrono ; la box reçoit
+ * les buzz et révèle seule quand toutes les équipes ont buzzé (ou 15 s après la cible). La régie ne voit jamais l'heure
+ * des buzz avant la révélation, seulement qui a buzzé.
+ */
+let chronoStopArme = null;
+let chronoMinuteur = null;
+let chronoCibleEnvoi = null; // cible tapée, pas encore confirmée par la box (plusieurs appuis rapides s'additionnent)
+const chronoListe = (x) => (Array.isArray(x) ? x : Object.values(x ?? {}));
+const chronoEcart = (ms) => `${ms > 0 ? "+" : ms < 0 ? "−" : ""}${(Math.abs(ms) / 1000).toFixed(2).replace(".", ",")} s`;
+
+function chronoEtape(st) {
+  const c = st.chrono;
+  if (st.kind !== "chrono" || !c || (st.phase !== "question" && st.phase !== "closed")) return null;
+  return { c };
+}
+
+function renderChrono(st) {
+  const on = (st.phase === "question" || st.phase === "closed") && st.kind === "chrono";
+  $("chrono").hidden = !on;
+  clearTimeout(chronoMinuteur);
+  if (!on) { clearTimeout(chronoStopArme); chronoStopArme = null; chronoCibleEnvoi = null; return; }
+  const c = st.chrono ?? { step: "none" };
+  if (chronoCibleEnvoi === c.cible || c.step !== "ready") chronoCibleEnvoi = null;
+  const cible = chronoCibleEnvoi ?? c.cible ?? 30;
+  const busy = !!pending?.advance || st.paused === true;
+  const name = (id) => live.teams[id]?.name ?? "Une équipe";
+  const tour = (c.tours ?? 1) > 1 ? `Tour ${c.tour ?? 1} sur ${c.tours}. ` : "";
+  const maintenant = Date.now() + serverOffset;
+  const cibleAt = typeof c.goAt === "number" ? c.goAt + (c.cible ?? 30) * 1000 : null;
+  const buzzees = chronoListe(c.buzzed);
+  const equipes = chronoListe(c.teams);
+  const res = c.result ?? {};
+  const gagnantes = chronoListe(res.winners);
+  $("chrono-info").textContent = c.step === "none" ? "Le Chrono de Buzzy se prépare…"
+    : c.step === "ready" ? `${tour}Cible : ${cible} secondes. Réglez-la, puis lancez le chrono.`
+      : c.step === "run" ? (c.goAt > maintenant ? `${tour}3, 2, 1… le chrono part !`
+        : c.reveler === true ? `${tour}Toutes les équipes ont buzzé : touchez « 👀 Révéler » quand vous voulez.`
+          : `${tour}⏱️ Chrono en cours, cible ${c.cible} s : ${buzzees.length} / ${equipes.length} équipes ont buzzé.`)
+        : gagnantes.length ? `${tour}🏆 ${gagnantes.map(name).join(", ")} ${gagnantes.length > 1 ? "gagnent" : "gagne"} le tour.`
+          : `${tour}Personne n'a buzzé : aucun point.`;
+  // Réglage de la cible, seulement quand le tour est prêt.
+  $("chrono-reglage").hidden = c.step !== "ready";
+  $("chrono-cible").textContent = `${cible} s`;
+  $("chrono-reglage").querySelectorAll("button").forEach((b) => {
+    const v = cible + Number(b.dataset.pas);
+    b.disabled = busy || v < 10 || v > 90;
+  });
+  // Les équipes : a buzzé ou pas (jamais l'heure avant la révélation), puis leur écart, la plus proche d'abord.
+  const ecarts = res.ecarts ?? {};
+  const ids = c.step === "result"
+    ? Object.keys(live.teams ?? {}).sort((a, b) => Math.abs(ecarts[a] ?? 1e9) - Math.abs(ecarts[b] ?? 1e9))
+    : c.step === "run" ? equipes : [];
+  const lignes = ids.map((id) => {
+    const li = document.createElement("li");
+    li.style.setProperty("--team", live.teams[id]?.color ?? "#fff");
+    const nom = document.createElement("b");
+    nom.textContent = name(id);
+    const etat = document.createElement("span");
+    if (c.step === "result") {
+      const gain = res.gains?.[id];
+      etat.textContent = typeof ecarts[id] === "number" ? `${gagnantes.includes(id) ? "🏆 " : ""}${chronoEcart(ecarts[id])}${gain ? ` · +${gain}` : ""}` : "pas de buzz";
+      li.classList.toggle("eliminee", typeof ecarts[id] !== "number");
+    } else {
+      etat.textContent = buzzees.includes(id) ? "✅ a buzzé" : "compte…";
+    }
+    li.append(nom, etat);
+    return li;
+  });
+  const liste = $("chrono-equipes");
+  const cle = lignes.map((li) => li.textContent + li.className).join("|");
+  if (liste.dataset.key !== cle) { liste.dataset.key = cle; liste.replaceChildren(...lignes); }
+  // Le bilan attend toujours Sarah (cedric, 31/10) : « 👀 Révéler » en gros bouton quand toutes ont buzzé ; sinon,
+  // une fois la cible passée, révéler sans attendre une équipe qui ne buzze pas.
+  const reveler = $("chrono-reveler");
+  reveler.hidden = c.step !== "run" || c.reveler === true || !cibleAt || maintenant < cibleAt;
+  reveler.disabled = busy;
+  const stop = $("chrono-stop");
+  stop.hidden = c.step !== "run";
+  stop.disabled = busy;
+  stop.textContent = chronoStopArme ? "Touchez encore : arrêter, sans points" : "✋ Arrêter le tour";
+  if (c.step !== "run") { clearTimeout(chronoStopArme); chronoStopArme = null; }
+  $("chrono-fin").hidden = !["ready", "result"].includes(c.step) || (c.step === "result" && c.last === true);
+  $("chrono-fin").disabled = busy;
+  $("chrono-points").textContent = st.double ? "200, 100 et 50 points pour les 3 équipes les plus proches de la cible." : "100, 50 et 25 points pour les 3 équipes les plus proches de la cible.";
+  // Le « Révéler » apparaît à l'heure de la cible ; le décompte se met à jour.
+  if (c.step === "run") chronoMinuteur = setTimeout(render, 1000);
+}
+
+function chronoBoutonPrincipal(e, st) {
+  const c = e.c;
+  if (c.step === "none") return "Le Chrono de Buzzy se prépare…";
+  if (c.step === "run") return c.reveler === true ? "👀 Révéler" : "Chrono en cours… ⏱️";
+  if (c.step === "ready") return `⏱️ Lancer le chrono (${chronoCibleEnvoi ?? c.cible ?? 30} s)`;
+  if (c.step === "result") return c.last === true ? finDuelLabel(st) : `▶ Tour suivant (${(c.tour ?? 1) + 1} / ${c.tours ?? 1})`;
+  return finDuelLabel(st);
+}
+
+function chronoPrincipal(e) {
+  const c = e.c;
+  if ((c.step === "run" && c.reveler !== true) || c.step === "none") return;
+  navigator.vibrate?.(60);
+  if (c.step === "run") return send("chrono_reveal", {}, { advance: true });
+  if (c.step === "result" && c.last === true) return send("next", {}, { advance: true });
+  return send("chrono_go", {}, { advance: true });
+}
+
+$("chrono-reglage").querySelectorAll("button").forEach((b) => {
+  b.onclick = () => {
+    const c = live.state?.chrono ?? {};
+    if (c.step !== "ready") return;
+    const v = Math.min(90, Math.max(10, (chronoCibleEnvoi ?? c.cible ?? 30) + Number(b.dataset.pas)));
+    chronoCibleEnvoi = v;
+    render();
+    send("chrono_cible", { cible: v }, { advance: true }).then((r) => {
+      if (r?.status !== "applied" && chronoCibleEnvoi === v) { chronoCibleEnvoi = null; render(); }
+    });
+  };
+});
+$("chrono-reveler").onclick = () => {
+  send("chrono_reveal", {}, { advance: true }).then((r) => { if (r && r.status !== "applied") toast("Trop tôt : attendez que la cible soit passée."); });
+};
+$("chrono-stop").onclick = () => {
+  if (!chronoStopArme) {
+    chronoStopArme = setTimeout(() => { chronoStopArme = null; render(); }, 4000);
+    return render();
+  }
+  clearTimeout(chronoStopArme);
+  chronoStopArme = null;
+  send("chrono_stop", {}, { advance: true }).then((r) => { if (r?.status === "applied") toast("Tour arrêté, sans points : relancez quand les équipes sont prêtes."); });
+};
+$("chrono-fin").onclick = async () => {
+  const c = live.state?.chrono ?? {};
+  const restent = Math.max(0, (c.tours ?? 1) - (c.tour ?? 1) + (c.step === "result" ? 0 : 1));
+  const ok = await demander({
+    title: "Arrêter le Chrono de Buzzy ?",
+    text: restent ? `${restent} tour${restent > 1 ? "s" : ""} pas encore joué${restent > 1 ? "s" : ""}.` : "",
+    ok: "⏭ Jeu suivant",
+  });
+  if (ok && chronoEtape(live.state ?? {})) send("next", {}, { advance: true });
 };
 
 /**
@@ -2497,7 +2659,6 @@ function lEquipe(text) {
 
 // ---------- Jeux de la prestation : en cours, suivant, secours ----------
 
-let rescueOpen = false;
 
 /** Jeux (manches) du conducteur, celui en cours et le suivant. */
 function gamesOf(st) {
@@ -2561,17 +2722,9 @@ function renderGames(st) {
   // « ＋ Jeu » toujours à portée de main : un jeu oublié s'ajoute sans chercher l'onglet Conducteur.
   $("c-add").hidden = !live.plan?.rev || !rounds.length;
   $("c-add").disabled = editing;
-  // « 🔁 Rejouer » (cedric, 21/10) : dès qu'un jeu a été lancé, la liste des jeux de la fête à rejouer.
-  $("c-replay").hidden = !live.plan?.rev || !rejouables(st).length;
-  $("c-replay").disabled = editing;
-  // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer la fête ! » suffit).
-  $("c-rescue").hidden = st.phase === "lobby" || !rounds.length || !live.plan?.rev;
   // « ↺ Relancer ce jeu » (cedric, 30/10) : le jeu en cours repart à zéro d'un seul geste, pendant un jeu seulement.
   $("c-recommencer").hidden = st.phase === "lobby" || !current || !live.plan?.rev;
   $("c-recommencer").disabled = editing;
-  if (rescueOpen && $("c-rescue").hidden) rescueOpen = false;
-  $("rescue").hidden = !rescueOpen;
-  if (rescueOpen) renderRescue(st);
 }
 
 /** La TV joue son quiz de démonstration : aucune prestation n'a été chargée. */
@@ -2593,59 +2746,18 @@ function renderDemo(st) {
     : "La TV joue son quiz de démonstration, pas une prestation. Pour jouer une prestation : sur la TV, touche Retour → « Terminer et lancer une nouvelle partie », puis choisissez-la dans l'onglet « Prestation » de la régie.";
 }
 
-function renderRescue(st) {
-  const { questions, rounds, index, current, next } = gamesOf(st);
-  const busy = !!pending?.advance;
-  const nextBtn = $("rescue-next");
-  nextBtn.hidden = !next;
-  if (next) {
-    nextBtn.textContent = busy ? "Envoi…" : `▶ Passer au jeu suivant : ${gameName(next, questions)}`;
-    nextBtn.disabled = busy;
-    nextBtn.onclick = () => jumpTo(next, st);
-  }
-  const list = $("rescue-list");
-  list.replaceChildren(...rounds.map((r) => {
-    const row = document.createElement("div");
-    const isCurrent = r === current;
-    const done = played(r, st, index);
-    row.className = `rescue-game${isCurrent ? " current" : ""}`;
-    row.dataset.start = r.start;
-    const name = document.createElement("span");
-    name.className = "name";
-    name.append(gameName(r, questions));
-    const small = document.createElement("small");
-    small.textContent = `${gameDetail(r, questions)} · ${isCurrent ? "en cours" : done ? "joué" : "à venir"}`;
-    name.append(small);
-    const b = document.createElement("button");
-    b.className = done ? "btn secondary" : "btn";
-    // « Recommencer » (mêmes questions, points du jeu retirés), pour ne pas le confondre avec « 🔁 Rejouer » (d'autres questions).
-    b.textContent = done ? "Recommencer" : "Aller à ce jeu";
-    b.disabled = busy;
-    b.onclick = () => jumpTo(r, st);
-    row.append(name, b);
-    return row;
-  }));
-  // Mauvaise prestation lancée (cedric, 21/10) : discret, et seulement tant qu'aucun point n'a été donné.
-  const wrong = $("rescue-wrong");
-  wrong.hidden = !mayReplaceShow(st);
-  wrong.onclick = () => {
-    rescueOpen = false;
-    wrongShow = true;
-    tabChosen = true;
-    switchTab("show");
-  };
-}
-
 /** Saut vers le début du jeu [r], après confirmation adaptée (aller plus loin, ou recommencer). */
-async function jumpTo(r, st) {
+async function jumpTo(r, st, pasCharge = false) {
   const { questions, index, current } = gamesOf(st);
   const name = gameName(r, questions);
   const replay = played(r, st, index);
-  // Quitter le jeu en cours pour un autre (cedric, 24/10) : la TV montre d'abord le bilan des scores.
-  const bilan = jeuEnCours(st) && r !== current;
+  // Quitter le jeu en cours pour un autre (cedric, 24/10) : la TV montre d'abord le bilan des scores. Pas pour le jeu en
+  // cours qu'on recommence (cedric, 30/10) : ses points sont effacés, il repart directement sur sa présentation.
+  const bilan = jeuEnCours(st) && r.start !== current?.start;
   const ok = await demander(replay
-    ? { title: `Recommencer « ${name} » ?`, attention: "Ce jeu repart à zéro : les points gagnés pendant ce jeu sont effacés.", text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores." : ""}`, ok: "Recommencer ce jeu", alert: true }
-    : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés.${bilan ? ` La TV montre le bilan des scores, puis « ${name} » quand vous appuyez sur « Jeu suivant ».` : ""} Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
+    ? { title: `Recommencer « ${name} » ?`, attention: "Ce jeu repart à zéro : les points gagnés pendant ce jeu sont effacés.", text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores du jeu en cours." : " La TV repart sur la présentation du jeu, puis « ▶ Lancer l'épreuve »."}`, ok: "Recommencer ce jeu", alert: true }
+    // « ▶ Y aller » du Conducteur (cedric, 30/10) : « Êtes-vous sûr ? » Oui / Non.
+    : { ...SUR, line: `Vous allez passer à «\u00a0${name}\u00a0».`, warn: pasCharge ? "⚠ Ce jeu n'est pas encore chargé dans la box : des photos ou des musiques peuvent manquer. Lancer quand même ?" : "", text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés.${bilan ? ` La TV montre le bilan des scores, puis « ${name} » quand vous appuyez sur « Jeu suivant ».` : ""} Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.` });
   if (!ok) return;
   // Photos et extraits du jeu recopiés dans la partie s'ils y manquent (copies effacées après la fête, partie reprise
   // sur une autre box) : jamais bloquant, une copie déjà là n'est pas refaite.
@@ -2654,21 +2766,19 @@ async function jumpTo(r, st) {
   copySounds(jeu);
   const status = await send("goto", { index: r.start, qid: questions[r.start].id }, { advance: true });
   if (status?.status === "applied") {
-    rescueOpen = false;
+    // Retour à la régie : Sarah voit aussitôt le bouton qui lance le jeu choisi.
+    fermerConducteur();
     toast(bilan ? `Bilan des scores sur la TV, puis « ${name} ».` : replay ? `« ${name} » recommence.` : `C'est parti pour « ${name} » !`);
     render();
   }
 }
 
-$("c-rescue").onclick = () => { rescueOpen = true; render(); };
 $("c-recommencer").onclick = () => {
   const st = live.state ?? {};
   const { current } = gamesOf(st);
   if (current && !pending?.advance) jumpTo(current, st);
 };
 $("c-add").onclick = () => openLibrary();
-$("c-replay").onclick = () => openRejouer();
-$("rescue-close").onclick = () => { rescueOpen = false; render(); };
 
 function renderTeams(st, teams) {
   const box = $("panel-teams");
@@ -2684,7 +2794,8 @@ function renderTeams(st, teams) {
       row.dataset.team = id;
       row.innerHTML = '<span class="dot"></span><span class="swatch"></span><span class="name"></span><span class="score"></span>'
         + '<button class="pts-open">± Points</button>';
-      row.querySelector(".pts-open").onclick = () => choosePoints(id);
+      // Le second appui d'un double appui sur un montant tombe ici, sous la fenêtre fermée : il ne la rouvre pas.
+      row.querySelector(".pts-open").onclick = (e) => { if (e.detail < 2) choosePoints(id); };
       box.appendChild(row);
     });
   }
@@ -2711,12 +2822,48 @@ function renderTeams(st, teams) {
  * Conducteur : le programme en vigueur sur la TV, manche par manche. Pendant la partie, l'animatrice peut
  * ajouter un jeu, déplacer ou retirer une manche pas encore commencée ; la manche en cours ne bouge jamais.
  */
+/**
+ * Jeu déjà commencé pendant la partie (jeu en cours compris). Une TV à jour publie la première question de chaque jeu
+ * commencé (state.jeuxCommences) : un jeu sauté avec ▶ reste « pas encore joué », même au-dessus du jeu en cours.
+ * Sans cette liste (TV d'avant) : tout jeu jusqu'au jeu en cours compte comme commencé.
+ */
+function jeuCommence(r, questions, st) {
+  if (st.phase === "lobby") return false;
+  const index = st.index ?? -1;
+  if (r.start <= index && index <= r.end && st.phase !== "ended") return true;
+  if (Array.isArray(st.jeuxCommences)) return st.jeuxCommences.includes(questions[r.start]?.id);
+  return r.start <= lockedUntil(questions, index);
+}
+
+/**
+ * Voyant d'un jeu du conducteur (cedric, 30/10) : ses photos et musiques sont-elles dans la box ? La box marque chaque
+ * média dans games/<code>/media/<id> (« ok », « loading », « missing »). Vert : tout est là (ou rien à charger) ;
+ * rouge : il en manque ; orange : en chargement. Une box qui ne marque pas encore les photos : seuls les sons comptent.
+ */
+function voyantDuJeu(qs) {
+  const media = live.media ?? {};
+  const sons = (q) => [q.audioId, q.refrainId, ...(Array.isArray(q.audioIds) ? q.audioIds : []), ...(Array.isArray(q.songs) ? q.songs.map((x) => x?.songId) : [])];
+  const photos = (q) => [q.imageId, ...(Array.isArray(q.choiceImages) ? q.choiceImages : []), ...(Array.isArray(q.cards) ? q.cards.map((c) => c?.imageId) : [])];
+  const marquePhotos = (live.plan?.questions ?? []).some((q) => q && photos(q).some((id) => id && media[id] != null));
+  const ids = new Set(qs.filter(Boolean).flatMap((q) => [...sons(q), ...(marquePhotos ? photos(q) : [])]).filter(Boolean));
+  const etats = [...ids].map((id) => media[id]);
+  if (etats.includes("missing")) return "rouge";
+  return etats.every((v) => v === "ok") ? "vert" : "orange";
+}
+
+const VOYANTS = { vert: "Photos et musiques chargées dans la box", orange: "Photos et musiques en cours de chargement dans la box", rouge: "Il manque des photos ou des musiques de ce jeu dans la box" };
+
+/** Jeux dépliés dans le conducteur (cedric, 30/10 : tous repliés d'office, ▸ montre les questions). */
+const jeuxDeplies = new Set();
+
 function renderPlan(st) {
   const box = $("panel-plan");
+  if (glisse) return;
   const plan = live.plan;
   const questions = plan?.questions ?? [];
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
-  const key = JSON.stringify([plan?.title, plan?.rev, questions.map((q) => q.id ?? q.text), index, st.phase, editing]);
+  const key = JSON.stringify([plan?.title, plan?.rev, questions.map((q) => q.id ?? q.text), index, st.phase, editing, !!pending?.advance, mayReplaceShow(st), [...jeuxDeplies], st.jeuxCommences ?? null,
+    programRounds(questions).map((r) => voyantDuJeu(questions.slice(r.start, r.end + 1)))]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   box.innerHTML = "";
@@ -2732,57 +2879,231 @@ function renderPlan(st) {
       add.disabled = editing;
       add.onclick = openLibrary;
       box.appendChild(add);
+      box.insertAdjacentHTML("beforeend", '<p class="hint plan-aide">Appui long sur un jeu à venir pour le déplacer.</p>');
     } else {
       box.insertAdjacentHTML("beforeend", '<p class="hint">Pour ajouter un jeu en cours de partie, mettez à jour l\'appli de la TV.</p>');
     }
   }
   const rounds = programRounds(questions);
-  const future = rounds.filter((r) => questions[r.start].round && isFutureRound(r, questions, index));
+  // Jeux jamais commencés (à venir, ou sautés avec ▶) : ceux-là seulement se modifient, se déplacent, se retirent.
+  const future = rounds.filter((r) => questions[r.start].round && !jeuCommence(r, questions, st));
   rounds.forEach((r) => {
-    if (questions[r.start].round) box.appendChild(roundHead(r, rounds, future, questions, index, editable));
-    for (let i = r.start; i <= r.end; i++) box.appendChild(planItem(questions[i], i, st.index));
+    const items = [];
+    for (let i = r.start; i <= r.end; i++) items.push(planItem(questions[i], i, st.index));
+    // Questions sans jeu (quiz de démonstration) : la liste telle quelle.
+    if (!questions[r.start].round) return box.append(...items);
+    const jeu = document.createElement("div");
+    // Deux couleurs seulement (cedric, 30/10) : joué, ou pas encore joué ; le jeu en cours mis en évidence.
+    const enCours = r.start <= index && index <= r.end && st.phase !== "ended" && st.phase !== "lobby";
+    jeu.className = `plan-jeu${enCours ? " en-cours" : jeuCommence(r, questions, st) ? " joue" : " a-jouer"}`;
+    jeu.dataset.start = r.start;
+    const liste = document.createElement("div");
+    liste.className = "plan-questions";
+    liste.hidden = !jeuxDeplies.has(r.title);
+    // Choix A (cedric, 30/10) : un jeu pas encore joué se modifie avec la carte de « ＋ Jeu » (celle de la Régie PC).
+    if (editable && future.includes(r)) {
+      const qs = questions.slice(r.start, r.end + 1);
+      const modifier = document.createElement("button");
+      modifier.type = "button";
+      modifier.className = "btn secondary edit";
+      modifier.textContent = "✏️ Modifier ce jeu";
+      modifier.disabled = editing;
+      modifier.onclick = () => ouvrirCarte(typeDuJeu(qs), { round: roundDuJeu(qs), titre: r.title });
+      liste.append(modifier);
+    }
+    liste.append(...items);
+    jeu.append(roundHead(r, rounds, future, questions, index, editable), liste);
+    box.appendChild(jeu);
   });
+  // Mauvaise prestation lancée (cedric, 21/10) : discret, et seulement tant qu'aucun point n'a été donné.
+  if (mayReplaceShow(st)) {
+    const wrong = document.createElement("button");
+    wrong.id = "plan-wrong";
+    wrong.className = "link";
+    wrong.textContent = "Mauvaise prestation ?";
+    wrong.onclick = () => {
+      wrongShow = true;
+      tabChosen = true;
+      fermerConducteur();
+      switchTab("show");
+      if (COCKPIT) ouvrirPlus();
+    };
+    box.appendChild(wrong);
+  }
 }
 
 function roundHead(r, rounds, future, questions, index, editable) {
   const head = document.createElement("div");
   head.className = "plan-head";
   head.dataset.round = r.title;
-  const title = document.createElement("p");
-  title.className = "plan-round";
-  title.textContent = r.title;
-  const state = document.createElement("span");
-  state.className = "state";
-  state.textContent = r.end < index ? "jouée" : r.start <= index ? "en cours" : "";
-  head.append(title, state);
+  const deplie = jeuxDeplies.has(r.title);
+  // ▸ / ▾ et le nom : déplient ou replient les questions du jeu.
+  const titre = document.createElement("button");
+  titre.type = "button";
+  titre.className = "plan-deplier";
+  titre.setAttribute("aria-expanded", deplie ? "true" : "false");
+  const voyant = voyantDuJeu(questions.slice(r.start, r.end + 1));
+  head.dataset.voyant = voyant;
+  titre.innerHTML = '<span class="fleche" aria-hidden="true"></span><span class="voyant" role="img"></span><span class="plan-round"></span>';
+  titre.querySelector(".fleche").textContent = deplie ? "▾" : "▸";
+  titre.querySelector(".voyant").classList.add(voyant);
+  titre.querySelector(".voyant").setAttribute("aria-label", VOYANTS[voyant]);
+  titre.querySelector(".voyant").title = VOYANTS[voyant];
+  titre.querySelector(".plan-round").textContent = r.title;
+  titre.onclick = () => {
+    // Le lâcher d'un jeu déplacé n'est pas un toucher sur son nom.
+    if (Date.now() - glisseFini < 400) return;
+    if (jeuxDeplies.has(r.title)) jeuxDeplies.delete(r.title); else jeuxDeplies.add(r.title);
+    render();
+  };
+  head.append(titre);
   const k = future.indexOf(r);
-  // Jeu déjà commencé ou joué : « 🔁 Rejouer » dans tous les jeux (cedric, 21/10). Tiré d'une collection : avec
-  // d'autres cartes, mots, photos ou titres ; un quiz : avec d'autres questions ; un mini-jeu : le même, tel quel.
-  if (editable && k < 0 && r.start <= index && questionType(questions[r.start])) {
-    const again = document.createElement("button");
-    again.className = "replay";
-    again.textContent = "🔁 Rejouer";
-    again.disabled = editing;
-    again.onclick = () => rejouerJeu(r, questions);
-    head.appendChild(again);
-  }
-  if (!editable || k < 0) return head;
-  const button = (label, cls, disabled, action) => {
+  const button = (label, cls, disabled, action, aria) => {
     const b = document.createElement("button");
+    b.type = "button";
     b.textContent = label;
     b.className = cls;
     b.disabled = disabled || editing;
+    if (aria) b.setAttribute("aria-label", aria);
     b.onclick = action;
     head.appendChild(b);
   };
-  const at = rounds.indexOf(r);
-  button("↑", "up", k === 0, () => sendProgram(moveRound(questions, r.start, -1, index), `« ${r.title} » avancée d'un cran.`));
-  button("↓", "down", k === future.length - 1, () => sendProgram(moveRound(questions, r.start, 1, index), `« ${r.title} » reculée d'un cran.`));
-  button("Retirer", "remove", rounds.length === 1 && at === 0, async () => {
-    if (!await demander({ title: `Retirer « ${r.title} » du programme ?`, text: "Le jeu n'est pas effacé : il reste dans la bibliothèque.", ok: "Retirer du programme", alert: true })) return;
-    sendProgram(removeRound(questions, r.start, index), `« ${r.title} » est retirée du programme.`);
-  });
+  // La ligne (cedric, 30/10) : ▸, le nom, « Retirer » en rouge, puis ▶ ; rien sur le jeu en cours.
+  if (editable && k >= 0) {
+    button("Retirer", "remove", rounds.length === 1, async () => {
+      if (!await demander({ ...SUR, line: `« ${r.title} » sera retiré du programme.` })) return;
+      sendProgram([...questions.slice(0, r.start), ...questions.slice(r.end + 1)], `« ${r.title} » est retirée du programme.`);
+    }, `Retirer « ${r.title} »`);
+  }
+  // ▶ (à la place de « ⏭ Changer de jeu ») : aller à ce jeu en arrêtant le jeu en cours, partie commencée ; « Êtes-vous sûr ? ».
+  const st = live.state ?? {};
+  const enCours = r.start <= index && index <= r.end && st.phase !== "ended";
+  if (editable && index >= 0 && !enCours) {
+    // Pas encore chargé dans la box (cedric, 30/10) : jamais bloqué (un wifi faible peut ne jamais finir), mais la
+    // confirmation le dit.
+    button("▶", "go", !!pending?.advance, () => jumpTo(r, live.state ?? {}, voyant !== "vert"), `Aller à « ${r.title} »`);
+  }
+  // Plus de flèches (cedric, 30/10) : un appui long soulève le jeu, il suit le doigt et se pose quand on lâche.
+  if (editable && k >= 0 && !editing && rounds.every((x) => questions[x.start].round)) head.addEventListener("pointerdown", (e) => soulever(e, head, r, rounds, questions, index));
   return head;
+}
+
+// ---------- Déplacer un jeu au doigt (cedric, 30/10) ----------
+
+/** Jeu soulevé par un appui long : il suit le doigt (ou la souris) jusqu'au lâcher. */
+let glisse = null;
+let glisseFini = 0;
+const APPUI_LONG_MS = 450;
+
+function soulever(e, head, r, rounds, questions, index) {
+  if (e.button > 0 || e.target.closest("button:not(.plan-deplier)")) return;
+  const x0 = e.clientX;
+  const y0 = e.clientY;
+  const annuler = () => {
+    clearTimeout(minuteur);
+    removeEventListener("pointermove", bouge);
+    removeEventListener("pointerup", annuler);
+    removeEventListener("pointercancel", annuler);
+  };
+  // Le doigt bouge avant la fin de l'appui : c'est un défilement, pas un déplacement.
+  const bouge = (m) => { if (Math.abs(m.clientX - x0) > 10 || Math.abs(m.clientY - y0) > 10) annuler(); };
+  const minuteur = setTimeout(() => { annuler(); demarrerGlisse(r, rounds, questions, index, y0); }, APPUI_LONG_MS);
+  addEventListener("pointermove", bouge);
+  addEventListener("pointerup", annuler);
+  addEventListener("pointercancel", annuler);
+}
+
+function demarrerGlisse(r, rounds, questions, index, y) {
+  const box = $("panel-plan");
+  const blocs = rounds.map((x) => box.querySelector(`.plan-jeu[data-start="${x.start}"]`));
+  const depart = rounds.indexOf(r);
+  if (depart < 0 || blocs.some((b) => !b) || rounds.length < 2) return;
+  // Se pose seulement après le jeu en cours (ou le dernier commencé) : avant, il ne serait jamais joué.
+  const st = live.state ?? {};
+  let dernier = -1;
+  rounds.forEach((x, i) => { if (x !== r && x.start <= index && st.phase !== "lobby") dernier = i; });
+  const autres = rounds.filter((x) => x !== r);
+  const min = dernier < 0 ? 0 : autres.indexOf(rounds[dernier]) + 1;
+  navigator.vibrate?.(30);
+  const defile = box.closest(".conducteur-corps") ?? document.scrollingElement;
+  const milieux = blocs.map((b) => { const rect = b.getBoundingClientRect(); return rect.top + rect.height / 2; });
+  glisse = { rounds, r, depart, blocs, milieux, min, questions, index, y0: y, y, defile, scroll0: defile.scrollTop, place: depart, boucle: 0 };
+  blocs[depart].classList.add("souleve");
+  box.classList.add("en-glisse");
+  addEventListener("pointermove", suivreGlisse);
+  addEventListener("pointerup", poserGlisse);
+  addEventListener("pointercancel", poserGlisse);
+  // Le doigt ne fait plus défiler la page pendant le déplacement : c'est la ligne qui bouge.
+  addEventListener("touchmove", bloquerDefilement, { passive: false });
+  placerGlisse();
+  glisse.boucle = requestAnimationFrame(defilerAuBord);
+}
+
+function bloquerDefilement(e) { if (glisse) e.preventDefault(); }
+
+function suivreGlisse(e) {
+  if (!glisse) return;
+  glisse.y = e.clientY;
+  placerGlisse();
+}
+
+/**
+ * La ligne suit le doigt ; les autres jeux s'écartent pour montrer où elle se posera. [place] : son rang parmi les
+ * autres jeux une fois posée (jamais avant le jeu en cours).
+ */
+function placerGlisse() {
+  const g = glisse;
+  const decalage = g.defile.scrollTop - g.scroll0;
+  const dy = g.y - g.y0 + decalage;
+  const souleve = g.blocs[g.depart];
+  souleve.style.transform = `translateY(${dy}px)`;
+  const centre = g.milieux[g.depart] + dy;
+  let place = 0;
+  g.blocs.forEach((b, i) => { if (i !== g.depart && g.milieux[i] < centre) place++; });
+  place = Math.max(place, g.min);
+  g.place = place;
+  const haut = souleve.offsetHeight + 6;
+  let k = 0;
+  g.blocs.forEach((b, i) => {
+    if (i === g.depart) return;
+    b.style.transform = i < g.depart && k >= place ? `translateY(${haut}px)` : i > g.depart && k < place ? `translateY(${-haut}px)` : "";
+    k++;
+  });
+}
+
+/** Près du haut ou du bas de l'écran, la liste défile toute seule. */
+function defilerAuBord() {
+  const g = glisse;
+  if (!g) return;
+  const zone = g.defile === document.scrollingElement ? { top: 0, bottom: innerHeight } : g.defile.getBoundingClientRect();
+  const marge = 64;
+  const vitesse = g.y < zone.top + marge ? -12 : g.y > zone.bottom - marge ? 12 : 0;
+  if (vitesse) {
+    g.defile.scrollTop += vitesse;
+    placerGlisse();
+  }
+  g.boucle = requestAnimationFrame(defilerAuBord);
+}
+
+function poserGlisse() {
+  const g = glisse;
+  if (!g) return;
+  glisse = null;
+  glisseFini = Date.now();
+  cancelAnimationFrame(g.boucle);
+  removeEventListener("pointermove", suivreGlisse);
+  removeEventListener("pointerup", poserGlisse);
+  removeEventListener("pointercancel", poserGlisse);
+  removeEventListener("touchmove", bloquerDefilement);
+  g.blocs.forEach((b) => { b.style.transform = ""; });
+  g.blocs[g.depart].classList.remove("souleve");
+  $("panel-plan").classList.remove("en-glisse");
+  if (g.place === g.depart) return render();
+  const ordre = g.rounds.filter((x) => x !== g.r);
+  ordre.splice(g.place, 0, g.r);
+  const program = ordre.flatMap((x) => g.questions.slice(x.start, x.end + 1));
+  const ecart = Math.abs(g.place - g.depart);
+  sendProgram(program, `« ${g.r.title} » est ${g.place < g.depart ? "avancé" : "reculé"} de ${ecart} place${ecart > 1 ? "s" : ""}.`);
 }
 
 /**
@@ -2892,7 +3213,7 @@ function planItem(q, i, current) {
   const title = document.createElement("div");
   title.textContent = `${i + 1}. ${q.text}${q.double ? " · points ×2" : ""}`;
   const answer = document.createElement("b");
-  answer.textContent = q.kind === "patate" ? "bombe de tablette en tablette · mèche secrète" : q.kind === "gonfleur" ? "course de ballons · le premier qui éclate gagne" : q.kind === "coffres" ? "coffres chacun son tour · la bombe arrête le jeu" : q.kind === "portes" ? `${q.choices?.length ?? 0} portes · bonus ou malus` : q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
+  answer.textContent = q.kind === "patate" ? "bombe de tablette en tablette · mèche secrète" : q.kind === "gonfleur" ? "course de ballons · le premier qui éclate gagne" : q.kind === "coffres" ? "coffres chacun son tour · la bombe arrête le jeu" : q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
   item.append(title, answer);
   return item;
 }
@@ -2961,7 +3282,7 @@ async function fetchLibrary() {
     const rounds = Object.entries(s.val() ?? {})
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
-      .flatMap(([id, show]) => (show.rounds ?? []).map((r) => jeuDeLaManche(r, quizzes)).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).map((r) => jeuDeLaManche(r, quizzes)).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
         const series = roundSeriesQuiz(round);
         const title = [...(roundTirees(round).length ? ["Quiz tiré au hasard"] : []), ...roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)].join(" + ") || `Manche ${i + 1}`;
         // Quiz et Quiz illustré en séries (cedric, 23/10) : le nom du jeu, puis ses séries.
@@ -3057,130 +3378,228 @@ function renderLibrary() {
   const box = $("lib-list");
   box.innerHTML = "";
   const hint = (text) => { const p = document.createElement("p"); p.className = "hint"; p.textContent = text; box.appendChild(p); };
-  const section = (text) => { const p = document.createElement("p"); p.className = "lib-section"; p.textContent = text; box.appendChild(p); };
   if (library?.loading) return hint("Chargement de la bibliothèque…");
   if (library?.denied) return hint("Pour ouvrir la bibliothèque, entrez dans la régie avec le mot de passe (pas avec le code de la TV).");
   if (!library?.games) return hint("Impossible de lire la bibliothèque. Vérifiez la connexion.");
   if (libRejouer) return renderRejouables(box);
-  const entry = (game, detail) => {
+  // « ＋ Jeu » (cedric, 30/10) : une ligne par jeu ; le jeu touché ouvre sa carte de réglage, celle de la Régie PC.
+  for (const [type, icone, detail] of JEUX_AJOUT) {
     const b = document.createElement("button");
-    b.className = "show-item";
-    b.dataset.game = game.key;
+    b.className = "show-item lib-jeu";
+    b.dataset.jeu = type;
     const title = document.createElement("b");
-    title.textContent = game.label;
+    const ic = document.createElement("span");
+    ic.className = "icone";
+    ic.textContent = icone;
+    title.append(ic, ROUND_TYPES[type]);
     const meta = document.createElement("span");
-    if (game.manche || game.size) {
-      meta.textContent = game.manche ? [detail, mancheSummary(game.source, library)].filter(Boolean).join(" · ")
-        : `${game.size} ${COLLECTION_UNIT[game.source.type][game.size > 1 ? 1 : 0]} dans les collections · jamais deux fois le même`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "mimes" && game.source.random) {
-      meta.textContent = `${MIME_PER_TEAM_DEFAULT} cartes par équipe, selon l'âge · jamais une carte déjà jouée`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "mimes") {
-      const deck = library.mimes[game.source.deckId];
-      const count = (deck?.cards ?? []).filter(Boolean).length;
-      meta.textContent = `Mimes · ${count} carte${count > 1 ? "s" : ""} · tour de ${deck?.duration ?? 60} s`;
-      b.append(title, meta);
-      b.disabled = !count;
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.hasardBlind) {
-      meta.textContent = `${BLIND_HASARD} chansons de votre bibliothèque, tirées au hasard · jamais une chanson déjà jouée · ${MUSIC_GAMES.blind.rule}`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (MUSIC_GAMES[game.source.type]) {
-      const pl = library.playlists[game.source.playlistId];
-      const count = playableTracks(pl).length;
-      meta.textContent = `${count} morceau${count > 1 ? "x" : ""} · extraits de ${pl?.duration ?? 25} s · ${MUSIC_GAMES[game.source.type].rule}`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "pictionary") {
-      meta.textContent = `${game.source.duration ?? PICTO_SEC} s de dessin par équipe · un mot par tour · jamais un mot déjà joué`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "coffres") {
-      meta.textContent = "un coffre chacun son tour · bonus, malus, puis la bombe · idéal en dernier jeu";
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "patate") {
-      meta.textContent = "la bombe passe de tablette en tablette · 3 s au plus par équipe · mèche secrète · rien à préparer";
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "gonfleur") {
-      meta.textContent = "chaque équipe tapote sa tablette · le premier ballon qui éclate gagne";
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    if (game.source.type === "statues") {
-      const n = game.source.songs?.length ?? 0;
-      meta.textContent = `${game.source.duration} s de musique (${n ? `${n} chanson${n > 1 ? "s" : ""}` : "musique de la fête"}) · on se fige à l'arrêt · vous désignez l'équipe gagnante`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    const builtin = BUILTIN_GAMES[game.source.type];
-    if (builtin) {
-      meta.textContent = `${game.source.count} ${builtin.unit}s · ${builtin.rule} · au buzzer`;
-      b.append(title, meta);
-      b.onclick = () => pick(game);
-      box.appendChild(b);
-      return;
-    }
-    const quiz = library.quizzes[game.source.quizId];
-    const kind = QUIZ_GAMES[game.source.type];
-    const count = (kind ? kind.questions(quiz) : playable(quiz)).length;
-    const unit = kind?.unit ?? "question";
-    meta.textContent = [detail, count ? `${count} ${unit}${count > 1 ? "s" : ""}` : "aucune question validée"].filter(Boolean).join(" · ");
+    meta.textContent = detail;
     b.append(title, meta);
-    b.disabled = !count;
-    b.onclick = () => pick(game);
+    b.onclick = () => ouvrirCarte(type);
     box.appendChild(b);
-  };
-  if (library.pinned?.length) section("⭐ Prestations épinglées");
-  library.pinned?.forEach((g) => entry(g, g.from));
-  if (library.saved?.length) section("Manches préparées");
-  library.saved?.forEach((g) => entry(g, g.from));
-  section("Quiz de la bibliothèque");
-  if (!library.games.length) hint("Aucun quiz pour l'instant : Sarah les prépare dans l'administration.");
-  library.games.forEach((g) => entry(g, ""));
-  if (library.rounds.length) section("Manches d'anciennes prestations");
-  library.rounds.forEach((g) => entry(g, g.from));
-  section("Mini-jeux et blind tests");
-  library.decks.forEach((g) => entry(g, ""));
-  library.quizGames.forEach((g) => entry(g, g.source.type === "express" ? "enchaînées toutes seules" : g.source.type === "flou" ? "au buzzer" : "dévoilées au fil du chrono"));
-  library.builtins.forEach((g) => entry(g, ""));
-  library.drawn?.forEach((g) => entry(g, ""));
-  if (!library.music.length) hint("Blind test : aucune playlist pour l'instant (administration, Blind test).");
-  library.music.forEach((g) => entry(g, ""));
+  }
 }
+
+/** Les jeux de « ＋ Jeu », dans l'ordre de la Régie PC : type, icône, ce qu'on y règle. */
+const JEUX_AJOUT = [
+  ["quiz", "❓", "🎲, un thème, le nombre de questions, un ancien anniversaire"],
+  ["illustre", "📷", "photos de la banque des tout-petits, 🎲 par thème"],
+  ["mimes", "🎭", "🎲 cartes par équipe, thème, vos séries"],
+  ["blind", "🎵", "🎲 vos chansons, une playlist"],
+  ["musical", "🎶", "🎲 vos chansons, une playlist"],
+  ["statues", "🗿", "vos chansons"],
+  ["express", "✔", "🎲 des affirmations Vrai ou Faux"],
+  ["zoom", "🔍", "🎲 des photos, vos images"],
+  ["flou", "🌫", "🎲 des photos, vos images"],
+  ["chante", "🎤", "🎲 des mots, vos séries"],
+  ["quisuis", "🕵", "🎲 des personnages, vos séries"],
+  ["disparu", "🎩", "🎲 des grilles, émojis ou photos"],
+  ["pictionary", "✏️", "🎲 des mots, le temps de dessin"],
+  ["coffres", "🗝️", "rien à préparer"],
+  ["patate", "💣", "le nombre de bombes"],
+  ["duel", "🤠", "les joueurs, la durée du face-à-face"],
+  ["simon", "🔴", "le nombre de tours"],
+  ["gonfleur", "🎈", "rien à préparer"],
+];
+
+// ---------- La carte d'un jeu (« ＋ Jeu » et « ✏️ Modifier » du Conducteur, cedric, 30/10) ----------
+
+/**
+ * Carte ouverte : le jeu réglé dans la page de la Régie PC (mode « carte », dans le cadre), et, pour un jeu à venir
+ * modifié depuis le Conducteur, son titre (il garde sa place). [round] : le dernier réglage reçu du cadre.
+ */
+let carteJeu = null;
+
+/** Ouvre la carte d'un jeu : nouveau ([round] absent), ou un jeu à venir du programme ([titre]) à modifier. */
+async function ouvrirCarte(type, { round = null, titre = null } = {}) {
+  if (!ROUND_TYPES[type]) return;
+  let profil = null;
+  try {
+    const show = (await get(ref(db, `games/${code}/show`))).val();
+    profil = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
+  } catch { profil = null; }
+  carteJeu = { type, depart: round, titre, round: null, plein: false, envoi: false };
+  const adresse = new URL("admin.html", location.href);
+  adresse.search = "";
+  adresse.searchParams.set("carte", type);
+  adresse.searchParams.set("g", code);
+  if (profil) adresse.searchParams.set("profil", profil);
+  if (teamsNow()) adresse.searchParams.set("equipes", `${teamsNow()}`);
+  const emu = new URLSearchParams(location.search).get("emu");
+  if (emu) adresse.searchParams.set("emu", emu);
+  $("carte-titre").textContent = titre ? `✏️ ${titre}` : ROUND_TYPES[type];
+  $("carte-info").hidden = true;
+  // replace : la page du cadre ne s'ajoute pas à l'historique (le geste « retour » du téléphone ne la rouvre pas).
+  $("carte-cadre").contentWindow.location.replace(adresse.href);
+  $("carte").hidden = false;
+  renderCarte();
+  if (!library?.games) fetchLibrary();
+}
+
+function fermerCarte() {
+  carteJeu = null;
+  $("carte").hidden = true;
+  $("carte-cadre").contentWindow?.location.replace("about:blank");
+}
+
+function renderCarte() {
+  if (!carteJeu) return;
+  $("carte-envoyer").disabled = !carteJeu.round || carteJeu.envoi || editing;
+  $("carte-envoyer").textContent = carteJeu.envoi ? "Envoi…" : carteJeu.titre ? "✓ Enregistrer dans le conducteur" : "✓ Envoyer au conducteur";
+}
+
+/** Messages du cadre : prêt (on lui donne le jeu à régler), puis le jeu réglé à chaque changement. */
+let attenteCarte = null;
+window.addEventListener("message", (e) => {
+  if (e.origin !== location.origin || !carteJeu || e.source !== $("carte-cadre").contentWindow) return;
+  const m = e.data?.lmpCarte;
+  if (!m) return;
+  if (m.prete) {
+    e.source.postMessage({ lmpCarte: { ouvrir: true, round: carteJeu.depart, titre: carteJeu.titre } }, location.origin);
+    return;
+  }
+  if (m.round) {
+    carteJeu.round = m.round;
+    carteJeu.plein = m.plein === true;
+    attenteCarte?.();
+    renderCarte();
+  }
+});
+
+/** Le dernier réglage du cadre, redemandé juste avant l'envoi (une saisie qui n'a encore rien envoyé). */
+function reglageDeLaCarte() {
+  return new Promise((resolve) => {
+    const fini = () => { clearTimeout(t); attenteCarte = null; resolve(carteJeu?.round ?? null); };
+    const t = setTimeout(fini, 1500);
+    attenteCarte = fini;
+    $("carte-cadre").contentWindow?.postMessage({ lmpCarte: "donne" }, location.origin);
+  });
+}
+
+/** Type d'un jeu du programme, d'après ses questions (Quiz illustré : des réponses en images). */
+function typeDuJeu(qs) {
+  const q = qs.find(Boolean);
+  if (q?.kind === "duel" || q?.kind === "simon") return q.kind;
+  if (q && !q.kind?.match?.(/^(express|zoom|flou)$/) && (q.choiceImages || q.choiceBanque)) return "illustre";
+  return questionType(q) ?? "quiz";
+}
+
+/** Une question du programme, gardée telle quelle dans une série « reprise » de la carte (Quiz, Vrai ou Faux…). */
+function questionDeSerie(q, i) {
+  return {
+    id: `c${i + 1}`, text: q.text,
+    ...(q.kind === "number" ? { nombre: true, correct: q.correct } : { choices: q.choices, correct: q.correct }),
+    ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.image ? { emoji: q.image } : {}),
+    ...(Array.isArray(q.choiceBanque) ? { choiceBanque: q.choiceBanque } : {}),
+    ...(q.choiceImages && typeof q.choiceImages === "object" ? { choiceImages: q.choiceImages } : {}),
+  };
+}
+
+/** Le réglage d'un jeu à venir, refait d'après ses questions : la carte s'ouvre sur ce qui est prévu. */
+function roundDuJeu(qs) {
+  const type = typeDuJeu(qs);
+  const deck = qs.find((q) => q?.kind === "mime" || q?.kind === "pictionary");
+  if (["quiz", "illustre", "express", "zoom", "flou"].includes(type)) {
+    const finale = qs.filter((q) => q?.finale === true).length;
+    const facteur = qs.find((q) => q?.facteur)?.facteur;
+    return { type, seriesQuiz: [{ id: "prevu", origine: "reprise", titre: qs[0]?.round ?? ROUND_TYPES[type], questions: qs.filter(Boolean).map(questionDeSerie) }],
+      ...(finale ? { finale } : { finale: null }), ...(facteur ? { facteur } : {}) };
+  }
+  // Mimes par équipe : chaque équipe retrouve ses images sur son 🎲, sans les images de secours ajoutées au bout.
+  const parEquipe = qs.filter((q) => q?.kind === "mime" && q.couleur);
+  if (type === "mimes" && parEquipe.length) {
+    const equipes = couleursEquipes({ teams: teamsNow() || parEquipe.length }).map((c) => {
+      const cartes = parEquipe.find((q) => String(q.couleur).toUpperCase() === c.toUpperCase())?.cards ?? [];
+      return cartes.length > MIME_RESERVE ? cartes.slice(0, cartes.length - MIME_RESERVE) : cartes;
+    });
+    return { type, equipes, duration: parEquipe[0].duration };
+  }
+  if (type === "mimes" && deck) return { type, cards: deck.cards, duration: deck.duration };
+  // Pictionary par équipe : ses passages, les mots dans l'ordre.
+  if (type === "pictionary" && Array.isArray(deck?.offres)) {
+    return { type, tours: deck.offres.map((ps) => (ps ?? []).map((p) => (p ?? []).map((i) => deck.cards?.[i]).filter(Boolean))), duration: deck.duration, ...(deck.propositions ? { propositions: deck.propositions } : {}) };
+  }
+  if (type === "pictionary" && deck) return { type, picks: (deck.cards ?? []).map((c) => c?.word?.toLowerCase()).filter(Boolean), duration: deck.duration };
+  if (type === "chante" || type === "quisuis") return { type, picks: qs.map((q) => q?.choices?.[0]?.toLowerCase()).filter(Boolean), count: qs.length };
+  if (type === "blind" || type === "musical") return { type, tracks: qs.map((q) => q?.audioId).filter(Boolean) };
+  if (type === "disparu") return { type, count: qs.length };
+  return { type };
+}
+
+/** « ✓ Envoyer au conducteur » : le jeu réglé passe juste après le jeu en cours ; modifié, il garde sa place. */
+async function envoyerCarte() {
+  if (!carteJeu || carteJeu.envoi || editing) return;
+  const jeu = carteJeu;
+  const info = (texte) => { $("carte-info").textContent = texte; $("carte-info").hidden = !texte; };
+  info("");
+  jeu.envoi = true;
+  renderCarte();
+  try {
+    const round = await reglageDeLaCarte();
+    if (!library?.games) await fetchLibrary();
+    if (!round || !library?.games) return info("Le jeu n'est pas encore prêt : réessayez dans un instant.");
+    try {
+      const show = (await get(ref(db, `games/${code}/show`))).val();
+      profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
+    } catch { profile = null; }
+    const prefix = `a${Date.now().toString(36)}`;
+    const avoid = alreadyPlayed();
+    const { questions, problems } = gameQuestions(round, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents, { concepts: avoid.concepts }, teamsNow(), library.songs);
+    if (!questions.length) return info(problems?.[0] ?? "Ce jeu est vide : réglez-le d'abord (🎲).");
+    const refuse = tvRefuses(questions);
+    if (refuse) return info(refuse);
+    let chosen;
+    try { chosen = await copyImages(questions); } catch (e) {
+      console.warn("Images non copiées", e);
+      return info("Les images du jeu n'ont pas pu être copiées (connexion ?) : rien n'a été envoyé, réessayez.");
+    }
+    copySounds(chosen);
+    if (carteJeu !== jeu) return;
+    const st = live.state ?? { phase: "lobby" };
+    const current = live.plan?.questions ?? [];
+    const index = st.phase === "lobby" ? -1 : st.index ?? -1;
+    let program;
+    let message;
+    if (jeu.titre) {
+      // Choix A : le jeu à venir est remplacé à sa place, sous le même nom ; commencé entre-temps, il ne change plus.
+      const r = programRounds(current).find((x) => x.title === jeu.titre);
+      if (!r || jeuCommence(r, current, st)) return info(`« ${jeu.titre} » a commencé entre-temps : il ne peut plus changer.`);
+      program = [...current.slice(0, r.start), ...chosen.map((q) => ({ ...q, round: jeu.titre })), ...current.slice(r.end + 1)];
+      message = `« ${jeu.titre} » est modifié dans le conducteur.`;
+    } else {
+      const title = uniqueRoundTitle(current, chosen[0]?.round ?? ROUND_TYPES[jeu.type]);
+      program = insertGame(current, chosen.map((q) => ({ ...q, round: title })), "after", index);
+      message = `« ${title} » est ajouté ${index < 0 ? "au début du programme" : "après le jeu en cours"}.`;
+    }
+    await sendProgram(program, message, false, () => { fermerCarte(); closeLibrary(); });
+  } finally {
+    jeu.envoi = false;
+    renderCarte();
+  }
+}
+
+$("carte-retour").onclick = fermerCarte;
+$("carte-envoyer").onclick = envoyerCarte;
 
 /** Profil d'âge de la prestation chargée : les questions ajoutées prennent le même chrono. */
 let profile = null;
@@ -3530,6 +3949,7 @@ function renderPreview() {
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
     if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; une équipe qui la garde plus de 2 secondes la voit exploser. À l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
     if (q.kind === "simon") { li.textContent = "Le robot prof montre une suite de boules qui s'allument ; un joueur de chaque équipe la retape sur sa tablette. Une erreur élimine l'équipe du tour."; list.appendChild(li); return; }
+    if (q.kind === "chrono") { li.textContent = `Le chrono part puis se cache sous le drap de Buzzy : chaque équipe buzze quand elle pense être à ${q.cible ?? 30} secondes. La plus proche gagne le tour.`; list.appendChild(li); return; }
     if (q.kind === "duel") { li.textContent = "Deux équipes face à face, un joueur de chaque : la première qui buzze après le PAN gagne, trop tôt elle perd."; list.appendChild(li); return; }
     if (q.kind === "gonfleur") { li.textContent = "Chaque équipe tapote sa tablette pour gonfler son ballon : le premier qui éclate gagne."; list.appendChild(li); return; }
     if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
@@ -3592,9 +4012,9 @@ const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : s
 const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer aux Coffres mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à « Ça va exploser ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
-const OLD_TV_SIMON = "La TV doit être mise à jour pour jouer au Simon du Prof : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_SIMON = "La TV doit être mise à jour pour jouer au Simon de Buzzy : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_CHRONO = "La TV doit être mise à jour pour jouer au Chrono de Buzzy : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DUEL = "La TV doit être mise à jour pour jouer au Duel des robots : sur la TV, menu Retour → « Rechercher une mise à jour ».";
-const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
 function tvRefuses(questions) {
@@ -3609,12 +4029,12 @@ function tvRefuses(questions) {
   if (live.plan.quisuis !== true && questions.some((q) => q?.kind === "quisuis")) return OLD_TV_QUISUIS;
   if (live.plan.statues !== true && questions.some((q) => q?.kind === "statues")) return OLD_TV_STATUES;
   if (live.plan.disparu !== true && questions.some((q) => q?.kind === "disparu")) return OLD_TV_DISPARU;
-  if (live.plan.portes !== true && questions.some((q) => q?.kind === "portes")) return OLD_TV_PORTES;
   if (live.plan.coffres !== true && questions.some((q) => q?.kind === "coffres")) return OLD_TV_COFFRES;
   if (live.plan.gonfleur !== true && questions.some((q) => q?.kind === "gonfleur")) return OLD_TV_GONFLEUR;
   if (live.plan.patate !== true && questions.some((q) => q?.kind === "patate")) return OLD_TV_PATATE;
   if (live.plan.duel !== true && questions.some((q) => q?.kind === "duel")) return OLD_TV_DUEL;
   if (live.plan.simon !== true && questions.some((q) => q?.kind === "simon")) return OLD_TV_SIMON;
+  if (live.plan.chrono !== true && questions.some((q) => q?.kind === "chrono")) return OLD_TV_CHRONO;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
   if (live.plan.blindPlay !== true && questions.some((q) => q?.kind === "blind")) return OLD_TV_BLIND;
   if (live.plan.blind !== true && questions.some((q) => q?.audioId)) return OLD_TV_BLIND;
@@ -4021,7 +4441,9 @@ function nomDansPhrase(show) {
 async function confirmationLancement({ show, snapshot, problems, run }) {
   const date = show.date ? new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : "";
   const line = [show.age ? `${show.age} ans` : "", date].filter(Boolean).join(" – ");
-  const warn = show.date && show.date !== isoDay() ? "⚠ Ce n'est pas la date d'aujourd'hui." : "";
+  // Fête à une autre date (date fausse dans la Régie PC, par exemple) : on peut la lancer, mais on le dit (cedric, 30/10).
+  const horsDate = !!show.date && show.date !== isoDay();
+  const warn = horsDate ? `⚠ Fête initialement prévue le ${date}. Lancer quand même ?` : "";
   const soucis = problems.length
     ? `⚠ ${problems.join("\n")}\n\nProgramme qui sera joué : ${snapshot.rounds.map((r) => r.title).join(" → ")}.` : "";
   const st = live.state ?? {};
@@ -4037,7 +4459,18 @@ async function confirmationLancement({ show, snapshot, problems, run }) {
     const suite = st.phase === "lobby" ? "Les équipes restent." : "Les équipes restent, on repart au début.";
     return { title: `Remplacer ${ancien} par ${nouveau} ?`, text: [suite, soucis].filter(Boolean).join("\n\n"), line, warn, ok: "Remplacer", safe: true };
   }
-  return { title: `Lancer ${nomDansPhrase(show)} ?`, text: soucis, line, warn, ok: problems.length ? "Lancer quand même" : "Lancer", safe: true };
+  return { title: `Lancer ${nomDansPhrase(show)} ?`, text: soucis, line, warn, ok: problems.length || horsDate ? "Lancer quand même" : "Lancer", safe: true };
+}
+
+/**
+ * Défis de la pause en plus préparés dans la fiche de la prestation (Régie PC) : copiés dans la partie au lancement,
+ * à la suite de ceux déjà ajoutés sur le téléphone (rien n'est jamais effacé). null : rien à écrire.
+ */
+async function defisAuLancement(prepares) {
+  const enPlus = nettoyerDefis(prepares);
+  if (!enPlus.length) return null;
+  const deja = await get(ref(db, `games/${code}/defisFete/list`)).then((x) => x.val(), () => null);
+  return valeurDefisFete([...nettoyerDefis(deja), ...enPlus]);
 }
 
 async function loadShow(id) {
@@ -4111,6 +4544,7 @@ async function loadShow(id) {
     done(SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
   });
   copySounds(snapshot.quiz?.questions);
+  const defisFete = await defisAuLancement(fresh.show?.defis);
   try {
     // Le programme pour la TV et le lancement de la prestation en une seule écriture : si une autre box vient de la
     // lancer, le serveur refuse tout, rien n'arrive sur cette TV.
@@ -4118,6 +4552,7 @@ async function loadShow(id) {
       [`games/${code}/show`]: { ...snapshot, id: showId, prestation: id, by: uid, at: serverTimestamp() },
       [`launches/${id}`]: { code, by: uid, at: serverTimestamp() },
       ...Object.fromEntries(anciennes.map((pid) => [`launches/${pid}`, null])),
+      ...(defisFete ? { [`games/${code}/defisFete`]: defisFete } : {}),
     });
   } catch (e) {
     console.error(e);
@@ -4168,7 +4603,7 @@ const STATUS_MESSAGES = {
   just_started: "Le chrono vient de partir : rien n'a été arrêté. Touchez à nouveau pour l'arrêter.",
   scores_just_shown: "Les scores viennent de s'afficher : laissez-les quelques secondes à l'écran, puis touchez à nouveau.",
   bad_factor: "Valeur de points inconnue.",
-  not_ended: "La partie n'est pas encore terminée : appuyez d'abord longtemps sur « Terminer ».",
+  not_ended: "La partie n'est pas encore terminée : gardez d'abord le doigt appuyé sur « ⛔ Terminer la partie ».",
   no_name: "Tapez d'abord le nom de l'équipe.",
 };
 
@@ -4186,7 +4621,7 @@ function toast(message) {
  */
 /**
  * [repli] : un refus « not_ended » ou une écriture refusée (règles d'avant) ne s'affiche pas ; l'appelant se replie
- * (« Arrêter la partie » sur une TV ou un site d'avant).
+ * (« Terminer la partie » sur une TV ou un site d'avant).
  */
 async function send(type, extra = {}, { advance = false, repli = false } = {}) {
   const st = live.state;
@@ -4233,66 +4668,58 @@ async function adjust(team, delta) {
 }
 
 /**
- * Bonus ou malus en deux temps. Préparer le montant (montants types, ±1, ±10, saisie, curseur) ne change rien :
- * ni score ni animation. « Valider » envoie une seule correction, du montant exact ; la TV l'annonce une fois.
- * Le bouton se bloque dès le premier appui et la fenêtre se ferme : un double appui ne compte jamais deux fois.
+ * ± Points (cedric, 30/10) : la liste des équipes, puis deux blocs, Bonus +50 / +100 / +200 et Malus −50 / −100 / −200.
+ * Un seul appui envoie la correction et ferme la fenêtre ; le bandeau « Annuler » reste quelques secondes.
+ * Les boutons se bloquent dès le premier appui : un double appui ne compte jamais deux fois.
  */
-const MAX_POINTS = 500;
 let points = null;
 
-/**
- * [pick] : ouvert depuis « ± Points » des mimes, du Pictionary ou du blind test (onglet Équipes masqué) :
- * l'animatrice choisit l'équipe dans la fenêtre même, le montant préparé est gardé.
- */
-function choosePoints(team, pick = false) {
-  points = { team, sign: 1, amount: 0, sending: false, pick };
-  $("pts-input").value = "";
+/** [team] : « ± Points » d'une ligne de l'onglet Équipes, directement sur ses bonus et malus ; null : la liste des équipes. */
+function choosePoints(team = null) {
+  points = { team: team && live.teams[team] ? team : null, sending: false };
   $("pts").hidden = false;
   renderPoints();
 }
 
-/** Équipe à proposer d'abord : celle qui mime, dessine ou a buzzé, sinon la première inscrite. */
-function defaultTeam() {
-  const st = live.state ?? {};
-  const ids = Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0)).map(([id]) => id);
-  return [st.mime?.team, st.mime?.last?.team, st.buzz?.team].find((id) => id && live.teams[id]) ?? ids[0];
-}
-
-function setAmount(n) {
-  if (!points || points.sending) return;
-  points.amount = Math.max(0, Math.min(MAX_POINTS, Math.round(Number(n) || 0)));
-  renderPoints();
+function equipesInscrites() {
+  return Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0));
 }
 
 function renderPoints() {
   if (!points) return;
-  const { team, sign, amount, sending, pick } = points;
-  const delta = sign * amount;
-  $("pts-title").textContent = pick ? "Bonus ou malus" : `Points pour ${live.teams[team]?.name ?? "l'équipe"}`;
-  const chips = $("pts-teams");
-  chips.replaceChildren(...(pick ? Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0)) : []).map(([id, t]) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.dataset.team = id;
-    b.textContent = t.name ?? "Équipe";
-    b.classList.toggle("on", id === team);
-    b.disabled = sending;
-    b.onclick = () => { if (points && !points.sending) { points.team = id; renderPoints(); } };
-    return b;
-  }));
-  const score = live.state?.scores?.[team] ?? 0;
-  $("pts-bonus").classList.toggle("on", sign > 0);
-  $("pts-malus").classList.toggle("on", sign < 0);
-  $("pts-value").textContent = `${sign > 0 ? "+" : "−"}${amount}`;
-  $("pts-value").className = `pts-value ${amount ? (sign > 0 ? "bonus" : "malus") : ""}`;
-  $("pts-preview").textContent = amount ? `Score : ${score} → ${score + delta}` : `Score : ${score} · choisissez un montant`;
-  if (document.activeElement !== $("pts-input")) $("pts-input").value = amount ? String(amount) : "";
-  $("pts-range").value = String(amount);
-  $("pts-presets").querySelectorAll("[data-set]").forEach((b) => { b.classList.toggle("on", Number(b.dataset.set) === amount); });
-  const ok = $("pts-ok");
-  ok.disabled = !amount || sending || !live.teams[team];
-  ok.textContent = sending ? "Envoi…" : amount ? `Valider ${sign > 0 ? "+" : "−"}${amount} point${amount > 1 ? "s" : ""}` : "Valider";
-  ok.classList.toggle("malus", sign < 0);
+  const { team, sending } = points;
+  if (team && !live.teams[team]) points.team = null;
+  const t = points.team && live.teams[points.team];
+  $("pts-title").textContent = t ? `Points pour ${t.name ?? "l'équipe"}` : "± Points : quelle équipe ?";
+  $("pts-teams").hidden = !!t;
+  $("pts-montants").hidden = !t;
+  if (!t) {
+    // Reconstruite seulement quand une équipe ou un score change : un appui ne tombe jamais sur un bouton remplacé.
+    const cle = JSON.stringify(equipesInscrites().map(([id, e]) => [id, e.name, e.color, live.state?.scores?.[id] ?? 0]));
+    if ($("pts-teams").dataset.key === cle) return;
+    $("pts-teams").dataset.key = cle;
+    $("pts-teams").replaceChildren(...equipesInscrites().map(([id, e]) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.team = id;
+      const pastille = document.createElement("span");
+      pastille.className = "swatch";
+      pastille.style.background = e.color ?? "";
+      const nom = document.createElement("span");
+      nom.className = "name";
+      nom.textContent = e.name ?? "Équipe";
+      const score = document.createElement("span");
+      score.className = "score";
+      score.textContent = String(live.state?.scores?.[id] ?? 0);
+      b.append(pastille, nom, score);
+      b.onclick = () => { if (points && !points.sending) { points.team = id; renderPoints(); } };
+      return b;
+    }));
+    return;
+  }
+  $("pts-teams").dataset.key = "";
+  $("pts-score").textContent = `Score : ${live.state?.scores?.[points.team] ?? 0}`;
+  document.querySelectorAll("#pts [data-delta]").forEach((b) => { b.disabled = sending; });
 }
 
 function closePoints() {
@@ -4300,24 +4727,18 @@ function closePoints() {
   $("pts").hidden = true;
 }
 
-async function validatePoints() {
-  if (!points || points.sending || !points.amount || !live.teams[points.team]) return;
+async function donnerPoints(delta) {
+  if (!points || points.sending || !live.teams[points.team]) return;
   points.sending = true;
-  const { team, sign, amount } = points;
+  const { team } = points;
   renderPoints();
   closePoints();
-  await adjust(team, sign * amount);
+  await adjust(team, delta);
 }
 
-$("pts-bonus").onclick = () => { if (points && !points.sending) { points.sign = 1; renderPoints(); } };
-$("pts-malus").onclick = () => { if (points && !points.sending) { points.sign = -1; renderPoints(); } };
-$("pts-presets").querySelectorAll("[data-set]").forEach((b) => { b.onclick = () => setAmount(Number(b.dataset.set)); });
-document.querySelectorAll("#pts [data-step]").forEach((b) => { b.onclick = () => setAmount((points?.amount ?? 0) + Number(b.dataset.step)); });
-$("pts-input").oninput = () => setAmount($("pts-input").value);
-$("pts-input").onblur = () => renderPoints();
-$("pts-range").oninput = () => setAmount($("pts-range").value);
-$("pts-ok").onclick = validatePoints;
-$("c-points").onclick = () => { if (Object.keys(live.teams).length) choosePoints(defaultTeam(), true); else toast("Aucune équipe inscrite."); };
+document.querySelectorAll("#pts [data-delta]").forEach((b) => { b.onclick = () => donnerPoints(Number(b.dataset.delta)); });
+$("pts-autre").onclick = () => { if (points && !points.sending) { points.team = null; renderPoints(); } };
+$("c-points").onclick = (e) => { if (e.detail > 1) return; if (Object.keys(live.teams).length) choosePoints(); else toast("Aucune équipe inscrite."); };
 $("pts-cancel").onclick = closePoints;
 $("pts").onclick = (e) => { if (e.target === $("pts")) closePoints(); };
 
@@ -4390,6 +4811,8 @@ $("c-next").onclick = async () => {
   if (duel) return duelPrincipal(duel, st);
   const simon = st ? simonEtape(st) : null;
   if (simon) return simonPrincipal(simon);
+  const chrono = st ? chronoEtape(st) : null;
+  if (chrono) return chronoPrincipal(chrono);
   if (statues && !statues.resultat) { $("statues-choisir").click(); return; }
   if (statues) { send("next", {}, { advance: true }); return; }
   // Blind test : « next » lance, relance ou arrête la musique (la box décide selon l'état du morceau).
@@ -4427,19 +4850,23 @@ function appuiLong(btn, ms, { court, long }) {
 
 // Les trois confirmations ne s'affichent que sur ce téléphone, jamais sur la TV (cedric, 29/10).
 const SUR = { title: "Êtes-vous sûr ?", ok: "Oui", non: "Non" };
+const SUR_JEU = { ...SUR, title: "Êtes-vous sûr de vouloir terminer le jeu en cours ?" };
 
-/** « ⏭ Terminer », appui court : le jeu en cours s'arrête, la suite démarre (jeu suivant, ou podium au dernier jeu). */
+/**
+ * « ⏭ Terminer » (cedric, 31/10) : un appui court seulement, plus d'appui long ni de menu. « Êtes-vous sûr de vouloir
+ * terminer le jeu en cours ? Oui / Non », puis la suite démarre (jeu suivant, ou podium au dernier jeu).
+ */
 async function terminerLeJeu() {
   const st = live.state ?? {};
   if (st.phase === "lobby" || st.phase === "ended" || pending?.advance) return;
   const { questions, current, next } = gamesOf(st);
   const nom = current ? `« ${gameName(current, questions)} »` : "Le jeu en cours";
   if (!next) {
-    if (!await demander({ ...SUR, line: "Vous allez passer au podium final.", text: `${nom} est le dernier jeu.` })) return;
+    if (!await demander({ ...SUR_JEU, line: "Vous allez passer au podium final.", text: `${nom} est le dernier jeu.` })) return;
     return send("end", {}, { advance: true });
   }
   const suivant = gameName(next, questions);
-  if (!await demander({ ...SUR, line: `Vous allez passer au jeu suivant : «\u00a0${suivant}\u00a0».`, text: `${nom} s'arrête ici. Les points déjà gagnés sont gardés.` })) return;
+  if (!await demander({ ...SUR_JEU, line: `Vous allez passer au jeu suivant : «\u00a0${suivant}\u00a0».`, text: `${nom} s'arrête ici. Les points déjà gagnés sont gardés.` })) return;
   const jeu = questions.slice(next.start, next.end + 1);
   copyImages(jeu).catch((e) => console.warn("Illustrations non recopiées", e));
   copySounds(jeu);
@@ -4447,7 +4874,8 @@ async function terminerLeJeu() {
   if (status?.status === "applied") toast(jeuEnCours(st) ? `Bilan des scores sur la TV, puis « ${suivant} ».` : `C'est parti pour « ${suivant} » !`);
 }
 
-/** « ⏭ Terminer », appui long : directement les résultats finaux (podium), quel que soit le jeu en cours. */
+/**
+/** « ⛔ Terminer la partie » → « 🏆 Aller au podium » : les résultats finaux, quel que soit le jeu en cours. */
 async function allerAuPodium() {
   const st = live.state ?? {};
   if (st.phase === "lobby" || st.phase === "ended" || pending?.advance) return;
@@ -4456,7 +4884,7 @@ async function allerAuPodium() {
 }
 
 /**
- * « ⛔ Arrêter la partie » (cedric, 29/10) : tout s'arrête tout de suite, sans podium ; la TV revient à l'accueil et
+ * « ⛔ Terminer la partie » → « ⛔ Terminer définitivement la partie » (cedric, 29/10 et 31/10) : tout s'arrête tout de suite, sans podium ; la TV revient à l'accueil et
  * la régie la suit. Une TV ou un site d'avant refuse « arret » : la partie est alors terminée puis quittée.
  */
 async function arreterLaPartie() {
@@ -4475,7 +4903,7 @@ async function arreterLaPartie() {
   if (r?.status === "applied") toast("⛔ Partie arrêtée : la TV revient à l'accueil.");
 }
 
-/** Le choix de l'appui long sur « ⏭ Terminer » (cedric, 30/10) : « podium », « arret », ou null (annulé). */
+/** Le choix au bout de la jauge de « ⛔ Terminer la partie » (cedric, 31/10) : « podium », « arret », ou null (annulé). */
 function choisirLaFin() {
   return new Promise((resolve) => {
     const box = $("fin-choix");
@@ -4494,34 +4922,42 @@ function choisirLaFin() {
   });
 }
 
-/** « ⏭ Terminer », appui long : aller au podium ou terminer complètement, puis « Êtes-vous sûr ? » (cedric, 30/10). */
+/**
+ * « ⛔ Terminer la partie », jauge pleine (cedric, 31/10) : aller au podium ou terminer définitivement, puis « Êtes-vous
+ * sûr ? ». Partie déjà au podium : il ne reste que la fin définitive.
+ */
 async function finAuChoix() {
   const st = live.state ?? {};
-  if (st.phase === "lobby" || st.phase === "ended" || st.leftAt || pending?.advance) return;
-  fermerPlus(); // le doigt est encore sur « ⏭ Terminer » : « ☰ Plus » se referme derrière le choix
+  if (st.phase === "lobby" || st.leftAt || pending?.advance) return;
+  fermerPlus(); // le doigt est encore sur le bouton : « ☰ Plus » se referme derrière le choix
+  if (st.phase === "ended") return arreterLaPartie();
   const choix = await choisirLaFin();
   if (choix === "podium") return allerAuPodium();
   if (choix === "arret") return arreterLaPartie();
 }
 
-appuiLong($("c-end"), 1000, { court: terminerLeJeu, long: finAuChoix });
-// Arrêter la partie : seulement en appui long (1,5 s), jamais d'un simple toucher.
-appuiLong($("c-arret"), 1500, { court: () => toast("Gardez le doigt appuyé sur « Arrêter la partie » jusqu'au bout de la jauge."), long: arreterLaPartie });
+$("c-end").onclick = terminerLeJeu;
+// Terminer la partie (cedric, 31/10) : seulement en appui long (1,5 s) ; un appui court ne fait rien, la jauge le montre.
+appuiLong($("c-arret"), 1500, { court: () => {}, long: finAuChoix });
 
 $("tab-teams").onclick = () => { tabChosen = true; switchTab("teams"); };
 $("tab-plan").onclick = () => { tabChosen = true; switchTab("plan"); };
+$("conducteur-retour").onclick = fermerConducteur;
 $("tab-show").onclick = () => { tabChosen = true; switchTab("show"); };
 $("tab-defis").onclick = () => { tabChosen = true; switchTab("defis"); };
 function switchTab(name) {
+  // Régie « cockpit » : le conducteur a sa page plein écran (cedric, 30/10).
+  if (COCKPIT && name === "plan") return ouvrirConducteur();
   tab = name;
   // Liste des prestations relue à chaque ouverture de l'onglet : elle reflète toujours l'administration.
   if (name === "show" && !loadingShow) shows = null;
   for (const t of ["teams", "plan", "show", "defis"]) {
+    if (COCKPIT && t === "plan") continue;
     $(`tab-${t}`).classList.toggle("active", tab === t);
     $(`panel-${t}`).hidden = tab !== t;
   }
   // Défis de la pause : relus et affichés à chaque ouverture de l'onglet.
-  if (name === "defis") ouvrirDefis(db, $("panel-defis"), toast, demander);
+  if (name === "defis") ouvrirDefis(db, code, $("panel-defis"), toast);
   render();
 }
 

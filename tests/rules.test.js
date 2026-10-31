@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { loadRules, seedAdmin, allowBox, adminHash, ADMIN_PASSWORD, ADMIN_SALT } from "./rules-loader.js";
 import { after, before, beforeEach, describe, test } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { ref, get, set, update, serverTimestamp } from "firebase/database";
+import { ref, get, set, update, serverTimestamp, query, orderByChild, equalTo } from "firebase/database";
 
 const HOST = "box";
 const CODE = "ABCDE";
@@ -133,6 +133,20 @@ describe("équipes", () => {
     await assertFails(set(ref(db("tel"), `games/${CODE}/regieActive`), true));
     await assertFails(set(ref(db(HOST), `games/${CODE}/regieActive`), "oui"));
     await assertSucceeds(set(ref(db(HOST), `games/${CODE}/regieActive`), true));
+  });
+  test("présence du téléphone (cedric, 30/10) : écrite par la régie reliée elle-même, lue par la box et la régie", async () => {
+    await seed({ phase: "question" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/regiePresence/tel`), { online: true, at: serverTimestamp() }));
+    await assertSucceeds(get(ref(db(HOST), `games/${CODE}/regiePresence`)));
+    await assertSucceeds(get(ref(db("tel"), `games/${CODE}/regiePresence`)));
+    // Ni une tablette, ni un téléphone pas relié, ni pour un autre ; rien d'autre que « online » et « at ».
+    await assertFails(get(ref(db("vert"), `games/${CODE}/regiePresence`)));
+    await assertFails(set(ref(db("vert"), `games/${CODE}/regiePresence/vert`), { online: true, at: serverTimestamp() }));
+    await assertFails(set(ref(db("espion"), `games/${CODE}/regiePresence/espion`), { online: true, at: serverTimestamp() }));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/regiePresence/autre`), { online: true, at: serverTimestamp() }));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/regiePresence/tel`), { online: "oui", at: serverTimestamp() }));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/regiePresence/tel`), { online: true, at: serverTimestamp(), nom: "Sarah" }));
   });
 });
 
@@ -296,11 +310,11 @@ describe("réponses", () => {
     await seed({ deadline: Date.now() - 5000 });
     await assertFails(answer("rose", 1));
   });
-  test("Portes mystères : pas de chrono, une porte se choisit tant que les choix sont ouverts ; ailleurs, pas de réponse sans chrono", async () => {
+  test("pas de réponse sans chrono, même pour l'ancien jeu des portes (supprimé le 31/10)", async () => {
     await seed({ deadline: null });
     await assertFails(answer("rose", 1));
     await seed({ kind: "portes", choices: ["Porte 1", "Porte 2", "Porte 3"], deadline: null });
-    await assertSucceeds(answer("rose", 1));
+    await assertFails(answer("rose", 1));
   });
   test("proposition inexistante refusée", async () => {
     await seed({ choices: ["Vrai", "Faux"] });
@@ -578,15 +592,14 @@ describe("régie", () => {
     await assertSucceeds(command(REGIE, { type: "goto", index: 2, qid: "a1m" }));
     await assertFails(command(REGIE, { type: "goto", index: -1, qid: "q1" }));
     await assertFails(command(REGIE, { type: "goto", index: 0, qid: 12 }));
-    // Dernières questions du quiz : ×2, ×3 ou ×5 seulement.
-    await assertFails(command(REGIE, { type: "factor", factor: 4 }));
+    // Dernières questions du quiz : ×2, ×3, ×4 ou ×5 seulement (×4 : cedric, 31/10).
+    await assertFails(command(REGIE, { type: "factor", factor: 6 }));
+    // Une commande ne se réécrit pas : le ×4 passe sous un autre nom que le ×3 plus bas.
+    await assertSucceeds(set(ref(db(REGIE), `games/${CODE}/commands/c-${REGIE}-factor4`), { type: "factor", factor: 4, expectSeq: 3, by: REGIE, at: serverTimestamp() }));
     await assertFails(command(REGIE, { type: "factor", factor: "5" }));
     await assertSucceeds(command(REGIE, { type: "factor", factor: 3 }));
-    // Portes mystères : la valeur d'une porte, dans les bornes seulement.
-    await assertSucceeds(command(REGIE, { type: "portes_set", qid: "p1", door: 2, value: -150 }));
-    await assertFails(command(REGIE, { type: "portes_set", qid: "p1", door: 9, value: 100 }));
-    await assertFails(command(REGIE, { type: "portes_set", qid: "p1", door: 0, value: 5000 }));
-    await assertFails(command("rose", { type: "portes_set", qid: "p1", door: 0, value: 300 }));
+    // L'ancien jeu des portes est supprimé (31/10) : sa commande est refusée.
+    await assertFails(command(REGIE, { type: "portes_set", qid: "p1", door: 2, value: -150 }));
     await assertSucceeds(answer("rose", 1));
     await assertFails(set(ref(db("rose"), `games/${CODE}/answers/q1`), null));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/answers/q1`), null));
@@ -729,6 +742,44 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     [`games/${code}/show`]: { ...SNAPSHOT(uid), id, prestation },
     [`launches/${prestation}`]: { code, by: uid, at: serverTimestamp() },
     ...extra,
+  });
+
+  test("préchargement (cedric, 30/10) : une box acceptée lit les prestations du jour et leurs médias, rien d'autre", async () => {
+    const AUJOURDHUI = "2026-12-02";
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.database();
+      await set(ref(d, "library/shows/show1"), { ...SHOW, date: AUJOURDHUI, updatedAt: 1 });
+      await set(ref(d, "library/shows/show2"), { ...SHOW, date: "2026-12-03", updatedAt: 1 });
+      await set(ref(d, "library/quizzes/q1"), { ...QUIZ, updatedAt: 1 });
+      await set(ref(d, "library/sounds/aaaaaaaaaaaaaaa1"), "data:audio/mpeg;base64,AAAA");
+      await set(ref(d, "library/images/bbbbbbbbbbbbbbb1"), "data:image/jpeg;base64,AAAA");
+      await set(ref(d, "library/entieres/chanson1"), { n: 1, kbps: 96, length: 180, at: 1, p: { 0: "AAAA" } });
+      await set(ref(d, "library/songs/chanson1"), { title: "Chanson", audioId: "aaaaaaaaaaaaaaa1", buzz: 20, updatedAt: 1 });
+      await set(ref(d, "library/playlists/p1"), { title: "Fête" });
+      await set(ref(d, "library/mimes/m1"), { title: "Animaux" });
+      await set(ref(d, "library/contents/quisuis/images/mario"), "bbbbbbbbbbbbbbb1");
+      await set(ref(d, "library/manches/x1"), { type: "quiz", title: "Série" });
+      await set(ref(d, "library/lyrics/chanson1"), "paroles");
+    });
+    await allowBox(env, "tv1");
+    const tv = db("tv1");
+    const duJour = await get(query(ref(tv, "library/shows"), orderByChild("date"), equalTo(AUJOURDHUI)));
+    assert.deepEqual(Object.keys(duJour.val()), ["show1"], "seulement la prestation du jour");
+    for (const chemin of ["library/quizzes/q1", "library/sounds/aaaaaaaaaaaaaaa1", "library/images/bbbbbbbbbbbbbbb1", "library/entieres/chanson1",
+      "library/songs/chanson1", "library/playlists/p1", "library/mimes/m1", "library/contents/quisuis/images"]) {
+      await assertSucceeds(get(ref(tv, chemin)));
+    }
+    // Ni les séries, ni les paroles, ni l'écriture : la box ne fait que lire ce qu'elle copie.
+    await assertFails(get(ref(tv, "library/manches/x1")));
+    await assertFails(get(ref(tv, "library/lyrics/chanson1")));
+    await assertFails(get(ref(tv, "library")));
+    await assertFails(set(ref(tv, "library/sounds/aaaaaaaaaaaaaaa2"), "data:audio/mpeg;base64,AAAA"));
+    await assertFails(set(ref(tv, "library/shows/show1/date"), "2026-12-03"));
+    // Une box jamais acceptée, une tablette ou un inconnu ne lisent rien de la bibliothèque.
+    for (const qui of ["tv-inconnue", "rose", null]) {
+      await assertFails(get(ref(db(qui), "library/shows/show1")));
+      await assertFails(get(ref(db(qui), "library/sounds/aaaaaaaaaaaaaaa1")));
+    }
   });
 
   test("seul un administrateur enregistre ou supprime un quiz et une prestation", async () => {
@@ -1364,6 +1415,42 @@ describe("défis de la pause", () => {
   });
 });
 
+describe("défis de la pause en plus de la fête", () => {
+  const REGIE = "tel";
+  const chemin = `games/${CODE}/defisFete`;
+  const avec = (uid, list) => set(ref(db(uid), chemin), { list, updatedAt: serverTimestamp() });
+  async function paired() {
+    await seed();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/${REGIE}`), { pairedAt: 1, via: "pin" }));
+  }
+
+  test("la régie de la partie (même ouverte avec le code de la TV) ajoute et efface ses défis, la TV les lit", async () => {
+    await paired();
+    await assertSucceeds(avec(REGIE, ["Tout le monde imite un lion !"]));
+    await assertSucceeds(get(ref(db(REGIE), chemin)));
+    await assertSucceeds(get(ref(db(HOST), chemin)));
+    await assertSucceeds(set(ref(db(REGIE), chemin), null));
+  });
+  test("une équipe ou un inconnu ne touchent pas aux défis de la fête", async () => {
+    await paired();
+    await assertFails(avec("rose", ["Dansez !"]));
+    await assertFails(avec(null, ["Dansez !"]));
+    await assertFails(get(ref(db("rose"), chemin)));
+    await assertFails(get(ref(db(null), chemin)));
+  });
+  test("défis de la fête mal formés refusés", async () => {
+    await paired();
+    await assertFails(avec(REGIE, [""]));
+    await assertFails(avec(REGIE, ["x".repeat(121)]));
+    await assertFails(avec(REGIE, Array.from({ length: 31 }, (_, i) => `Défi ${i}`)));
+    await assertFails(avec(REGIE, [42]));
+    await assertFails(set(ref(db(REGIE), chemin), { list: ["Dansez !"], updatedAt: serverTimestamp(), secret: 1 }));
+    await assertFails(set(ref(db(REGIE), chemin), { list: ["Dansez !"], updatedAt: 1 }));
+    await assertFails(set(ref(db(REGIE), chemin), { updatedAt: serverTimestamp() }));
+    await assertSucceeds(avec(REGIE, Array.from({ length: 30 }, (_, i) => `Défi ${i}`)));
+  });
+});
+
 describe("Les Coffres mystères", () => {
   const chests = (extra = {}) => seed({
     kind: "coffres", qid: "r9c", choices: null, deadline: null,
@@ -1592,7 +1679,64 @@ describe("Le Duel des robots", () => {
   });
 });
 
-describe("Le Simon du Prof", () => {
+describe("Le Chrono de Buzzy", () => {
+  const tour = (chrono = {}, extra = {}) => seed({
+    kind: "chrono", qid: "r9h", choices: null, deadline: null,
+    chrono: { tour: 1, cible: 30, step: "run", key: "r9h-1-100", goAt: Date.now() - 5_000, teams: ["bleu", "rose"], ...chrono }, ...extra,
+  });
+  const buzz = (uid, team = uid, key = "r9h-1-100", data = null) =>
+    set(ref(db(uid), `games/${CODE}/chrono/${key}/${team}`), data ?? { t: Date.now(), at: serverTimestamp() });
+  const troisEquipes = () => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#7CFF3A" }));
+
+  test("chaque équipe du tour buzze une seule fois, avec l'heure de son appui", async () => {
+    await tour();
+    await troisEquipes();
+    await assertFails(buzz("vert"), "arrivée après le lancement du tour");
+    await assertFails(buzz("bleu", "rose"), "jamais pour une autre équipe");
+    await assertFails(buzz("bleu", "bleu", "r9h-1-99"), "ancien tour");
+    await assertFails(buzz("bleu", "bleu", "r9h-1-100", { t: Date.now(), at: 5 }), "heure du serveur obligatoire");
+    await assertFails(buzz("bleu", "bleu", "r9h-1-100", { at: serverTimestamp() }), "heure de l'appui obligatoire");
+    await assertFails(buzz("bleu", "bleu", "r9h-1-100", { t: Date.now(), at: serverTimestamp(), ecart: 0 }));
+    await assertSucceeds(buzz("bleu", "bleu", "r9h-1-100", { t: Date.now(), at: serverTimestamp(), r: 40, o: -12 }));
+    await assertFails(buzz("bleu"), "un seul buzz par tour");
+    await assertSucceeds(buzz("rose"));
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/chrono`), null));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/chrono`), null));
+  });
+
+  test("8 équipes : la huitième buzze aussi", async () => {
+    const ids = ["e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"];
+    await tour({ teams: ids });
+    await env.withSecurityRulesDisabled((ctx) => { const base = ctx.database(); return Promise.all(ids.map((id) => set(ref(base, `games/${CODE}/teams/${id}`), { name: id, color: "#7CFF3A" }))); });
+    await assertSucceeds(buzz("e8"));
+    await assertSucceeds(buzz("e1"));
+  });
+
+  test("ni avant le lancement, ni après le bilan, ni en pause, ni dans un autre jeu", async () => {
+    await tour({ step: "ready" });
+    await assertFails(buzz("bleu"), "tour prêt, pas lancé");
+    await tour({ step: "result" });
+    await assertFails(buzz("bleu"), "tour jugé");
+    await tour({}, { paused: true });
+    await assertFails(buzz("bleu"), "pause");
+    await seed({ kind: "duel", chrono: { teams: ["bleu", "rose"], step: "run", key: "r9h-1-100" } });
+    await assertFails(buzz("bleu"), "pas dans ce jeu");
+  });
+
+  test("la régie lance, règle la cible (10 à 90 s), révèle et arrête", async () => {
+    await tour({ step: "ready" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    const envoi = (id, cmd) => set(ref(db("tel"), `games/${CODE}/commands/${id}`), { ...cmd, expectSeq: 3, by: "tel", at: serverTimestamp() });
+    for (const [id, cmd] of [["h1", { type: "chrono_go" }], ["h2", { type: "chrono_cible", cible: 45 }], ["h3", { type: "chrono_reveal" }], ["h4", { type: "chrono_stop" }]]) {
+      await assertSucceeds(envoi(id, cmd), cmd.type);
+    }
+    await assertFails(envoi("h5", { type: "chrono_cible", cible: 5 }), "trop court");
+    await assertFails(envoi("h6", { type: "chrono_cible", cible: 300 }), "trop long");
+    await assertFails(envoi("h7", { type: "next", cible: 30 }), "cible seulement pour chrono_cible");
+  });
+});
+
+describe("Le Simon de Buzzy", () => {
   const suite = (simon = {}, extra = {}) => seed({
     kind: "simon", qid: "r9s", choices: null, deadline: null,
     simon: {

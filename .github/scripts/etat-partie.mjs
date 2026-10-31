@@ -71,3 +71,17 @@ progr.forEach((q, i) => {
 });
 console.log(`Programme : ${jeux.map((j, k) => `${k + 1}. ${j.kind} ×${j.n} (dès ${j.debut})${st.index >= j.debut && st.index < j.debut + j.n ? " ← en cours" : ""}`).join(" · ")}`);
 void show;
+// Multiplicateurs de points choisis par la régie (cedric, 30/10 : « Sarah a choisi ×5, sur quel jeu ? ») : dans cette
+// partie et les 4 autres parties les plus récentes, chaque choix avec son heure et le genre du jeu concerné.
+const recentes = Object.keys((await get("games", "&shallow=true")) ?? {});
+const vues = await Promise.all(recentes.map(async (k) => [k, (await get(`games/${k}/hostOnline/at`)) ?? 0]));
+vues.sort((a, b) => b[1] - a[1]);
+for (const [k, vu] of [[code, 0], ...vues.filter(([k]) => k !== code).slice(0, 4)]) {
+  const journal = Object.values((await get(`games/${k}/log`)) ?? {}).filter(Boolean);
+  const facteurs = journal.filter((e) => e.type === "factor");
+  const cond = (await get(`games/${k}/conducteur`)) ?? {};
+  const qs = Object.values(cond.questions ?? {}).filter(Boolean);
+  const genre = (i) => (qs[i] ? `${qs[i].kind ?? "classic"}${qs[i].double ? " (finale)" : ""}, question ${i + 1}/${qs.length}` : `question ${i + 1}`);
+  console.log(`Partie ${k === code ? "ci-dessus" : `vue ${new Date(vu).toISOString()}`} : ${journal.length} événements, ${facteurs.length} multiplicateurs, show/facteurs ${JSON.stringify((await get(`games/${k}/show/facteurs`)) ?? {})}`);
+  for (const e of facteurs) console.log(`  ×${e.factor} à ${iso(e.at)} sur ${genre(e.start)}`);
+}

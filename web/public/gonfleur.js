@@ -14,7 +14,8 @@ export const ENVOI_MS = 250;
 export const plafond = (goAt, maintenant) => Math.floor(Math.max(0, maintenant - goAt) / 50) + 8;
 
 /**
- * hote : l'élément qui reçoit l'écran. surTape() est appelé à chaque tape acceptée. maj(v) redessine :
+ * hote : l'élément qui reçoit l'écran. surTape() est appelé à chaque tape acceptée. appuyer() : une tape venue du
+ * gros buzzer USB (comme un doigt sur le bouton). maj(v) redessine :
  * v = { n, cible, actif, titre, texte, couleur }
  */
 export function ecranGonfleur(hote, { surTape }) {
@@ -34,15 +35,23 @@ export function ecranGonfleur(hote, { surTape }) {
   const ballon = q(".gf-ballon");
   let actif = false;
 
+  // Une tape : un doigt sur le bouton, ou un appui sur le gros buzzer USB de la tablette (appuyer()).
+  function appuyer() {
+    if (!actif) return;
+    surTape();
+    // L'enfoncement du bouton repart à chaque tape, sans forcer la mise en page (void offsetWidth) : sur une tablette
+    // modeste, ce calcul forcé à chaque tape retardait les suivantes.
+    if (pompe.classList.contains("gf-appui")) {
+      pompe.classList.remove("gf-appui");
+      requestAnimationFrame(() => pompe.classList.add("gf-appui"));
+    } else pompe.classList.add("gf-appui");
+  }
   // pointerdown plutôt que click : chaque doigt qui tape compte tout de suite, même très vite.
   pompe.addEventListener("pointerdown", (ev) => {
     ev.preventDefault();
-    if (!actif) return;
-    surTape();
-    pompe.classList.remove("gf-appui");
-    void pompe.offsetWidth;
-    pompe.classList.add("gf-appui");
+    appuyer();
   });
+  pompe.addEventListener("animationend", () => pompe.classList.remove("gf-appui"));
   // Pas de zoom ni de menu sur un appui long ou un double tap.
   pompe.addEventListener("contextmenu", (ev) => ev.preventDefault());
 
@@ -60,5 +69,5 @@ export function ecranGonfleur(hote, { surTape }) {
     pompe.hidden = p >= 1;
   }
 
-  return { maj, detruire: () => { hote.innerHTML = ""; } };
+  return { maj, appuyer, detruire: () => { hote.innerHTML = ""; } };
 }

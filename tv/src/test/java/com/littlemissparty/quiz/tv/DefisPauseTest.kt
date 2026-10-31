@@ -7,7 +7,7 @@ import org.junit.Test
 
 class DefisPauseTest {
     @Test
-    fun `sans liste enregistree, les defis d'origine avec le prenom`() {
+    fun `sans defi en plus, les 7 defis de base avec le prenom`() {
         val defis = defisPour("Léa", null)
         assertEquals(DEFIS_PAR_DEFAUT.size, defis.size)
         assertTrue("Un tonnerre d'applaudissements pour Léa !" in defis)
@@ -21,15 +21,24 @@ class DefisPauseTest {
     }
 
     @Test
-    fun `liste de la regie, prenom ecrit de plusieurs facons`() {
+    fun `defis en plus de la fete, a la suite des 7 de base, prenom ecrit de plusieurs facons`() {
         val defis = defisPour("Tom", listOf("Bravo [Prénom] !", "Dansez pour [prenom] !", "Ola !"))
-        assertEquals(listOf("Bravo Tom !", "Dansez pour Tom !", "Ola !"), defis)
+        assertEquals(DEFIS_PAR_DEFAUT.size + 3, defis.size)
+        assertEquals(listOf("Bravo Tom !", "Dansez pour Tom !", "Ola !"), defis.takeLast(3))
+        assertTrue("Tout le monde fait la ola !" in defis)
     }
 
     @Test
-    fun `liste qui ne contient que des defis avec prenom, sans prenom, jamais d'ecran vide`() {
+    fun `un defi en plus identique a un defi de base n'est montre qu'une fois`() {
+        val defis = defisPour("Tom", listOf("Tout le monde fait la ola !", "Sautez !"))
+        assertEquals(DEFIS_PAR_DEFAUT.size + 1, defis.size)
+        assertEquals(1, defis.count { it == "Tout le monde fait la ola !" })
+    }
+
+    @Test
+    fun `defis en plus avec prenom, sans prenom, jamais d'ecran vide`() {
         val defis = defisPour("", listOf("Bravo [prénom] !"))
-        assertTrue(defis.isNotEmpty())
+        assertEquals(DEFIS_PAR_DEFAUT.size - 1, defis.size)
         assertTrue(defis.none { "[" in it })
     }
 
@@ -38,5 +47,12 @@ class DefisPauseTest {
         assertEquals(listOf("Ola !", "Sautez"), lireDefis(listOf("  Ola   ! ", null, "", "Sautez")))
         assertNull(lireDefis(listOf(null, "  ")))
         assertNull(lireDefis(emptyList()))
+    }
+
+    @Test
+    fun `nouvelle partie sans defi en plus, ceux de la precedente ne suivent pas`() {
+        DefisPause.enPlus.value = listOf("Ancien défi")
+        DefisPause.lire(null)
+        assertNull(DefisPause.enPlus.value)
     }
 }

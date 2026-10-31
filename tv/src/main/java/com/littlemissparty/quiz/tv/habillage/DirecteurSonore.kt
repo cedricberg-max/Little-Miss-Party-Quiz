@@ -159,6 +159,8 @@ class DirecteurSonore {
                 } else if (i.musical) {
                     // La chanson part dès l'ouverture : aucun jingle par-dessus (le rideau, lui, passe quand même).
                     o += Ordre.Musique(Ambiance.SILENCE)
+                    // Super Finale du quiz musical : l'annonce « × N » a sa montée et son boum, la chanson part ensuite.
+                    if (i.gameShow && i.annonceFacteur && i.superFinale && !p.superFinale) annonceFacteurC(o, musique = null)
                     // Blind test : son générique court à la présentation, un éclat de cuivres au passage en points doublés.
                     if (i.blindPresentation) o += Ordre.Jouer(Son.BT_GENERIQUE)
                     // Game Show : la musique d'attente sous « Lancer le morceau », après le générique s'il passe.
@@ -168,6 +170,11 @@ class DirecteurSonore {
                     o += Ordre.Jouer(Son.TRANSITION)
                     o += Ordre.Musique(Ambiance.SILENCE)
                     o += Ordre.Musique(musique, Tempo.TRANSITION_MUSIQUE)
+                } else if (i.superFinale && !p.superFinale && i.gameShow && i.annonceFacteur) {
+                    // Game Show, annonce « × N » plein écran (choix C de cedric, 31/10) : la musique se tait, un roulement de
+                    // tambour et une montée pendant « DERNIÈRES QUESTIONS », le boum pile quand « × N » apparaît, puis la
+                    // musique des questions (avec sa nappe de tension) repart sur le boum.
+                    annonceFacteurC(o, musique)
                 } else if (i.superFinale && !p.superFinale) {
                     // Les dernières questions du quiz passent à points ×2 : un éclat « points doublés », une seule fois.
                     // Ce n'est pas un nouveau jeu : ni rideau ni jingle de manche. Game Show : un impact, pas les cuivres
@@ -187,16 +194,20 @@ class DirecteurSonore {
                     o += Ordre.Jouer(Son.WHOOSH)
                     o += Ordre.Musique(musique)
                 }
+                // Annonce « × N » plein écran : le chrono, la photo et la chanson ne partent qu'après elle.
+                val annonce = i.gameShow && i.annonceFacteur && i.superFinale && !p.superFinale
+                val apresAnnonce = if (annonce) ANNONCE_MULTIPLICATEUR_MS else 0L
                 // Zoom mystère : moteur d'objectif et déclic quand la photo apparaît.
-                if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT)
+                if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT + apresAnnonce)
                 // Image floue et Zoom mystère : une longue montée accompagne la photo qui se précise (ou se dézoome).
                 // Elle dure tout le chrono (cedric, 25/10 : à l'Image floue, 30 s de montée pour 40 s de chrono).
-                if (i.flou || i.zoom) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT, etireSurMs = (i.chronoMs - Tempo.PROPOSITIONS_DEBUT).coerceAtLeast(0))
+                if (i.flou || i.zoom) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT + apresAnnonce, etireSurMs = (i.chronoMs - Tempo.PROPOSITIONS_DEBUT).coerceAtLeast(0))
                 // Extrait musical (blind test, quiz musical) : le diamant se pose sur le disque quand la chanson part.
                 // Blind test : seulement quand la chanson part vraiment (pas pendant la présentation).
-                if (i.musical && (!i.blind || i.blindLecture)) o += Ordre.Jouer(Son.BT_DIAMANT)
-                // Une bulle par proposition affichée ; les jeux au buzzer n'en affichent aucune.
-                val bulles = if (i.jeuBuzz || i.blind) 0 else i.propositions.coerceIn(0, 8)
+                if (i.musical && (!i.blind || i.blindLecture)) o += Ordre.Jouer(Son.BT_DIAMANT, apresAnnonce)
+                // Une bulle par proposition affichée ; les jeux au buzzer n'en affichent aucune, ni l'annonce « × N »
+                // (les propositions sont cachées dessous).
+                val bulles = if (i.jeuBuzz || i.blind || annonce) 0 else i.propositions.coerceIn(0, 8)
                 for (k in 0 until bulles) {
                     o += Ordre.Jouer(Son.pop(k), Tempo.propositionApparait(k))
                 }
@@ -237,7 +248,7 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.VERROU)
                 // Chrono à zéro alors qu'une équipe n'a pas répondu : le signal « temps écoulé » sous le tampon.
                 if (i.tempsEcoule) o += Ordre.Jouer(Son.MIME_FIN)
-                if (!i.express) o += Ordre.Musique(Ambiance.SUSPENSE)
+                if (!i.express && !i.quizMusical) o += Ordre.Musique(Ambiance.SUSPENSE)
             }
             Ecran.REVELATION -> if (i.nombre) {
                 // Le Juste Chiffre : les chiffres défilent et se posent sur l'or ; fanfare si une équipe tombe pile.
@@ -390,7 +401,20 @@ class DirecteurSonore {
             if (i.duel && i.duelEtape != p.duelEtape) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.duelEtape == "standoff") Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
-            // Simon du Prof : la musique change net quand une suite démarre (Classique : elle se tait), revient après.
+            // Le Chrono de Buzzy (cedric, 31/10) : Around the World doux au tour prêt ; il se tait net au départ du chrono
+            // (on n'entend plus que son tic-tac) ; sous le drap, la nappe stressante entre doucement (sans rythme : rien
+            // n'aide à compter) ; à la révélation, la boucle B d'Around the World, plus forte, part net.
+            if (i.chronoEtape.isNotEmpty() && i.chronoEtape != p.chronoEtape) {
+                o += Ordre.Musique(
+                    ambiance(i),
+                    fonduMs = when (i.chronoEtape) {
+                        "run", "result" -> Tempo.FONDU_RELAIS
+                        "drap" -> Tempo.CHRONO_NAPPE_ENTREE
+                        else -> Tempo.FONDU_MUSIQUE
+                    },
+                )
+            }
+            // Simon de Buzzy : la musique change net quand une suite démarre (Classique : elle se tait), revient après.
             if (i.simonSuite != p.simonSuite || i.simonChiffres != p.simonChiffres) {
                 o += Ordre.Musique(ambiance(i), fonduMs = if (i.simonSuite) Tempo.FONDU_RELAIS else Tempo.FONDU_MUSIQUE)
             }
@@ -465,6 +489,20 @@ class DirecteurSonore {
         return o
     }
 
+    /**
+     * Annonce « × N » des points multipliés (choix C de cedric, 31/10) : silence, roulement de tambour et montée pendant
+     * « DERNIÈRES QUESTIONS » (2 s), le boum pile quand « × N » apparaît ([Tempo.ANNONCE_FACTEUR_BOUM]), puis [musique]
+     * repart sur le boum (null : rien, le quiz musical attend sa chanson).
+     */
+    private fun annonceFacteurC(o: MutableList<Ordre>, musique: Ambiance?) {
+        o += Ordre.Jouer(Son.WHOOSH)
+        o += Ordre.Musique(Ambiance.SILENCE)
+        o += Ordre.Jouer(Son.ROULEMENT_LONG)
+        o += Ordre.Jouer(Son.MONTEE)
+        o += Ordre.Jouer(Son.IMPACT, Tempo.ANNONCE_FACTEUR_BOUM)
+        if (musique != null) o += Ordre.Musique(musique, Tempo.ANNONCE_FACTEUR_BOUM)
+    }
+
     private fun tousOntRepondu(i: Instant) = i.equipes > 0 && i.reponses >= i.equipes
 
     private fun ambiance(i: Instant) = when (i.ecran) {
@@ -476,7 +514,7 @@ class DirecteurSonore {
             // Blind test, Game Show : la musique d'attente tant que Sarah n'a pas lancé le morceau.
             i.blindAttente && i.gameShow && i.ecran == Ecran.QUESTION -> Ambiance.BT_ATTENTE
             // Extrait musical : rien ne doit couvrir la chanson.
-            i.musical && i.ecran != Ecran.VERROUILLEE -> Ambiance.SILENCE
+            i.musical && (i.ecran != Ecran.VERROUILLEE || i.quizMusical) -> Ambiance.SILENCE
             // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
             // Qui a disparu ? : musique douce pour mémoriser, presque rien pendant le tour de magie.
             // « Ça va exploser ! » : sa propre musique, calée sur la mèche (MusiquePatate) ; les boucles se taisent.
@@ -488,7 +526,13 @@ class DirecteurSonore {
                 "ready" -> Ambiance.DUEL_ANNONCE
                 else -> Ambiance.DUEL_ENTRE
             }
-            // Le Simon du Prof : la boucle douce entre deux suites, celle aux percussions pendant une suite (la note de
+            i.chronoEtape.isNotEmpty() -> when (i.chronoEtape) {
+                "ready" -> Ambiance.CHRONO_PRET
+                "drap" -> Ambiance.CHRONO_NAPPE
+                "result" -> Ambiance.CHRONO_REVELATION
+                else -> Ambiance.SILENCE
+            }
+            // Le Simon de Buzzy : la boucle douce entre deux suites, celle aux percussions pendant une suite (la note de
             // chaque boule passe par-dessus), la partie où tout joue quand les chiffres arrivent.
             i.simon && i.ecran == Ecran.QUESTION -> when {
                 !i.simonSuite -> Ambiance.SIMON_ENTRE
@@ -552,6 +596,11 @@ data class Instant(
     val buzzs: Int = 0,
     val premiere: Boolean = false,
     val superFinale: Boolean = false,
+    /**
+     * Première question à points multipliés avec son annonce « × N » plein écran (quiz, Vrai ou Faux, Zoom, quiz musical ;
+     * pas les jeux au buzzer) : roulement qui monte, puis le boum pile sur « × N » (choix C de cedric, 31/10).
+     */
+    val annonceFacteur: Boolean = false,
     /** Équipes qui marquent des points à cette révélation. */
     val gagnants: Int = 0,
     val meneurAPoints: Boolean = false,
@@ -575,6 +624,11 @@ data class Instant(
     val jeuBuzz: Boolean = false,
     /** La question fait entendre un extrait musical (blind test, quiz musical) : l'habillage se tait. */
     val musical: Boolean = false,
+    /**
+     * Quiz musical (extrait bien reçu) : la chanson continue, plus bas, sous le verrou et la révélation (cedric, 31/10),
+     * avec les mêmes bruitages que le quiz ; jamais la nappe de suspense par-dessus.
+     */
+    val quizMusical: Boolean = false,
     /** Statues musicales : la musique du jeu est arrêtée, tout le monde se fige. */
     val statue: Boolean = false,
     /** Statues musicales : annonce des gagnantes d'une chanson (1 roulement de tambour, 2 gagnantes, 3 récap), 0 sinon. */
@@ -589,10 +643,15 @@ data class Instant(
      */
     val duel: Boolean = false,
     val duelEtape: String = "",
-    /** Le Simon du Prof : sa question est à l'écran ; une suite est en cours (le robot la montre, les équipes la tapent). */
+    /**
+     * Le Chrono de Buzzy : étape du tour (« ready », « run » pendant le décompte et le tic-tac, « drap » une fois le
+     * chrono caché, « result »), vide pour les autres jeux.
+     */
+    val chronoEtape: String = "",
+    /** Le Simon de Buzzy : sa question est à l'écran ; une suite est en cours (le robot la montre, les équipes la tapent). */
     val simon: Boolean = false,
     val simonSuite: Boolean = false,
-    /** Le Simon du Prof : la suite en cours a des chiffres (à partir de [com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES]). */
+    /** Le Simon de Buzzy : la suite en cours a des chiffres (à partir de [com.littlemissparty.quiz.engine.SIMON_CHIFFRES_DES]). */
     val simonChiffres: Boolean = false,
     /** Quiz : question fermée par la fin du chrono (une équipe n'a pas répondu), « TEMPS ÉCOULÉ ! » à l'écran. */
     val tempsEcoule: Boolean = false,
@@ -664,6 +723,7 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "mimes" to Ambiance.MIMES_PRESENTATION,
     "statues" to Ambiance.STATUES_PRESENTATION,
     "gonfleur" to Ambiance.GONFLEUR_PRESENTATION,
+    "chrono" to Ambiance.CHRONO_PRESENTATION,
 )
 
 /** Musique d'une présentation de jeu (Game Show) : son intro vidéo part avec elle ([Sons.attenteIntroMs]). */
@@ -679,6 +739,13 @@ internal val Lit.departFranc: Boolean get() = name.endsWith("_INTRO")
  */
 internal const val DISPARU_INTRO_REPRISE_MS = 3_300L
 internal const val DISPARU_INTRO_REPRISE_IMAGE = 145_547L
+
+/**
+ * Le Chrono de Buzzy : Hung Up (Madonna), coupe de cedric (31/10, « parfait ») : le début une fois (de 0:06,595 du single,
+ * 7,737 s), puis la boucle de 0:14,332 à 0:29,679 repart de l'échantillon [CHRONO_INTRO_REPRISE_IMAGE] à 44,1 kHz.
+ */
+internal const val CHRONO_INTRO_REPRISE_MS = 7_737L
+internal const val CHRONO_INTRO_REPRISE_IMAGE = 341_202L
 
 /** Quiz : la boucle de Questions pour un champion repart de là, après les trompettes (échantillon 95 256). */
 internal const val QUIZ_INTRO_REPRISE_MS = 2_160L
@@ -731,6 +798,13 @@ enum class Lit(
     BILAN(null, "gs_bed_bilan"),
     /** Game Show : nappe de tension sans note, par-dessus la musique de la manche pendant la Super finale. */
     TENSION(null, "gs_bed_tension"),
+    /**
+     * Game Show, Super finale : l'exemple « tout accélère ×3 » choisi par cedric (31/10, idée 3), le même quel que soit
+     * le multiplicateur des points : la musique des questions et la nappe de tension accélérées ×1,06, une pulsation
+     * grave toutes les 0,5 s qui monte d'un demi-ton à la fois. Boucle de 15,09 s (sa propre longueur, raccord fondu
+     * 30 ms, limiteur à 0,89 comme l'exemple) : elle part de son début.
+     */
+    FINALE(null, "gs_bed_finale"),
     /** Game Show : le dernier groove d'Aerodynamic, sous l'écran de fin après le podium (cedric, 23 octobre). */
     FIN(null, "gs_bed_fin"),
     /**
@@ -741,7 +815,7 @@ enum class Lit(
     /** Game Show : la boucle western du Duel des robots (36 temps, 21,24 s, sans blanc), sous l'annonce et entre deux duels. */
     DUEL(null, "gs_duel_intro_boucle"),
     /**
-     * Game Show, le Simon du Prof sur « Prix choc » d'Etienne de Crécy (cedric, 28/10), trois boucles prises entre les
+     * Game Show, le Simon de Buzzy sur « Prix choc » d'Etienne de Crécy (cedric, 28/10), trois boucles prises entre les
      * passages chantés (jamais la voix) à 127,87 BPM, coupées sur un début de mesure là où la suite ressemble le plus
      * au début (raccord fondu sur 60 ms) : la douce, sans batterie (8 mesures, 15 s, de 0:01,9) ; avec les premières
      * percussions (16 mesures, 30 s, de 0:43,2) ; la partie où tout joue (16 mesures, 30 s, de 2:02,0). Volumes laissés
@@ -752,7 +826,7 @@ enum class Lit(
     SIMON_SUITE(null, "gs_simon_suite"),
     SIMON_FORT(null, "gs_simon_fort"),
     /**
-     * Game Show, le Simon du Prof : sous sa vidéo d'intro seulement (cedric, 30/10), la douce tournée pour partir sur son
+     * Game Show, le Simon de Buzzy : sous sa vidéo d'intro seulement (cedric, 30/10), la douce tournée pour partir sur son
      * temps fort (même boucle de 15,01 s, sans couture) ; le jeu garde [SIMON_DOUCE].
      */
     SIMON_INTRO(null, "gs_simon_intro"),
@@ -785,6 +859,11 @@ enum class Lit(
      * l'échantillon 145 547 ([repriseImage]), −12 LUFS.
      */
     DISPARU_INTRO(null, "gs_disparu_intro", repriseMs = DISPARU_INTRO_REPRISE_MS, repriseImage = DISPARU_INTRO_REPRISE_IMAGE),
+    /**
+     * Game Show, le Chrono de Buzzy : la musique sous sa vidéo d'intro (cedric, 31/10) : Hung Up, son début une fois puis
+     * 15,35 s qui tournent ; le fichier est déjà mixé à ×0,5 (−19,5 LUFS), son ambiance le joue tel quel.
+     */
+    CHRONO_INTRO(null, "gs_chrono_intro", repriseMs = CHRONO_INTRO_REPRISE_MS, repriseImage = CHRONO_INTRO_REPRISE_IMAGE),
     /** Game Show, Coffres mystères : la boucle sous sa vidéo d'intro (cedric, 29/10 : « parfaite ») : Pirates des Caraïbes, 13,62 s, −12 LUFS. */
     COFFRES_INTRO(null, "gs_coffres_intro"),
     /**
@@ -830,6 +909,16 @@ enum class Lit(
      * dans le fichier (le même que le podium) : son ambiance le joue à plein volume.
      */
     PODIUM_ATTENTE(null, "gs_podium_attente", repriseMs = PODIUM_ATTENTE_REPRISE_MS),
+    /**
+     * Game Show, le Chrono de Buzzy sous le drap (cedric, 31/10) : nappe grave et stressante, sans aucun rythme (rien ne
+     * doit aider à compter), 27,3 s fondues sur leur début (3 s), −16 LUFS.
+     */
+    CHRONO_NAPPE(null, "gs_chrono_nappe"),
+    /**
+     * Game Show, le Chrono de Buzzy pendant la révélation (cedric, 31/10 : « boucle B ») : Around the World pris à 1:03,5,
+     * 8 mesures ramenées à 120 BPM comme gs_bed_light, 16,000 s, raccord fondu 25 ms, −16 LUFS.
+     */
+    CHRONO_REVELATION(null, "gs_chrono_revelation"),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -862,7 +951,7 @@ enum class Ambiance(
     /** Duel des robots : entre deux duels, sous le résultat ; Game Show : la boucle western à −10 dB. */
     DUEL_ENTRE(legere = 0.3f, gameShow = mapOf(Lit.DUEL to 0.32f)),
     /**
-     * Le Simon du Prof, Game Show (« Prix choc », cedric 28/10) : la boucle douce à la présentation et entre deux suites,
+     * Le Simon de Buzzy, Game Show (« Prix choc », cedric 28/10) : la boucle douce à la présentation et entre deux suites,
      * sous la voix de Sarah ; Classique : la musique des questions.
      */
     SIMON_ENTRE(legere = 0.7f, gameShow = mapOf(Lit.SIMON_DOUCE to 0.82f)),
@@ -888,6 +977,8 @@ enum class Ambiance(
     ZOOM_PRESENTATION(gameShow = mapOf(Lit.ZOOM_INTRO to 0.5f)),
     /** Présentation de Qui a disparu ? (Game Show) : Mission Impossible, au volume de la boucle « fête ». */
     DISPARU_PRESENTATION(gameShow = mapOf(Lit.DISPARU_INTRO to 0.5f)),
+    /** Présentation du Chrono de Buzzy (Game Show) : Hung Up, fichier déjà à ×0,5 comme les autres intros (donc 1 ici). */
+    CHRONO_PRESENTATION(gameShow = mapOf(Lit.CHRONO_INTRO to 1f)),
     /** Présentation des Coffres mystères (Game Show) : Pirates des Caraïbes, au volume de la boucle « fête ». */
     COFFRES_PRESENTATION(gameShow = mapOf(Lit.COFFRES_INTRO to 0.5f)),
     /** Présentation du Quiz (Game Show) : Questions pour un champion, au volume de la boucle « fête ». */
@@ -910,6 +1001,12 @@ enum class Ambiance(
     PATATE_PRESENTATION(gameShow = mapOf(Lit.PATATE_INTRO to 0.5f)),
     /** Présentation du Pictionary (Game Show) : Take On Me, au volume de la boucle « fête ». */
     PICTO_PRESENTATION(gameShow = mapOf(Lit.PICTO_INTRO to 0.5f)),
+    /** Le Chrono de Buzzy, tour prêt (« Prêts ? ») : Around the World (0:31,9 à 0:47,7) doux, à 0,4 (cedric, 31/10). */
+    CHRONO_PRET(legere = 0.4f),
+    /** Le Chrono de Buzzy sous le drap, Game Show : la nappe stressante, légère ; Classique : silence. */
+    CHRONO_NAPPE(gameShow = mapOf(Lit.CHRONO_NAPPE to 0.5f)),
+    /** Le Chrono de Buzzy, révélation, Game Show : la boucle B d'Around the World, plus forte, à 0,75 ; Classique : silence. */
+    CHRONO_REVELATION(gameShow = mapOf(Lit.CHRONO_REVELATION to 0.75f)),
     /** Game Show : la boucle d'attente après la coupe du podium, au niveau du podium (réglé dans le fichier). */
     PODIUM_ATTENTE(gameShow = mapOf(Lit.PODIUM_ATTENTE to 1f)),
     /**
@@ -928,9 +1025,9 @@ enum class Ambiance(
     EXPRESS(express = 0.75f),
     /**
      * Dernières questions du quiz à points multipliés : la rythmique nerveuse de l'express, un peu plus bas. Game Show :
-     * la musique de la manche continue, avec la nappe de tension par-dessus (cedric, 23 octobre).
+     * la boucle [Lit.FINALE] (« tout accélère ×3 », cedric 31/10), le même son pour ×2, ×3, ×4 et ×5.
      */
-    DECISIVE(express = 0.6f, gameShow = mapOf(Lit.LEGER to 0.7f, Lit.TENSION to 0.55f)),
+    DECISIVE(express = 0.6f, gameShow = mapOf(Lit.FINALE to 1f)),
     /** Bilan des scores entre deux jeux : la musique de fête ; Game Show : le riff d'Aerodynamic. */
     BILAN(complete = 0.8f, gameShow = mapOf(Lit.BILAN to 0.8f)),
     /** Écran de fin, après le podium du Game Show : le dernier groove d'Aerodynamic ; Classique : la musique de fête. */
@@ -950,8 +1047,8 @@ enum class Ambiance(
             Lit.PAUSE -> pause
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
-            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PICTO_INTRO, Lit.SIMON_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BILAN, Lit.TENSION, Lit.FINALE, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.CHRONO_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PICTO_INTRO, Lit.SIMON_INTRO, Lit.PODIUM_ATTENTE, Lit.CHRONO_NAPPE, Lit.CHRONO_REVELATION -> 0f
         }
     }
 }
@@ -1024,7 +1121,6 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     MALUS("lmp_malus"),
     PICTIO_TOP("lmp_pictio_top", true),
     PICTIO_TROUVE("lmp_pictio_trouve", true),
-    PORTES_OUVRE("lmp_portes_ouvre", true),
     PORTES_JACKPOT("lmp_portes_jackpot", true),
     PORTES_TUILE("lmp_portes_tuile", true),
     PORTES_RENVERSEMENT("lmp_portes_renversement", true),
@@ -1058,6 +1154,16 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     DUEL_INTRO("gs_duel_intro_debut", true),
     /** Game Show seulement : la grande fin de l'air western sous les affiches WANTED du classement du duel (22,7 s). */
     DUEL_CLASSEMENT("gs_duel_classement", true),
+    /**
+     * Le Chrono de Buzzy (studio_chrono.py) : tic-tac du chrono une fois par seconde, décompte et départ, le drap
+     * fantôme, un buzz sous le drap ; à la révélation, la règle, le drapeau, chaque pastille, la plus proche au ralenti,
+     * puis gagné / pile au centième / personne. Mêmes sons dans les deux looks.
+     */
+    CHRONO_TIC("gs_chrono_tic"), CHRONO_TAC("gs_chrono_tac"), CHRONO_BIP("gs_chrono_bip"), CHRONO_GO("gs_chrono_go"),
+    CHRONO_DRAP("gs_chrono_drap"), CHRONO_BUZZ("gs_chrono_buzz"),
+    CHRONO_REGLE("gs_chrono_regle"), CHRONO_DRAPEAU("gs_chrono_drapeau"), CHRONO_PASTILLE("gs_chrono_pastille"),
+    CHRONO_RALENTI("gs_chrono_ralenti", true), CHRONO_GAGNE("gs_chrono_gagne", true), CHRONO_PILE("gs_chrono_pile", true),
+    CHRONO_PERSONNE("gs_chrono_personne"),
     TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
     PATATE_PASSE("lmp_patate_passe"),
     /** Musique de « Ça va exploser ! » (extrait choisi par cedric) : sa fin tombe sur l'explosion, voir [MusiquePatate]. */
@@ -1130,6 +1236,8 @@ object Tempo {
     /** Temps fort qui suit la dernière note du générique (16 temps) : la musique du salon prend le relais. */
     const val GENERIQUE_RELAIS = 8_000L
     const val FONDU_RELAIS = 120L
+    /** Le Chrono de Buzzy : la nappe entre doucement sous le drap, après son « fffouf ». */
+    const val CHRONO_NAPPE_ENTREE = 1_500L
     /** Blind test : la musique d'attente entre à la fin du générique court (4,8 s). */
     const val BT_ATTENTE_APRES_GENERIQUE = 4_500L
     /** Duel des robots : la boucle western prend le relais à la fin de son début (gs_duel_intro_debut, 2,95 s). */
@@ -1142,6 +1250,8 @@ object Tempo {
     /** Durée de l'animation du générique sur le salon. */
     const val GENERIQUE_ANIMATION = 9_000L
     const val QUESTION_MUSIQUE_APRES_MANCHE = 1_500L
+    /** Annonce « × N » : le boum tombe quand « × N » apparaît (AnnonceMultiplicateur, apparition à 2 s). */
+    const val ANNONCE_FACTEUR_BOUM = 2_000L
     const val PROPOSITIONS_DEBUT = 350L
     const val PROPOSITIONS_PAS = 150L
     const val REVELATION_ETEINT = 1_000L

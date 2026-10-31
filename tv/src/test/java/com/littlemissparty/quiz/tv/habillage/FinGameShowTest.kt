@@ -79,6 +79,17 @@ class FinGameShowTest {
     }
 
     @Test
+    fun `la boucle de fin repart d'une image cle, sans a-coup sur la box`() {
+        // Test du 30/10 : petit à-coup quand la boucle repart. Il n'y avait pas d'image clé à 8,0 s (la box décodait
+        // depuis 6,2 s). L'image 200 (numéro 201 dans l'en-tête stss, 25 images/s) doit être une image clé.
+        val octets = File("src/main/res/raw/gs_fin_video.mp4").readBytes()
+        val i = (0 until octets.size - 4).first { String(octets, it, 4, Charsets.ISO_8859_1) == "stss" }
+        fun entier(at: Int, n: Int) = (0 until n).fold(0L) { acc, k -> (acc shl 8) or (octets[at + k].toLong() and 0xFF) }
+        val imagesCles = (0 until entier(i + 8, 4).toInt()).map { entier(i + 12 + it * 4, 4) }
+        assertTrue("image clé à la reprise de la boucle", FIN_BOUCLE_DEBUT_MS * 25L / 1000 + 1 in imagesCles)
+    }
+
+    @Test
     fun `les textes de fin sont dans la video, l'appli n'ecrit rien par-dessus`() {
         // Vidéo du 29/10 (titre néon et logo dans l'image) : sans ce réglage, « Merci » et « À bientôt » seraient en double.
         assertTrue(FIN_TEXTES_DANS_LA_VIDEO)

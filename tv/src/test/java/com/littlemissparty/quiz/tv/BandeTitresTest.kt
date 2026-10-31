@@ -2,6 +2,7 @@ package com.littlemissparty.quiz.tv
 
 import com.littlemissparty.quiz.tv.habillage.BANDE_TITRE_ALPHA
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -27,11 +28,12 @@ class BandeTitresTest {
     }
 
     @Test
-    fun `Mimes et Pictionary ont la bande derriere le titre et la regle, sans cadre`() {
+    fun `Mimes et Pictionary n'ont plus de bande, la regle prend le contour des jauges (31-10)`() {
         val mimes = File("src/main/java/com/littlemissparty/quiz/tv/MimeScreens.kt").readText()
-        assertTrue(mimes.contains("Column(Modifier.fillMaxWidth().bandeTitre(), horizontalAlignment = Alignment.CenterHorizontally)"))
+        assertFalse(mimes.contains("bandeTitre()"))
         val picto = File("src/main/java/com/littlemissparty/quiz/tv/PictionaryScreens.kt").readText()
-        assertTrue(picto.contains("modifier = Modifier.bandeTitre(),"))
+        assertFalse(picto.contains("bandeTitre()"))
+        assertTrue(picto.contains("TexteJauge(\n            reglePictionary("))
         // Les plaques des équipes : noir au contour néon en Game Show.
         assertTrue(picto.contains("Look.gs -> Neon.Nuit.copy(alpha = 0.88f)"))
     }

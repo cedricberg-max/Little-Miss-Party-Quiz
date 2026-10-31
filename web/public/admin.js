@@ -3,6 +3,7 @@ import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gst
 import {
   getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator, query, orderByKey, limitToLast,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
+import { defisDuTexte } from "./defis.js";
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
 import { TEST_PRESTATION, TEST_TITRE, TEST_FICHE, TEST_NOTES, JEUX_DU_TEST, demosAEffacer, nbDemos } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
@@ -20,7 +21,7 @@ import {
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
   questionsDuQuiz, ordreAvecCasesVides, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
-  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie, DUEL_JOUEURS, DUEL_DUREES, reglagesDuel, SIMON_TOURS, SIMON_REPONSES, reglagesSimon,
+  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects, PATATE_BOMBES, bombesDe, bombesParPartie, DUEL_JOUEURS, DUEL_DUREES, reglagesDuel, SIMON_TOURS, SIMON_REPONSES, reglagesSimon, CHRONO_CIBLES, CHRONO_TOURS, reglagesChrono,
   DISPARU_CARTES, famillesPourLAge,
   pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX, leurresDeChanson, parolesDuHook,
 } from "./show.js";
@@ -94,6 +95,11 @@ if (emulator) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
   connectDatabaseEmulator(db, "127.0.0.1", 9000);
 }
+/**
+ * Mode « carte » (cedric, 30/10) : la régie téléphone ouvre ici, dans sa page « ＋ Jeu », la carte de réglage d'UN jeu,
+ * la même que dans une prestation. Rien n'est écrit dans la bibliothèque : le jeu réglé repart au téléphone.
+ */
+const MODE_CARTE = ROUND_TYPES[new URLSearchParams(location.search).get("carte")] ? new URLSearchParams(location.search).get("carte") : null;
 // Connexion anonyme : l'identifiant est gardé par le navigateur, comme pour les pupitres.
 const uid = await signIn();
 
@@ -484,7 +490,8 @@ async function refreshRuns() {
   refreshLists();
 }
 
-route();
+if (MODE_CARTE) entrerCarte();
+else route();
 
 function refreshLists() {
   if (!$("screen-home").hidden) renderHome();
@@ -910,6 +917,7 @@ function editShow(id) {
   $("show-title").dataset.auto = suivi ? titreAuto(s.childName) : "";
   $("show-profile").value = s.profile ?? "";
   $("show-notes").value = s.notes ?? "";
+  $("show-defis").value = Array.isArray(s.defis) ? s.defis.join("\n") : "";
   status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
     : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement."
     : fusions ? "Les manches Quiz qui se suivaient n'en font plus qu'une (une seule Super Finale, à la fin). Enregistrez pour garder ce changement."
@@ -932,7 +940,7 @@ function montrerArchivee(oui) {
 }
 
 /** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
-const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-notes"];
+const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-notes", "show-defis"];
 const histPrestation = historique({
   ecran: $("screen-show-edit"),
   precedent: pagePrecedente,
@@ -970,6 +978,8 @@ function formShow() {
     // Plus de case « Thèmes » (cedric, 23/10 : elle ne servait à rien) ; celui d'une ancienne prestation est gardé.
     themes: editing.themes ?? null,
     notes: $("show-notes").value.trim() || null,
+    // Défis de la pause en plus (cedric, 31/10) : copiés dans la partie au lancement, jamais repris à la fête suivante.
+    defis: defisDuTexte($("show-defis").value).length ? defisDuTexte($("show-defis").value) : null,
     teams: num($("show-teams").value),
     teamColors: [...couleursSaisies],
     rounds: editing.rounds.filter(roundFilled).map((r) => cleanRound(r, playlists)),
@@ -996,6 +1006,8 @@ let roundCtx = {
   elsewhere: (r) => (editing ? usedElsewhere(editing.rounds, editing.rounds.indexOf(r), { quizzes, mimes, contents }) : new Map()),
 };
 const prestationCtx = roundCtx;
+/** La carte d'un jeu se règle comme dans la prestation : aussi dans la page « ＋ Jeu » du téléphone (cedric, 30/10). */
+const commeEnPrestation = () => roundCtx === prestationCtx || roundCtx.prestation === true;
 
 /** Mots du Pictionary tirés par « Tirer au hasard ». */
 const PICTO_DRAW = 24;
@@ -1625,7 +1637,8 @@ function menuChanson(id) {
  * statues), par identifiant de chanson et par extrait → nom du jeu.
  */
 function chansonsAilleurs(r) {
-  const out = new Map();
+  // Carte du téléphone : les chansons déjà au programme de la partie.
+  const out = roundCtx.chansons?.() ?? new Map();
   (editing?.rounds ?? []).forEach((x) => {
     if (!x || x === r) return;
     const nom = ROUND_TYPES[x.type ?? "quiz"] ?? "une autre manche";
@@ -2296,6 +2309,8 @@ const avecImage = (v, id) => { const { banque: _, ...reste } = v; return { ...re
  * prend l'image recadrée partout dans ce jeu de la prestation, et le cadrage est gardé pour la prochaine fois.
  */
 function imageRecadrable(img, r, o, changer) {
+  // Mode carte (régie téléphone) : rien ne s'écrit dans la bibliothèque, donc pas de recadrage.
+  if (MODE_CARTE) return img;
   const [forme, nomDe] = CADRES_DES_MOTS[r?.type] ?? [];
   if (img?.tagName !== "IMG" || !forme || !sourceImage(o)) return img;
   img.classList.add("recadrable");
@@ -2383,6 +2398,8 @@ function appliquerCadrages(rounds) {
  * peut venir du catalogue de l'appli, jamais modifié). Un émoji n'a rien à recadrer.
  */
 function objetRecadrable(img, r, m, k, changer) {
+  // Mode carte (régie téléphone) : rien ne s'écrit dans la bibliothèque, donc pas de recadrage.
+  if (MODE_CARTE) return img;
   const o = m.objects?.[k];
   if (img?.tagName !== "IMG" || !o || !(IMAGE_ID.test(o.imageId ?? "") || o.banque)) return img;
   img.classList.add("recadrable");
@@ -3531,7 +3548,7 @@ function reglagesDuDuel(r) {
 }
 
 /**
- * « 🔴 Le Simon du Prof » dans une prestation (cedric, 27/10) : rien à piocher ; le nombre de tours, les secondes pour
+ * « 🔴 Le Simon de Buzzy » dans une prestation (cedric, 27/10) : rien à piocher ; le nombre de tours, les secondes pour
  * taper une suite et le nombre approximatif de joueurs par équipe.
  */
 function reglagesDuSimon(r) {
@@ -3549,11 +3566,29 @@ function reglagesDuSimon(r) {
     h("span", { class: "hint small", text: "Rien d'autre à préparer : la suite s'allonge d'une boule à chaque fois (une seconde de plus pour taper au-delà de 4), un autre joueur de chaque équipe à chaque suite." }));
 }
 
+/**
+ * « ⏱️ Le Chrono de Buzzy » dans une prestation (cedric, 30/10) : rien à piocher ; la cible et le nombre de tours. Sarah
+ * peut changer la cible avant chaque tour sur son téléphone. Pour le rejouer, il suffit de le remettre dans la prestation.
+ */
+function reglagesDuChrono(r) {
+  const c = reglagesChrono(r);
+  Object.assign(r, c);
+  const choix = (classe, label, cle, valeurs, texte) => h("select", { class: `chrono-reglage ${classe}`, "aria-label": label, onchange: (e) => {
+    r[cle] = Number(e.target.value);
+    roundCtx.summary();
+    noterEcran();
+  } }, ...valeurs.map((n) => h("option", { value: n, selected: c[cle] === n, text: texte(n) })));
+  return h("div", { class: "grow picto-round chrono-reglages" },
+    choix("chrono-cible", "Cible en secondes", "cible", CHRONO_CIBLES, (n) => `Cible : ${n} secondes`),
+    choix("chrono-tours", "Nombre de tours", "tours", CHRONO_TOURS, (n) => `${n} tour${n > 1 ? "s" : ""} (un gagnant par tour)`),
+    h("span", { class: "hint small", text: "Rien d'autre à préparer : le chrono se cache à un moment au hasard (entre 6 et 12 s). Sur son téléphone, Sarah peut changer la cible avant chaque tour." }));
+}
+
 /** Jeux que « ＋ Ajouter un jeu » propose, par famille, dans l'ordre des tuiles de l'Accueil. */
 const jeuxProposes = () => GAME_GROUPS.map((g) => ({ title: g.title, games: g.games.filter((x) => ROUND_TYPES[x.type]) }));
 // Le « ? » de la tuile du Quiz devient ❓ hors de sa tuile (comme l'écran d'ouverture de la TV).
 const iconeJeu = (type) => (type === "quiz" ? "❓" : GAME_GROUPS.flatMap((g) => g.games).find((x) => x.type === type)?.icon ?? "");
-const SANS_CONTENU = ["coffres", "patate", "gonfleur", "duel", "simon"];
+const SANS_CONTENU = ["coffres", "patate", "gonfleur", "duel", "simon", "chrono"];
 
 /**
  * Prestation (cedric, 21/10) : on ajoute un JEU, puis ses manches. Un bloc = les manches qui se suivent du même jeu,
@@ -4278,6 +4313,8 @@ async function imageDeLaBibliotheque(id) {
  * « 🧸 Photos de la banque », une question d'un quiz rappelé en entier dans la Bibliothèque : rien à cliquer ici.
  */
 function recadrable(img, r, x, changer, k = null) {
+  // Mode carte (régie téléphone) : rien ne s'écrit dans la bibliothèque, donc pas de recadrage.
+  if (MODE_CARTE) return img;
   const gardee = img?.tagName === "IMG" ? questionGardee(r, x) : null;
   if (!gardee) return img;
   const reponse = k !== null;
@@ -5087,6 +5124,8 @@ function roundFields(r) {
     ? reglagesDuDuel(r)
     : r.type === "simon"
     ? reglagesDuSimon(r)
+    : r.type === "chrono"
+    ? reglagesDuChrono(r)
     : MUSIC_GAMES[r.type]
     // Blind test, quiz musical : une playlist entière, ou des titres choisis un par un dans toutes les playlists.
     ? h("div", { class: "grow picto-round" },
@@ -5129,14 +5168,14 @@ function roundFields(r) {
       roundPicks(r).length || r.byItem ? itemSelection(r, "picks") : quizSelection(r, options))
     : quiz ? null : quizSelection(r, options);
   // Mimes dans une prestation (cedric, 23/10) : le 🎲 seul, une présélection par équipe.
-  if (r.type === "mimes" && roundCtx === prestationCtx) return mancheMimes(r);
+  if (r.type === "mimes" && commeEnPrestation()) return mancheMimes(r);
   // Pictionary dans une prestation (cedric, 24/10) : le 🎲, un passage à la main, une ligne par équipe.
-  if (r.type === "pictionary" && roundCtx === prestationCtx) return mancheDessins(r);
+  if (r.type === "pictionary" && commeEnPrestation()) return mancheDessins(r);
   // Blind test dans une prestation (cedric, 24/10) : « à la manière des quiz », le 🎲 tire les chansons.
   // Blind test et Quiz musical (cedric, 24/10) : en séries de chansons de la bibliothèque des sons.
-  if ((r.type === "blind" || r.type === "musical") && roundCtx === prestationCtx) return mancheBlind(r);
+  if ((r.type === "blind" || r.type === "musical") && commeEnPrestation()) return mancheBlind(r);
   // Chante le mot ! dans une prestation (cedric, 24/10) : le 🎲, un mot écrit à la main, le « complet ».
-  if (estJeuDeMots(r.type) && roundCtx === prestationCtx) return mancheMots(r);
+  if (estJeuDeMots(r.type) && commeEnPrestation()) return mancheMots(r);
   return [
     // Quiz, Quiz illustré (cedric, 23/10) : une seule manche faite de séries (🎲, quiz rappelés, questions écrites, reprises).
     ...(quiz ? mancheQuiz(r) : [content]),
@@ -5147,7 +5186,7 @@ function roundFields(r) {
         ...DISPARU_CARTES.map((n) => h("option", { value: n, selected: r.objects === n, text: `${n} cartes par tour` })))
       : null,
     // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
-    !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "duel" && r.type !== "simon" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
+    !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "duel" && r.type !== "simon" && r.type !== "chrono" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
       && !quiz
       ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Toutes les questions" }),
@@ -5306,7 +5345,7 @@ $("round-add-top").onclick = () => ouvrirChoixJeu("haut");
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
-  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate" || r.type === "duel" || r.type === "simon") return "";
+  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate" || r.type === "duel" || r.type === "simon" || r.type === "chrono") return "";
   if (r.type === "mimes") return mimeEquipes(r).some((l) => l.length) ? mancheSummary(r, { mimes }) : r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
   if (roundTirees(r).length || roundSeriesQuiz(r).length) return mancheSummary(r, { quizzes });
@@ -10703,7 +10742,7 @@ const plural = (n, word, many = `${word}s`) => `${n} ${n > 1 ? many : word}`;
 /** Les jeux par famille : ce qui se prépare dans la bibliothèque, ce qui vient d'un quiz, ce qui est intégré. */
 const GAME_GROUPS = [
   { title: "Avec vos contenus", hint: "Vous préparez le contenu dans la bibliothèque, une fois, et vous le réutilisez dans toutes les prestations.", games: [
-    { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 réponses écrites sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre) et montrer une petite photo à la révélation. Super Finale : dans la prestation, les dernières questions du quiz peuvent compter ×2, ×3 ou ×5 (choisi en direct sur la régie).",
+    { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 réponses écrites sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre) et montrer une petite photo à la révélation. Super Finale : dans la prestation, les dernières questions du quiz peuvent compter ×2, ×3, ×4 ou ×5 (choisi en direct sur la régie).",
       status: () => quizTileLine(quizQuestions), },
     { type: "illustre", icon: "📷", rule: "Pour les petits, dès 5 ans : l'animatrice lit la question, chaque réponse est une photo avec son mot, sur la TV et les tablettes. Toutes les équipes qui trouvent marquent, comme au Quiz. Les questions se piochent dans la banque des tout-petits (388 mots en photos) ou se font à la main.",
       status: () => quizTileLine(illustreQuestions), },
@@ -10717,7 +10756,7 @@ const GAME_GROUPS = [
       status: () => plural(statuesChoices(playlists).length, "chanson disponible", "chansons disponibles"), },
   ] },
   { title: "Tirés d'un quiz", hint: "Rien de plus à préparer : ces jeux reprennent les questions d'un quiz de la bibliothèque. Dans la prestation, choisissez le quiz et combien de questions.", games: [
-    { type: "express", icon: "✔", rule: "Des affirmations Vrai / Faux au chrono court du profil : tirées au 🎲 dans le Vrai ou Faux tout prêt, reprises d'un ancien anniversaire ou de vos quiz. Super Finale : les dernières affirmations peuvent compter ×2, ×3 ou ×5 (choisi en direct sur la régie).", needs: "Vrai / Faux validées" },
+    { type: "express", icon: "✔", rule: "Des affirmations Vrai / Faux au chrono court du profil : tirées au 🎲 dans le Vrai ou Faux tout prêt, reprises d'un ancien anniversaire ou de vos quiz. Super Finale : les dernières affirmations peuvent compter ×2, ×3, ×4 ou ×5 (choisi en direct sur la régie).", needs: "Vrai / Faux validées" },
     { type: "zoom", icon: "🔍", rule: "Une photo d'un quiz ou de la banque se dévoile peu à peu.", needs: "photos" },
     { type: "flou", icon: "🌫", rule: "Une photo d'un quiz ou de la banque devient nette peu à peu, le premier qui buzze répond.", needs: "photos" },
   ] },
@@ -10730,6 +10769,7 @@ const GAME_GROUPS = [
     { type: "patate", icon: "💣", rule: "La bombe peut exploser à tout moment ! Elle passe d'équipe en équipe : sur sa tablette, l'équipe qui la tient choisit à qui l'envoyer (jamais tout de suite à l'équipe qui vient de l'envoyer, sauf à 2 équipes ; on ne peut la renvoyer que 2 secondes après l'avoir reçue). La mèche, tirée au sort, reste secrète : à chaque explosion, l'équipe qui tient la bombe perd 100 points (jamais sous 0), toutes les autres en gagnent 100. Trois bombes par partie d'office, de 1 à 6 à régler dans la prestation : après chaque explosion, une nouvelle mèche s'allume." },
     { type: "duel", icon: "🤠", rule: "Face-à-face entre un joueur de deux équipes, chacun sur sa tablette : la tension monte, les robots feintent… puis PAN ! Le premier qui tire après le PAN gagne 100 points ; celui qui tire trop tôt perd. L'appli fait passer chaque joueur une fois ; Sarah peut lancer un duel de plus depuis son téléphone." },
     { type: "simon", icon: "🔴", rule: "Le robot prof montre au tableau une suite de boules de couleur qui s'allument une à une, chacune avec sa note. À chaque suite, il en ajoute une. Dès 4 éléments, les chiffres débarquent (rouge vert bleu 4 jaune…). Sur sa tablette, un joueur de chaque équipe (un autre à chaque suite) tape la suite puis « Valider ». La TV montre en direct ce que chaque équipe tape, en « ? ». Une erreur élimine l'équipe du tour, la dernière en jeu gagne le tour (300 points). Si toutes se trompent sur la même suite, la plus avancée gagne, à égalité la plus rapide." },
+    { type: "chrono", icon: "⏱️", rule: "Le grand chrono de la TV part de 0… puis Buzzy le cache sous un drap ! Chaque équipe continue de compter dans sa tête et buzze une seule fois, quand elle pense être pile à la cible (30 secondes par exemple). La révélation montre la cible et l'écart de chaque équipe : la plus proche gagne le tour : 100 points, 50 pour la 2e, 25 pour la 3e. Sarah peut changer la cible avant chaque tour sur son téléphone." },
     { type: "gonfleur", icon: "🎈", rule: "Chaque équipe tapote sa tablette le plus vite possible pour gonfler son ballon sur la TV ; on peut se relayer. Le premier ballon qui éclate gagne 300 points, les autres équipes 150. Depuis la régie, « Arrêter la course » donne la victoire au plus gros ballon." },
   ] },
 ];
@@ -11334,3 +11374,106 @@ $("manche-delete").onclick = async () => {
   histManche.abandonner();
   openGame(mancheEdit.type);
 };
+
+// ---------- Mode « carte » : la carte d'un jeu pour la régie téléphone (cedric, 30/10) ----------
+
+/** Le jeu réglé dans la carte, le programme de la partie (pour « jamais deux fois ») et ses réglages. */
+const carte = { round: null, programme: [], profil: "MOYENS", equipes: EQUIPES_PAR_DEFAUT, titre: null };
+
+const carteCtx = {
+  prestation: true,
+  refresh: () => peindreCarte(),
+  summary: () => envoyerCarte(),
+  profile: () => carte.profil,
+  teams: () => carte.equipes,
+  // « Jamais deux fois » : ce que montrent les autres jeux du programme (concept → nom du jeu) ; le jeu modifié ne compte pas.
+  elsewhere: () => {
+    const vus = new Map();
+    for (const q of carte.programme) {
+      if (!q || (carte.titre && q.round === carte.titre)) continue;
+      for (const c of questionConcepts(q)) if (!vus.has(c)) vus.set(c, q.round ?? "un autre jeu");
+    }
+    return vus;
+  },
+  // Chansons que jouent déjà les autres jeux du programme (le 🎲 du Blind test les prend en dernier).
+  chansons: () => {
+    const out = new Map();
+    for (const q of carte.programme) {
+      if (!q || (carte.titre && q.round === carte.titre) || !["blind", "musical", "statues"].includes(q.kind)) continue;
+      const noter = (k) => { if (k && !out.has(k)) out.set(k, q.round ?? "un autre jeu"); };
+      [q.audioId, ...(Array.isArray(q.audioIds) ? q.audioIds : [])].forEach(noter);
+      (Array.isArray(q.songs) ? q.songs : []).forEach((x) => { noter(x?.songId); noter(x?.audioId); });
+    }
+    return out;
+  },
+};
+
+/**
+ * Ouvre la carte : lit la bibliothèque (preuve de la régie du téléphone, lecture seule) et le programme de la partie,
+ * puis attend du téléphone le jeu à régler (nouveau, ou un jeu à venir à modifier).
+ */
+async function entrerCarte() {
+  document.body.classList.add("mode-carte");
+  $("screen-login").hidden = true;
+  $("screen-carte").hidden = false;
+  const params = new URLSearchParams(location.search);
+  const code = params.get("g");
+  const lire = (path) => get(ref(db, path)).then((x) => x.val(), (e) => { console.error(path, e); return null; });
+  const [q, sh, mi, pl, co, so, ma, me, ca, conducteur] = await Promise.all([
+    "library/quizzes", "library/shows", "library/mimes", "library/playlists", "library/contents", "library/songs",
+    "library/manches", "library/medias", "library/cadrages", /^[A-Z0-9]{5}$/.test(code ?? "") ? `games/${code}/conducteur` : null,
+  ].map((path) => (path ? lire(path) : null)));
+  quizzes = q ?? {};
+  shows = sh ?? {};
+  mimes = mi ?? {};
+  playlists = pl ?? {};
+  contents = co ?? {};
+  songs = so ?? {};
+  manches = ma ?? {};
+  medias = me ?? {};
+  cadrages = ca ?? {};
+  carte.programme = Array.isArray(conducteur?.questions) ? conducteur.questions : Object.values(conducteur?.questions ?? {});
+  carte.profil = PROFILES[params.get("profil")] ? params.get("profil") : "MOYENS";
+  carte.equipes = Math.max(1, Math.min(8, Number(params.get("equipes")) || EQUIPES_PAR_DEFAUT));
+  window.addEventListener("message", (e) => {
+    if (e.origin !== location.origin || e.source !== parent) return;
+    const m = e.data?.lmpCarte;
+    if (m?.ouvrir) {
+      carte.titre = m.titre ?? null;
+      const depart = m.round && typeof m.round === "object" ? JSON.parse(JSON.stringify(m.round)) : { type: MODE_CARTE };
+      carte.round = versSeriesMots(versSeriesBlind(versSeriesQuiz({ ...depart, type: depart.type ?? MODE_CARTE }, quizzes)));
+      appliquerCadrages([carte.round]);
+      peindreCarte();
+    } else if (m === "donne") envoyerCarte();
+  });
+  parent.postMessage({ lmpCarte: { prete: MODE_CARTE } }, location.origin);
+}
+
+/** Dessine la carte, comme un jeu déplié de la prestation : en-tête, réglages, reprise, alertes. */
+function peindreCarte() {
+  const r = carte.round;
+  if (!r) return;
+  roundCtx = carteCtx;
+  const type = r.type ?? "quiz";
+  const sansManches = estEnSeries(type) || type === "blind" || type === "musical" || estJeuDeMots(type);
+  const champs = roundFields(r).filter(Boolean);
+  const compteur = champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null;
+  const enTete = compteur ? champs.filter((x) => x?.classList?.contains("quiz-en-tete")) : [];
+  const corps = h("div", { class: "round-body" }, ...champs.filter((x) => x !== compteur && !enTete.includes(x)));
+  const reprise = SANS_CONTENU.includes(type) || sansManches || type === "mimes" || type === "pictionary" ? null
+    : reprendreManche(r, (next) => { carte.round = next; peindreCarte(); });
+  $("carte-jeu").replaceChildren(h("div", { class: "jeu-bloc", "data-jeu": type },
+    h("div", { class: "jeu-tete" }, h("span", { class: "jeu-nom", text: `${iconeJeu(type)} ${ROUND_TYPES[type]}`.trim() })),
+    h("div", { class: "round show-round" },
+      compteur ? h("div", { class: "round-head" }, compteur, ...enTete) : null,
+      corps, reprise, alerteManche(r))));
+  envoyerCarte();
+}
+
+/** Le jeu tel qu'il est réglé, envoyé au téléphone (à chaque changement, et quand il le demande). */
+function envoyerCarte() {
+  const r = carte.round;
+  if (!r) return;
+  const round = JSON.parse(JSON.stringify(cleanRound(r, playlists)));
+  parent.postMessage({ lmpCarte: { round, plein: roundFilled(r) || SANS_CONTENU.includes(r.type) } }, location.origin);
+}

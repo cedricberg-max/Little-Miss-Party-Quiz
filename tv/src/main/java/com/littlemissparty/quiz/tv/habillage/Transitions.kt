@@ -97,7 +97,7 @@ private fun TransitionDeJeu(state: UiState.Playing) {
             id = "${state.code} $cle ${state.index}",
             surtitre = when {
                 avant == null -> "C'EST PARTI !"
-                !mimes && (avant.startsWith("quiz") || avant.startsWith("manche")) -> "NOUVELLE MANCHE"
+                !mimes && (avant.startsWith("quiz") || avant.startsWith("manche")) -> "NOUVELLE ÉPREUVE"
                 else -> "JEU SUIVANT"
             },
             titre = when {
@@ -162,6 +162,10 @@ private fun Rideau(a: Annonce, fini: () -> Unit) {
         // Game Show : le nom du jeu tient sur une ligne dans le cadre néon des portes (cedric, 24/10 : rien ne déborde).
         val largeurCadre = constraints.maxWidth * CADRE_PORTES_LARGEUR
         val mesure = rememberTextMeasurer()
+        // Game Show : derrière les portes fermées, un fond de nuit. Au petit rebond, les battants s'entrouvrent : on voyait
+        // par la fente l'écran du jeu suivant en train de se charger (sa vidéo pas encore prête : « texture métallique » à
+        // traits horizontaux sur la TV, cedric 31/10). Seule la lumière du joint passe par la fente.
+        if (gs) Box(Modifier.fillMaxSize().drawBehind { if (fondDerriereLesPortes(ms(), a.dureeMs)) drawRect(FondPortes) })
         Row(Modifier.fillMaxSize()) {
             if (portes != null) {
                 Battant(portes.first, Modifier.weight(1f).graphicsLayer { translationX = -(1f - fermeture()) * size.width })
@@ -393,6 +397,15 @@ internal const val TITRE_RIDEAU_MIN_SP = 40f
 
 private const val FERMETURE_MS = 280f
 private const val OUVERTURE_MS = 400f
+/**
+ * Le fond de nuit derrière les portes : dès qu'elles se touchent (rebond compris) et jusqu'à ce qu'elles se rouvrent.
+ * Pendant la fermeture et l'ouverture, on voit l'écran entre les battants, comme avant.
+ */
+internal fun fondDerriereLesPortes(ms: Float, dureeMs: Long): Boolean = ms >= FERMETURE_MS && ms <= dureeMs - OUVERTURE_MS
+
+/** Le noir du cadre des portes, un peu bleuté. */
+private val FondPortes = Color(0xFF06040C)
+
 /** Portes du Game Show : durée du petit rebond au contact, et teinte de la lumière du joint (rose très pâle). */
 private const val REBOND_PORTES_MS = 240f
 private val TEINTE_PORTES = Color(0xFFFFE6FA)

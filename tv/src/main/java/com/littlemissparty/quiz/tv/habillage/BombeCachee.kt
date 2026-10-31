@@ -78,7 +78,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /*
- * Les coffres mystères (remplacent les Portes mystères) : des coffres de toutes formes posés sur les gradins d'une estrade
+ * Les coffres mystères : des coffres de toutes formes posés sur les gradins d'une estrade
  * laquée prune, ouverts chacun leur tour par les équipes. Bonus, malus, le classement après chaque coffre… puis la bombe,
  * cachée avec un coffre en or.
  *
@@ -524,7 +524,7 @@ private fun BandeauTour(auTour: Pair<String, Color>?, modifier: Modifier = Modif
     if (Look.gs) return BandeauTourGs(auTour, modifier)
     val couleur = auTour?.second ?: Neon.Or
     Row(
-        modifier.widthIn(max = 700.dp).background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
+        modifier.widthIn(max = 700.dp).background(Neon.Plaque, RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
             .padding(horizontal = 26.dp, vertical = 6.dp).apparition(0, auTour?.first),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -639,7 +639,7 @@ fun OuvertureCoffre(
             if (malus) { jusqua(T_OUVRE + 60f); joue(Son.COFFRE_MALUS) }
             jusqua(if (malus) T_VERDICT_MALUS - 130f else 1_420f)
             // La carte joue elle-même son BONUS / MALUS : pas de second son par-dessus.
-            if (!carte) joue(if (or || delta!! >= PORTE_JACKPOT) Son.PORTES_JACKPOT else if (estBonus(delta)) Son.COFFRE_OR else Son.PORTES_TUILE)
+            if (!carte) joue(if (or || delta!! >= GROS_GAIN) Son.PORTES_JACKPOT else if (estBonus(delta)) Son.COFFRE_OR else Son.PORTES_TUILE)
             // La carte BONUS / MALUS fait venir le robot elle-même ; sans carte, c'est ici.
             if (!carte && delta != 0) signalerRobot(if (malus) MomentRobot.MALUS else MomentRobot.BONUS)
         }
@@ -828,7 +828,7 @@ fun OuvertureCoffre(
             Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
                 .graphicsLayer { alpha = if (carte) 1f - ((t.value - tVerdict) / 220f).coerceIn(0f, 1f) else 1f }
                 .apparition(0, index)
-                .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
+                .background(Neon.Plaque, RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
                 .padding(horizontal = 22.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1202,7 +1202,7 @@ fun BilanBombe(lignes: List<Triple<String, Color, Int>>, modifier: Modifier = Mo
     Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
         Column(Modifier.align(Alignment.TopCenter).padding(top = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(
-                Modifier.background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50)).padding(horizontal = 26.dp, vertical = 6.dp),
+                Modifier.background(Neon.Plaque, RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50)).padding(horizontal = 26.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("💣", style = TextStyle(fontSize = 24.sp))
@@ -1239,13 +1239,13 @@ private fun LigneBilan(nom: String, couleur: Color, points: Int, i: Int, largeur
                 alpha = u
                 translationX = (1f - u) * 60f * density
             }
-            .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(20.dp)).border(3.dp, couleur, RoundedCornerShape(20.dp))
+            .background(Neon.Plaque, RoundedCornerShape(20.dp)).border(3.dp, couleur, RoundedCornerShape(20.dp))
             .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(22.dp).background(couleur, CircleShape).border(2.dp, Color.White.copy(alpha = 0.8f), CircleShape))
         Spacer(Modifier.width(14.dp))
-        Text(nom, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), style = styleBandeau.copy(fontSize = if (hauteur > 66.dp) 28.sp else 24.sp, color = Neon.Blanc))
+        Text(nom, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), style = styleBandeau.copy(fontSize = if (hauteur > 66.dp) 28.sp else 24.sp, color = Neon.PlaqueTexte))
         val teinte = when { points > 0 -> BONUS_VERT; points < 0 -> MALUS_CORAIL; else -> Neon.OrClair }
         Text(
             if (points == 0) "0" else texteValeur(points), maxLines = 1, softWrap = false,
@@ -1263,7 +1263,7 @@ private fun LigneBilan(nom: String, couleur: Color, points: Int, i: Int, largeur
  * [joue] : l'index (dans [lignes]) de l'équipe qui a ouvert le coffre.
  */
 @Composable
-fun ClassementCoffre(lignes: List<LignePortes>, joue: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonBombe) {
+fun ClassementCoffre(lignes: List<LigneClassement>, joue: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonBombe) {
     val evo = remember(lignes) { evolutions(lignes) }
     val renverse = evo.any { it.recit == Recit.NOUVEAU_PREMIER }
     val bouge = evo.any { it.rangAvant != it.rangApres }
@@ -1287,7 +1287,7 @@ fun ClassementCoffre(lignes: List<LignePortes>, joue: Int, modifier: Modifier = 
         Box(Modifier.fillMaxSize().clearAndSetSemantics {}.background(Neon.Nuit.copy(alpha = 0.86f)))
         Row(
             Modifier.align(Alignment.TopCenter).padding(top = 22.dp).graphicsLayer { alpha = (t.value / 250f).coerceIn(0f, 1f) }
-                .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50))
+                .background(Neon.Plaque, RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50))
                 .padding(horizontal = 26.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1310,7 +1310,7 @@ private const val C_BASCULE = 1_250f
 private const val C_RECIT = 1_950f
 
 @Composable
-private fun LigneClassementCoffre(e: LignePortes, evo: Evolution, joue: Boolean, hauteur: Float, ms: () -> Float) {
+private fun LigneClassementCoffre(e: LigneClassement, evo: Evolution, joue: Boolean, hauteur: Float, ms: () -> Float) {
     val gain = e.apres - e.avant
     val taille = (hauteur * 0.4f).sp
     val apres by remember(evo) { derivedStateOf { ms() >= C_BASCULE + 500f } }
