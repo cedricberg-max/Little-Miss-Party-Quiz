@@ -25,7 +25,7 @@ class IntroJeuTest {
             QuestionKind.ZOOM to "zoom", QuestionKind.FLOU to "floue", QuestionKind.CHANTE to "chante",
             QuestionKind.QUISUIS to "quisuisje", QuestionKind.DISPARU to "disparu", QuestionKind.STATUES to "statues",
             QuestionKind.COFFRES to "coffres", QuestionKind.GONFLEUR to "gonfleur", QuestionKind.PATATE to "patate",
-            QuestionKind.DUEL to "duel", QuestionKind.SIMON to "simon",
+            QuestionKind.DUEL to "duel", QuestionKind.SIMON to "simon", QuestionKind.CHRONO to "chrono",
         )
         for ((kind, nom) in attendu) assertEquals("$kind", nom, nomIntroJeu(familleType(kind)))
         assertEquals("illustre", nomIntroJeu(familleJeu(question(images = listOf("a", "b", null, "d")))))

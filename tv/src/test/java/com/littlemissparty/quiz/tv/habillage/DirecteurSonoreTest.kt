@@ -1297,6 +1297,32 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `presentation du Chrono de Buzzy - Hung Up, son debut une fois puis la boucle, et ses bruitages avec la video`() {
+        val chrono = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "chrono|", gameShow = true, famille = "chrono")
+        assertEquals("chrono", familleType(com.littlemissparty.quiz.engine.QuestionKind.CHRONO))
+        assertEquals("chrono", nomIntroJeu("chrono"))
+        assertEquals(1f, volumeIntroJeu("chrono"), 0f)
+        assertEquals(Ambiance.CHRONO_PRESENTATION, ambiancePresentation(chrono))
+        assertEquals(Ambiance.PRESENTATION, ambiancePresentation(chrono.copy(gameShow = false)))
+        // Le fichier est livré déjà à ×0,5 (comme les autres intros une fois leur ambiance appliquée) : joué tel quel.
+        assertEquals(1f, Ambiance.CHRONO_PRESENTATION.volume(Lit.CHRONO_INTRO, gs = true), 0f)
+        Lit.entries.filter { it != Lit.CHRONO_INTRO }.forEach { assertEquals("$it", 0f, Ambiance.CHRONO_PRESENTATION.volume(it, gs = true), 0f) }
+        assertNull(Lit.CHRONO_INTRO.fichierPour(false))
+        assertTrue(Lit.CHRONO_INTRO.departFranc)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        assertEquals(Ambiance.CHRONO_PRESENTATION, d.observer(chrono).musique())
+        // 7,737 s de début puis 15,347 s de boucle : 1 018 004 images, la boucle repart à l'échantillon 341 202.
+        val wav = java.io.File("src/main/res/raw/gs_chrono_intro.wav").readBytes()
+        val e = lireEnteteWav(wav.copyOf(512), wav.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        assertEquals(1_018_004L, e.images.toLong())
+        assertEquals(341_202L, repriseEnImages(Lit.CHRONO_INTRO.repriseMs, Lit.CHRONO_INTRO.repriseImage, 44_100))
+        assertEquals(341_202.0, Lit.CHRONO_INTRO.repriseMs * 44.1, 44.1)
+        assertEquals(wav.size.toLong(), e.debutDonnees + e.octetsDonnees)
+    }
+
+    @Test
     fun `presentation des Coffres mysteres - Pirates des Caraibes`() {
         val coffres = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 3, equipes = 2, epreuve = "coffres|", gameShow = true, famille = "bombe")
         assertEquals("bombe", familleType(com.littlemissparty.quiz.engine.QuestionKind.COFFRES))

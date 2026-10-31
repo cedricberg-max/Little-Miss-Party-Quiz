@@ -672,6 +672,7 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "mimes" to Ambiance.MIMES_PRESENTATION,
     "statues" to Ambiance.STATUES_PRESENTATION,
     "gonfleur" to Ambiance.GONFLEUR_PRESENTATION,
+    "chrono" to Ambiance.CHRONO_PRESENTATION,
 )
 
 /** Musique d'une présentation de jeu (Game Show) : son intro vidéo part avec elle ([Sons.attenteIntroMs]). */
@@ -687,6 +688,13 @@ internal val Lit.departFranc: Boolean get() = name.endsWith("_INTRO")
  */
 internal const val DISPARU_INTRO_REPRISE_MS = 3_300L
 internal const val DISPARU_INTRO_REPRISE_IMAGE = 145_547L
+
+/**
+ * Le Chrono de Buzzy : Hung Up (Madonna), coupe de cedric (31/10, « parfait ») : le début une fois (de 0:06,595 du single,
+ * 7,737 s), puis la boucle de 0:14,332 à 0:29,679 repart de l'échantillon [CHRONO_INTRO_REPRISE_IMAGE] à 44,1 kHz.
+ */
+internal const val CHRONO_INTRO_REPRISE_MS = 7_737L
+internal const val CHRONO_INTRO_REPRISE_IMAGE = 341_202L
 
 /** Quiz : la boucle de Questions pour un champion repart de là, après les trompettes (échantillon 95 256). */
 internal const val QUIZ_INTRO_REPRISE_MS = 2_160L
@@ -793,6 +801,11 @@ enum class Lit(
      * l'échantillon 145 547 ([repriseImage]), −12 LUFS.
      */
     DISPARU_INTRO(null, "gs_disparu_intro", repriseMs = DISPARU_INTRO_REPRISE_MS, repriseImage = DISPARU_INTRO_REPRISE_IMAGE),
+    /**
+     * Game Show, le Chrono de Buzzy : la musique sous sa vidéo d'intro (cedric, 31/10) : Hung Up, son début une fois puis
+     * 15,35 s qui tournent ; le fichier est déjà mixé à ×0,5 (−19,5 LUFS), son ambiance le joue tel quel.
+     */
+    CHRONO_INTRO(null, "gs_chrono_intro", repriseMs = CHRONO_INTRO_REPRISE_MS, repriseImage = CHRONO_INTRO_REPRISE_IMAGE),
     /** Game Show, Coffres mystères : la boucle sous sa vidéo d'intro (cedric, 29/10 : « parfaite ») : Pirates des Caraïbes, 13,62 s, −12 LUFS. */
     COFFRES_INTRO(null, "gs_coffres_intro"),
     /**
@@ -896,6 +909,8 @@ enum class Ambiance(
     ZOOM_PRESENTATION(gameShow = mapOf(Lit.ZOOM_INTRO to 0.5f)),
     /** Présentation de Qui a disparu ? (Game Show) : Mission Impossible, au volume de la boucle « fête ». */
     DISPARU_PRESENTATION(gameShow = mapOf(Lit.DISPARU_INTRO to 0.5f)),
+    /** Présentation du Chrono de Buzzy (Game Show) : Hung Up, fichier déjà à ×0,5 comme les autres intros (donc 1 ici). */
+    CHRONO_PRESENTATION(gameShow = mapOf(Lit.CHRONO_INTRO to 1f)),
     /** Présentation des Coffres mystères (Game Show) : Pirates des Caraïbes, au volume de la boucle « fête ». */
     COFFRES_PRESENTATION(gameShow = mapOf(Lit.COFFRES_INTRO to 0.5f)),
     /** Présentation du Quiz (Game Show) : Questions pour un champion, au volume de la boucle « fête ». */
@@ -959,7 +974,7 @@ enum class Ambiance(
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
             Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
-            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PICTO_INTRO, Lit.SIMON_INTRO, Lit.PODIUM_ATTENTE -> 0f
+            Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.CHRONO_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PICTO_INTRO, Lit.SIMON_INTRO, Lit.PODIUM_ATTENTE -> 0f
         }
     }
 }
