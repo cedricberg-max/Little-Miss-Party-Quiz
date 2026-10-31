@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv
 import com.littlemissparty.quiz.tv.habillage.PART_MOT_MAX
 import com.littlemissparty.quiz.tv.habillage.PART_MOT_MIN
 import com.littlemissparty.quiz.tv.habillage.partageMotPhrase
+import com.littlemissparty.quiz.tv.habillage.partageMotPhraseTient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -45,5 +46,23 @@ class JeuxAuBuzzerTextesTest {
         val une = mutableListOf<Float>()
         partageMotPhrase(50, 80f) { part -> une += part; Triple(26f, 16f, false) }
         assertEquals("cadre plus petit que les marges : un seul essai", 1, une.size)
+    }
+
+    @Test
+    fun `le partage dit si la phrase tient, pour passer en mode compact sinon`() {
+        assertTrue(partageMotPhraseTient(600, 80f) { Triple(90f, 34f, true) }.third)
+        val r = partageMotPhraseTient(150, 80f) { part -> Triple(100f * part, 16f, false) }
+        assertFalse("la phrase ne tient pas : le panneau passe en compact", r.third)
+    }
+
+    @Test
+    fun `qui suis-je a 4 equipes, panneau bas, la phrase reste a l'ecran`() {
+        // CI du 31/10 : « Personne n'a trouvé, ce n'est pas grave ! » poussée sous le panneau. En compact, « C'était : » et le
+        // trait de néon laissent leur place ; le mot et la phrase restent.
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/RevelationNeon.kt").readText()
+        assertTrue(source.contains("if (!compacte) Text(\n                    etiquette"))
+        assertTrue(source.contains("if (!compacte) Canvas("))
+        val phrase = source.substringAfter("// Filigrane A derrière la phrase").substringBefore("\n}\n")
+        assertFalse("la phrase ne dépend pas du mode compact", phrase.contains("compacte"))
     }
 }
