@@ -95,18 +95,13 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
         // Halo de la couleur de l'équipe qui joue, qui respire doucement derrière la carte.
         if (team != null) TeamGlow(team.color.toColor())
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "MIMES",
-                    color = Palette.Night, fontSize = 20.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp,
-                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Neon.Or).padding(horizontal = 16.dp, vertical = 4.dp),
-                )
+            if (team != null) EnTeteTour(state, team) else Row(verticalAlignment = Alignment.CenterVertically) {
+                BadgeMimes()
                 Spacer(Modifier.width(14.dp))
                 Text(
                     sousTitreMimes(state.question?.text).orEmpty(), color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
-                if (team != null) MimeCountdown(state)
             }
             Spacer(Modifier.height(8.dp))
             // Le bandeau des équipes est mesuré d'abord : ses boutons gardent toujours leur hauteur (cedric, 24/10 :
@@ -130,20 +125,56 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
     }
 }
 
-/** Tour en cours : « Au tour des Licornes ! », la carte en très grand et le compteur de mimes trouvés. */
+@Composable
+private fun BadgeMimes() = Text(
+    "MIMES",
+    color = Palette.Night, fontSize = 20.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp,
+    modifier = Modifier.clip(RoundedCornerShape(50)).background(Neon.Or).padding(horizontal = 16.dp, vertical = 4.dp),
+)
+
+/**
+ * En-tête pendant un tour : le badge et le thème à gauche, « Au tour de » puis le nom de l'équipe dans sa couleur au
+ * milieu de l'écran (n° 18 du 31/10 : plus de « Au tour de Les… »), le chrono à droite. Le nom loge dans la hauteur du
+ * chrono : la carte garde toute sa taille, de 1 à 8 équipes (rien ne rapetisse ni ne déborde).
+ */
+@Composable
+private fun EnTeteTour(state: UiState.Playing, team: Team) {
+    val couleur = team.color.toColor()
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val centre = maxWidth * PART_NOM_EN_TETE
+        val cote = (maxWidth - centre) / 2
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.width(cote), verticalAlignment = Alignment.CenterVertically) {
+                BadgeMimes()
+                Spacer(Modifier.width(14.dp))
+                // Thème du paquet : sur deux lignes et plus petit s'il est long, jamais « … ».
+                TexteAjuste(
+                    sousTitreMimes(state.question?.text).orEmpty(), color = Palette.InkSoft, max = 22.sp, min = 14.sp,
+                    lignes = 2, fontWeight = FontWeight.Bold, textAlign = TextAlign.Start, modifier = Modifier.weight(1f),
+                )
+            }
+            // Posés sur le décor « comme les jauges ».
+            Column(Modifier.width(centre), horizontalAlignment = Alignment.CenterHorizontally) {
+                TexteJauge("Au tour de", color = Palette.Ink, fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                TexteAjuste(
+                    team.name, color = couleur, max = 30.sp, min = 18.sp, lignes = 1, jauge = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Box(Modifier.width(cote), contentAlignment = Alignment.CenterEnd) { MimeCountdown(state) }
+        }
+    }
+}
+
+/** Largeur du nom de l'équipe au milieu de l'en-tête (part de la largeur). */
+internal const val PART_NOM_EN_TETE = 0.44f
+
+/** Tour en cours : la carte en très grand et le compteur de mimes trouvés (« Au tour de… » est dans l'en-tête). */
 @Composable
 private fun Turn(state: UiState.Playing, m: MimeUi, team: Team, modifier: Modifier = Modifier) {
     val color = team.color.toColor()
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.reduitSiTropHaut(), horizontalAlignment = Alignment.CenterHorizontally) {
-            // « Au tour de » seul, puis le nom de l'équipe dans sa couleur (n° 18 du 31/10 : plus de « Au tour de Les… »),
-            // posés sur le décor « comme les jauges ».
-            TexteJauge("Au tour de", color = Palette.Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            TexteAjuste(
-                team.name, color = color, max = 30.sp, min = 18.sp, lignes = 1, jauge = true,
-                modifier = Modifier.fillMaxWidth(0.9f),
-            )
-            Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                 MimeCardView(m, color, state.images)
                 FoundCounter(m.found)

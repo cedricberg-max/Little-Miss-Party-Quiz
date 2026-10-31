@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv.habillage
 
 import androidx.compose.ui.graphics.Color
+import com.littlemissparty.quiz.tv.PART_NOM_EN_TETE
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -60,6 +61,12 @@ class ContourJaugeTest {
         val s = source("MimeScreens.kt")
         assertFalse(s.contains("\"Au tour de \${"))
         assertTrue(s.contains("TexteJauge(\"Au tour de\""))
-        assertTrue(s.contains("team.name, color = color"))
+        assertTrue(s.contains("team.name, color = couleur"))
+        // Dans l'en-tête, à la hauteur du chrono : la carte du tour ne rapetisse pas (Mimes rognés à 4 équipes, 31/10).
+        val enTete = s.substringAfter("private fun EnTeteTour(").substringBefore("\n}\n")
+        assertTrue(enTete.contains("TexteJauge(\"Au tour de\"") && enTete.contains("MimeCountdown(state)"))
+        val tour = s.substringAfter("private fun Turn(").substringBefore("\n}\n")
+        assertFalse(tour.contains("Au tour de"))
+        assertTrue(PART_NOM_EN_TETE in 0.3f..0.5f)
     }
 }
