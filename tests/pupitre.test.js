@@ -772,16 +772,16 @@ describe("pupitre", () => {
     const simon = (sm) => question({ qid: "s1", kind: "simon", text: "Le Simon de Buzzy", choices: null, deadline: null, durationMs: null,
       simon: { tour: 1, tours: 3, suite: 4, step: "ready", key: null, teams: [r, b], players: { [r]: 2, [b]: 1 }, chiffres: false, ...sm } });
     await hostState(simon({}));
-    await roses.locator(".sm-texte", { hasText: "Prochaine suite : joueur 2, prépare-toi !" }).waitFor();
+    await roses.locator(".sm-texte", { hasText: "Prochaine série : joueur 2, prépare-toi !" }).waitFor();
     await verts.locator(".sm-texte", { hasText: "Vous jouerez au prochain tour." }).waitFor();
     // Les chiffres débarquent, puis le robot montre la suite : on regarde la TV, rien à toucher.
     const t = Date.now();
     await hostState(simon({ step: "play", key: "s1-1-4-100", startAt: t, chiffresAt: t, montreAt: t + 2_500, reponseAt: t + 4_500, finAt: t + 60_000, chiffres: true }));
     await roses.locator(".sm-titre", { hasText: "Attention, les chiffres débarquent !" }).waitFor();
-    await roses.locator(".sm-titre", { hasText: "Regarde bien la TV…" }).waitFor({ timeout: 5_000 });
+    await roses.locator(".sm-titre", { hasText: "Regarde et retiens bien les couleurs…" }).waitFor({ timeout: 5_000 });
     assert.equal(await roses.locator(".sm-pave").isVisible(), false, "rien à toucher pendant que le robot montre");
     // Le chrono part : le joueur appelé tape, chaque appui part en direct vers la TV.
-    await roses.locator(".sm-titre", { hasText: "À toi ! Tape la suite" }).waitFor({ timeout: 5_000 });
+    await roses.locator(".sm-titre", { hasText: "À toi ! Tape les couleurs" }).waitFor({ timeout: 5_000 });
     await roses.locator(".sm-joueur", { hasText: "C'est au tour du joueur 2" }).waitFor();
     assert.equal(await roses.locator(".sm-chiffres").isVisible(), true, "les chiffres sont là");
     assert.equal(await verts.locator(".sm-pave").isVisible(), false, "pas du tour : on regarde");
@@ -792,14 +792,14 @@ describe("pupitre", () => {
     await roses.locator(".sm-boule[data-item=bleu]").dispatchEvent("pointerdown");
     await roses.locator(".sm-effacer").dispatchEvent("pointerdown");
     for (const item of ["vert", "jaune", "4"]) await roses.locator(`.sm-touche[data-item="${item}"]`).dispatchEvent("pointerdown");
-    await roses.locator(".sm-compte", { hasText: "Ta suite (4/4)" }).waitFor();
+    await roses.locator(".sm-compte", { hasText: "Tes couleurs (4/4)" }).waitFor();
     assert.equal(await roses.locator(".sm-touche[data-item=orange]").isDisabled(), true, "suite complète : plus d'appui");
     await roses.locator(".sm-valider").dispatchEvent("pointerdown");
     await waitFor(async () => (await read(`simon/s1-1-4-100/${r}`))?.ok === true, "suite validée");
     const envoi = await read(`simon/s1-1-4-100/${r}`);
     assert.equal(envoi.items, "rouge,vert,jaune,4");
     assert.equal(typeof envoi.at, "number");
-    await roses.locator(".sm-titre", { hasText: "Suite envoyée !" }).waitFor();
+    await roses.locator(".sm-titre", { hasText: "Couleurs envoyées !" }).waitFor();
     // Jugée : la TV vérifie colonne par colonne, la tablette attend avant de dire le résultat.
     const verdict = { suite: 4, solution: "rouge,vert,jaune,4", wrong: [b], winners: [r], points: 300, at: Date.now() };
     await hostState(simon({ step: "won", out: { [b]: 4 }, verdict }));
@@ -814,7 +814,7 @@ describe("pupitre", () => {
     // Nouvelle suite : nouvelle clé, la saisie repart de zéro.
     const t2 = Date.now();
     await hostState(simon({ step: "play", suite: 1, key: "s1-1-1-200", startAt: t2 - 4_000, montreAt: t2 - 2_000, reponseAt: t2 - 1_000, finAt: t2 + 60_000 }));
-    await roses.locator(".sm-compte", { hasText: "Ta suite (0/1)" }).waitFor();
+    await roses.locator(".sm-compte", { hasText: "Tes couleurs (0/1)" }).waitFor();
     // Que des couleurs (cedric, 29/10) : pas de chiffres, les 8 boules prennent la place, entières, droit comme couché.
     assert.equal(await roses.locator(".sm-chiffres").isVisible(), false, "plus de chiffres");
     const FORMATS = { "téléphone droit": [390, 844, 70], "téléphone couché": [844, 390, 60], "tablette posée": [1280, 800, 150], "tablette droite": [800, 1280, 150] };

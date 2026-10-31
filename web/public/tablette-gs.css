@@ -240,6 +240,124 @@ body.look-gs:not(.regie-mode) .pc-titre { text-shadow: 0 0 2px rgba(5, 1, 13, .9
 body.look-gs:not(.regie-mode) .pc-chez-moi .pc-titre { text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 18px rgba(var(--rouge), .95), 0 0 36px rgba(var(--rouge), .95); }
 body.look-gs:not(.regie-mode) .pc-texte { color: #fff; text-shadow: var(--tg-halo); }
 
+/* ---------- Écran 7 : Simon et Gonfleur fou ---------- */
+/* Simon : textes plus grands ; la zone de la suite tapée n'a plus de fond sombre ; « Effacer » et « Valider » en
+   boutons bonbon (violet / vert). Les boules et les chiffres ne changent pas. */
+body.look-gs:not(.regie-mode) #app .sm-joueur { font-size: clamp(17px, min(4vw, 3vh), 32px); color: #fff7a8; text-shadow: var(--tg-halo), 0 0 14px var(--gs-jaune); }
+body.look-gs:not(.regie-mode) #app .sm-titre { font-family: "GS Bungee"; font-weight: 400; font-size: clamp(28px, min(7.4vw, 5.6vh), 70px); text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 20px var(--gs-cyan), 0 0 40px var(--gs-cyan); }
+body.look-gs:not(.regie-mode) #app .sm-texte { font-size: clamp(18px, min(4.2vw, 3.4vh), 34px); color: #fff; text-shadow: var(--tg-halo); }
+body.look-gs:not(.regie-mode) .sm-bas { background: none; box-shadow: none; padding: 6px 0 0; }
+body.look-gs:not(.regie-mode) #app .sm-compte { font-size: clamp(16px, min(3.8vw, 3vh), 30px); color: #fff; text-shadow: var(--tg-halo); }
+body.look-gs:not(.regie-mode) .sm-vide { border: 3px dashed rgba(255, 255, 255, .55); box-shadow: 0 0 10px rgba(0, 240, 255, .25); }
+body.look-gs:not(.regie-mode) .sm-actions button { font-family: "GS Orbitron"; font-weight: 800; border: 0; color: #fff; min-height: clamp(60px, 7vh, 96px); font-size: clamp(18px, min(4.4vw, 3.2vh), 32px); transition: transform .08s; }
+body.look-gs:not(.regie-mode) .sm-effacer {
+  background: linear-gradient(180deg, #b38cff 0%, #8b2cff 45%, #5a17b0 100%); text-shadow: 0 2px 0 rgba(40, 0, 80, .6);
+  box-shadow: 0 6px 0 #3d0c80, 0 10px 22px rgba(139, 44, 255, .45), inset 0 2px 0 rgba(255, 255, 255, .6);
+}
+body.look-gs:not(.regie-mode) .sm-valider {
+  background: linear-gradient(180deg, #9dffad 0%, #2bd94a 45%, #168a2c 100%); text-shadow: 0 2px 0 rgba(0, 60, 15, .6);
+  box-shadow: 0 6px 0 #0d5a1c, 0 10px 22px rgba(43, 217, 74, .45), inset 0 2px 0 rgba(255, 255, 255, .7);
+}
+body.look-gs:not(.regie-mode) .sm-valider.sm-pret { box-shadow: 0 6px 0 #0d5a1c, 0 0 0 3px #fff, 0 0 30px rgba(43, 217, 74, .8), inset 0 2px 0 rgba(255, 255, 255, .7); }
+body.look-gs:not(.regie-mode) .sm-actions button:not(:disabled):active { transform: translateY(4px); }
+/* Simon, écrans d'attente (regarder la TV, vérification, autres équipes) : Buzzy au centre, comme sur les autres
+   écrans ; il lève les pouces si l'équipe a gagné, il est déçu si elle est éliminée. Jamais pendant la saisie. */
+body.look-gs:not(.regie-mode) .sm:is([data-etat="attente"], [data-etat="regarde"], [data-etat="chiffres"], [data-etat="continue"], [data-etat="spectateur"], [data-etat="gagne"], [data-etat="elimine"])::before {
+  content: ""; display: block; order: -1; height: clamp(150px, 34vh, 440px); aspect-ratio: 242 / 280;
+  background: url(img/gs/buzzy-suspense.webp) center / contain no-repeat; filter: drop-shadow(0 0 20px rgba(0, 240, 255, .3));
+}
+body.look-gs:not(.regie-mode) .sm[data-etat="gagne"]::before { background-image: url(img/gs/buzzy-pouces.webp); aspect-ratio: 201 / 280; }
+body.look-gs:not(.regie-mode) .sm[data-etat="elimine"]::before { background-image: url(img/gs/buzzy-rate.webp); aspect-ratio: 237 / 280; }
+body.look-gs:not(.regie-mode) #app .sm .sm-titre { margin-top: 0; }
+body.look-gs:not(.regie-mode) .sm-joueur { order: -2; }
+body.look-gs:not(.regie-mode) .sm-bas { width: min(100%, 860px); }
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .sm.sm-a-moi .sm-titre { font-size: 22px; }
+  body.look-gs:not(.regie-mode) #app .sm-joueur { font-size: 15px; }
+  body.look-gs:not(.regie-mode) .sm-actions button { min-height: 52px; font-size: 17px; }
+}
+@media (orientation: landscape) and (min-width: 700px) {
+  /* Couché : « Effacer » et « Valider » l'un sous l'autre dans la colonne de droite, assez larges pour leur mot. */
+  body.look-gs:not(.regie-mode) .sm.sm-a-moi .sm-actions { grid-template-columns: 1fr; }
+  body.look-gs:not(.regie-mode) .sm.sm-a-moi .sm-actions button { font-size: clamp(17px, 2.4vw, 30px); }
+}
+/* Gonfleur : le ballon et la pompe plus grands ; la pompe devient un gros bouton bonbon dans la couleur de l'équipe. */
+body.look-gs:not(.regie-mode) #app .gf-titre { font-size: clamp(26px, min(6.4vw, 5vh), 62px); text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 20px var(--gf-couleur), 0 0 40px var(--gf-couleur); }
+body.look-gs:not(.regie-mode) #app .gf-texte { font-size: clamp(18px, min(4.2vw, 3.4vh), 34px); color: #fff; opacity: 1; text-shadow: var(--tg-halo); max-width: 26em; }
+body.look-gs:not(.regie-mode) .gf-scene { width: min(80vw, 34vh, 420px); height: min(34vh, 420px); }
+body.look-gs:not(.regie-mode) .gf-jauge { width: min(90%, 680px); height: clamp(14px, 1.8vh, 24px); }
+body.look-gs:not(.regie-mode) #app .gf-pompe {
+  width: min(60vw, 32vh, 360px); font-size: clamp(26px, min(7vw, 5vh), 56px); color: #fff;
+  background: radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--gf-couleur) 45%, #fff) 0%, var(--gf-couleur) 45%, color-mix(in srgb, var(--gf-couleur) 65%, #000) 100%);
+  box-shadow: 0 10px 0 color-mix(in srgb, var(--gf-couleur) 45%, #000), 0 0 0 4px #fff, 0 0 40px var(--gf-couleur), inset 0 4px 0 rgba(255, 255, 255, .55), inset 0 -10px 24px rgba(0, 0, 0, .25);
+  text-shadow: 0 0 2px rgba(5, 1, 13, .95), 0 2px 4px rgba(5, 1, 13, .8);
+}
+body.look-gs:not(.regie-mode) #app .gf-pompe.gf-appui { animation: tg-pompe .12s ease-out; }
+@keyframes tg-pompe { 50% { transform: translateY(8px) scale(.96); box-shadow: 0 2px 0 color-mix(in srgb, var(--gf-couleur) 45%, #000), 0 0 0 4px #fff, 0 0 60px var(--gf-couleur), inset 0 4px 0 rgba(255, 255, 255, .55); } }
+@media (orientation: landscape) {
+  body.look-gs:not(.regie-mode) .gf-scene { width: min(80vw, 30vh, 420px); height: min(30vh, 420px); }
+  body.look-gs:not(.regie-mode) #app .gf-pompe { width: min(34vh, 320px); }
+}
+
+/* ---------- Écran 8 : Pictionary (choix du mot, ardoise, tablettes qui regardent) ---------- */
+/* Choix du mot : plus de carte crème ; l'image garde son carré blanc (elle en a besoin), le mot brille en rose néon
+   sur le décor. Flèches et « Je choisis ce mot ! » en boutons bonbon ; « C'est noté ! » devient un texte, sans pilule. */
+body.look-gs:not(.regie-mode) #app .choix-titre { font-size: clamp(24px, min(6vw, 4.6vh), 56px); color: #e9feff; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 20px var(--gs-cyan), 0 0 40px var(--gs-cyan); }
+body.look-gs:not(.regie-mode) .choix-vue { border-radius: 0; }
+body.look-gs:not(.regie-mode) .choix-carte, body.look-gs:not(.regie-mode) .mot-secret-carte { background: none; box-shadow: none; color: #fff; }
+body.look-gs:not(.regie-mode) .mot-secret-image { background: #fff; border-radius: 26px; box-shadow: 0 0 0 4px #fff, 0 0 0 8px var(--gs-cyan), 0 0 34px rgba(0, 240, 255, .6); }
+body.look-gs:not(.regie-mode) .mot-secret-mot { font-family: "GS Bungee"; font-weight: 400; letter-spacing: 0; color: #ffe3f1; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 22px var(--gs-rose), 0 0 44px var(--gs-rose); }
+body.look-gs:not(.regie-mode) .mot-secret-titre { color: #bffcff; text-shadow: var(--tg-halo), 0 0 14px var(--gs-cyan); }
+body.look-gs:not(.regie-mode) .mot-secret-consigne { color: #fff; opacity: 1; text-shadow: var(--tg-halo); }
+body.look-gs:not(.regie-mode) .choix-fleche, body.look-gs:not(.regie-mode) .choix-valider { font-family: "GS Orbitron"; font-weight: 800; color: #fff; transition: transform .08s; }
+body.look-gs:not(.regie-mode) .choix-fleche {
+  background: linear-gradient(180deg, #ff7ac0 0%, #ff2d95 45%, #ff6b1a 100%); text-shadow: 0 2px 0 rgba(120, 0, 60, .6);
+  box-shadow: 0 5px 0 #a3105a, 0 8px 20px rgba(255, 45, 149, .5), inset 0 2px 0 rgba(255, 255, 255, .7);
+}
+body.look-gs:not(.regie-mode) .choix-valider {
+  background: linear-gradient(180deg, #9dffad 0%, #2bd94a 45%, #168a2c 100%); text-shadow: 0 2px 0 rgba(0, 60, 15, .6);
+  box-shadow: 0 6px 0 #0d5a1c, 0 10px 22px rgba(43, 217, 74, .45), inset 0 2px 0 rgba(255, 255, 255, .7);
+}
+body.look-gs:not(.regie-mode) .choix-fleche:active, body.look-gs:not(.regie-mode) .choix-valider:active { transform: translateY(4px); }
+body.look-gs:not(.regie-mode) .choix-point { background: rgba(255, 255, 255, .4); }
+body.look-gs:not(.regie-mode) .choix-point[aria-current="true"] { background: #fff; box-shadow: 0 0 10px var(--gs-cyan); }
+body.look-gs:not(.regie-mode) .choix-fait .choix-valider { background: none; box-shadow: none; color: #fff; text-shadow: var(--tg-halo), 0 0 16px rgba(43, 217, 74, .8); }
+/* Ardoise : la feuille garde son cadre néon ; le nom de l'équipe et le chrono en haut, en grand, sans fond ; les
+   feutres flottent sans boîte sombre, « Gomme » et « Tout effacer » en boutons bonbon (violet / rose). */
+body.look-gs:not(.regie-mode) #app .draw-head { font-family: "GS Bungee"; font-weight: 400; font-size: clamp(20px, min(4.6vw, 3.6vh), 40px); color: color-mix(in srgb, var(--team) 35%, #fff); text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 4px #fff, 0 0 16px var(--team), 0 0 32px var(--team); }
+body.look-gs:not(.regie-mode) #app .draw-head .timer { font-family: "GS Orbitron"; font-weight: 900; font-size: clamp(32px, min(7vw, 5.4vh), 64px); color: #fff7a8; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 18px var(--gs-jaune), 0 0 34px var(--gs-jaune); }
+body.look-gs:not(.regie-mode) #app .draw-head .timer.urgent { color: #ffd0d8; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 18px #ff2d55, 0 0 34px #ff2d55; }
+body.look-gs:not(.regie-mode) #app .ardoise-titre { font-size: clamp(22px, min(5.4vw, 4vh), 48px); }
+body.look-gs:not(.regie-mode) .ardoise-outils { background: none; box-shadow: none; }
+body.look-gs:not(.regie-mode) .ardoise-feutre { box-shadow: 0 0 0 3px rgba(255, 255, 255, .85), 0 0 14px color-mix(in srgb, var(--feutre) 70%, transparent), 0 4px 8px rgba(0, 0, 0, .5); }
+body.look-gs:not(.regie-mode) .ardoise-epaisseur { background: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, .5), 0 4px 8px rgba(0, 0, 0, .5); }
+body.look-gs:not(.regie-mode) .ardoise-gomme, body.look-gs:not(.regie-mode) .ardoise-effacer { font-family: "GS Orbitron"; font-weight: 800 !important; color: #fff; border-radius: 999px; }
+body.look-gs:not(.regie-mode) .ardoise-gomme {
+  background: linear-gradient(180deg, #b38cff 0%, #8b2cff 45%, #5a17b0 100%) !important; text-shadow: 0 2px 0 rgba(40, 0, 80, .6);
+  box-shadow: 0 5px 0 #3d0c80, 0 8px 18px rgba(139, 44, 255, .45), inset 0 2px 0 rgba(255, 255, 255, .6);
+}
+body.look-gs:not(.regie-mode) .ardoise-gomme[aria-checked="true"] { box-shadow: 0 5px 0 #3d0c80, 0 0 0 3px #fff, 0 0 22px rgba(139, 44, 255, .9), inset 0 2px 0 rgba(255, 255, 255, .6); }
+body.look-gs:not(.regie-mode) .ardoise-effacer {
+  background: linear-gradient(180deg, #ff7ac0 0%, #ff2d95 45%, #ff6b1a 100%); text-shadow: 0 2px 0 rgba(120, 0, 60, .6);
+  box-shadow: 0 5px 0 #a3105a, 0 8px 18px rgba(255, 45, 149, .45), inset 0 2px 0 rgba(255, 255, 255, .7);
+}
+body.look-gs:not(.regie-mode) .ardoise-effacer.confirmer { box-shadow: 0 5px 0 #a3105a, 0 0 0 3px #fff, 0 0 26px rgba(255, 45, 149, .9); }
+body.look-gs:not(.regie-mode) .ardoise-epaisseur::after { box-shadow: 0 0 0 1.5px rgba(27, 16, 53, .35); }
+body.look-gs:not(.regie-mode) #app .ardoise-gomme, body.look-gs:not(.regie-mode) #app .ardoise-effacer { font-size: clamp(16px, min(3.4vw, 2.4vh), 26px); min-height: clamp(48px, 6vh, 72px); }
+body.look-gs:not(.regie-mode) #app .choix-valider { font-size: clamp(20px, min(4.6vw, 3.4vh), 38px); min-height: clamp(58px, 7.4vh, 100px); padding: 0 1.4em; }
+body.look-gs:not(.regie-mode) #app .choix-fleche { width: clamp(52px, 7vh, 88px); height: clamp(52px, 7vh, 88px); font-size: clamp(30px, 4.4vh, 54px); }
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .choix-valider { min-height: 46px; font-size: 18px; }
+  body.look-gs:not(.regie-mode) #app .choix-fleche { width: 44px; height: 44px; font-size: 26px; }
+}
+/* Tablettes qui regardent : titre néon, la phrase du personnage et la ligne du bas en texte blanc sur le décor
+   (plus de bulle blanche ni de pilule). */
+body.look-gs:not(.regie-mode) .sp-titre { font-family: "GS Bungee"; font-weight: 400; letter-spacing: .04em; font-size: clamp(30px, min(7.4vw, 5.6vh), 72px); background: none; color: #e9feff; filter: none; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 20px var(--gs-cyan), 0 0 40px var(--gs-cyan); }
+body.look-gs:not(.regie-mode) .sp-bulle { background: none; box-shadow: none; color: #fff7a8; font-size: clamp(20px, min(4.8vw, 3.8vh), 40px); text-shadow: var(--tg-halo), 0 0 16px rgba(255, 230, 0, .45); max-width: min(94vw, 900px); }
+body.look-gs:not(.regie-mode) .sp-bulle::after { display: none; }
+body.look-gs:not(.regie-mode) .sp-bandeau { background: none; color: #fff; font-size: clamp(18px, min(4.2vw, 3.4vh), 34px); text-shadow: var(--tg-halo); }
+body.look-gs:not(.regie-mode) .sp-scene-zone { width: min(94vw, calc((100vh - 330px) * 1.48), 900px); }
+
 /* ---------- Plus grand, plus présent (cedric, 31/10 07:15 : « un petit peu trop minimisé ») ----------
    Tout grossit avec l'écran (hauteur et largeur), sans jamais sortir des marges : Buzzy, nom de l'équipe, titres,
    consignes, points, réponses. Le palier tablette de style.css (#app …) est repris ici pour passer devant. */
@@ -274,3 +392,55 @@ body.look-gs:not(.regie-mode) #app .double { font-size: clamp(16px, min(3.6vw, 2
 body.look-gs:not(.regie-mode) #app .choices:not(.number) { max-width: 900px; }
 body.look-gs:not(.regie-mode) #app .choice:not(.with-photo) { font-size: clamp(20px, min(4.6vw, 3.4vh), 38px); min-height: clamp(70px, 9vh, 130px); }
 body.look-gs:not(.regie-mode) #app .choice .letter { width: 1.6em; height: 1.6em; font-size: 1em; }
+
+/* ---------- Textes encore plus présents (cedric, 31/10 07:52 : « C'est au tour du joueur 1 » trop petit) ----------
+   Les petits textes (consignes, « Regardez la TV ! », compteurs, joueur, suite) grossissent nettement (environ +30 %),
+   les titres et les noms d'équipe un peu (environ +10 %), pour garder les proportions. Nouvelle référence. */
+body.look-gs:not(.regie-mode) #app .hint { font-size: clamp(22px, min(5.4vw, 4.4vh), 46px); }
+body.look-gs:not(.regie-mode) #app .welcome { font-size: clamp(25px, min(5.8vw, 4.6vh), 50px); }
+body.look-gs:not(.regie-mode) #play-status:not(.fete) { font-size: clamp(26px, min(6.2vw, 5vh), 54px); }
+body.look-gs:not(.regie-mode) #app .team-banner { font-size: clamp(24px, min(6vw, 4.8vh), 56px); }
+body.look-gs:not(.regie-mode) #app .team-banner.small { font-size: clamp(22px, min(5.4vw, 4.4vh), 50px); }
+body.look-gs:not(.regie-mode) #app .logo.small { font-size: clamp(36px, min(8.6vw, 6.4vh), 82px); }
+body.look-gs:not(.regie-mode) #app .intro-jeu-label { font-size: clamp(20px, min(4.6vw, 3.6vh), 40px); }
+body.look-gs:not(.regie-mode) #app .intro-jeu-titre { font-size: clamp(38px, min(9.6vw, 7.4vh), 100px); }
+body.look-gs:not(.regie-mode) #app .result-title { font-size: clamp(28px, min(7vw, 5.4vh), 70px); }
+body.look-gs:not(.regie-mode) #app .total { font-size: clamp(27px, min(6.4vw, 5vh), 62px); }
+body.look-gs:not(.regie-mode) #app ~ .paused p, body.look-gs:not(.regie-mode) .paused p { font-size: clamp(24px, min(6vw, 4.8vh), 50px); }
+body.look-gs:not(.regie-mode) #app .question-head { font-size: clamp(22px, min(5.2vw, 4vh), 44px); }
+body.look-gs:not(.regie-mode) #app .double { font-size: clamp(20px, min(4.6vw, 3.6vh), 40px); }
+body.look-gs:not(.regie-mode) #app .choice:not(.with-photo) { font-size: clamp(22px, min(5vw, 3.8vh), 42px); }
+/* Coffres et bombe. */
+body.look-gs:not(.regie-mode) #app .bc-titre { font-size: clamp(26px, min(6.6vw, 5vh), 64px); }
+body.look-gs:not(.regie-mode) #app .bc-danger { font-size: clamp(20px, min(5.2vw, 4vh), 44px); }
+body.look-gs:not(.regie-mode) #app .bc-texte { font-size: clamp(22px, min(5.4vw, 4.4vh), 44px); }
+body.look-gs:not(.regie-mode) #app .bc-ligne { font-size: clamp(23px, min(5.8vw, 4.4vh), 48px); }
+body.look-gs:not(.regie-mode) #app .pc-titre { font-size: clamp(26px, min(7vw, 5.4vh), 68px); }
+body.look-gs:not(.regie-mode) #app .pc-texte { font-size: clamp(22px, min(5.4vw, 4.4vh), 44px); }
+body.look-gs:not(.regie-mode) #app .pc-compteur { font-size: clamp(20px, min(5.2vw, 4vh), 42px); }
+body.look-gs:not(.regie-mode) #resume-count p { font-size: clamp(25px, min(6.2vw, 5vh), 54px); }
+/* Simon et Gonfleur. */
+body.look-gs:not(.regie-mode) #app .sm-joueur { font-size: clamp(21px, min(5.4vw, 4vh), 44px); }
+body.look-gs:not(.regie-mode) #app .sm-titre { font-size: clamp(30px, min(8vw, 6vh), 76px); }
+body.look-gs:not(.regie-mode) #app .sm-texte { font-size: clamp(22px, min(5.4vw, 4.4vh), 44px); }
+body.look-gs:not(.regie-mode) #app .sm-compte { font-size: clamp(20px, min(5vw, 3.8vh), 40px); }
+body.look-gs:not(.regie-mode) #app .gf-titre { font-size: clamp(28px, min(7vw, 5.4vh), 68px); }
+body.look-gs:not(.regie-mode) #app .gf-texte { font-size: clamp(22px, min(5.4vw, 4.4vh), 44px); }
+/* Pictionary. */
+body.look-gs:not(.regie-mode) #app .choix-titre { font-size: clamp(26px, min(6.6vw, 5vh), 62px); }
+body.look-gs:not(.regie-mode) #app .draw-head { font-size: clamp(22px, min(5.2vw, 4vh), 46px); }
+body.look-gs:not(.regie-mode) #app .mot-secret-consigne, body.look-gs:not(.regie-mode) #app .mot-secret-titre { font-size: clamp(20px, min(5vw, 3.8vh), 40px); }
+body.look-gs:not(.regie-mode) .sp-bulle { font-size: clamp(23px, min(5.8vw, 4.4vh), 48px); }
+body.look-gs:not(.regie-mode) .sp-bandeau { font-size: clamp(22px, min(5.4vw, 4.4vh), 44px); }
+@media (orientation: landscape) { body.look-gs:not(.regie-mode) #app .question-head { max-width: min(100%, 1240px); } }
+/* « C'est au tour du joueur 2 », « Tes couleurs (0/4) » et la suite tapée : centrés (cedric, 31/10 08:30), pas collés à droite. */
+body.look-gs:not(.regie-mode) #app .sm-joueur { align-self: center; justify-self: center; text-align: center; }
+body.look-gs:not(.regie-mode) #app .sm-compte { text-align: center; }
+body.look-gs:not(.regie-mode) .sm-suite { justify-content: center; }
+/* Téléphone couché (très peu de hauteur) : on reste lisible sans déborder. */
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .hint { font-size: 19px; }
+  body.look-gs:not(.regie-mode) #app .sm-joueur { font-size: 17px; }
+  body.look-gs:not(.regie-mode) #app .sm.sm-a-moi .sm-titre { font-size: 22px; }
+  body.look-gs:not(.regie-mode) #app .sm-compte { font-size: 17px; }
+}
