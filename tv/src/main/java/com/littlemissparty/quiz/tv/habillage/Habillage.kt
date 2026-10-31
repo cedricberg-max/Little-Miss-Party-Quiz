@@ -196,6 +196,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         buzzs = s.funTotal,
         premiere = s.index == 0,
         superFinale = s.question?.double == true,
+        annonceFacteur = s.question?.double == true && s.introUntil != null,
         gagnants = if (s.phase == Phase.REVEAL) s.awards.values.count { it.points > 0 } else 0,
         meneurAPoints = (s.ranking.firstOrNull()?.second ?: 0) > 0,
         trouves = s.mime?.takeIf { it.team != null }?.found ?: 0,

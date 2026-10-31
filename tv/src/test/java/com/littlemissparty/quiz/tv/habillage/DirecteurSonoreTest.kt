@@ -186,6 +186,38 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show, annonce x N (choix C du 31-10), roulement qui monte puis le boum pile sur x N, la musique repart avec lui`() {
+        // Le même pour ×2, ×3, ×4 et ×5 : le chiffre ne change pas les sons de l'annonce.
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true))
+        d.observer(q2.copy(gameShow = true, propositions = 4))
+        val o = d.observer(q2.copy(index = 8, superFinale = true, annonceFacteur = true, gameShow = true, propositions = 4))
+        val jouer = o.filterIsInstance<Ordre.Jouer>()
+        assertTrue(Ordre.Jouer(Son.ROULEMENT_LONG) in o && Ordre.Jouer(Son.MONTEE) in o)
+        assertEquals(Tempo.ANNONCE_FACTEUR_BOUM, jouer.single { it.son == Son.IMPACT }.dansMs)
+        // Rien d'autre pendant l'annonce : ni bulles (les propositions sont cachées dessous), ni cuivres.
+        assertFalse(jouer.any { it.son == Son.BT_DOUBLE || it.son.name.startsWith("POP") })
+        val musiques = o.filterIsInstance<Ordre.Musique>()
+        assertEquals(Ambiance.SILENCE, musiques.first().ambiance)
+        assertEquals(Ordre.Musique(Ambiance.DECISIVE, Tempo.ANNONCE_FACTEUR_BOUM), musiques.last())
+        // Zoom : la photo et sa montée attendent la fin de l'annonce ; quiz musical : le boum aussi, le disque après.
+        val dz = DirecteurSonore()
+        dz.observer(q2.copy(gameShow = true))
+        val zoom = dz.observer(q2.copy(index = 8, superFinale = true, annonceFacteur = true, gameShow = true, zoom = true, chronoMs = 20_000))
+        assertEquals(Tempo.PROPOSITIONS_DEBUT + ANNONCE_MULTIPLICATEUR_MS, zoom.filterIsInstance<Ordre.Jouer>().single { it.son == Son.FLOU_MONTEE }.dansMs)
+        val d2 = DirecteurSonore()
+        d2.observer(q2.copy(gameShow = true))
+        val musical = d2.observer(q2.copy(index = 8, superFinale = true, annonceFacteur = true, gameShow = true, musical = true, quizMusical = true))
+        assertEquals(Tempo.ANNONCE_FACTEUR_BOUM, musical.filterIsInstance<Ordre.Jouer>().single { it.son == Son.IMPACT }.dansMs)
+        assertEquals(ANNONCE_MULTIPLICATEUR_MS, musical.filterIsInstance<Ordre.Jouer>().single { it.son == Son.BT_DIAMANT }.dansMs)
+        // Jeux au buzzer (pas d'annonce plein écran) : l'impact d'avant, tout de suite.
+        val d3 = DirecteurSonore()
+        d3.observer(q2.copy(gameShow = true))
+        val buzz = d3.observer(q2.copy(index = 8, superFinale = true, gameShow = true, jeuBuzz = true))
+        assertEquals(0L, buzz.filterIsInstance<Ordre.Jouer>().single { it.son == Son.IMPACT }.dansMs)
+    }
+
+    @Test
     fun `Game Show, le classement en cours de partie n'a que sa musique, sans compteur ni couronne du Classique`() {
         val d = DirecteurSonore()
         d.observer(q2.copy(gameShow = true))

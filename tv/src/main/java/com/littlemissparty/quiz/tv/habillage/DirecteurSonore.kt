@@ -159,6 +159,8 @@ class DirecteurSonore {
                 } else if (i.musical) {
                     // La chanson part dès l'ouverture : aucun jingle par-dessus (le rideau, lui, passe quand même).
                     o += Ordre.Musique(Ambiance.SILENCE)
+                    // Super Finale du quiz musical : l'annonce « × N » a sa montée et son boum, la chanson part ensuite.
+                    if (i.gameShow && i.annonceFacteur && i.superFinale && !p.superFinale) annonceFacteurC(o, musique = null)
                     // Blind test : son générique court à la présentation, un éclat de cuivres au passage en points doublés.
                     if (i.blindPresentation) o += Ordre.Jouer(Son.BT_GENERIQUE)
                     // Game Show : la musique d'attente sous « Lancer le morceau », après le générique s'il passe.
@@ -168,6 +170,11 @@ class DirecteurSonore {
                     o += Ordre.Jouer(Son.TRANSITION)
                     o += Ordre.Musique(Ambiance.SILENCE)
                     o += Ordre.Musique(musique, Tempo.TRANSITION_MUSIQUE)
+                } else if (i.superFinale && !p.superFinale && i.gameShow && i.annonceFacteur) {
+                    // Game Show, annonce « × N » plein écran (choix C de cedric, 31/10) : la musique se tait, un roulement de
+                    // tambour et une montée pendant « DERNIÈRES QUESTIONS », le boum pile quand « × N » apparaît, puis la
+                    // musique des questions (avec sa nappe de tension) repart sur le boum.
+                    annonceFacteurC(o, musique)
                 } else if (i.superFinale && !p.superFinale) {
                     // Les dernières questions du quiz passent à points ×2 : un éclat « points doublés », une seule fois.
                     // Ce n'est pas un nouveau jeu : ni rideau ni jingle de manche. Game Show : un impact, pas les cuivres
@@ -187,16 +194,20 @@ class DirecteurSonore {
                     o += Ordre.Jouer(Son.WHOOSH)
                     o += Ordre.Musique(musique)
                 }
+                // Annonce « × N » plein écran : le chrono, la photo et la chanson ne partent qu'après elle.
+                val annonce = i.gameShow && i.annonceFacteur && i.superFinale && !p.superFinale
+                val apresAnnonce = if (annonce) ANNONCE_MULTIPLICATEUR_MS else 0L
                 // Zoom mystère : moteur d'objectif et déclic quand la photo apparaît.
-                if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT)
+                if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT + apresAnnonce)
                 // Image floue et Zoom mystère : une longue montée accompagne la photo qui se précise (ou se dézoome).
                 // Elle dure tout le chrono (cedric, 25/10 : à l'Image floue, 30 s de montée pour 40 s de chrono).
-                if (i.flou || i.zoom) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT, etireSurMs = (i.chronoMs - Tempo.PROPOSITIONS_DEBUT).coerceAtLeast(0))
+                if (i.flou || i.zoom) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT + apresAnnonce, etireSurMs = (i.chronoMs - Tempo.PROPOSITIONS_DEBUT).coerceAtLeast(0))
                 // Extrait musical (blind test, quiz musical) : le diamant se pose sur le disque quand la chanson part.
                 // Blind test : seulement quand la chanson part vraiment (pas pendant la présentation).
-                if (i.musical && (!i.blind || i.blindLecture)) o += Ordre.Jouer(Son.BT_DIAMANT)
-                // Une bulle par proposition affichée ; les jeux au buzzer n'en affichent aucune.
-                val bulles = if (i.jeuBuzz || i.blind) 0 else i.propositions.coerceIn(0, 8)
+                if (i.musical && (!i.blind || i.blindLecture)) o += Ordre.Jouer(Son.BT_DIAMANT, apresAnnonce)
+                // Une bulle par proposition affichée ; les jeux au buzzer n'en affichent aucune, ni l'annonce « × N »
+                // (les propositions sont cachées dessous).
+                val bulles = if (i.jeuBuzz || i.blind || annonce) 0 else i.propositions.coerceIn(0, 8)
                 for (k in 0 until bulles) {
                     o += Ordre.Jouer(Son.pop(k), Tempo.propositionApparait(k))
                 }
@@ -470,6 +481,20 @@ class DirecteurSonore {
         return o
     }
 
+    /**
+     * Annonce « × N » des points multipliés (choix C de cedric, 31/10) : silence, roulement de tambour et montée pendant
+     * « DERNIÈRES QUESTIONS » (2 s), le boum pile quand « × N » apparaît ([Tempo.ANNONCE_FACTEUR_BOUM]), puis [musique]
+     * repart sur le boum (null : rien, le quiz musical attend sa chanson).
+     */
+    private fun annonceFacteurC(o: MutableList<Ordre>, musique: Ambiance?) {
+        o += Ordre.Jouer(Son.WHOOSH)
+        o += Ordre.Musique(Ambiance.SILENCE)
+        o += Ordre.Jouer(Son.ROULEMENT_LONG)
+        o += Ordre.Jouer(Son.MONTEE)
+        o += Ordre.Jouer(Son.IMPACT, Tempo.ANNONCE_FACTEUR_BOUM)
+        if (musique != null) o += Ordre.Musique(musique, Tempo.ANNONCE_FACTEUR_BOUM)
+    }
+
     private fun tousOntRepondu(i: Instant) = i.equipes > 0 && i.reponses >= i.equipes
 
     private fun ambiance(i: Instant) = when (i.ecran) {
@@ -558,6 +583,11 @@ data class Instant(
     val buzzs: Int = 0,
     val premiere: Boolean = false,
     val superFinale: Boolean = false,
+    /**
+     * Première question à points multipliés avec son annonce « × N » plein écran (quiz, Vrai ou Faux, Zoom, quiz musical ;
+     * pas les jeux au buzzer) : roulement qui monte, puis le boum pile sur « × N » (choix C de cedric, 31/10).
+     */
+    val annonceFacteur: Boolean = false,
     /** Équipes qui marquent des points à cette révélation. */
     val gagnants: Int = 0,
     val meneurAPoints: Boolean = false,
@@ -1179,6 +1209,8 @@ object Tempo {
     /** Durée de l'animation du générique sur le salon. */
     const val GENERIQUE_ANIMATION = 9_000L
     const val QUESTION_MUSIQUE_APRES_MANCHE = 1_500L
+    /** Annonce « × N » : le boum tombe quand « × N » apparaît (AnnonceMultiplicateur, apparition à 2 s). */
+    const val ANNONCE_FACTEUR_BOUM = 2_000L
     const val PROPOSITIONS_DEBUT = 350L
     const val PROPOSITIONS_PAS = 150L
     const val REVELATION_ETEINT = 1_000L
