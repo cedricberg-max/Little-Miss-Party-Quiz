@@ -35,8 +35,8 @@ class PlaqueAppelTest {
 
     @Test
     fun `la bombe - trois appels, le mot et la petite ligne`() {
-        assertEquals("ATTENTION !" to "une nouvelle bombe arrive", appelBombe(annonce = true, secondes = 2))
-        assertEquals("VITE !" to "envoyez la bombe ! Elle explose dans 2…", appelBombe(annonce = false, secondes = 2))
+        assertEquals("ATTENTION !" to "une nouvelle bombe arrive", appelBombe(annonce = true, secondes = 2L))
+        assertEquals("VITE !" to "envoyez la bombe ! Elle explose dans 2…", appelBombe(annonce = false, secondes = 2L))
         assertEquals("VITE !" to "envoyez la bombe à une autre équipe sur votre tablette", appelBombe(annonce = false, secondes = null))
     }
 

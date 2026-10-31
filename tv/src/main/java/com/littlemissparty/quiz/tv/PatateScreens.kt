@@ -137,7 +137,7 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
 }
 
 /** Game Show : le mot et la petite ligne de l'onglet de la bombe (nouvelle bombe, compte à rebours, sinon l'appel). */
-internal fun appelBombe(annonce: Boolean, secondes: Int?): Pair<String, String> = when {
+internal fun appelBombe(annonce: Boolean, secondes: Long?): Pair<String, String> = when {
     annonce -> "ATTENTION !" to "une nouvelle bombe arrive"
     secondes != null -> "VITE !" to "envoyez la bombe ! Elle explose dans $secondes…"
     else -> "VITE !" to "envoyez la bombe à une autre équipe sur votre tablette"
