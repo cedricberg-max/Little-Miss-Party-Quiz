@@ -194,6 +194,52 @@ body.look-gs:not(.regie-mode) .countdown div {
   text-shadow: 0 0 4px #fff, 0 0 26px var(--gs-rose), 0 0 60px var(--gs-rose), 0 0 3px rgba(5, 1, 13, .9);
 }
 
+/* ---------- Écran 6 : Coffres mystères et « Ça va exploser ! » ---------- */
+/* Coffres : « À vous, les Roses ! » brille dans la couleur de l'équipe, sans pastille ; « La bombe est cachée ! » en
+   rouge braise, sans pastille ; les coffres un peu plus grands sur tablette. */
+body.look-gs:not(.regie-mode) .bc-titre { color: #e9feff; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 18px var(--gs-cyan), 0 0 36px var(--gs-cyan); }
+body.look-gs:not(.regie-mode) .bc-titre.bc-equipe {
+  background: none; box-shadow: none; padding: 0 6px; color: color-mix(in srgb, var(--eq) 35%, #fff);
+  text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 18px var(--eq), 0 0 38px var(--eq);
+}
+body.look-gs:not(.regie-mode) .bc-danger {
+  background: none; box-shadow: none; padding: 0 4px; animation: tg-braise 2.4s ease-in-out infinite; color: #ffd6dc;
+  text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 16px #ff3b5c, 0 0 32px #ff3b5c;
+}
+@keyframes tg-braise { 50% { text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 8px #fff, 0 0 24px #ff3b5c, 0 0 48px #ff3b5c; } }
+body.look-gs:not(.regie-mode) .bc-texte { opacity: 1; color: #fff; text-shadow: var(--tg-halo); }
+@media (min-width: 700px) and (min-height: 700px) {
+  body.look-gs:not(.regie-mode) .bc-rangee .bc-case { max-width: 150px; }
+}
+body.look-gs:not(.regie-mode) .bc-titre.bc-equipe { animation: tg-eq-souffle 2.2s ease-in-out infinite alternate; }
+@keyframes tg-eq-souffle { to { text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 8px #fff, 0 0 26px var(--eq), 0 0 52px var(--eq); } }
+/* Tailles de référence (31/10) pour les Coffres et la Bombe. */
+body.look-gs:not(.regie-mode) #app .bc-titre { font-size: clamp(24px, min(6vw, 4.6vh), 58px); }
+body.look-gs:not(.regie-mode) #app .bc-danger { font-size: clamp(16px, min(4vw, 3vh), 34px); }
+body.look-gs:not(.regie-mode) #app .bc-texte { font-size: clamp(18px, min(4.2vw, 3.4vh), 34px); max-width: 26em; }
+body.look-gs:not(.regie-mode) #app .bc-ligne { font-size: clamp(20px, min(5vw, 3.8vh), 40px); }
+body.look-gs:not(.regie-mode) #app .pc-titre { font-size: clamp(24px, min(6.4vw, 5vh), 62px); }
+body.look-gs:not(.regie-mode) #app .pc-texte { font-size: clamp(18px, min(4.2vw, 3.4vh), 34px); max-width: 26em; }
+body.look-gs:not(.regie-mode) #app .pc-compteur { font-size: clamp(16px, min(4vw, 3vh), 32px); }
+body.look-gs:not(.regie-mode) #app .bc-total {
+  font-size: clamp(22px, min(5vw, 4vh), 46px); color: #fff4c2; background: none; box-shadow: none;
+  text-shadow: 0 0 2px rgba(5, 1, 13, .95), 0 0 6px rgba(5, 1, 13, .8), 0 0 18px #ffb800, 0 0 36px rgba(255, 184, 0, .6);
+}
+body.look-gs:not(.regie-mode) #resume-count p { font-size: clamp(22px, min(5.6vw, 4.4vh), 48px); }
+/* Bilan : une ligne par équipe, sans fond : le nom dans sa couleur, les points verts ou rouges qui brillent. */
+body.look-gs:not(.regie-mode) .bc-ligne { background: none; box-shadow: none; padding: 4px 10px; text-shadow: var(--tg-halo); }
+body.look-gs:not(.regie-mode) .bc-ligne .bc-nom { color: color-mix(in srgb, var(--eq) 35%, #fff); text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 14px var(--eq); }
+body.look-gs:not(.regie-mode) .bc-ligne::before { content: ""; flex: none; width: .6em; height: .6em; border-radius: 50%; background: var(--eq); box-shadow: 0 0 10px var(--eq); }
+body.look-gs:not(.regie-mode) .bc-ligne.bc-moi { box-shadow: none; }
+body.look-gs:not(.regie-mode) .bc-ligne.bc-moi .bc-nom { text-decoration: underline 3px var(--eq); text-underline-offset: 6px; }
+body.look-gs:not(.regie-mode) .bc-g-plus { color: #d9ffd0; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 14px var(--gs-vert); }
+body.look-gs:not(.regie-mode) .bc-g-moins { color: #ffd6dc; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 14px #ff3b5c; }
+/* Bombe : « Bombe 2 sur 3 » sans pastille, en cyan qui brille. Les boutons des équipes (validés le 27/10) ne changent pas. */
+body.look-gs:not(.regie-mode) .pc-compteur { background: none; box-shadow: none; padding: 0; color: #bffcff; text-shadow: var(--tg-halo), 0 0 14px var(--gs-cyan); }
+body.look-gs:not(.regie-mode) .pc-titre { text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 18px var(--gs-cyan), 0 0 36px var(--gs-cyan); }
+body.look-gs:not(.regie-mode) .pc-chez-moi .pc-titre { text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 18px rgba(var(--rouge), .95), 0 0 36px rgba(var(--rouge), .95); }
+body.look-gs:not(.regie-mode) .pc-texte { color: #fff; text-shadow: var(--tg-halo); }
+
 /* ---------- Plus grand, plus présent (cedric, 31/10 07:15 : « un petit peu trop minimisé ») ----------
    Tout grossit avec l'écran (hauteur et largeur), sans jamais sortir des marges : Buzzy, nom de l'équipe, titres,
    consignes, points, réponses. Le palier tablette de style.css (#app …) est repris ici pour passer devant. */
