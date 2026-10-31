@@ -23,6 +23,8 @@ class ContourJaugeTest {
         assertEquals(2.25f, CONTOUR_MIN.value, 0.01f)
         // Ombres : la plus large (54 px) > la moyenne (34 px) > la serrée (10-20 px) > la lueur cyan (5 px).
         assertTrue(OMBRE_LARGE > OMBRE_MOYENNE && OMBRE_MOYENNE > OMBRE_PROCHE && OMBRE_PROCHE > OMBRE_SERREE && OMBRE_SERREE > LUEUR_CYAN)
+        // Android plafonne le flou d'une ombre de texte à 25 px : 12,5 dp sur une box en 1080p (densité 2).
+        assertTrue(OMBRE_LARGE.value * 2f <= 25f)
         assertEquals(1600f / 960f, ECHELLE_SCENE_BLIND, 0.001f)
     }
 

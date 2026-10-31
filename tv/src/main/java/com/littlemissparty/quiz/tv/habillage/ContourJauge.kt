@@ -103,14 +103,13 @@ internal const val CONTOUR_PART_TAILLE = 0.1f
 internal val CONTOUR_MIN = 2.25.dp
 
 /*
- * Rayons des ombres, en dp sur 960 (1 dp = 1,33 px de la référence 1280). Un flou CSS b vaut un écart type b / 2 ; le
- * rayon d'une ombre Android vaut environ 0,87 × b : 54 px → 35 dp, 34 px → 22 dp, 20 px → 13 dp, 10 px et l'ombre
- * de 4 px vers le bas → 6,5 dp. Comme le text-shadow du CSS, les ombres de nuit partent des lettres pleines (pas du
- * contour : trop clair sur les captures du 31/10) ; la lueur cyan, plus serrée (2 dp), laisse le blanc bien blanc.
+ * Rayons des ombres, en dp sur 960. Android ne floute pas une ombre de texte au-delà de 25 px (12,5 dp sur une box en
+ * 1080p) : les rayons de la planche (35 et 22 dp) ne donnaient presque rien (captures du 31/10, fond bien plus clair que
+ * la référence). Quatre ombres de nuit sous ce plafond, empilées, font le fond sombre ; la lueur cyan reste serrée (2 dp).
  */
-internal val OMBRE_LARGE = 35.dp
-internal val OMBRE_MOYENNE = 22.dp
-internal val OMBRE_PROCHE = 13.dp
-internal val OMBRE_SERREE = 6.5.dp
+internal val OMBRE_LARGE = 12.dp
+internal val OMBRE_MOYENNE = 9.dp
+internal val OMBRE_PROCHE = 6.dp
+internal val OMBRE_SERREE = 3.5.dp
 internal val OMBRE_BAS_DECALAGE = 3.dp
 internal val LUEUR_CYAN = 2.dp
