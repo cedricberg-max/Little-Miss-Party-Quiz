@@ -1,6 +1,8 @@
 package com.littlemissparty.quiz.tv.test
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
 import com.littlemissparty.quiz.tv.TEAM_COLORS
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -69,6 +71,13 @@ class ChronoCapturesTest : TestTv() {
         val lecteur = equipes[0]
         ecran.capture("chrono-pret", attente = 2_000)
 
+        // Film du tour 1 entier, du décompte à la gagnante (sans son : l'émulateur n'en a pas ; les sons sont ajoutés
+        // après sur la planche de cedric, calés sur l'image).
+        val film = Thread {
+            UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).executeShellCommand(
+                "screenrecord --size 1280x720 --bit-rate 2500000 --time-limit 32 ${Ecran.DOSSIER_CAPTURES}/chrono-tour-apercu.mp4",
+            )
+        }.apply { start() }
         // Tour 1 : 3, 2, 1, le chrono défile, le drap tombe ; buzz échelonnés autour de 10 s.
         assertEquals("applied", regie.commande(code, "chrono_go"))
         val e = attendreQue("chrono lancé") { lecteur.etat(code).takeIf { it.child("chrono/step").value == "run" } }
@@ -101,6 +110,7 @@ class ChronoCapturesTest : TestTv() {
         ecran.capture("chrono-revelation-gagnant")
         val r = lecteur.etat(code).child("chrono/result")
         assertEquals("100, 50, 25 : les trois plus proches", 3L, r.child("gains").childrenCount)
+        film.join(40_000)
 
         // Tour 2 : la régie change la cible (15 s), même déroulé plus vite ; puis les scores.
         assertEquals("applied", regie.commande(code, "chrono_go"))
