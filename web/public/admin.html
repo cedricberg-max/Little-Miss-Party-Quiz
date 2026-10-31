@@ -11,11 +11,13 @@
   <link rel="apple-touch-icon" href="img/icon-180.png">
   <link rel="manifest" href="admin.webmanifest">
   <link rel="stylesheet" href="admin.css">
+  <!-- Look « The Game Show » sur fond clair (cedric, 31/10) ; l'ancien look reste avec ?look=classique. -->
+  <link rel="stylesheet" href="admin-gs.css">
 </head>
-<body>
+<body class="regie-gs">
   <header>
     <!-- Le logo ramène à l'Accueil, comme le bouton « Accueil » du menu (une fois connecté). -->
-    <button id="brand" class="brand" type="button" title="Accueil"><img src="img/favicon.svg" alt="" width="34" height="34"> Little Miss Party <small>Administration</small></button>
+    <button id="brand" class="brand" type="button" title="Accueil"><img class="look-classique" src="img/favicon.svg" alt="" width="34" height="34"><span class="look-classique"> Little Miss Party </span><img class="look-gs brand-buzzy" src="img/buzzy-tete.webp" alt="" width="40" height="34"><span class="look-gs wordmark" aria-label="The Game Show"><span class="wm-the">THE</span> <span class="wm-gs">GAME SHOW</span></span> <small>Administration</small></button>
     <nav id="nav" hidden>
       <button data-screen="home">Accueil</button>
       <button data-screen="library">Bibliothèque</button>
@@ -25,7 +27,12 @@
   </header>
   <main>
     <section id="screen-login" class="screen">
-      <div class="logo-band"><img src="img/logo-lmp.webp" alt="Little Miss Party" width="800" height="286"></div>
+      <div class="logo-band"><img class="look-classique" src="img/logo-lmp.webp" alt="Little Miss Party" width="800" height="286">
+        <div class="look-gs vitrine">
+          <div class="vitrine-titre" aria-label="The Game Show by Little Miss Party"><span class="wm-the">THE</span><span class="wm-gs">GAME SHOW</span><span class="wm-by">by <img src="img/logo-lmp.webp" alt="Little Miss Party" width="800" height="286"></span></div>
+          <img class="vitrine-buzzy" src="img/buzzy-fier.webp" alt="" width="512" height="560">
+        </div>
+      </div>
       <h1 id="login-title">Connexion</h1>
       <p id="login-hint" class="hint">Saisissez le mot de passe administrateur.</p>
       <form id="login-form" class="panel" autocomplete="off">
@@ -45,10 +52,16 @@
     <section id="screen-home" class="screen" hidden>
       <div class="hero">
         <div class="hero-text">
-          <img class="hero-logo" src="img/logo-lmp.webp" alt="Little Miss Party" width="800" height="286">
+          <img class="hero-logo look-classique" src="img/logo-lmp.webp" alt="Little Miss Party" width="800" height="286">
+          <!-- La vitrine (cedric, 31/10) : un grand « THE GAME SHOW by Little Miss Party ». -->
+          <div class="look-gs vitrine-titre" aria-label="The Game Show by Little Miss Party"><span class="wm-the">THE</span><span class="wm-gs">GAME SHOW</span><span class="wm-by">by <img src="img/logo-lmp.webp" alt="Little Miss Party" width="800" height="286"></span></div>
           <h1>Bonjour !</h1>
           <p class="hint">Préparez les prochains anniversaires et retrouvez vos contenus.</p>
+          <ul class="look-gs vitrine-atouts">
+            <li><b>18</b> épreuves</li><li><b>1 à 8</b> équipes</li><li><b>5 à 15</b> ans</li><li>TV, tablettes et régie</li>
+          </ul>
         </div>
+        <img class="look-gs hero-buzzy" src="img/buzzy-fier.webp" alt="" width="512" height="560">
         <div class="hero-actions">
           <button id="home-new" class="btn big">＋ Créer une prestation</button>
         </div>

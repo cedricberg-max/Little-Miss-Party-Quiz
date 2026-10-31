@@ -6641,6 +6641,32 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 31/10) : look « The Game Show » sur fond clair, l'Accueil en vitrine « THE GAME SHOW by Little Miss Party » avec Buzzy ; ?look=classique remet l'ancien look (gardé sur ce PC)", async () => {
+    const page = await admin();
+    const fond = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    assert.equal(await page.evaluate(() => document.body.classList.contains("regie-gs")), true);
+    await page.locator("#screen-home .vitrine-titre", { hasText: "GAME SHOW" }).waitFor();
+    await page.locator("#screen-home .hero-buzzy").waitFor();
+    assert.equal(await page.locator("#screen-home .hero-logo").isVisible(), false, "l'ancien logo seul est caché");
+    // Fond clair : jamais de fond sombre (cedric).
+    const clair = (rgb) => { const [r, g, b] = rgb.match(/\d+/g).map(Number); return 0.2126 * r + 0.7152 * g + 0.0722 * b > 235; };
+    assert.ok(clair(await fond()), `fond clair (${await fond()})`);
+    assert.ok(clair(await page.locator("#screen-home .hero").evaluate((el) => getComputedStyle(el).backgroundColor === "rgba(0, 0, 0, 0)" ? "rgb(255, 255, 255)" : getComputedStyle(el).backgroundColor)), "vitrine claire");
+    assert.equal(await page.locator("#brand small").textContent(), "Administration");
+    // L'ancien look, sur demande, et il reste choisi sur ce PC.
+    await page.goto(page.url().replace(/[?].*$/, "?emu=1&look=classique"));
+    await page.locator("#screen-home:not([hidden]), #screen-login:not([hidden])").first().waitFor();
+    assert.equal(await page.evaluate(() => document.body.classList.contains("regie-gs")), false);
+    await page.goto(page.url().replace(/[?].*$/, "?emu=1"));
+    await page.locator("#screen-home:not([hidden]), #screen-login:not([hidden])").first().waitFor();
+    assert.equal(await page.evaluate(() => document.body.classList.contains("regie-gs")), false, "gardé sur ce PC");
+    assert.equal(await page.locator(".look-gs").first().isVisible(), false);
+    await page.goto(page.url().replace(/[?].*$/, "?emu=1&look=gs"));
+    await page.locator("#screen-home:not([hidden]), #screen-login:not([hidden])").first().waitFor();
+    assert.equal(await page.evaluate(() => document.body.classList.contains("regie-gs")), true);
+    await page.context().close();
+  });
+
   test("Régie PC : plus de confirm(), alert() ni prompt() du navigateur dans admin.js et retour.js", () => {
     for (const fichier of ["admin.js", "retour.js"]) {
       const restes = readFileSync(join(PUBLIC, fichier), "utf8").split("\n").map((l, i) => `${i + 1} : ${l.trim()}`).filter((l) => /\b(confirm|alert|prompt)\(/.test(l));

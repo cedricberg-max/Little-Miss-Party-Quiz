@@ -85,6 +85,15 @@ if (/--essai\b/.test(location.hostname)) document.body.classList.add("essai");
 // l'appareil reste reconnu après un rechargement, jusqu'au prochain changement du mot de passe.
 
 const $ = (id) => document.getElementById(id);
+
+// Look « The Game Show » sur fond clair (cedric, 31/10) : ?look=classique remet l'ancien look sur ce PC, ?look=gs le nouveau.
+{
+  const demande = new URLSearchParams(location.search).get("look");
+  try { if (demande === "classique" || demande === "gs") localStorage.setItem("lmp-admin-look", demande); } catch { /* stockage refusé */ }
+  let look = demande;
+  try { look ??= localStorage.getItem("lmp-admin-look"); } catch { /* stockage refusé */ }
+  document.body.classList.toggle("regie-gs", look !== "classique");
+}
 const params = new URLSearchParams(location.search);
 // Tests automatiques uniquement : émulateur Firebase, depuis l'ordinateur de test.
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
