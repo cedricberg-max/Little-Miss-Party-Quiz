@@ -1705,7 +1705,7 @@ function renderSimon(st) {
   } else if (v && duTour && !sorti) { etat = "attente"; titre = "Bravo, vous continuez !"; texte = "La prochaine série aura une couleur de plus."; }
   else if (sm.step === "ready" || sm.step === "judged") {
     etat = "attente"; titre = "Le Simon de Buzzy";
-    texte = !duTour ? "Vous jouerez au prochain tour." : sorti ? "Éliminés de ce tour : vous rejouerez au prochain." : `Prochaine série : joueur ${joueur}, prépare-toi !`;
+    texte = !duTour ? "Vous jouerez au prochain tour." : sorti ? "Éliminés de ce tour : vous rejouerez au prochain." : "Prochaine série : préparez-vous !";
   } else { etat = "attente"; titre = "Le Simon de Buzzy"; texte = "Regardez la TV !"; }
   simon.ctl.maj({
     etat, titre, texte, chrono, joueur: etat === "joue" || etat === "regarde" ? joueurTexte : "",
