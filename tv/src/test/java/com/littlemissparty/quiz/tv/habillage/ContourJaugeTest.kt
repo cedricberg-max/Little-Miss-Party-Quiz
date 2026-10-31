@@ -76,5 +76,8 @@ class ContourJaugeTest {
         assertTrue(s.contains("maxOf(base.fontWeight ?: FontWeight.Normal, FontWeight.Bold)"))
         assertTrue(s.contains("style = plein)"))
         assertFalse(s.contains("base.copy(color = "))
+        // Ombres de nuit sous les lettres pleines (comme le text-shadow de la planche), seul le cyan est un contour.
+        assertEquals(4, Regex("plein.copy\\(color = NuitContour, shadow").findAll(s).count())
+        assertEquals(1, Regex("drawStyle = Stroke\\(trait\\)").findAll(s).count())
     }
 }

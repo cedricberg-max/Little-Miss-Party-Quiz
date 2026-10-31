@@ -30,8 +30,8 @@ import androidx.compose.ui.unit.sp
  *
  * Réglages de la planche (écran de référence 1280 px, CSS) : ombre #06020E floue de 10, 20, 34 px et 54 px à 90 %,
  * plus une ombre de 4 px vers le bas ; lueur #3FE0FF de 5 px ; contour #3FE0FF de 0,1 × la taille du texte (3 px au
- * moins) dessiné sous le remplissage, dont seule la moitié extérieure se voit. Ici, du dessous vers le dessus : trois
- * contours de nuit portant chacun une ombre floue (Android 9 fait le flou des ombres de texte sur la puce graphique),
+ * moins) dessiné sous le remplissage, dont seule la moitié extérieure se voit. Ici, du dessous vers le dessus : quatre
+ * textes de nuit portant chacun une ombre floue (Android 9 fait le flou des ombres de texte sur la puce graphique),
  * le contour cyan portant sa lueur, puis le texte. Rien n'est recalculé à chaque image.
  *
  * Classique, ou [contour] faux : un [Text] ordinaire, rien ne change. [echelle] : dans une scène dessinée plus grande puis
@@ -74,10 +74,10 @@ internal fun TexteJauge(
     val taille = with(densite) { (if (plein.fontSize.isSpecified) plein.fontSize else 16.sp).toPx() }
     val trait = maxOf(taille * CONTOUR_PART_TAILLE, px(CONTOUR_MIN))
     val calques = listOf(
-        plein.copy(color = NuitContour, drawStyle = Stroke(trait), shadow = Shadow(NuitContour.copy(alpha = 0.9f), Offset.Zero, px(OMBRE_LARGE))),
-        plein.copy(color = NuitContour, drawStyle = Stroke(trait), shadow = Shadow(NuitContour, Offset.Zero, px(OMBRE_MOYENNE))),
-        plein.copy(color = NuitContour, drawStyle = Stroke(trait), shadow = Shadow(NuitContour, Offset.Zero, px(OMBRE_PROCHE))),
-        plein.copy(color = NuitContour, drawStyle = Stroke(trait), shadow = Shadow(NuitContour, Offset(0f, px(OMBRE_BAS_DECALAGE)), px(OMBRE_SERREE))),
+        plein.copy(color = NuitContour, shadow = Shadow(NuitContour.copy(alpha = 0.9f), Offset.Zero, px(OMBRE_LARGE))),
+        plein.copy(color = NuitContour, shadow = Shadow(NuitContour, Offset.Zero, px(OMBRE_MOYENNE))),
+        plein.copy(color = NuitContour, shadow = Shadow(NuitContour, Offset.Zero, px(OMBRE_PROCHE))),
+        plein.copy(color = NuitContour, shadow = Shadow(NuitContour, Offset(0f, px(OMBRE_BAS_DECALAGE)), px(OMBRE_SERREE))),
         plein.copy(color = CyanContour, drawStyle = Stroke(trait), shadow = Shadow(CyanContour, Offset.Zero, px(LUEUR_CYAN))),
     )
     // Le texte plein mesure la boîte ; les calques, dessinés dessous, prennent exactement sa place. Les contraintes
@@ -105,11 +105,12 @@ internal val CONTOUR_MIN = 2.25.dp
 /*
  * Rayons des ombres, en dp sur 960 (1 dp = 1,33 px de la référence 1280). Un flou CSS b vaut un écart type b / 2 ; le
  * rayon d'une ombre Android vaut environ 0,87 × b : 54 px → 35 dp, 34 px → 22 dp, 20 px → 13 dp, 10 px et l'ombre
- * de 4 px vers le bas → 6,5 dp, lueur 5 px → 3,3 dp. Une ombre de moins que la planche paraissait trop claire (31/10).
+ * de 4 px vers le bas → 6,5 dp. Comme le text-shadow du CSS, les ombres de nuit partent des lettres pleines (pas du
+ * contour : trop clair sur les captures du 31/10) ; la lueur cyan, plus serrée (2 dp), laisse le blanc bien blanc.
  */
 internal val OMBRE_LARGE = 35.dp
 internal val OMBRE_MOYENNE = 22.dp
 internal val OMBRE_PROCHE = 13.dp
 internal val OMBRE_SERREE = 6.5.dp
 internal val OMBRE_BAS_DECALAGE = 3.dp
-internal val LUEUR_CYAN = 3.3.dp
+internal val LUEUR_CYAN = 2.dp
