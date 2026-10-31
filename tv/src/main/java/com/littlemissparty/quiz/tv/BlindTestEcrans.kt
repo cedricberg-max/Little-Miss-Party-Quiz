@@ -163,7 +163,8 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Game Show : textes posés sur le décor « comme les jauges » (choix B du 31/10, n° 1-2), sans le carré du 30/10.
+        // Game Show : textes d'information posés sur le décor « comme les jauges » (choix B du 31/10, n° 1), sans le carré du
+        // 30/10. Les appels et conseils (n° 2) deviendront des onglets néon (cedric, 31/10 09:19).
         Column(verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             // À la révélation, le panneau garde sa hauteur pour le titre et le gagnant (960 × 540 dp sur la box) :
             // la valeur du morceau est dans le « +N ».
@@ -222,18 +223,19 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
                     Spacer(Modifier.height(14.dp))
                     TexteJauge("On attend sa réponse…", color = Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 }
-                b != null && b.waiting && !b.played -> TexteJauge(
+                // Appels et conseils (n° 2, cedric 09:19) : futurs onglets néon, texte simple en attendant.
+                b != null && b.waiting && !b.played -> Text(
                     "Prêts ? Écoutez bien…", color = Palette.Ink, fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black,
                     textAlign = TextAlign.Center, modifier = Modifier.apparition(0, "pret"),
                 )
-                b != null && b.waiting && passees.isNotEmpty() -> TexteJauge(
+                b != null && b.waiting && passees.isNotEmpty() -> Text(
                     "Pas tout à fait ! La musique va repartir…", color = Palette.Ink, fontSize = 32.sp, lineHeight = 38.sp,
                     fontWeight = FontWeight.Black, textAlign = TextAlign.Center, modifier = Modifier.apparition(0, passees.size),
                 )
-                b != null && b.waiting -> TexteJauge(
+                b != null && b.waiting -> Text(
                     "Musique en pause…", color = Palette.Ink, fontSize = 32.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
-                else -> TexteJauge(
+                else -> Text(
                     "Buzzez dès que vous reconnaissez la chanson !",
                     color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )

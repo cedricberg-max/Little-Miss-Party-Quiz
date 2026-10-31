@@ -187,8 +187,8 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Game Show : les textes posés sur le décor ont le contour « comme les jauges » (cedric, 31/10, n° 4-8), plus de
-        // filigrane derrière.
+        // Game Show : plus de filigrane derrière. Le nom de l'équipe qui a buzzé et « Déjà essayé » ont le contour « comme les
+        // jauges » ; les appels et conseils (n° 4-8) deviendront des onglets néon (cedric, 31/10 09:19), texte simple en attendant.
         Column(
             Modifier,
             verticalArrangement = Arrangement.Center,
@@ -241,20 +241,20 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                     Spacer(Modifier.height(14.dp))
                     TexteAjuste(
                         consigneBuzz(q.isChante, q.isBlind), color = Palette.Ink, max = 30.sp, min = 16.sp, lignes = 2, uneLigneJusqua = 22.sp,
-                        fontWeight = FontWeight.Bold, jauge = true, modifier = Modifier.fillMaxWidth(),
+                        fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                state.phase == Phase.CLOSED -> TexteJauge(
+                state.phase == Phase.CLOSED -> Text(
                     if (q.isFlou) "Temps écoulé ! Voyons ce qui se cachait…" else if (q.isBlind) "Temps écoulé ! Écoutons la réponse…" else "Temps écoulé !",
                     color = Palette.Gold, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
                 // Qui suis-je ? du Game Show (planche du 28/10) : « BUZZEZ ! » en néon, sans buzzer dessiné, et les essais ratés.
                 appelQuiSuis -> AppelBuzzQuiSuis(passees.map { it.name })
-                q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> TexteJauge(
+                q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Text(
                     "Mémorisez bien tous les objets !",
                     color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
-                else -> TexteJauge(
+                else -> Text(
                     when {
                         q.isDisparu -> "Buzzez dès que vous savez quel objet a disparu !"
                         q.isChante -> "Buzzez et chantez une chanson avec ce mot !"

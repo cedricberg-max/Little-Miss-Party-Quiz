@@ -131,7 +131,7 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
             else classique()
             Spacer(Modifier.width(56.dp))
             Column(Modifier.weight(1f)) {
-            // Game Show : textes posés sur le décor « comme les jauges » (choix B du 31/10, n° 9-11), sans le carré du 30/10.
+            // Game Show : textes posés sur le décor « comme les jauges » (choix B du 31/10, n° 9-10), sans le carré du 30/10.
             Column {
                 TexteJauge(
                     "BLIND TEST", color = Neon.Or, fontSize = 100.sp, lineHeight = 106.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
@@ -150,9 +150,10 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
                     modifier = Modifier.apparition(1300, playlist), echelle = ECHELLE_SCENE_BLIND,
                 )
                 Spacer(Modifier.height(8.dp))
-                TexteJauge(
+                // Appel (n° 11) : futur onglet néon (cedric, 31/10 09:19), texte simple en attendant.
+                Text(
                     "Prêts ? Écoutez bien…", color = Neon.Blanc, fontSize = 48.sp, lineHeight = 54.sp,
-                    fontWeight = FontWeight.Black, modifier = Modifier.apparition(1700, playlist), echelle = ECHELLE_SCENE_BLIND,
+                    fontWeight = FontWeight.Black, modifier = Modifier.apparition(1700, playlist),
                 )
             }
             }

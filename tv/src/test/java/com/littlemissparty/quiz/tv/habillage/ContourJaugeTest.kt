@@ -34,12 +34,13 @@ class ContourJaugeTest {
     }
 
     @Test
-    fun `chaque ecran choisi le 31-10 a son contour et plus de carre`() {
+    fun `chaque texte blanc choisi le 31-10 a son contour et plus de carre`() {
+        // Les onglets d'appel et de conseil (n° 2, 4-8, 11, 21, 24, 29, 30, cedric 09:19) deviendront des plaques néon : pas
+        // de contour pour eux.
         val ecrans = mapOf(
-            "BlindTestEcrans.kt" to "n° 1-2", "GameScreens.kt" to "n° 3", "ImageFloue.kt" to "n° 4-7",
-            "habillage/BlindTestScenes.kt" to "n° 9-11", "MimeScreens.kt" to "n° 14, 18", "PictionaryScreens.kt" to "n° 15",
-            "habillage/Pictionary.kt" to "n° 16", "GonfleurScreens.kt" to "n° 21", "PatateScreens.kt" to "n° 24",
-            "habillage/StatuesGameShow.kt" to "n° 30", "GameShowQuiz.kt" to "n° 36",
+            "BlindTestEcrans.kt" to "n° 1", "GameScreens.kt" to "n° 3", "ImageFloue.kt" to "nom de l'équipe qui a buzzé",
+            "habillage/BlindTestScenes.kt" to "n° 9-10", "MimeScreens.kt" to "n° 14, 18", "PictionaryScreens.kt" to "n° 15",
+            "habillage/Pictionary.kt" to "n° 16", "GameShowQuiz.kt" to "n° 36",
         )
         for ((fichier, n) in ecrans) {
             val s = source(fichier)
@@ -48,6 +49,10 @@ class ContourJaugeTest {
             assertFalse("$fichier ($n) : plus de bande", s.contains("bandeTitre()"))
         }
         assertFalse(source("habillage/BlindTestScenes.kt").contains("filigrane(Rect("))
+        assertFalse(source("GonfleurScreens.kt").contains("TexteJauge("))
+        assertFalse(source("PatateScreens.kt").contains("TexteJauge("))
+        assertFalse(source("habillage/StatuesGameShow.kt").contains("TexteJauge("))
+        assertTrue(source("BlindTestEcrans.kt").contains("else -> Text(\n                    \"Buzzez dès que vous reconnaissez la chanson !\""))
     }
 
     @Test

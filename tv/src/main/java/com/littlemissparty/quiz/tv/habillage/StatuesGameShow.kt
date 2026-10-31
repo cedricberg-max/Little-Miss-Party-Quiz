@@ -114,15 +114,7 @@ private fun Dansez(modifier: Modifier) {
         Spacer(Modifier.height(18.dp))
         Egaliseur(ms, Modifier.width(560.dp).height(96.dp))
         Spacer(Modifier.height(22.dp))
-        // Même ligne que LigneBuzz, posée sur le décor « comme les jauges » (n° 30 du 31/10). Scène de 1600 dp : les ombres
-        // sont agrandies d'autant pour garder leur taille à l'écran.
-        TexteJauge(
-            "BOUGEZ TANT QUE LA MUSIQUE JOUE", maxLines = 1, softWrap = false, echelle = 1600f / 960f,
-            style = TextStyle(
-                fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = 26.sp, letterSpacing = 26.sp * 0.32f,
-                color = Color(0xFFFFF3E6),
-            ),
-        )
+        LigneBuzz("BOUGEZ TANT QUE LA MUSIQUE JOUE", 26.sp)
     }
 }
 

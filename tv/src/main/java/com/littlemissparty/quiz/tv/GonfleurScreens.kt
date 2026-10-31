@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.PUMP_TARGET
 import com.littlemissparty.quiz.engine.Phase
-import com.littlemissparty.quiz.tv.habillage.TexteJauge
 import com.littlemissparty.quiz.tv.habillage.DepartGonfleur
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.SceneGonfleur
@@ -57,8 +56,7 @@ fun GonfleurScreen(state: UiState.Playing, actions: TvActions) {
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
-                // Posé sur le décor « comme les jauges » (n° 21 du 31/10).
-                TexteJauge(
+                Text(
                     when {
                         revele && gagnant == null -> "Personne n'a tapé : tout le monde marque ses points de participation"
                         revele || depart -> ""
