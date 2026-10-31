@@ -1720,7 +1720,9 @@ describe("régie", () => {
   test("duel des robots : lancer, face-à-face (arrêt en deux appuis), gagnante, trop tôt, personne, duel suivant, résultats", async () => {
     const { page, etat } = await duelEnCours({});
     await page.locator("#duel-info", { hasText: "Duel 1 sur 3 : appelez les deux joueurs." }).waitFor();
-    await page.locator("#duel-face .duel-equipe", { hasText: "Les Roses" }).locator("small", { hasText: "Joueur n°1" }).waitFor();
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Roses" }).waitFor();
+    // Jamais de « joueur n° » : l'équipe joue, la rotation se fait entre eux (cedric, 31/10 au soir).
+    assert.equal(await page.locator("#duel-face").getByText(/joueur n°/i).count(), 0, "pas de joueur n° au duel");
     await page.locator("#duel-face .duel-equipe", { hasText: "Les Bleus" }).waitFor();
     await page.locator("#duel-points", { hasText: "100 points par duel gagné" }).waitFor();
     assert.equal(await page.locator("#c-tuiles").isVisible(), false, "le milieu est au duel");
@@ -1805,10 +1807,11 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("duel des robots sur 8 équipes : joueur appelé, choix de 2 équipes, gros bouton toujours visible", async () => {
+  test("duel des robots sur 8 équipes : sans joueur n°, choix de 2 équipes, gros bouton toujours visible", async () => {
     const huit = ["Orange", "Vert", "Rose", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"].map((n, i) => [`e${i}`, `Les ${n}s`, TEAM_COLORS_TEST[i % TEAM_COLORS_TEST.length]]);
     const { page } = await duelEnCours({ teams: ["e0", "e7"], players: [3, 2] }, huit);
-    await page.locator("#duel-face .duel-equipe", { hasText: "Les Turquoises" }).locator("small", { hasText: "Joueur n°2" }).waitFor();
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Turquoises" }).waitFor();
+    assert.equal(await page.locator("#duel-face").getByText(/joueur n°/i).count(), 0, "pas de joueur n° sur 8 équipes");
     await capture(page, "regie-duel-pret");
     await page.click("#duel-autres");
     assert.equal(await page.locator("#duel-choix .statues-tuile").count(), 8);
@@ -1895,7 +1898,8 @@ describe("régie", () => {
   test("Simon de Buzzy : lancer la suite, l'arrêter en deux appuis, bilan après la vérification TV, suite et tour suivants, jeu suivant", async () => {
     const { page, etat } = await simonEnCours({});
     await page.locator("#simon-info", { hasText: "Tour 1 sur 2. Suite de 3 : appelez le joueur de chaque équipe." }).waitFor();
-    await page.locator("#simon-equipes li", { hasText: "Les Bleus" }).locator("span", { hasText: "en jeu · joueur n°2" }).waitFor();
+    await page.locator("#simon-equipes li", { hasText: "Les Bleus" }).locator("span", { hasText: "en jeu" }).waitFor();
+    assert.equal(await page.locator("#simon-equipes").getByText(/joueur n°/i).count(), 0, "pas de joueur n° au Simon");
     await page.locator("#simon-points", { hasText: "300 points pour l'équipe qui gagne le tour" }).waitFor();
     assert.equal(await page.locator("#c-tuiles").isVisible(), false, "le milieu est au Simon");
     assert.equal(await page.locator("#c-answer").isVisible(), false, "pas de « bonne réponse » : la suite est secrète");

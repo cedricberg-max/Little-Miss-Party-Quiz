@@ -2055,9 +2055,8 @@ function renderDuel(st, teams) {
       c.style.setProperty("--team", live.teams[id]?.color ?? "#fff");
       const nom = document.createElement("b");
       nom.textContent = duelNom(id);
-      const j = document.createElement("small");
-      j.textContent = joueurs[i] ? `Joueur n°${joueurs[i]}` : "";
-      c.append(nom, j);
+      // Jamais de « joueur n° » : l'équipe joue, la rotation des enfants se fait entre eux (cedric, 31/10 au soir).
+      c.append(nom);
       return c;
     };
     const vs = document.createElement("span");
@@ -2250,7 +2249,7 @@ function renderSimon(st) {
     const etat = document.createElement("span");
     etat.textContent = gagnantes.includes(id) ? "🏆 gagne le tour"
       : out[id] != null ? `éliminée (suite de ${out[id]})`
-        : `en jeu${s.players?.[id] ? ` · joueur n°${s.players[id]}` : ""}`;
+        : "en jeu";
     li.append(nom, etat);
     return li;
   });

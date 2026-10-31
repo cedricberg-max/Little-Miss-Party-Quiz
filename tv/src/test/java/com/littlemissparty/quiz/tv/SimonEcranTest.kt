@@ -141,4 +141,12 @@ class SimonEcranTest {
         assertFalse(src.contains("joueur appelé prend"))
         assertTrue(src.contains("if (dehors) \"éliminés\" else \"encore en jeu\""))
     }
+
+    @Test
+    fun `duel des robots - jamais de « joueur n° » non plus, seulement le nom de l'equipe (cedric, 31 octobre au soir)`() {
+        for (f in listOf("habillage/DuelWestern.kt", "habillage/DuelRobots.kt")) {
+            val src = java.io.File("src/main/java/com/littlemissparty/quiz/tv/$f").readText()
+            assertFalse(f, Regex("\"[^\"]*joueur n°", RegexOption.IGNORE_CASE).containsMatchIn(src))
+        }
+    }
 }
