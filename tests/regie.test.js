@@ -1786,6 +1786,52 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("Le Chrono de Buzzy : régler la cible, lancer, suivre les buzz sans l'heure, écarts et points 100 / 50 / 25, tour suivant", async () => {
+    box = startBox();
+    const teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"], ["jaune", "Les Jaunes", "#FFE600"]];
+    for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
+    const plan = [{ id: "ch", kind: "chrono", text: "Le Chrono de Buzzy", round: "Le Chrono de Buzzy", choices: [], correct: -1, double: false, cible: 30, tours: 3 }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, questions: plan });
+    const etat = { tour: 1, tours: 3, cible: 30, step: "ready", key: "ch-1-0", last: false };
+    await box.set({ ...questionState(1), qid: "ch", kind: "chrono", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, chrono: etat });
+    const page = await openRegie(undefined, `?g=${CODE}&emu=1&cockpit=1`);
+    await pair(page);
+    await inRegie(page);
+    await page.locator("#chrono-info", { hasText: "Tour 1 sur 3" }).waitFor();
+    await page.locator("#chrono-info", { hasText: "Cible : 30 secondes" }).waitFor();
+    await page.locator("#chrono-points", { hasText: "100, 50 et 25 points" }).waitFor();
+    await page.locator("#c-next", { hasText: "⏱️ Lancer le chrono (30 s)" }).waitFor();
+    await capture(page, "regie-chrono-pret", { pleinePage: false });
+    // −5 : la cible part à la box ; jamais sous 10 s.
+    await page.click('#chrono-reglage button[data-pas="-5"]');
+    await waitFor(async () => (await commandes("chrono_cible")).some((c) => c.cible === 25), "cible 25 envoyée");
+    await box.set({ chrono: { ...etat, cible: 25 } });
+    await page.locator("#chrono-cible", { hasText: "25 s" }).waitFor();
+    await page.locator("#c-next", { hasText: "Lancer le chrono (25 s)" }).click();
+    await waitFor(async () => (await commandes("chrono_go")).length === 1, "chrono lancé");
+    // En cours : qui a buzzé, jamais à quelle heure.
+    const run = { ...etat, cible: 25, step: "run", key: "ch-1-100", goAt: Date.now() - 12_000, cacheMs: 8000, teams: teams.map(([id]) => id), buzzed: ["rose", "jaune"] };
+    await box.set({ chrono: run });
+    await page.locator("#chrono-info", { hasText: "2 / 4 équipes ont buzzé" }).waitFor();
+    await page.locator("#chrono-equipes li", { hasText: "Les Roses" }).locator("span", { hasText: "✅ a buzzé" }).waitFor();
+    await page.locator("#chrono-equipes li", { hasText: "Les Bleus" }).locator("span", { hasText: "compte…" }).waitFor();
+    await page.locator("#c-next", { hasText: "Chrono en cours… ⏱️" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true, "rien à lancer pendant le chrono");
+    assert.doesNotMatch(await page.locator("#chrono").innerText(), /\d+,\d\d/, "aucun temps avant la révélation");
+    await capture(page, "regie-chrono-en-cours", { pleinePage: false });
+    // Bilan : écarts, la plus proche d'abord, et les points des 3 plus proches.
+    await box.set({ chrono: { ...run, step: "result", buzzed: null,
+      result: { ecarts: { rose: -380, bleu: 1240, vert: 2900, jaune: -4100 }, winners: ["rose"], points: 100, gains: { rose: 100, bleu: 50, vert: 25 }, at: Date.now() } } });
+    await page.locator("#chrono-info", { hasText: "🏆 Les Roses gagne le tour." }).waitFor();
+    await page.locator("#chrono-equipes li", { hasText: "Les Roses" }).locator("span", { hasText: "+100" }).waitFor();
+    await page.locator("#chrono-equipes li", { hasText: "Les Bleus" }).locator("span", { hasText: "+50" }).waitFor();
+    await page.locator("#chrono-equipes li", { hasText: "Les Verts" }).locator("span", { hasText: "+25" }).waitFor();
+    assert.doesNotMatch(await page.locator("#chrono-equipes li", { hasText: "Les Jaunes" }).innerText(), /\+\d/, "la 4e ne marque pas");
+    await page.locator("#c-next", { hasText: "▶ Tour suivant (2 / 3)" }).waitFor();
+    await capture(page, "regie-chrono-bilan", { pleinePage: false });
+    await page.context().close();
+  });
+
   /** Simon du Prof : la box publie state.simon (contrat du 27/10 au soir) ; la suite secrète n'y est jamais avant le bilan. */
   async function simonEnCours(simon, teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"]]) {
     box = startBox();
