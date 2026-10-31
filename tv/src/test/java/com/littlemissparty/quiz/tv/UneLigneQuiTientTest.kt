@@ -39,4 +39,13 @@ class UneLigneQuiTientTest {
         assertTrue(corps.contains("UneLigneQuiTient("))
         assertFalse(corps.contains("Ellipsis"))
     }
+
+    @Test
+    fun `pastille d equipe Game Show a 1-4 equipes jamais de points de suspension sur le nom`() {
+        // Tour des écrans à 4 équipes (31/10, Statues) : « Les Comètes Fila… » dans la pastille du bandeau.
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/GameShowQuiz.kt").readText()
+        val colonne = source.substringAfter("internal fun TeamStatusGs(").substringAfter("} else Column(").substringBefore("\n    }\n}")
+        assertTrue(colonne.contains("UneLigneQuiTient("))
+        assertFalse(colonne.substringBefore("Statut()").contains("Ellipsis"))
+    }
 }
