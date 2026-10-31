@@ -237,7 +237,7 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.VERROU)
                 // Chrono à zéro alors qu'une équipe n'a pas répondu : le signal « temps écoulé » sous le tampon.
                 if (i.tempsEcoule) o += Ordre.Jouer(Son.MIME_FIN)
-                if (!i.express) o += Ordre.Musique(Ambiance.SUSPENSE)
+                if (!i.express && !i.quizMusical) o += Ordre.Musique(Ambiance.SUSPENSE)
             }
             Ecran.REVELATION -> if (i.nombre) {
                 // Le Juste Chiffre : les chiffres défilent et se posent sur l'or ; fanfare si une équipe tombe pile.
@@ -481,7 +481,7 @@ class DirecteurSonore {
             // Blind test, Game Show : la musique d'attente tant que Sarah n'a pas lancé le morceau.
             i.blindAttente && i.gameShow && i.ecran == Ecran.QUESTION -> Ambiance.BT_ATTENTE
             // Extrait musical : rien ne doit couvrir la chanson.
-            i.musical && i.ecran != Ecran.VERROUILLEE -> Ambiance.SILENCE
+            i.musical && (i.ecran != Ecran.VERROUILLEE || i.quizMusical) -> Ambiance.SILENCE
             // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
             // Qui a disparu ? : musique douce pour mémoriser, presque rien pendant le tour de magie.
             // « Ça va exploser ! » : sa propre musique, calée sur la mèche (MusiquePatate) ; les boucles se taisent.
@@ -581,6 +581,11 @@ data class Instant(
     val jeuBuzz: Boolean = false,
     /** La question fait entendre un extrait musical (blind test, quiz musical) : l'habillage se tait. */
     val musical: Boolean = false,
+    /**
+     * Quiz musical (extrait bien reçu) : la chanson continue, plus bas, sous le verrou et la révélation (cedric, 31/10),
+     * avec les mêmes bruitages que le quiz ; jamais la nappe de suspense par-dessus.
+     */
+    val quizMusical: Boolean = false,
     /** Statues musicales : la musique du jeu est arrêtée, tout le monde se fige. */
     val statue: Boolean = false,
     /** Statues musicales : annonce des gagnantes d'une chanson (1 roulement de tambour, 2 gagnantes, 3 récap), 0 sinon. */

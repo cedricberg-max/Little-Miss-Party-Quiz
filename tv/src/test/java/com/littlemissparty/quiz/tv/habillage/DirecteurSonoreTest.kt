@@ -824,6 +824,30 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `quiz musical (cedric 31-10), la chanson continue sous le verrou et la revelation, bruitages du quiz, jamais une seconde musique`() {
+        val d = DirecteurSonore()
+        val q = Instant(Ecran.QUESTION, partie = "ABCD", index = 14, equipes = 2, propositions = 4, musical = true, quizMusical = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 13, equipes = 2))
+        d.observer(q)
+        val verrou = d.observer(q.copy(ecran = Ecran.VERROUILLEE))
+        assertTrue(Son.VERROU in verrou.sons())
+        assertFalse(verrou.any { it is Ordre.Musique && it.ambiance != Ambiance.SILENCE })
+        val revele = d.observer(q.copy(ecran = Ecran.REVELATION, gagnants = 2))
+        val sons = revele.sons()
+        assertTrue(Son.ROULEMENT_COURT in sons && Son.BONNE_REPONSE in sons && Son.IMPACT in sons && Son.POINTS in sons)
+        assertEquals(2, sons.count { it == Son.TAMPON })
+        assertFalse(revele.any { it is Ordre.Musique && it.ambiance != Ambiance.SILENCE })
+        // Au classement, Aerodynamic comme d'habitude (la chanson, elle, s'arrête avec l'écran de la question).
+        assertEquals(Ambiance.BILAN, d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 14, equipes = 2)).musique())
+        // Blind test : le verrou garde sa nappe de suspense (rien ne change pour lui).
+        val d2 = DirecteurSonore()
+        val bt = q.copy(quizMusical = false)
+        d2.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 13, equipes = 2))
+        d2.observer(bt)
+        assertEquals(Ambiance.SUSPENSE, d2.observer(bt.copy(ecran = Ecran.VERROUILLEE)).musique())
+    }
+
+    @Test
     fun `statues musicales, gel a chaque arret, elan a chaque reprise, jamais en double, rien par-dessus la musique du jeu`() {
         val d = DirecteurSonore()
         val danse = Instant(Ecran.QUESTION, partie = "ABCD", index = 15, equipes = 2, propositions = 0, musical = true)

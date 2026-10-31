@@ -112,7 +112,7 @@ fun BlindScene(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
 
 /**
  * Quiz musical, révélation (cedric, 24/10) : celle du blind test en plus court, après la bonne réponse allumée sur les
- * cartes. Pochette, titre et artiste ; avec un refrain préparé, ses paroles au rythme des quelques secondes de musique.
+ * cartes. Pochette, titre et artiste ; avec un refrain préparé, ses paroles au rythme du refrain, qui joue jusqu'au classement.
  * Toutes les équipes qui ont trouvé sont félicitées, chacune dans sa couleur ; leurs points restent sous la scène.
  */
 @Composable
