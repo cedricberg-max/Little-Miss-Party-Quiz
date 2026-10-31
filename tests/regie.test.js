@@ -10183,6 +10183,8 @@ describe("bibliothèque de quiz et prestations", () => {
     // « ＋ Jeu » (cedric, 30/10) : une ligne par jeu ; le Quiz ouvre sa carte, celle de la Régie PC, en plein écran.
     await ouvrirConducteur(regie);
     await regie.click("#plan-add");
+    // La liste se dessine juste après le toucher (CI plus lente) : on attend sa première ligne.
+    await regie.locator("#lib-list .lib-jeu").first().waitFor();
     assert.deepEqual((await regie.locator("#lib-list .lib-jeu").evaluateAll((l) => l.map((b) => b.dataset.jeu))).slice(0, 3), ["quiz", "illustre", "mimes"]);
     assert.equal(await regie.locator("#lib-list", { hasText: "Quiz de la bibliothèque" }).count(), 0, "plus de « Quiz de la bibliothèque »");
     let cadre = await carteDuJeu(regie, "quiz");
@@ -10401,6 +10403,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.click('.plan-head[data-round="Jeu B"] button.go');
     assert.match(await respond(regie), /^Êtes-vous sûr \?/);
     await waitFor(async () => box.gotos.length === 1, "la TV va au jeu B");
+    // La TV accepte : la régie referme le conducteur d'elle-même. On attend qu'il soit fermé avant de le rouvrir
+    // (sur la CI, plus lente, il se refermait juste après qu'on l'avait rouvert).
+    await regie.locator("#conducteur").waitFor({ state: "hidden" });
     // Tout chargé : vert, ▶ ne demande que « Êtes-vous sûr ? ».
     await media({ [SON]: "ok", [PHOTO]: "ok" });
     await ouvrirConducteur(regie);
