@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.engine.ChronoResult
 import com.littlemissparty.quiz.engine.ChronoRound
 import com.littlemissparty.quiz.engine.centiemes
 import com.littlemissparty.quiz.tv.habillage.EchelleSansCoupe
@@ -142,9 +143,13 @@ fun ChronoScreen(state: UiState.Playing, actions: TvActions) {
     EchelleSansCoupe(SCENE_L, SCENE_H, Modifier.fillMaxSize()) {
         if (c?.result != null) {
             Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                TexteNeon("LE CHRONO DE BUZZY", GS.Cyan, 92f, police = PoliceGsTitre, largeurMax = 1500.dp)
-                val tours = if (state.chronoTours > 1) "TOUR ${c.tour} / ${state.chronoTours} · " else ""
-                TexteNeon("${tours}CIBLE : ${c.cible} SECONDES", GS.Jaune, 54f, police = PoliceGsTitre, largeurMax = 1500.dp, force = 0.7f)
+                TexteNeon("LE CHRONO DE BUZZY", GS.Cyan, 80f, police = PoliceGsTitre, largeurMax = 1500.dp)
+                // La cible est écrite sous le fanion : une fois la gagnante connue, sa ligne prend la place de celle-ci
+                // (plus rien sous le titre ne touche la tête de Buzzy ni le drapeau).
+                if (depuisResultat < finRevelation(c.result!!)) {
+                    val tours = if (state.chronoTours > 1) "TOUR ${c.tour} / ${state.chronoTours} · " else ""
+                    TexteNeon("${tours}CIBLE : ${c.cible} SECONDES", GS.Jaune, 54f, police = PoliceGsTitre, largeurMax = 1500.dp, force = 0.7f)
+                }
             }
         }
         when {
@@ -451,6 +456,10 @@ private fun DrawScope.teteBuzzy(bas: Offset, taille: Float) {
     drawCircle(GS.Cyan, h * 0.12f, Offset(bas.x + l * 0.2f, coin.y + h * 0.45f))
 }
 
+/** Le moment (depuis le résultat) où la plus proche est posée et où la gagnante s'affiche. */
+internal fun finRevelation(r: ChronoResult): Long =
+    REGLE_MS + (r.ecarts.size - 1).coerceAtLeast(0) * PASTILLE_PAS_MS + PASTILLE_RALENTI_MS
+
 /**
  * La révélation sur la règle du temps : la règle se dessine, le drapeau à tête de Buzzy se plante sur la cible, puis
  * les pastilles des équipes tombent une à une (la plus loin d'abord) ; la plus proche au ralenti, puis la gagnante.
@@ -464,7 +473,7 @@ private fun androidx.compose.foundation.layout.BoxScope.Revelation(state: UiStat
     val nom = { uid: String -> state.teams.find { it.uid == uid }?.name ?: "Une équipe" }
     // Heure d'arrivée de chaque pastille (la dernière, la plus proche, au ralenti).
     val arrivee = ordre.indices.map { i -> REGLE_MS + i * PASTILLE_PAS_MS }
-    val fin = (arrivee.lastOrNull() ?: REGLE_MS) + PASTILLE_RALENTI_MS
+    val fin = finRevelation(r)
     val largeur = 1640f
     val gauche = (1920f - largeur) / 2
     val yRegle = 600f
@@ -527,24 +536,31 @@ private fun androidx.compose.foundation.layout.BoxScope.Revelation(state: UiStat
         val x = xDe(c.cible + r.ecarts.getValue(uid) / 1000.0)
         val rangee = rang % 4
         Column(
-            Modifier.offset((x - 160f).dp, (yRegle + 50f + rangee * 92f).dp).width(320.dp),
+            Modifier.offset((x - 200f).dp, (yRegle + 46f + rangee * 104f).dp).width(400.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            TexteNeon(nom(uid), couleur(uid), 34f, police = PoliceGsTitre, largeurMax = 320.dp, force = 0.6f, tailleMin = 16f)
+            TexteNeon(nom(uid), couleur(uid), 42f, police = PoliceGsTitre, largeurMax = 400.dp, force = 0.6f, tailleMin = 26f)
             val gain = r.gains[uid]?.let { " · +$it" }.orEmpty()
-            TexteNeon(texteEcart(r.ecarts.getValue(uid)) + gain, Color.White, 30f, police = PoliceGsChiffres, largeurMax = 320.dp, force = 0.4f, tailleMin = 16f)
+            TexteNeon(texteEcart(r.ecarts.getValue(uid)) + gain, Color.White, 36f, police = PoliceGsChiffres, largeurMax = 400.dp, force = 0.4f, tailleMin = 24f)
         }
     }
     // Les gagnantes, une fois la plus proche posée.
     if (t >= fin) {
         val texte = when {
             r.winners.isEmpty() -> "PERSONNE N'A BUZZÉ !"
-            r.winners.size == 1 -> "${nom(r.winners[0]).uppercase()} GAGNE LE TOUR !"
+            r.winners.size == 1 -> phraseGagnant(nom(r.winners[0]))
             else -> "ÉGALITÉ ! ${r.winners.joinToString(" ET ") { nom(it).uppercase() }}"
         }
-        Column(Modifier.align(Alignment.TopCenter).padding(top = 230.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            TexteNeon(texte, r.winners.firstOrNull()?.let(couleur) ?: GS.Cyan, 84f, police = PoliceGsTitre, largeurMax = 1700.dp)
-            if (r.points > 0) TexteNeon("+${r.points} POINTS", GS.Jaune, 60f, police = PoliceGsChiffres, largeurMax = 900.dp, force = 0.8f)
+        // Sur une seule ligne, juste sous le titre, à la place de la cible : la tête de Buzzy et le fanion restent dégagés.
+        Row(Modifier.align(Alignment.TopCenter).padding(top = 136.dp), verticalAlignment = Alignment.CenterVertically) {
+            TexteNeon(texte, r.winners.firstOrNull()?.let(couleur) ?: GS.Cyan, 64f, police = PoliceGsTitre, largeurMax = if (r.points > 0) 1300.dp else 1700.dp)
+            if (r.points > 0) TexteNeon("  +${r.points} POINTS", GS.Jaune, 56f, police = PoliceGsChiffres, largeurMax = 420.dp, force = 0.8f)
         }
     }
+}
+
+/** « LES PANDAS GAGNENT LE TOUR ! » : le verbe s'accorde quand le nom de l'équipe est au pluriel (« Les … »). */
+internal fun phraseGagnant(nom: String): String {
+    val pluriel = nom.trim().let { it.startsWith("les ", ignoreCase = true) || it.startsWith("des ", ignoreCase = true) }
+    return "${nom.uppercase()} ${if (pluriel) "GAGNENT" else "GAGNE"} LE TOUR !"
 }

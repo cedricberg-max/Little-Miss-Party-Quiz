@@ -60,4 +60,16 @@ class ChronoEcranTest {
         d.observer(q.copy(chronoEtape = "result"))
         assertEquals(Ambiance.SUSPENSE, d.observer(q.copy(chronoEtape = "ready")).filterIsInstance<Ordre.Musique>().last().ambiance)
     }
+
+    @Test
+    fun `le gagnant s'accorde au pluriel, et sa ligne arrive avec le son gagne`() {
+        assertEquals("LES PANDAS GAGNENT LE TOUR !", phraseGagnant("Les Pandas"))
+        assertEquals("LES SIRÈNES BLEUES GAGNENT LE TOUR !", phraseGagnant("les Sirènes bleues"))
+        assertEquals("ORANGE GAGNE LE TOUR !", phraseGagnant("Orange"))
+        assertEquals("LESLIE GAGNE LE TOUR !", phraseGagnant("Leslie"))
+        val ecarts = mapOf("orange" to -500L, "vert" to 1_200L, "rose" to 300L)
+        val gagne = sonsRevelation(ecarts, listOf("rose")).last()
+        val r = com.littlemissparty.quiz.engine.ChronoResult(ecarts = ecarts, winners = listOf("rose"), points = 100, at = 0L)
+        assertEquals(gagne.instant, finRevelation(r))
+    }
 }
