@@ -290,7 +290,11 @@ fun ScenePatate(
                 for (k in 0 until 8) {
                     val a = -PI.toFloat() / 2 + (k - 3.5f) * 0.35f
                     val f = Offset(c.x + cos(a) * 110f * b * d, c.y + sin(a) * 90f * b * d - 40f * b * d)
-                    drawCircle(Color(0xFF3A2E48).copy(alpha = (0.75f - 0.5f * b).coerceIn(0f, 1f)), (28f + 10f * (k % 3)) * d * (0.5f + b), f)
+                    // Bouffées douces qui s'effacent complètement : plus de gros ronds gris restés au fond du décor
+                    // après le BOUM (cedric, 31/10 au soir).
+                    val rf = (28f + 10f * (k % 3)) * d * (0.5f + b)
+                    val af = fumeeBoum(b)
+                    if (af > 0f) drawCircle(Brush.radialGradient(listOf(Color(0xFF3A2E48).copy(alpha = af), Color(0xFF3A2E48).copy(alpha = af * 0.5f), Color.Transparent), f, rf), rf, f)
                 }
                 // Éclats dorés projetés tout autour.
                 if (b < 0.7f) for (k in 0 until 18) {
@@ -456,3 +460,6 @@ fun MusiquePatate(deadline: Long?, depart: Long, decalage: Long, brule: Boolean)
     }
     DisposableEffect(Unit) { onDispose { Sons.calerSur(Son.PATATE_MUSIQUE, 0, joue = false) } }
 }
+
+/** Opacité de la fumée du BOUM selon l'avancée [b] (0 à 1) : épaisse au départ, plus rien à la fin. */
+internal fun fumeeBoum(b: Float): Float = (0.7f * (1f - b / 0.85f)).coerceIn(0f, 0.7f)
