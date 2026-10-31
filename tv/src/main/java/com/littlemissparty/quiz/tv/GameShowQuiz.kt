@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -189,11 +190,22 @@ internal fun TeamStatusGs(
     )
     // 5 équipes et plus : pastille basse, nom et statut côte à côte, pour laisser leur hauteur aux cartes (maquette du 24/10).
     if (uneLigne) Row(cadre.padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        // Le nom se réduit (jusqu'à 11 sp) plutôt que d'être coupé quand les points s'affichent à côté.
+        // Le nom se réduit un peu (jusqu'à 13 sp), puis passe sur deux lignes entre deux mots, plutôt que d'être coupé
+        // quand les points s'affichent à côté (« Les Ninjas Masqu… » à 8 équipes, test du 30/10 au soir).
         var t by remember(team.name, statut) { mutableFloatStateOf(taille.value) }
+        var deuxLignes by remember(team.name, statut) { mutableStateOf(false) }
         Text(
-            team.name, color = GS.Encre, fontSize = t.sp, fontWeight = FontWeight.Bold, fontFamily = PoliceGsTexte, maxLines = 1, softWrap = false,
-            overflow = if (t > 11f) TextOverflow.Clip else TextOverflow.Ellipsis, onTextLayout = { if (it.hasVisualOverflow && t > 11f) t -= 1f },
+            team.name, color = GS.Encre, fontSize = t.sp, lineHeight = (t * 1.05f).sp, fontWeight = FontWeight.Bold, fontFamily = PoliceGsTexte,
+            maxLines = if (deuxLignes) 2 else 1, softWrap = deuxLignes,
+            overflow = if (deuxLignes && t <= 11f) TextOverflow.Ellipsis else TextOverflow.Clip,
+            onTextLayout = {
+                if (!it.hasVisualOverflow) return@Text
+                when {
+                    !deuxLignes && t > 13f -> t -= 1f
+                    !deuxLignes -> deuxLignes = true
+                    t > 11f -> t -= 1f
+                }
+            },
             modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(6.dp))

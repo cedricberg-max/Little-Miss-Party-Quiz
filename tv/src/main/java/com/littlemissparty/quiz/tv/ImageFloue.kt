@@ -179,8 +179,11 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     val buzzer = state.teams.find { it.uid == state.buzzTeam }
     val passees = state.teams.filter { it.uid in state.buzzBlocked }
     val gagnant = state.teams.find { (state.awards[it.uid]?.points ?: 0) > 0 }
+    // Qui suis-je ? du Game Show : marge réduite, « BUZZEZ ! » et les équipes déjà essayées tiennent même à 4 équipes,
+    // où les pastilles hautes laissent peu de hauteur au panneau (test du 30/10 au soir).
+    val appelQuiSuis = Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION && buzzer == null
     Column(
-        modifier.panneauJeu(0.08f).padding(28.dp),
+        modifier.panneauJeu(0.08f).padding(if (appelQuiSuis) 12.dp else 28.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -247,7 +250,7 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                     color = Palette.Gold, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
                 // Qui suis-je ? du Game Show (planche du 28/10) : « BUZZEZ ! » en néon, sans buzzer dessiné, et les essais ratés.
-                Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION -> AppelBuzzQuiSuis(passees.map { it.name })
+                appelQuiSuis -> AppelBuzzQuiSuis(passees.map { it.name })
                 q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Text(
                     "Mémorisez bien tous les objets !",
                     color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
