@@ -386,6 +386,14 @@ body.look-gs:not(.regie-mode) .pm-texte { font-size: clamp(20px, min(5vw, 3.8vh)
 body.look-gs:not(.regie-mode) .pm-choisir { background: none; box-shadow: none; color: #fff3d1; font-size: clamp(20px, min(5vw, 3.8vh), 40px); text-shadow: var(--tg-halo), 0 0 16px rgba(233, 194, 122, .7); }
 body.look-gs:not(.regie-mode) .pm-points { background: none; color: #fff7a8; font-family: "GS Orbitron"; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 18px var(--gs-jaune), 0 0 34px var(--gs-jaune); }
 
+@media (orientation: landscape) and (max-height: 520px) {
+  /* Téléphone couché : la porte ouverte et ses textes tiennent dans la hauteur. */
+  body.look-gs:not(.regie-mode) .pm-resultat { width: min(46vw, 200px, 30vh); }
+  body.look-gs:not(.regie-mode) .pm-titre { font-size: 20px; }
+  body.look-gs:not(.regie-mode) .pm-equipe { font-size: 15px; }
+  body.look-gs:not(.regie-mode) .pm-texte, body.look-gs:not(.regie-mode) .pm-choisir { font-size: 16px; }
+  body.look-gs:not(.regie-mode) .pm-points { font-size: 24px; }
+}
 /* ---------- Plus grand, plus présent (cedric, 31/10 07:15 : « un petit peu trop minimisé ») ----------
    Tout grossit avec l'écran (hauteur et largeur), sans jamais sortir des marges : Buzzy, nom de l'équipe, titres,
    consignes, points, réponses. Le palier tablette de style.css (#app …) est repris ici pour passer devant. */
