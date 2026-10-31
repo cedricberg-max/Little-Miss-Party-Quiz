@@ -478,3 +478,32 @@ body.look-gs:not(.regie-mode) #app .screen:not(#screen-simon) { padding-left: ma
   body.look-gs:not(.regie-mode) #app .sm.sm-a-moi .sm-titre { font-size: 22px; }
   body.look-gs:not(.regie-mode) #app .sm-compte { font-size: 17px; }
 }
+/* Pictionary, choix du mot en portrait : les flèches au milieu de l'image (cedric, 31/10 : « trop basses »), plus au
+   milieu de l'image et du mot réunis. Hauteur = marge de la carte + moitié de l'image − moitié de la flèche. */
+@media (orientation: portrait) {
+  body.look-gs:not(.regie-mode) #app .choix-piste { align-items: flex-start; }
+  body.look-gs:not(.regie-mode) #app .choix-fleche { margin-top: calc(18px + min(44vw, 220px) / 2 - clamp(52px, 7vh, 88px) / 2); }
+}
+@media (orientation: portrait) and (min-width: 700px) and (min-height: 700px) {
+  body.look-gs:not(.regie-mode) #app .choix-fleche { margin-top: calc(26px + 160px - clamp(52px, 7vh, 88px) / 2); }
+}
+/* Gonfleur : de l'air au-dessus et au-dessous du bouton GONFLEZ (cedric, 31/10), sans le rapetisser. */
+body.look-gs:not(.regie-mode) #app .gf-pompe { margin-block: clamp(14px, 3.4vh, 46px); white-space: nowrap; }
+body.look-gs:not(.regie-mode) .gf-scene { height: min(28vh, 380px); width: min(80vw, 28vh, 380px); }
+@media (orientation: landscape) {
+  body.look-gs:not(.regie-mode) .gf-scene { height: min(24vh, 380px); width: min(80vw, 24vh, 380px); }
+  body.look-gs:not(.regie-mode) #app .gf-pompe { margin-block: clamp(12px, 3.4vh, 40px); }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  /* Téléphone couché : ballon un peu plus petit pour que le bouton respire et que la consigne reste visible. */
+  body.look-gs:not(.regie-mode) .gf-scene { height: 20vh; width: min(60vw, 20vh); }
+  body.look-gs:not(.regie-mode) #app .gf-pompe { width: 34vh; font-size: 20px; margin-block: 10px; }
+  body.look-gs:not(.regie-mode) #app .gf-titre { font-size: 22px; }
+  body.look-gs:not(.regie-mode) #app .gf-texte { font-size: 17px; }
+}
+/* Accueil, « En attendant le quiz : buzzez… » : le halo sombre des consignes passait PAR-DESSUS l'arc-en-ciel (texte
+   transparent) et le rendait noir. Plus de halo de texte : l'arc-en-ciel garde sa lueur, avec un fin contour sombre. */
+body.look-gs:not(.regie-mode) #app #play-status.fete {
+  text-shadow: none; color: transparent; font-size: clamp(24px, min(6.6vw, 3.8vh), 48px);
+  filter: drop-shadow(0 0 2px rgba(5, 1, 13, .95)) drop-shadow(0 0 6px rgba(255, 255, 255, .45)) drop-shadow(0 0 14px rgba(255, 45, 149, .55));
+}
