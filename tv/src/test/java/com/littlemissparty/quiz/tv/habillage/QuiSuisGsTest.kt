@@ -35,7 +35,8 @@ class QuiSuisGsTest {
     /** Test du 28/10 : « qui je suis » coupé en bas du cadre ; plus il y a d'équipes déjà essayées, plus il faut de place. */
     @Test
     fun `l appel au buzz demande plus de place avec les equipes deja essayees, jamais moins que son texte`() {
-        assertTrue(besoinAppelBuzz(0) >= 168f)
+        // L'onglet d'appel du 31/10 : la plaque, le « ? » qui dépasse et « dès que vous savez / qui je suis ».
+        assertTrue(besoinAppelBuzz(0) >= 120f)
         assertTrue(besoinAppelBuzz(1) > besoinAppelBuzz(0))
         assertTrue(besoinAppelBuzz(3) > besoinAppelBuzz(2))
         assertEquals(besoinAppelBuzz(1), besoinAppelBuzz(2), 0.01f)

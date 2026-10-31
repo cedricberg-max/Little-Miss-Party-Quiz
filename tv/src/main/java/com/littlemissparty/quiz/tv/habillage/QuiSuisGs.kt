@@ -274,9 +274,9 @@ internal fun AppelBuzzQuiSuis(dejaEssaye: List<String>, modifier: Modifier = Mod
  * plus 10 % de marge : la police néon est plus haute que sa taille.
  */
 internal fun besoinAppelBuzz(essais: Int): Float {
-    // Cadre (44) et « BUZZEZ ! » (62) ; sans essai, « dès que vous savez qui je suis » (10 + 52), sinon la liste des essais.
-    val base = 44f + 62f
-    val suite = if (essais > 0) 22f + 22f + 8f + ((essais + 1) / 2) * 34f else 10f + 52f
+    // L'onglet d'appel (31/10) : plaque et « ? » qui dépasse (84), sa petite ligne (36) sans essai, sinon la liste des essais.
+    val base = 84f
+    val suite = if (essais > 0) 22f + 22f + 8f + ((essais + 1) / 2) * 34f else 36f
     return (base + suite) * 1.1f
 }
 

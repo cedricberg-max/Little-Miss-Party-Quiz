@@ -197,13 +197,13 @@ fun PlaqueAppel(genre: GenrePlaque, mot: String, ligne: String, modifier: Modifi
                     val r = if (s.coins < 0) size.height / 2 else px(s.coins)
                     val e = px(if (genre == GenrePlaque.DISPARU) 6f else 4f)
                     drawRoundRect(f, Offset(e, e), Size(size.width - 2 * e, size.height - 2 * e), CornerRadius((r - e).coerceAtLeast(0f)), style = Stroke(px(2f)))
-                }
-                .padding(start = (s.marges[3] * u).dp, top = (s.marges[0] * u).dp, end = (s.marges[1] * u).dp, bottom = (s.marges[2] * u).dp),
+                },
         ) {
             // Gonfleur : seule la plaque s'écrase, les lettres gardent leurs proportions (un texte déformé passerait pour
             // un texte rogné dans le tour des écrans, et il se lit mieux droit).
+            // Les marges sur le texte seulement : les décors se placent depuis le bord de la plaque, comme sur la planche.
             Column(
-                Modifier.graphicsLayer { if (genre == GenrePlaque.GONFLEUR) { scaleX = 1f / (1f + 0.03f * ecrase); scaleY = 1f / (1f - 0.06f * ecrase) } },
+                Modifier.padding(start = (s.marges[3] * u).dp, top = (s.marges[0] * u).dp, end = (s.marges[1] * u).dp, bottom = (s.marges[2] * u).dp).graphicsLayer { if (genre == GenrePlaque.GONFLEUR) { scaleX = 1f / (1f + 0.03f * ecrase); scaleY = 1f / (1f - 0.06f * ecrase) } },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
@@ -493,7 +493,9 @@ fun TitreBlindTest(taille: Dp, modifier: Modifier = Modifier) {
         // La tête gauche de la note se pose sur le coin haut droit du dernier T (planche : left 100 %, bottom 62 %).
         Canvas(
             Modifier.clearAndSetSemantics {}.align(Alignment.TopEnd)
-                .offset(x = note * 0.8f - taille * 0.03f, y = -note * 0.78f)
+                // Recalée sur la capture du 31/10 : l'espacement des lettres laisse un blanc après le T, et le haut du T est
+                // plus bas que le haut de la ligne.
+                .offset(x = note * 0.8f - taille * 0.10f, y = -note * 0.78f + taille * 0.15f)
                 .size(note * 0.8f, note)
                 .graphicsLayer {
                     translationY = -10f / 76f * taille.toPx() * t
