@@ -465,8 +465,8 @@ body.look-gs:not(.regie-mode) #app .sm-joueur { align-self: center; justify-self
 body.look-gs:not(.regie-mode) #app .sm-compte { text-align: center; }
 body.look-gs:not(.regie-mode) .sm-suite { justify-content: center; }
 /* De l'air sur les côtés (cedric, 31/10 08:34) : rien ne colle au bord de l'écran, en portrait comme en paysage. */
-/* (Le Simon garde sa marge d'avant : ses boules doivent rester assez grosses pour le doigt, les tests le vérifient.) */
-body.look-gs:not(.regie-mode) #app .screen:not(#screen-simon) { padding-left: max(clamp(32px, 8vw, 96px), env(safe-area-inset-left)); padding-right: max(clamp(32px, 8vw, 96px), env(safe-area-inset-right)); }
+/* Le Simon a les mêmes marges que les autres écrans (cedric, 31/10 12:56). */
+body.look-gs:not(.regie-mode) #app .screen { padding-left: max(clamp(32px, 8vw, 96px), env(safe-area-inset-left)); padding-right: max(clamp(32px, 8vw, 96px), env(safe-area-inset-right)); }
 @media (max-width: 600px) {
   /* Téléphone tenu droit : l'écran est étroit, une marge plus fine suffit. */
   body.look-gs:not(.regie-mode) #app .screen { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
@@ -506,4 +506,12 @@ body.look-gs:not(.regie-mode) .gf-scene { height: min(28vh, 380px); width: min(8
 body.look-gs:not(.regie-mode) #app #play-status.fete {
   text-shadow: none; color: transparent; font-size: clamp(24px, min(6.6vw, 3.8vh), 48px);
   filter: drop-shadow(0 0 2px rgba(5, 1, 13, .95)) drop-shadow(0 0 6px rgba(255, 255, 255, .45)) drop-shadow(0 0 14px rgba(255, 45, 149, .55));
+}
+/* Simon avec les marges de tous les écrans : en paysage, les boules prennent un peu plus de largeur (colonne de droite
+   plus étroite, boules un peu plus serrées) pour rester aussi grosses qu'avant sous le doigt. */
+body.look-gs:not(.regie-mode) .sm { padding-left: 0; padding-right: 0; }
+body.look-gs:not(.regie-mode) .sm.sm-sans-chiffres .sm-boules { gap: clamp(10px, 2vw, 18px); }
+@media (orientation: landscape) and (min-width: 700px) {
+  body.look-gs:not(.regie-mode) .sm.sm-a-moi.sm-sans-chiffres { grid-template-columns: 1.9fr 1fr; }
+  body.look-gs:not(.regie-mode) .sm.sm-sans-chiffres .sm-boules { gap: clamp(10px, 1.4vw, 18px); }
 }
