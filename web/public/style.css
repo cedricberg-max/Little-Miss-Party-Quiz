@@ -131,9 +131,6 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .choice:disabled { opacity: .45; }
 .choice.picked { opacity: 1; background: var(--choice); box-shadow: 0 0 0 4px #fff; }
 .choices.two .choice { min-height: 120px; font-size: 26px; }
-/* Portes mystères : de grandes portes à toucher. */
-.choice.door { min-height: 96px; font-size: 24px; }
-.choice.door .letter { background: var(--gold, #FFE61F); font-size: 26px; }
 /* Réponses en images : deux colonnes, la photo en grand, puis la lettre et le mot sur la ligne dessous —
    jamais la lettre posée sur la photo (retour de cedric le 21/10, comme sur la TV). */
 .choices.pictures { grid-template-columns: 1fr 1fr; }
@@ -199,7 +196,7 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
   transition: transform .08s, background .12s, box-shadow .12s;
 }
 /* « − » et « ⌫ » en or, pour les distinguer des chiffres. */
-.number-key[data-key="−"], .number-key[data-key="⌫"] { color: var(--gold); text-shadow: 0 0 10px rgba(255, 209, 102, .6); }
+.number-key[data-key="⌫"] { color: var(--gold); text-shadow: 0 0 10px rgba(255, 209, 102, .6); }
 .number-key:active:not(:disabled) { transform: scale(.95); background: var(--team); border-color: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, .5), 0 0 28px var(--team); }
 .number-key:disabled, .number-send:disabled { opacity: .45; }
 .number-send { background: linear-gradient(135deg, #ffe08a, var(--gold) 55%, #f0a92e); box-shadow: 0 0 26px rgba(255, 209, 102, .55), inset 0 1px 0 rgba(255, 255, 255, .7); }
@@ -251,7 +248,7 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
   #screen-question > .question-head { grid-column: 1; grid-row: 3; flex-wrap: wrap; justify-content: center; }
   #screen-question > .question-head .timer { margin-left: 0; }
   #screen-question > #q-status { grid-column: 1; grid-row: 4; }
-  #screen-question > #choices, #screen-question > #portes-host { grid-column: 2; grid-row: 1 / -1; width: 100%; max-width: 900px; }
+  #screen-question > #choices { grid-column: 2; grid-row: 1 / -1; width: 100%; max-width: 900px; }
   .choices { grid-template-columns: 1fr 1fr; }
   .choice { min-height: clamp(64px, 20vh, 120px); font-size: clamp(18px, 2.4vw, 26px); }
   .choices.two .choice { min-height: clamp(96px, 40vh, 220px); }
@@ -317,7 +314,6 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
   #app .choice { min-height: 110px; padding: 14px 22px; gap: 18px; font-size: 30px; border-width: 5px; border-radius: 26px; }
   #app .choice .letter { width: 64px; height: 64px; font-size: 34px; }
   #app .choices.two .choice { min-height: 170px; font-size: 38px; }
-  #app .choice.door { min-height: 130px; font-size: 32px; }
   #app .choice.with-photo { font-size: 24px; padding: 12px; }
   #app .choice.with-photo .letter { width: 40px; height: 40px; font-size: 22px; }
   #app .intro-jeu { padding: 26px 48px; gap: 10px; border-radius: 36px; }

@@ -12,7 +12,6 @@ import { envoyeurDessin } from "./picto.js";
 import { creerArdoise, choisirMot } from "./ardoise.js";
 import { mesurerHorloge, garder } from "./horloge.js";
 import { animationSpectateurs } from "./spectateurs.js";
-import { choisirPorte, ecranPorteOuverte } from "./portes.js";
 import { ecranCoffres, REVELATION_MS } from "./coffres.js";
 import { ecranGonfleur, ENVOI_MS, plafond } from "./gonfleur.js";
 import { ecranPatate } from "./patate.js";
@@ -225,7 +224,7 @@ function reconnecter() {
 }
 // Retour sur la page : le toucher qui la ramène tombe sur une grande réponse (cedric, 25/10 : « réponse envoyée » au
 // retour, sans avoir répondu). Une seconde sans réponse. Pas au passage en plein écran : il arrive au premier toucher
-// d'un jeu, et les touches suivantes (Juste Chiffre, Portes mystères) doivent passer tout de suite.
+// d'un jeu, et les touches suivantes (Juste Chiffre) doivent passer tout de suite.
 const REPONSES_BLOQUEES_MS = 1000;
 let reponsesBloqueesJusqua = 0;
 const bloquerReponses = () => { reponsesBloqueesJusqua = Date.now() + REPONSES_BLOQUEES_MS; };
@@ -620,15 +619,12 @@ function renderIntro(st) {
 function renderQuestion(st) {
   show("question");
   $("q-number").textContent = st.kind === "express" ? "Vrai ou Faux express !"
-    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !" : st.kind === "portes" ? "Portes mystères !"
+    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !"
     // Box à jour : la position dans le jeu en cours (« Quiz · question 5 / 10 »), jamais dans toute la prestation.
     : st.game?.label ?? `Question ${(st.index ?? 0) + 1}`;
   $("q-double").hidden = !st.double;
   $("q-double").textContent = `Points ×${st.factor ?? 2}`;
   if (st.kind === "number") return renderNumber(st);
-  $("choices").hidden = st.kind === "portes";
-  $("portes-host").hidden = st.kind !== "portes";
-  if (st.kind === "portes") return renderPortesChoice(st);
   const choices = st.choices ?? [];
   const photos = Array.isArray(st.choiceImages) ? st.choiceImages : [];
   const pictures = photos.some((id) => IMAGE_ID.test(id ?? ""));
@@ -645,8 +641,7 @@ function renderQuestion(st) {
       const b = document.createElement("button");
       b.className = "choice";
       b.style.setProperty("--choice", CHOICE_COLORS[i]);
-      b.innerHTML = `<span class="letter">${st.kind === "portes" ? "🚪" : CHOICE_LETTERS[i]}</span><span class="text"></span>`;
-      if (st.kind === "portes") b.classList.add("door");
+      b.innerHTML = `<span class="letter">${CHOICE_LETTERS[i]}</span><span class="text"></span>`;
       b.querySelector(".text").textContent = text;
       if (pictures && IMAGE_ID.test(photos[i] ?? "")) showChoicePhoto(b, photos[i], text);
       b.onclick = () => answer(i);
@@ -688,7 +683,8 @@ function showChoicePhoto(button, id, text) {
 
 /** Le Juste Chiffre : un pavé de chiffres, un nombre envoyé une seule fois, comme une réponse. */
 let numberDraft = "";
-const NUMBER_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "−", "0", "⌫"];
+// Pas de touche « − » (cedric, 31/10 : inutile pour des enfants) : une case vide garde le « 0 » au milieu.
+const NUMBER_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
 function renderNumber(st) {
   const box = $("choices");
   const key = `${st.qid}:number`;
@@ -705,14 +701,14 @@ function renderNumber(st) {
     const pad = document.createElement("div");
     pad.className = "number-pad";
     NUMBER_KEYS.forEach((k) => {
+      if (!k) { const vide = document.createElement("span"); vide.className = "number-vide"; pad.appendChild(vide); return; }
       const b = document.createElement("button");
       b.className = "number-key";
       b.textContent = k;
       b.dataset.key = k;
       b.onclick = () => {
         if (k === "⌫") numberDraft = numberDraft.slice(0, -1);
-        else if (k === "−") numberDraft = numberDraft.startsWith("-") ? numberDraft.slice(1) : `-${numberDraft}`;
-        else if (numberDraft.replace("-", "").length < 9) numberDraft = numberDraft === "0" ? k : numberDraft === "-0" ? `-${k}` : numberDraft + k;
+        else if (numberDraft.length < 9) numberDraft = numberDraft === "0" ? k : numberDraft + k;
         beep(1200, 40);
         render();
         // Petit rebond de l'écran à chaque touche (l'animation repart même sur deux touches rapprochées).
@@ -1195,7 +1191,7 @@ function runResumeCountdown(st) {
 
 function runTimer(st, el = $("q-timer")) {
   clearInterval(timerHandle);
-  // Pas de chrono (Portes mystères : chacun prend son temps) : rien à afficher.
+  // Pas de chrono : rien à afficher.
   if (st.phase === "question" && st.deadline == null && st.remainingMs == null) {
     el.textContent = "";
     el.classList.remove("urgent");
@@ -1240,8 +1236,6 @@ function renderResult(st) {
   $("r-icon").textContent = ok ? "✓" : answered ? "✗" : "…";
   $("r-icon").className = `result-icon ${ok ? "ok" : "ko"}`;
   const number = st.kind === "number";
-  if (st.kind === "portes") return renderPortesResult(st, award);
-  showPortesReveal(null);
   if (st.kind === "patate") {
     // La dernière bombe : chez qui elle a explosé, ce qu'elle a coûté ou rapporté ; puis le total de toutes les bombes.
     const booms = liste(st.potato?.booms);
@@ -1296,84 +1290,6 @@ function renderResult(st) {
   $("r-image").textContent = st.image ?? "";
   $("r-image").hidden = !st.image;
   $("r-total").textContent = totalEtPlace(st);
-}
-
-/** Équipe de cet appareil, pour les écrans des Portes mystères. */
-const myTeamInfo = () => (game.teams[teamId] ? { nom: game.teams[teamId].name, couleur: game.teams[teamId].color } : null);
-
-/** Choix des Portes mystères (écran portes.js) : { qid, etat, ctl } de la question en cours. */
-let portesChoix = null;
-function renderPortesChoice(st) {
-  const host = $("portes-host");
-  const mine = game.myAnswer?.choice ?? pending?.choice;
-  if (portesChoix?.qid !== st.qid) {
-    portesChoix?.ctl.detruire();
-    const qid = st.qid;
-    portesChoix = {
-      qid, etat: "choix",
-      ctl: choisirPorte(host, {
-        nombre: (st.choices ?? []).length || 4, equipe: myTeamInfo(),
-        // Choix refusé (pause, temps écoulé) : les portes reviennent, rien n'est perdu.
-        surChoix: (i) => Promise.resolve(answer(i)).finally(() => {
-          if (!game.myAnswer && portesChoix?.qid === qid && game.state?.phase === "question") { portesChoix.ctl.detruire(); portesChoix = null; render(); }
-        }),
-      }),
-    };
-  }
-  if (mine != null && portesChoix.etat !== `porte${mine}`) {
-    portesChoix.etat = `porte${mine}`;
-    portesChoix.ctl.verrouiller(mine);
-  } else if (mine == null && st.phase !== "question" && portesChoix.etat !== "ferme") {
-    portesChoix.etat = "ferme";
-    portesChoix.ctl.attente("Les choix sont fermés !");
-  }
-  $("q-status").textContent = "";
-  runTimer(st);
-}
-
-/** Résultat ouvert des Portes mystères (écran portes.js), pour ne pas rejouer l'ouverture à chaque mise à jour. */
-let portesResultat = null;
-function showPortesReveal(key, options) {
-  const box = $("r-portes");
-  for (const id of ["r-icon", "r-title", "r-detail"]) $(id).hidden = key != null;
-  box.hidden = key == null;
-  if (key == null) {
-    if (portesResultat) { portesResultat.ctl.detruire(); portesResultat = null; }
-    return;
-  }
-  if (portesResultat?.key === key) return;
-  portesResultat?.ctl.detruire();
-  portesResultat = { key, ctl: ecranPorteOuverte(box, options) };
-}
-
-/**
- * Portes mystères : le résultat de l'équipe n'apparaît qu'au moment où sa porte s'ouvre sur la TV (sinon la
- * tablette gâcherait le suspense), le total et la place seulement une fois toutes les portes ouvertes.
- */
-function renderPortesResult(st, award) {
-  const p = st.portes ?? {};
-  const door = award?.choice;
-  const opened = (p.order ?? []).slice(0, p.opened ?? 0);
-  const mineOpen = door != null && opened.includes(door);
-  const all = st.phase === "scores" || (p.opened ?? 0) >= (p.count ?? 0);
-  const name = door != null ? st.choices?.[door] ?? `Porte ${door + 1}` : null;
-  $("r-icon").className = `result-icon ${mineOpen && award.points > 0 ? "ok" : "ko"}`;
-  $("r-icon").textContent = !mineOpen ? "🚪" : award.points > 0 ? "🎁" : award.points < 0 ? "🧱" : "🫧";
-  $("r-title").textContent = door == null ? "Pas de porte choisie"
-    : !mineOpen ? `${name}… suspense !`
-    : award.points > 0 ? `BONUS ! +${award.points} points` : award.points < 0 ? `Aïe, la tuile ! −${-award.points} points` : "Ouf, le malus ne vous retire rien !";
-  $("r-detail").textContent = door == null ? "" : mineOpen ? `Derrière la ${name.toLowerCase()}` : "Les portes s'ouvrent une à une sur la TV…";
-  $("r-image").hidden = true;
-  // Sa porte est ouverte sur la TV : la porte s'ouvre aussi sur la tablette, avec les points exacts.
-  const value = mineOpen ? Number(p.values?.[door] ?? award.points) : null;
-  showPortesReveal(mineOpen ? `${st.qid}:${door}` : null, { valeur: value, porte: door, equipe: myTeamInfo() });
-  if (mineOpen && award.points !== value) {
-    $("r-detail").hidden = false;
-    $("r-detail").textContent = `Votre score ne descend jamais sous 0 : ${award.points < 0 ? "−" : "+"}${Math.abs(award.points)} points pour vous.`;
-  }
-  if (all) {
-    $("r-total").textContent = totalEtPlace(st);
-  } else $("r-total").textContent = "Classement à la fin des portes !";
 }
 
 /** Les coffres mystères (écran coffres.js) : { ctl, cle, envoi, tour, alarme } du jeu en cours. */
