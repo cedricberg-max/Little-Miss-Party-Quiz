@@ -52,7 +52,7 @@ for (const id of ["app", "paused", "resume-count"]) {
 const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu"];
 const BUZZ_INVITE = {
   flou: "Image floue : buzzez dès que vous la reconnaissez !",
-  chante: "Chante le mot ! Buzzez et chantez une chanson avec le mot de la TV !",
+  chante: "Buzzez et chantez une chanson avec le mot de la TV !",
   quisuis: "Qui suis-je ? Écoutez les indices de la TV et buzzez dès que vous savez !",
   blind: "Blind test : écoutez la musique et buzzez dès que vous reconnaissez la chanson !",
   disparu: "Qui a disparu ? Buzzez dès que vous savez quel objet manque sur la TV !",
@@ -1007,8 +1007,19 @@ function renderMime(st) {
   const m = st.mime;
   const mine = m.counts?.[teamId] ?? 0;
   const found = mine ? ` Déjà ${mine} mime${mine > 1 ? "s" : ""} trouvé${mine > 1 ? "s" : ""} !` : "";
-  if (m.team === teamId) $("play-status").textContent = "C'est votre tour ! Le mimeur se met en place, les autres se mettent dos à la TV.";
-  else if (m.team) $("play-status").textContent = `C'est au tour de ${game.teams[m.team]?.name ?? "une autre équipe"} : regardez-les mimer !${found}`;
+  if (m.team === teamId) {
+    // « C'est votre tour ! » en grand néon, la consigne dessous (cedric, 31/10 : « fait penser à un article de journal »).
+    const status = $("play-status");
+    if (!status.querySelector(".mimes-titre")) {
+      const titre = document.createElement("span");
+      titre.className = "mimes-titre";
+      titre.textContent = "C'est votre tour !";
+      const phrase = document.createElement("span");
+      phrase.className = "mimes-phrase";
+      phrase.textContent = "Le mimeur se met en place, les autres se mettent dos à la TV.";
+      status.replaceChildren(titre, phrase);
+    }
+  } else if (m.team) $("play-status").textContent = `C'est au tour de ${game.teams[m.team]?.name ?? "une autre équipe"} : regardez-les mimer !${found}`;
   else $("play-status").textContent = `Mimes ! L'animatrice choisit l'équipe qui joue.${found}`;
 }
 

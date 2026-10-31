@@ -550,3 +550,38 @@ body.look-gs:not(.regie-mode) #app .chante-mot {
   color: #ffe3f1; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 22px var(--gs-rose), 0 0 44px var(--gs-rose);
 }
 @media (orientation: landscape) and (max-height: 520px) { body.look-gs:not(.regie-mode) #app .chante-mot { font-size: 34px; } }
+/* Juste Chiffre en paysage (cedric, 31/10) : les touches aussi denses qu'en portrait (le décor derrière est plus clair),
+   et les mêmes écarts dans les deux sens (avant : trop large de gauche à droite, trop serré de haut en bas). */
+@media (orientation: landscape) {
+  body.look-gs:not(.regie-mode) #app .number-pad { grid-template-columns: repeat(3, auto); justify-content: center; width: auto; gap: clamp(10px, 2.6vh, 26px); }
+  body.look-gs:not(.regie-mode) #app .number-key { width: clamp(46px, 11.5vh, 104px); font-size: clamp(22px, 5vh, 46px);
+    background: radial-gradient(circle at 50% 30%, rgba(200, 165, 255, .55), rgba(120, 50, 230, .42) 70%); border-color: rgba(224, 205, 255, .9); }
+  body.look-gs:not(.regie-mode) #app .number-key[data-key="⌫"] { background: radial-gradient(circle at 50% 30%, rgba(255, 150, 205, .5), rgba(255, 45, 149, .36) 70%); }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .number-pad { gap: 8px; }
+  body.look-gs:not(.regie-mode) #app .number-key { width: clamp(40px, 13vh, 60px); font-size: 22px; }
+}
+/* Pictionary : la flèche bien au centre de sa bulle (cedric, 31/10) ; le caractère ‹ › de la police tombait de côté,
+   la flèche est maintenant dessinée (un chevron), toujours pile au milieu. */
+body.look-gs:not(.regie-mode) #app .choix-fleche { position: relative; padding: 0; font-size: 0; line-height: 0; }
+body.look-gs:not(.regie-mode) #app .choix-fleche::before {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 30%; height: 30%; border: solid #fff; border-width: 0 0 4px 4px; border-radius: 2px;
+  filter: drop-shadow(0 2px 0 rgba(120, 0, 60, .6)); transform: translate(-32%, -50%) rotate(45deg);
+}
+body.look-gs:not(.regie-mode) #app .choix-fleche[data-sens="1"]::before { transform: translate(-68%, -50%) rotate(-135deg); }
+/* Mimes, c'est le tour de l'équipe : « C'est votre tour ! » en gros néon jaune qui pulse, la consigne en dessous. */
+body.look-gs:not(.regie-mode) #app .mimes-titre {
+  font-family: "GS Bungee"; font-weight: 400; font-size: clamp(40px, min(11vw, 8vh), 104px); line-height: 1.05; margin-bottom: .15em;
+  color: #fff7c2; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 8px #fff, 0 0 24px var(--gs-jaune), 0 0 50px var(--gs-jaune);
+  animation: tg-pulse 1.6s ease-in-out infinite;
+}
+body.look-gs:not(.regie-mode) #app .mimes-phrase { font-size: clamp(22px, min(5.6vw, 4.2vh), 44px); color: #fff; text-shadow: var(--tg-halo); max-width: 20em; margin-inline: auto; }
+@keyframes tg-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .mimes-titre { font-size: 40px; }
+  body.look-gs:not(.regie-mode) #app .mimes-phrase { font-size: 19px; }
+}
+@media (prefers-reduced-motion: reduce) { body.look-gs:not(.regie-mode) #app .mimes-titre { animation: none; } }
+/* Simon : encore un peu d'air entre les boules et le bord (cedric, 31/10), en plus des marges de tous les écrans. */
+body.look-gs:not(.regie-mode) #app .sm-boules { padding-inline: clamp(6px, 1.2vw, 12px); box-sizing: border-box; }
