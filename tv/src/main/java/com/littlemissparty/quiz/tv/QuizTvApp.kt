@@ -87,6 +87,8 @@ class TvActions(
     val resume: () -> Unit,
     val newGame: () -> Unit,
     val quit: () -> Unit,
+    /** « Terminer la partie et quitter » : la partie est terminée (rien à reprendre), puis l'appli se ferme. */
+    val terminerEtQuitter: () -> Unit = quit,
     val showRegie: () -> Unit,
     val hideRegie: () -> Unit,
     val removeRegies: () -> Unit,
@@ -212,6 +214,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, 
             onDesign = actions.changerDesign,
             onNewGame = { confirmQuit = false; pausedByDialog = false; actions.newGame() },
             onQuit = { confirmQuit = false; actions.quit() },
+            onTerminerEtQuitter = { confirmQuit = false; pausedByDialog = false; actions.terminerEtQuitter() },
         )
     }
     if (pointsOpen && state is UiState.Playing) {
@@ -458,6 +461,7 @@ private fun QuitDialog(
     onDesign: () -> Unit,
     onNewGame: () -> Unit,
     onQuit: () -> Unit,
+    onTerminerEtQuitter: () -> Unit,
 ) {
     val focus = remember { FocusRequester() }
     // Fenêtre séparée : la télécommande ne peut pas atteindre les boutons de l'écran derrière.
@@ -495,6 +499,8 @@ private fun QuitDialog(
             TvButton("🎨 Design : ${Look.design.nom}", onDesign, wide, fontSize = 20.sp)
             TvButton("Quitter l'application", onQuit, wide, fontSize = 20.sp)
             TvButton("Terminer et lancer une nouvelle partie", onNewGame, wide, accent = Palette.Pink, fontSize = 20.sp)
+            // Fin de soirée (cedric, 31/10) : terminer la partie et fermer l'appli d'un coup, rien à reprendre ensuite.
+            TvButton("Terminer la partie et quitter", onTerminerEtQuitter, wide, accent = Palette.Pink, fontSize = 20.sp)
         }
         // Une équipe arrive pendant que la fenêtre est ouverte : « Lancer la fête ! » apparaît et prend la sélection.
         LaunchedEffect(onLaunch != null) { runCatching { focus.requestFocus() } }

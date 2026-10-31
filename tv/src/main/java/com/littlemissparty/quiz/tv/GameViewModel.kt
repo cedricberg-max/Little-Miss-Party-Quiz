@@ -513,11 +513,34 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * « Terminer la partie et quitter » (cedric, 31/10 au soir) : la partie active est marquée terminée et quittée, sans
+     * en créer de nouvelle, la box l'oublie (rien ne sera proposé au prochain démarrage), puis [ensuite] ferme l'appli.
+     * Hors ligne, l'écriture part au retour du réseau ; l'appli se ferme quand même au bout de [FIN_ET_QUITTER_MAX_MS].
+     */
+    fun terminerEtQuitter(ensuite: () -> Unit) {
+        countdown?.cancel()
+        timer?.cancel()
+        expressTimer?.cancel()
+        armTimer?.cancel()
+        val code = (_state.value as? UiState.ResumeOffer)?.code ?: activeCode
+        activeCode = null
+        viewModelScope.launch {
+            try {
+                if (code != null) withTimeoutOrNull(FIN_ET_QUITTER_MAX_MS) { quitter(connect(), code, null).await() }
+            } catch (e: Exception) {
+                Log.w(TAG, "partie non marquée terminée avant de quitter", e)
+            } finally {
+                ensuite()
+            }
+        }
+    }
+
+    /**
      * Marque [ancien] terminée et quittée. Avec une [suite] : les téléphones reliés à la régie de l'ancienne partie le
      * sont d'abord à la nouvelle (la box est hôte des deux), puis `state/suite` est écrit, pour que la régie qui bascule
      * soit déjà reliée.
      */
-    private suspend fun quitter(db: FirebaseDatabase, ancien: String, suite: String?) {
+    private suspend fun quitter(db: FirebaseDatabase, ancien: String, suite: String?): com.google.android.gms.tasks.Task<Void> {
         val fin = mutableMapOf<String, Any>("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP, "leftAt" to ServerValue.TIMESTAMP)
         if (suite != null) {
             try {
@@ -536,7 +559,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             fin["suite"] = suite
         }
         // Sans attendre : hors ligne, l'écriture part au retour du réseau.
-        db.getReference("games/$ancien/state").updateChildren(fin)
+        return db.getReference("games/$ancien/state").updateChildren(fin)
     }
 
     // ---------- Activation de la box ----------
@@ -2754,6 +2777,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
         /** Deux appuis sur OK plus rapprochés que cela ne font avancer que d'une étape. */
         private const val NEXT_GUARD_MS = 500L
+        /** « Terminer la partie et quitter » : attente maximale de l'écriture de fin avant de fermer l'appli. */
+        internal const val FIN_ET_QUITTER_MAX_MS = 3_000L
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         /** Demande effacée sans autorisation au bout de ce délai : la Régie PC l'a refusée. */
         private const val BOX_REFUSAL_CHECK_MS = 2_000L

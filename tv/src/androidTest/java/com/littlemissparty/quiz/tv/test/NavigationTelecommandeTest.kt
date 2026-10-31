@@ -6,6 +6,7 @@ import com.littlemissparty.quiz.tv.habillage.Look
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -129,6 +130,7 @@ class NavigationTelecommandeTest : TestTv() {
         val menu = listOf(
             "Continuer la partie", "Donner des points", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour",
             "Vider le cache des médias", "🎨 Design : ${Look.design.nom}", "Quitter l'application", cible,
+            "Terminer la partie et quitter",
         )
         menu.forEachIndexed { i, bouton ->
             if (i > 0) ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -136,6 +138,7 @@ class NavigationTelecommandeTest : TestTv() {
             ecran.entierementVisible(bouton)
         }
         ecran.capture("fenetre-nouvelle-partie")
+        ecran.touche(KeyEvent.KEYCODE_DPAD_UP)
         ecran.ok(cible)
 
         val nouveau = attendreQue("nouvelle partie créée", 30_000) { Boite.codeActif()?.takeIf { it != code } }
@@ -144,5 +147,21 @@ class NavigationTelecommandeTest : TestTv() {
         // Game Show : plus de code de la partie sur l'accueil (cedric, 24/10), il est dans le menu Retour.
         if (!Look.gs) ecran.voit(nouveau)
         assertEquals("ended", licornes.etat(code).child("phase").value)
+    }
+
+    @Test
+    fun terminerLaPartieEtQuitter() {
+        // cedric, 31/10 au soir : en fin de soirée, terminer la partie et fermer l'appli d'un seul coup.
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        ecran.lancerLaFete()
+        attendreQuestion(licornes, code, 0)
+
+        ecran.device.pressBack()
+        ecran.ok("Terminer la partie et quitter")
+        attendreQue("partie terminée", 30_000) { licornes.etat(code).child("phase").value?.takeIf { it == "ended" } }
+        assertEquals("rien à reprendre au prochain démarrage", null, Boite.codeActif())
+        assertNotNull("aucune nouvelle partie", licornes.etat(code).child("leftAt").value)
+        assertEquals("pas de suite : on a quitté", null, licornes.etat(code).child("suite").value)
     }
 }
