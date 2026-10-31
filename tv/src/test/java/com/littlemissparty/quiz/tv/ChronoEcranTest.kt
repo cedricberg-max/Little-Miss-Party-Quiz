@@ -87,4 +87,15 @@ class ChronoEcranTest {
         val (_, calme) = positionDrap(1f, DRAP_CHUTE_MS + 5_000L)
         assertEquals(1f, calme, 0.01f)
     }
+
+    @Test
+    fun `etiquettes sous la regle : jamais deux qui se touchent sur la meme rangee a 8 equipes`() {
+        // Le cas des captures du 31/10 : Ninjas et Pirates du lac côte à côte sur la même rangée.
+        val x = listOf(300f, 420f, 560f, 640f, 1180f, 1260f, 1400f, 1600f)
+        val r = rangeesEtiquettes(x)
+        for (i in x.indices) for (j in i + 1 until x.size) if (r[i] == r[j]) assertTrue("$i et $j se touchent", x[j] - x[i] >= ETIQUETTE_L)
+        assertTrue(r.all { it in 0..3 })
+        assertEquals(listOf(0, 1, 2, 3), rangeesEtiquettes(listOf(100f, 110f, 120f, 130f)))
+        assertEquals(listOf(0, 0), rangeesEtiquettes(listOf(100f, 900f)))
+    }
 }

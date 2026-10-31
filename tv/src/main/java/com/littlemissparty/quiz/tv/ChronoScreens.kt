@@ -540,13 +540,14 @@ private fun androidx.compose.foundation.layout.BoxScope.Revelation(state: UiStat
     }
     // Les noms et écarts sous la règle, sur 4 rangées pour ne jamais se chevaucher à 8 équipes.
     val parPosition = ordre.sortedBy { r.ecarts.getValue(it) }
+    val rangees = rangeesEtiquettes(parPosition.map { xDe(c.cible + r.ecarts.getValue(it) / 1000.0) })
     parPosition.forEachIndexed { rang, uid ->
         val i = ordre.indexOf(uid)
         if (t < arrivee[i] + (if (i == ordre.lastIndex) PASTILLE_RALENTI_MS else 500L)) return@forEachIndexed
         val x = xDe(c.cible + r.ecarts.getValue(uid) / 1000.0)
-        val rangee = rang % 4
+        val rangee = rangees[rang]
         Column(
-            Modifier.offset((x - 200f).dp, (yRegle + 46f + rangee * 104f).dp).width(400.dp),
+            Modifier.offset((x - ETIQUETTE_L / 2).dp, (yRegle + 46f + rangee * 104f).dp).width(ETIQUETTE_L.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             TexteNeon(nom(uid), couleur(uid), 42f, police = PoliceGsTitre, largeurMax = 400.dp, force = 0.6f, tailleMin = 26f)
@@ -573,4 +574,22 @@ private fun androidx.compose.foundation.layout.BoxScope.Revelation(state: UiStat
 internal fun phraseGagnant(nom: String): String {
     val pluriel = nom.trim().let { it.startsWith("les ", ignoreCase = true) || it.startsWith("des ", ignoreCase = true) }
     return "${nom.uppercase()} ${if (pluriel) "GAGNENT" else "GAGNE"} LE TOUR !"
+}
+
+/** Largeur d'une étiquette (nom + écart) sous la règle, en px de la scène. */
+internal const val ETIQUETTE_L = 400f
+
+/**
+ * La rangée (0 à 3) de chaque étiquette sous la règle, les [x] triés de gauche à droite : chacune va dans la première
+ * rangée où elle ne touche aucune autre étiquette ; si aucune n'est libre (équipes très serrées), dans celle où la voisine
+ * la plus proche est la plus loin.
+ */
+internal fun rangeesEtiquettes(x: List<Float>, rangeesMax: Int = 4, ecart: Float = ETIQUETTE_L + 12f): List<Int> {
+    val dernier = FloatArray(rangeesMax) { Float.NEGATIVE_INFINITY }
+    return x.map { xi ->
+        val libre = (0 until rangeesMax).firstOrNull { xi - dernier[it] >= ecart }
+        val r = libre ?: (0 until rangeesMax).maxBy { xi - dernier[it] }
+        dernier[r] = xi
+        r
+    }
 }
