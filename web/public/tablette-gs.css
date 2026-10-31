@@ -350,9 +350,8 @@ body.look-gs:not(.regie-mode) #app .choix-fleche { width: clamp(52px, 7vh, 88px)
   body.look-gs:not(.regie-mode) #app .choix-valider { min-height: 46px; font-size: 18px; }
   body.look-gs:not(.regie-mode) #app .choix-fleche { width: 44px; height: 44px; font-size: 26px; }
 }
-/* Tablettes qui regardent : titre néon, la phrase du personnage et la ligne du bas en texte blanc sur le décor
+/* Tablettes qui regardent : le titre PICTIONARY garde son néon doré d'origine (cedric, 31/10) ; la phrase du personnage et la ligne du bas en texte blanc sur le décor
    (plus de bulle blanche ni de pilule). */
-body.look-gs:not(.regie-mode) .sp-titre { font-family: "GS Bungee"; font-weight: 400; letter-spacing: .04em; font-size: clamp(30px, min(7.4vw, 5.6vh), 72px); background: none; color: #e9feff; filter: none; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 20px var(--gs-cyan), 0 0 40px var(--gs-cyan); }
 body.look-gs:not(.regie-mode) .sp-bulle { background: none; box-shadow: none; color: #fff7a8; font-size: clamp(20px, min(4.8vw, 3.8vh), 40px); text-shadow: var(--tg-halo), 0 0 16px rgba(255, 230, 0, .45); max-width: min(94vw, 900px); }
 body.look-gs:not(.regie-mode) .sp-bulle::after { display: none; }
 body.look-gs:not(.regie-mode) .sp-bandeau { background: none; color: #fff; font-size: clamp(18px, min(4.2vw, 3.4vh), 34px); text-shadow: var(--tg-halo); }
@@ -437,6 +436,13 @@ body.look-gs:not(.regie-mode) .sp-bandeau { font-size: clamp(22px, min(5.4vw, 4.
 body.look-gs:not(.regie-mode) #app .sm-joueur { align-self: center; justify-self: center; text-align: center; }
 body.look-gs:not(.regie-mode) #app .sm-compte { text-align: center; }
 body.look-gs:not(.regie-mode) .sm-suite { justify-content: center; }
+/* De l'air sur les côtés (cedric, 31/10 08:34) : rien ne colle au bord de l'écran, en portrait comme en paysage. */
+/* (Le Simon garde sa marge d'avant : ses boules doivent rester assez grosses pour le doigt, les tests le vérifient.) */
+body.look-gs:not(.regie-mode) #app .screen:not(#screen-simon) { padding-left: max(clamp(32px, 8vw, 96px), env(safe-area-inset-left)); padding-right: max(clamp(32px, 8vw, 96px), env(safe-area-inset-right)); }
+@media (max-width: 600px) {
+  /* Téléphone tenu droit : l'écran est étroit, une marge plus fine suffit. */
+  body.look-gs:not(.regie-mode) #app .screen { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+}
 /* Téléphone couché (très peu de hauteur) : on reste lisible sans déborder. */
 @media (orientation: landscape) and (max-height: 520px) {
   body.look-gs:not(.regie-mode) #app .hint { font-size: 19px; }
