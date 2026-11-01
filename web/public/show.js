@@ -687,6 +687,16 @@ export function departZoom(v) {
   return { x: borne(x, 0, 1, 1000), y: borne(y, 0, 1, 1000), z: borne(z, 2, 10, 10) };
 }
 
+/**
+ * Départ de l'Image floue (cedric, 01/11) : { w } = la largeur en pixels de la toute première image floue sur la TV,
+ * entier de 2 (le plus flou) à 5 (le flou d'origine, comme sans réglage). La TV garde la même durée totale. Invalide : null.
+ */
+export const FLOU_NORMAL = 5, FLOU_MAX = 2;
+export function departFlou(v) {
+  const w = v && typeof v === "object" ? (v.w === null || v.w === "" ? NaN : Number(v.w)) : NaN;
+  return Number.isFinite(w) ? { w: Math.round(Math.min(FLOU_NORMAL, Math.max(FLOU_MAX, w))) } : null;
+}
+
 function itemsDeLaSerie(serie, quizzes = {}, type = "quiz") {
   if (serie?.origine === "quiz") {
     const quiz = quizzes?.[serie.quizId];
@@ -700,7 +710,8 @@ function itemsDeLaSerie(serie, quizzes = {}, type = "quiz") {
       // Quiz illustré : réponses en photos de la banque (tirées au 🎲) ou en images déjà copiées (série reprise).
       ...(Array.isArray(q.choiceBanque) ? { choiceBanque: q.choiceBanque } : {}),
       ...(q.choiceImages && typeof q.choiceImages === "object" ? { choiceImages: q.choiceImages } : {}),
-      ...(type === "zoom" && departZoom(q.zoomDepart) ? { zoomDepart: departZoom(q.zoomDepart) } : {}) } }));
+      ...(type === "zoom" && departZoom(q.zoomDepart) ? { zoomDepart: departZoom(q.zoomDepart) } : {}),
+      ...(type === "flou" && departFlou(q.flouDepart) ? { flouDepart: departFlou(q.flouDepart) } : {}) } }));
 }
 
 /**
@@ -1567,6 +1578,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         ...(q.banque ? { banque: q.banque } : { imageId: q.imageId }),
         // Zoom mystère : le départ du zoom réglé dans la Régie PC (cedric, 31/10).
         ...(round.type === "zoom" && departZoom(q.zoomDepart) ? { zoomDepart: departZoom(q.zoomDepart) } : {}),
+        // Image floue : un flou plus fort au départ, réglé dans la Régie PC (cedric, 01/11).
+        ...(round.type === "flou" && departFlou(q.flouDepart) ? { flouDepart: departFlou(q.flouDepart) } : {}),
       }));
       return;
     }

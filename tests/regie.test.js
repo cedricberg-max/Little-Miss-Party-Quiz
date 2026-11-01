@@ -7721,28 +7721,28 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator(".dz-boite").waitFor({ state: "detached" });
     assert.equal((await zoomDe(mini))[0], "scale(6)");
     await mini.click();
-    await page.locator(".dz-forces button", { hasText: "Fort" }).click();
+    await page.locator(".dz-forces button", { hasText: /^Fort$/ }).click();
     const scene = await page.locator(".dz-scene").boundingBox();
     await page.mouse.move(scene.x + scene.width / 2, scene.y + scene.height / 2);
     await page.mouse.down();
     await page.mouse.move(scene.x + 2, scene.y + 2, { steps: 5 });
     await page.mouse.up();
-    assert.equal(await page.locator(".dz-apercu img").evaluate((el) => el.style.transform), "scale(9)", "l'aperçu en grand suit");
+    assert.equal(await page.locator(".dz-apercu img").evaluate((el) => el.style.transform), "scale(8)", "l'aperçu en grand suit");
     await page.locator(".dz-boite button", { hasText: "Valider le départ" }).click();
     await page.locator(".dz-boite").waitFor({ state: "detached" });
-    await page.waitForFunction(() => document.querySelector(".zoom-depart img")?.style.transform === "scale(9)");
-    assert.deepEqual(await zoomDe(mini), ["scale(9)", "0% 0%"]);
-    const { show, q } = await enregistrer("Nina", (y) => y.zoomDepart?.z === 9);
-    assert.deepEqual(q.zoomDepart, { x: 0, y: 0, z: 9 });
+    await page.waitForFunction(() => document.querySelector(".zoom-depart img")?.style.transform === "scale(8)");
+    assert.deepEqual(await zoomDe(mini), ["scale(8)", "0% 0%"]);
+    const { show, q } = await enregistrer("Nina", (y) => y.zoomDepart?.z === 8);
+    assert.deepEqual(q.zoomDepart, { x: 0, y: 0, z: 8 });
     assert.equal(q.imageId, LION, "la photo ne change pas");
-    await waitFor(async () => (await library(`departsZoom/${LION}`))?.z === 9, "départ gardé pour la photo");
+    await waitFor(async () => (await library(`departsZoom/${LION}`))?.z === 8, "départ gardé pour la photo");
     // La TV le reçoit dans la question du Zoom mystère.
     const { snapshot } = buildSnapshot("nina", show, {}, {}, () => 0.5);
-    assert.deepEqual(snapshot.quiz.questions.find((x) => x.kind === "zoom").zoomDepart, { x: 0, y: 0, z: 9 });
+    assert.deepEqual(snapshot.quiz.questions.find((x) => x.kind === "zoom").zoomDepart, { x: 0, y: 0, z: 8 });
     // Une autre prestation avec la même photo : le même départ, tout seul.
     mini = await nouvelle("Lou");
-    await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(9)");
-    assert.deepEqual((await enregistrer("Lou", (y) => y.zoomDepart)).q.zoomDepart, { x: 0, y: 0, z: 9 });
+    await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(8)");
+    assert.deepEqual((await enregistrer("Lou", (y) => y.zoomDepart)).q.zoomDepart, { x: 0, y: 0, z: 8 });
     // La petite molette sous la photo (cedric, 31/10) : zoomer plus loin sans ouvrir le réglage, le même centre gardé.
     const { zoomerDepart } = await import("../web/public/departzoom.js");
     const centre = (d) => { const f = fenetreDuDepart(d); return [f.gauche + f.taille / 2, f.haut + f.taille / 2]; };
@@ -7751,8 +7751,9 @@ describe("bibliothèque de quiz et prestations", () => {
     centre(plusFort).forEach((c, k) => assert.ok(Math.abs(c - centre({ x: 0.3, y: 0.6, z: 4 })[k]) < 0.002, "même centre"));
     const molette = page.locator("#show-rounds .quiz-complet-q .zoom-molette");
     await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-molette")?.disabled === false);
-    assert.equal(await molette.inputValue(), "9");
-    assert.equal(await page.locator("#show-rounds .zoom-molette-force").textContent(), "×9");
+    assert.equal(await molette.inputValue(), "8");
+    assert.equal(await molette.getAttribute("min"), "6", "seulement plus loin que le zoom normal de la TV");
+    assert.equal(await page.locator("#show-rounds .zoom-molette-force").textContent(), "×8");
     await molette.fill("10");
     await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(10)");
     assert.equal((await enregistrer("Lou", (y) => y.zoomDepart?.z === 10)).q.zoomDepart.z, 10);
@@ -7760,6 +7761,68 @@ describe("bibliothèque de quiz et prestations", () => {
     // La molette ne dépasse pas sous la photo.
     const [bloc, photo] = await Promise.all([page.locator("#show-rounds .zoom-depart-bloc").boundingBox(), page.locator("#show-rounds .zoom-depart").boundingBox()]);
     assert.ok(bloc.width <= photo.width + 1, `molette pas plus large que la photo (${bloc.width} > ${photo.width})`);
+    await page.context().close();
+  });
+
+  test("Régie PC (cedric, 01/11) : Image floue, par défaut le flou d'aujourd'hui ; une petite molette sous chaque photo la rend plus floue au départ ; enregistré dans la question (flouDepart, lu par la TV) et gardé pour la photo", async () => {
+    const { departFlou, buildSnapshot } = await import("../web/public/show.js");
+    assert.deepEqual(departFlou({ w: 3 }), { w: 3 });
+    assert.deepEqual(departFlou({ w: 9 }), { w: 5 });
+    assert.deepEqual(departFlou({ w: 0 }), { w: 2 });
+    assert.equal(departFlou({ w: "a" }), null);
+    assert.equal(departFlou(null), null);
+
+    const PNG = `data:image/png;base64,${pngHalves(400, 300, [220, 30, 30], [30, 60, 220]).toString("base64")}`;
+    const OURS = "c5c5c5c5c5c5c5c5";
+    await seedLibrary("images", { [OURS]: PNG });
+    await seedLibrary("medias", { [OURS]: { name: "Ours", cat: "Animaux", createdAt: 1, updatedAt: 1 } });
+    const page = await admin();
+    const nouvelle = async (prenom) => {
+      await page.click("#nav button[data-screen=home]");
+      await page.click("#home-new");
+      await page.fill("#show-child", prenom);
+      await ajouterJeu(page, "flou");
+      const round = page.locator("#show-rounds .round").nth(0);
+      await round.locator(".vos-images-cherche").fill("ours");
+      await round.locator(`.vos-images-tuile[data-image="${OURS}"]`).click();
+      return round;
+    };
+    // Comme pour le zoom : attendre la prestation telle qu'enregistrée, le message « Enregistrée » peut rester de
+    // l'enregistrement d'avant.
+    const enregistrer = async (prenom, pret = () => true) => {
+      await page.click("#show-save");
+      await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+      let lu = null;
+      await waitFor(async () => {
+        const show = Object.values((await library("shows")) ?? {}).find((x) => x.childName === prenom);
+        const q = show?.rounds?.[0]?.seriesQuiz?.flatMap((x) => x.questions ?? []).find((y) => y && !y.vide);
+        lu = { show, q };
+        return q && pret(q);
+      }, `prestation de ${prenom} enregistrée`);
+      return lu;
+    };
+    const largeur = () => page.locator("#show-rounds .flou-depart img").getAttribute("data-largeur");
+    // Sans réglage : le flou d'aujourd'hui (5 pixels), rien d'enregistré : la TV floute comme avant.
+    let round = await nouvelle("Zoé");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .flou-depart img")?.dataset.largeur === "5");
+    assert.equal(await round.locator(".flou-molette-force").textContent(), "normal");
+    assert.equal((await enregistrer("Zoé")).q.flouDepart, undefined);
+    // La molette à fond : le plus flou (2 pixels), la petite image suit.
+    await round.locator(".flou-molette").fill("3");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .flou-depart img")?.dataset.largeur === "2");
+    assert.equal(await round.locator(".flou-molette-force").textContent(), "max");
+    const { show, q } = await enregistrer("Zoé", (y) => y.flouDepart);
+    assert.deepEqual(q.flouDepart, { w: 2 });
+    assert.equal(q.imageId, OURS, "la photo ne change pas");
+    await waitFor(async () => (await library(`departsFlou/${OURS}`))?.w === 2, "flou gardé pour la photo");
+    // La TV le reçoit dans la question de l'Image floue.
+    const { snapshot } = buildSnapshot("zoe", show, {}, {}, () => 0.5);
+    assert.deepEqual(snapshot.quiz.questions.find((x) => x.kind === "flou").flouDepart, { w: 2 });
+    // Une autre prestation avec la même photo : le même flou, tout seul, et enregistré avec elle.
+    round = await nouvelle("Léo");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .flou-depart img")?.dataset.largeur === "2");
+    assert.equal(await largeur(), "2");
+    assert.deepEqual((await enregistrer("Léo", (y) => y.flouDepart)).q.flouDepart, { w: 2 });
     await page.context().close();
   });
 
