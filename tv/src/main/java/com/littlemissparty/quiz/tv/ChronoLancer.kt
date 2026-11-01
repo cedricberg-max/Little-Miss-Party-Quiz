@@ -166,7 +166,8 @@ internal class LecteurLancer(
                     echec()
                 }
             }
-            e.charger(clip, boucle = false, puisBoucle = boucle)
+            // Boucle d'attente seule (« Prêts ? ») : en boucle ; sinon le clip du lancer puis sa boucle, enchaînés sans trou.
+            if (clip == boucle) e.charger(clip, boucle = true) else e.charger(clip, boucle = false, puisBoucle = boucle)
             e.preparer(s)
             return
         }
@@ -217,14 +218,22 @@ internal class LecteurLancer(
             removeCallbacks(lancer)
             val avance = depart - maintenant()
             when {
+                depart == Long.MIN_VALUE -> e.demarrer()
                 avance > 15 -> postDelayed(lancer, avance)
-                -avance >= LANCER_DUREE_MS - 200 -> {
+                -avance >= dureeClip - 200 -> {
                     e.allerALaBoucle()
                     e.demarrer()
                 }
+                -avance <= 80 -> e.demarrer()
                 else -> {
-                    if (-avance > 80) e.caler((-avance).toInt())
-                    e.demarrer()
+                    // En retard (le cas normal avec les boucles d'attente du début) : placé à l'image exacte un peu en
+                    // avance, puis parti pile quand l'heure le rattrape.
+                    val cible = -avance + SAUT_AVANCE_MS
+                    val jeton = generation
+                    e.caler(cible.toInt())
+                    val attente = depart + cible - maintenant()
+                    if (attente > 15) postDelayed({ if (exo === e && jeton == generation && !fini) e.demarrer() }, attente)
+                    else e.demarrer()
                 }
             }
             return
