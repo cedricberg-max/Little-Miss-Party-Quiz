@@ -109,12 +109,90 @@ internal fun TrajetRobot.resserre(r: Resserre) = TrajetRobot(
     sauts * r.facteur, periodeSautMs, fluide,
 )
 
-/** 7 équipes : la 4e carte s'arrête à x .86 ; 8 équipes : la colonne de droite va jusqu'à x .96, il n'en dépasse qu'à moitié. */
+/** 7 équipes : la 4e carte s'arrête à x .86 ; 8 équipes : la colonne de droite va jusqu'à x .96. Posé au bord droit, il reste entier ([entierDansLEcran]). */
 internal fun resserre(equipes: Int): Resserre? = when {
     equipes >= 8 -> Resserre(1f, 0.35f)
     equipes >= 7 -> Resserre(0.97f, 0.65f)
     else -> null
 }
+
+/**
+ * Où est le robot dans son clip, toutes images confondues (bras tendus, sauts, confettis exclus) : bords gauche, droit,
+ * haut et bas, en part de l'image du clip. Mesuré sur la transparence de chaque clip (outils/mesure_boites_robot.py).
+ */
+internal class BoiteRobot(val gauche: Float, val droite: Float, val haut: Float, val bas: Float)
+
+internal val BOITES_ROBOT: Map<String, BoiteRobot> = mapOf(
+    "gs_robot_applaudit" to BoiteRobot(0.132f, 0.859f, 0.126f, 1.000f),
+    "gs_robot_batterie" to BoiteRobot(0.167f, 0.933f, 0.141f, 0.996f),
+    "gs_robot_boude" to BoiteRobot(0.188f, 0.812f, 0.198f, 0.898f),
+    "gs_robot_bravo" to BoiteRobot(0.078f, 0.933f, 0.130f, 1.000f),
+    "gs_robot_cache" to BoiteRobot(0.146f, 0.854f, 0.201f, 1.000f),
+    "gs_robot_cestvous" to BoiteRobot(0.094f, 0.812f, 0.182f, 0.925f),
+    "gs_robot_coeur" to BoiteRobot(0.082f, 0.895f, 0.115f, 1.000f),
+    "gs_robot_confettis" to BoiteRobot(0.063f, 0.937f, 0.111f, 1.000f),
+    "gs_robot_coucou" to BoiteRobot(0.213f, 0.933f, 0.198f, 1.000f),
+    "gs_robot_courtcircuit" to BoiteRobot(0.000f, 1.000f, 0.141f, 0.917f),
+    "gs_robot_danse" to BoiteRobot(0.078f, 0.972f, 0.081f, 1.000f),
+    "gs_robot_degonfle" to BoiteRobot(0.141f, 0.859f, 0.175f, 0.966f),
+    "gs_robot_descente" to BoiteRobot(0.059f, 0.933f, 0.016f, 1.000f),
+    "gs_robot_disco" to BoiteRobot(0.122f, 1.000f, 0.190f, 0.906f),
+    "gs_robot_dort" to BoiteRobot(0.155f, 0.941f, 0.001f, 0.943f),
+    "gs_robot_energie" to BoiteRobot(0.052f, 0.918f, 0.000f, 0.913f),
+    "gs_robot_envers" to BoiteRobot(0.014f, 0.982f, 0.182f, 0.872f),
+    "gs_robot_facepalm" to BoiteRobot(0.098f, 0.902f, 0.205f, 0.932f),
+    "gs_robot_fusee" to BoiteRobot(0.205f, 0.941f, 0.000f, 1.000f),
+    "gs_robot_groove" to BoiteRobot(0.089f, 0.911f, 0.186f, 0.992f),
+    "gs_robot_guitare" to BoiteRobot(0.075f, 0.945f, 0.141f, 1.000f),
+    "gs_robot_inquiet" to BoiteRobot(0.146f, 0.854f, 0.201f, 1.000f),
+    "gs_robot_jumelles" to BoiteRobot(0.061f, 0.939f, 0.190f, 0.906f),
+    "gs_robot_ola" to BoiteRobot(0.071f, 0.948f, 0.084f, 1.000f),
+    "gs_robot_oups" to BoiteRobot(0.075f, 0.925f, 0.190f, 1.000f),
+    "gs_robot_peur" to BoiteRobot(0.188f, 0.812f, 0.160f, 0.898f),
+    "gs_robot_pique" to BoiteRobot(0.000f, 1.000f, 0.062f, 1.000f),
+    "gs_robot_pleure" to BoiteRobot(0.150f, 0.850f, 0.190f, 1.000f),
+    "gs_robot_podium" to BoiteRobot(0.071f, 0.898f, 0.069f, 1.000f),
+    "gs_robot_pouces" to BoiteRobot(0.150f, 0.850f, 0.182f, 0.992f),
+    "gs_robot_rate" to BoiteRobot(0.061f, 0.939f, 0.182f, 1.000f),
+    "gs_robot_robotdance" to BoiteRobot(0.055f, 0.902f, 0.186f, 0.996f),
+    "gs_robot_salto" to BoiteRobot(0.075f, 0.933f, 0.081f, 1.000f),
+    "gs_robot_suspense" to BoiteRobot(0.128f, 0.872f, 0.175f, 1.000f),
+    "gs_robot_tete" to BoiteRobot(0.209f, 0.960f, 0.126f, 1.000f),
+    "gs_robot_tourne" to BoiteRobot(0.032f, 0.948f, 0.000f, 1.000f),
+    "gs_robot_traverse" to BoiteRobot(0.067f, 0.941f, 0.182f, 1.000f),
+    "gs_robot_traverseg" to BoiteRobot(0.150f, 0.850f, 0.179f, 1.000f),
+    "gs_robot_vole" to BoiteRobot(0.044f, 0.991f, 0.028f, 0.913f),
+)
+
+/** Part de la largeur de l'écran laissée entre Buzzy et le bord, et de la hauteur au-dessus de sa tête. */
+internal const val MARGE_BORD_ROBOT = 0.012f
+internal const val MARGE_HAUT_ROBOT = 0.015f
+
+/**
+ * Point 52 (cedric, 1/11 au soir : « je veux la version robot pas coupé du tout ») : une fois arrivé, Buzzy est toujours
+ * entier à l'écran, sur tous les bords et dans tous les clips. Il entre et sort par le bord comme avant ; mais chaque
+ * étape posée dans l'écran est décalée juste assez pour que tout le robot ([boite], toutes ses images) tienne, avec
+ * [MARGE_BORD_ROBOT] d'air. [format] : largeur / hauteur d'une image du clip ; [ratio] : largeur / hauteur de l'écran.
+ * Le clip fait 90 % de la hauteur de l'écran à l'échelle 1 (voir [JouerClip]).
+ */
+internal fun TrajetRobot.entierDansLEcran(boite: BoiteRobot, format: Float, ratio: Float): TrajetRobot = TrajetRobot(
+    etapes.map { e ->
+        val h = HAUTEUR_CLIP_ROBOT * e.echelle
+        val l = h * format / ratio
+        val x = if (fluide || e.x !in 0f..1f) e.x else {
+            val mini = MARGE_BORD_ROBOT + (0.5f - boite.gauche) * l
+            val maxi = 1f - MARGE_BORD_ROBOT - (boite.droite - 0.5f) * l
+            if (mini > maxi) 0.5f else e.x.coerceIn(mini, maxi)
+        }
+        // Posé ou en vol dans l'écran : sa tête (et ses bonds) ne passent jamais au-dessus du haut de l'écran.
+        val bas = if (e.bas in 0.3f..1f) maxOf(e.bas, minOf(1f, MARGE_HAUT_ROBOT + sauts + h * (1f - boite.haut))) else e.bas
+        e.copy(x = x, bas = bas)
+    },
+    sauts, periodeSautMs, fluide,
+)
+
+/** Hauteur d'un clip du robot à l'échelle 1, en part de la hauteur de l'écran. */
+internal const val HAUTEUR_CLIP_ROBOT = 0.9f
 
 /** Un clip du catalogue : son fichier (res/raw), son moment et son trajet à l'écran, calé sur ses gestes. */
 internal class ClipRobot(val fichier: String, val moment: MomentRobot, val trajet: TrajetRobot) {
@@ -447,7 +525,7 @@ internal fun formatClip(fichier: String): Float = if (fichier in CLIPS_LARGES) 1
 @Composable
 private fun JouerClip(clip: ClipRobot, cle: String, attenteMs: Long, serre: Resserre? = null, onFini: () -> Unit) {
     // Trajet fixé à l'arrivée du clip : il ne change pas de place en cours de route.
-    val trajet = remember { serre?.let { clip.trajet.resserre(it) } ?: clip.trajet }
+    val trajetBrut = remember { serre?.let { clip.trajet.resserre(it) } ?: clip.trajet }
     val context = LocalContext.current
     val resId = remember(clip) { context.resources.getIdentifier(clip.fichier, "raw", context.packageName) }
     var visible by remember { mutableStateOf(false) }
@@ -463,7 +541,7 @@ private fun JouerClip(clip: ClipRobot, cle: String, attenteMs: Long, serre: Ress
         delay(attenteMs)
         visible = true
         val pret = withTimeoutOrNull(3_000) { snapshotFlow { lecture }.first { it != 0 } }
-        if (pret == 1) temps.animateTo(trajet.totalMs.toFloat(), tween(trajet.totalMs, easing = LinearEasing))
+        if (pret == 1) temps.animateTo(trajetBrut.totalMs.toFloat(), tween(trajetBrut.totalMs, easing = LinearEasing))
         visible = false
         onFini()
     }
@@ -471,6 +549,11 @@ private fun JouerClip(clip: ClipRobot, cle: String, attenteMs: Long, serre: Ress
     BoxWithConstraints(Modifier.fillMaxSize().clearAndSetSemantics {}) {
         val largeur = constraints.maxWidth.toFloat()
         val hauteur = constraints.maxHeight.toFloat()
+        // Jamais coupé par un bord une fois arrivé (point 52).
+        val trajet = remember(largeur, hauteur) {
+            val boite = BOITES_ROBOT[clip.fichier]
+            if (boite == null || hauteur <= 0f) trajetBrut else trajetBrut.entierDansLEcran(boite, formatClip(clip.fichier), largeur / hauteur)
+        }
         // 90 % de la hauteur de l'écran, au format du clip (4:5, ou plus large pour les clips refaits avec de la marge).
         val h = maxHeight * 0.9f
         val hauteurPx = hauteur * 0.9f
