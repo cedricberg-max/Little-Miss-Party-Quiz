@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.GenrePlaque
-import com.littlemissparty.quiz.tv.habillage.OeilMemorise
+import com.littlemissparty.quiz.tv.habillage.TeteBuzzyMemorise
 import com.littlemissparty.quiz.tv.habillage.PlaqueAppel
 import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.AppelBuzzQuiSuis
@@ -277,13 +277,15 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 appelQuiSuis -> AppelBuzzQuiSuis(passees.map { it.name })
                 // Game Show : les onglets d'appel néon validés par cedric le 31/10 à 11:12 (planche des onglets d'appel).
                 Look.gs && q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    OeilMemorise()
+                    // Choix A de cedric (planche du 1/11, point 36) : la petite tête de Buzzy à la place de l'œil, et
+                    // « Mémorisez bien ! », sans parler d'objets (les cartes n'en sont pas toujours).
+                    TeteBuzzyMemorise()
                     Spacer(Modifier.height(10.dp))
-                    PlaqueAppel(GenrePlaque.DISPARU, "MÉMORISEZ !", "bien tous les objets")
+                    PlaqueAppel(GenrePlaque.DISPARU, "MÉMORISEZ BIEN !", "")
                 }
                 Look.gs -> appelGs(q).let { (genre, ligne) -> PlaqueAppel(genre, "BUZZEZ !", ligne) }
                 q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Text(
-                    "Mémorisez bien tous les objets !",
+                    "Mémorisez bien !",
                     color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
                 else -> Text(

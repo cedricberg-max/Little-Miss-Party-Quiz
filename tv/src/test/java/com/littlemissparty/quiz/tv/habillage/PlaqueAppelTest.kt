@@ -19,11 +19,14 @@ class PlaqueAppelTest {
     fun `chaque jeu a son onglet, en Game Show seulement`() {
         val floue = source("ImageFloue.kt")
         assertTrue(floue.contains("Look.gs -> appelGs(q).let { (genre, ligne) -> PlaqueAppel(genre, \"BUZZEZ !\", ligne) }"))
-        assertTrue(floue.contains("PlaqueAppel(GenrePlaque.DISPARU, \"MÉMORISEZ !\", \"bien tous les objets\")"))
-        assertTrue(floue.contains("OeilMemorise()"))
+        // Qui a disparu : la tête de Buzzy et « Mémorisez bien ! », sans « les objets » (choix A de cedric, 1/11).
+        assertTrue(floue.contains("PlaqueAppel(GenrePlaque.DISPARU, \"MÉMORISEZ BIEN !\", \"\")"))
+        assertTrue(floue.contains("TeteBuzzyMemorise()"))
+        assertFalse(floue.contains("OeilMemorise()"))
+        assertFalse(floue.lowercase().contains("les objets"))
         listOf("DISPARU", "CHANTE", "QUISUIS", "BLIND", "FLOUE").forEach { assertTrue(it, floue.contains("GenrePlaque.$it to ")) }
         // Classique : les appels en texte restent.
-        assertTrue(floue.contains("\"Mémorisez bien tous les objets !\""))
+        assertTrue(floue.contains("\"Mémorisez bien !\""))
         assertTrue(source("BlindTestEcrans.kt").contains("b != null && b.waiting && !b.played -> PlaqueAppel(GenrePlaque.BLIND, \"PRÊTS ?\", \"Écoutez bien…\""))
         assertTrue(source("habillage/BlindTestScenes.kt").contains("PlaqueAppel(GenrePlaque.BLIND, \"PRÊTS ?\", \"Écoutez bien…\""))
         assertTrue(source("habillage/BlindTestScenes.kt").contains("TitreBlindTest(px(76f)"))
@@ -112,5 +115,19 @@ class PlaqueAppelTest {
         assertTrue(ecoute.contains("val centre = Modifier.planche(950f, 368f)"))
         assertEquals(2, Regex("pxSp\\(26f\\)").findAll(ecoute).count())
         assertTrue(ecoute.contains("PlaqueAppel(GenrePlaque.BLIND, \"BUZZEZ !\", \"dès que vous reconnaissez\\nla chanson\", centre, k = k)"))
+    }
+
+    @Test
+    fun `tete de Buzzy de Qui a disparu, les yeux balaient de gauche a droite et clignent comme l'oeil d'avant`() {
+        assertEquals(-1f, regardMemorise(0.1f), 0f)
+        assertEquals(0f, regardMemorise(0.4f), 1e-4f)
+        assertEquals(1f, regardMemorise(0.6f), 0f)
+        assertEquals(0f, regardMemorise(0.9f), 1e-4f)
+        assertEquals(1f, paupiereMemorise(0.5f), 0f)
+        assertEquals(0.08f, paupiereMemorise(0.92f), 1e-4f)
+        assertEquals(1f, paupiereMemorise(0.97f), 0f)
+        // Même hauteur que l'œil (84) : le panneau ne bouge pas, de 1 à 8 équipes.
+        val src = source("habillage/PlaqueAppel.kt").substringAfter("fun TeteBuzzyMemorise(").substringBefore("\n}\n")
+        assertTrue(src.contains(".size((112 * u).dp, (84 * u).dp)"))
     }
 }

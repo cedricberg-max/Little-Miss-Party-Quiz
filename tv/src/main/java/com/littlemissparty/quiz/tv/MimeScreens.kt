@@ -78,6 +78,7 @@ import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.apres
 import com.littlemissparty.quiz.tv.habillage.TexteJauge
+import com.littlemissparty.quiz.tv.habillage.TitreMimesNeon
 import com.littlemissparty.quiz.tv.habillage.rebond
 import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
@@ -432,6 +433,12 @@ internal fun sousTitreMimes(texte: String?): String? {
     return t.takeIf { it.isNotEmpty() && simple !in setOf("mimes", "mime", "les mimes", "les mimes !") }
 }
 
+/**
+ * Marge de chaque côté de la règle entre deux tours (dp sur 960, en plus des 40 de l'écran) : la phrase la plus longue
+ * (« Celui qui devine… », 705 dp) tient encore sur sa ligne.
+ */
+internal const val MARGE_REGLE_MIMES = 70f
+
 /** Place des textes sous le masque : bravo sur 2 lignes (nom long), points, consigne sur 3 lignes et espaces (dp). */
 private const val TEXTES_ENTRE_TOURS = 250f
 
@@ -470,6 +477,9 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                     color = Neon.Or, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.apparition(bilan + Tempo.TEMPS, m.turns.size),
                 )
+            } else if (Look.gs) {
+                // Choix D de cedric (planche du 1/11, point 34) : l'enseigne de néon qui s'allume en clignotant.
+                TitreMimesNeon(Modifier.apparition(0, Unit))
             } else {
                 Text(
                     "Les Mimes !",
@@ -494,6 +504,8 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                 },
                 color = Palette.Ink, fontSize = 24.sp, textAlign = TextAlign.Center, lineHeight = 32.sp,
                 maxLines = 3, overflow = TextOverflow.Ellipsis,
+                // Cedric, 1/11 (point 34) : la règle collait aux bords gauche et droit de l'écran, elle doit respirer.
+                modifier = Modifier.padding(horizontal = MARGE_REGLE_MIMES.dp),
             )
             }
         }

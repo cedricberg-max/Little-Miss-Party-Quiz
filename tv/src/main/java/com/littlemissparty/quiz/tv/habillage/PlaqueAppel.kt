@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -468,6 +469,77 @@ fun OeilMemorise(modifier: Modifier = Modifier, k: Float = 1f) {
         }
     }
 }
+
+/**
+ * Qui a disparu, on mémorise : choix A de cedric (planche du 1/11, point 36), la petite tête de Buzzy à la place de
+ * l'œil, dans la même place (84 de haut) : coque blanche, oreilles noires cerclées de rose, antenne qui brille, écran
+ * noir et ses deux yeux LED cyan, qui balaient de gauche à droite en 3,4 s et clignent à 92 % du cycle, comme l'œil.
+ */
+@Composable
+fun TeteBuzzyMemorise(modifier: Modifier = Modifier, k: Float = 1f) {
+    val u = 0.75f * k
+    val cycle by rememberInfiniteTransition(label = "buzzy").animateFloat(0f, 1f, infiniteRepeatable(tween(3400, easing = LinearEasing)), label = "cycle")
+    val regard = regardMemorise(cycle)
+    val ouvert = paupiereMemorise(cycle)
+    Canvas(modifier.clearAndSetSemantics {}.size((112 * u).dp, (84 * u).dp)) {
+        dansBoite(200f, 150f) { e ->
+            val dx = (size.width - 200 * e) / 2
+            translate(left = dx) {
+                drawLine(Color(0xFF55596A), Offset(100 * e, 10 * e), Offset(100 * e, 30 * e), 4 * e)
+                drawCircle(Color(0x66FFF6A8), 13 * e, Offset(100 * e, 10 * e))
+                drawCircle(Color(0xFFFFF6A8), 8 * e, Offset(100 * e, 10 * e))
+                for (x in listOf(24f, 154f)) {
+                    drawRoundRect(Color(0xFF1C1C24), Offset(x * e, 56 * e), Size(22 * e, 44 * e), CornerRadius(9 * e))
+                    val cx = if (x < 100f) 28f else 172f
+                    drawOval(RoseOreille, Offset((cx - 6) * e, 61 * e), Size(12 * e, 34 * e), style = Stroke(4 * e))
+                }
+                drawRoundRect(
+                    Brush.verticalGradient(listOf(Color.White, Color(0xFFCFD3DF)), 28 * e, 132 * e),
+                    Offset(34 * e, 28 * e), Size(132 * e, 104 * e), CornerRadius(34 * e),
+                )
+                drawRoundRect(Color(0xFF07080D), Offset(50 * e, 44 * e), Size(100 * e, 66 * e), CornerRadius(10 * e))
+                drawRoundRect(Color(0xFF2B2D36), Offset(50 * e, 44 * e), Size(100 * e, 66 * e), CornerRadius(10 * e), style = Stroke(3 * e))
+                // Les yeux LED, gardés dans l'écran : ils balaient (±11) et se ferment en hauteur pour cligner.
+                clipRect(52 * e, 46 * e, 148 * e, 108 * e) {
+                    for (cx in listOf(80f, 120f)) yeuxLed(Offset((cx + 11f * regard) * e, 77 * e), 14 * e, 3.6f * e, ouvert)
+                }
+            }
+        }
+    }
+}
+
+/** Un œil LED de Buzzy : des points cyan dans un disque de rayon [r], au pas [pas], écrasé en hauteur par [ouvert]. */
+private fun DrawScope.yeuxLed(c: Offset, r: Float, pas: Float, ouvert: Float) {
+    drawCircle(CyanLed.copy(alpha = 0.22f * ouvert), r * 1.35f, c)
+    var y = -r
+    while (y <= r) {
+        var x = -r
+        while (x <= r) {
+            if (x * x + y * y <= r * r) drawCircle(CyanLed, pas * 0.38f, Offset(c.x + x, c.y + y * ouvert))
+            x += pas
+        }
+        y += pas
+    }
+}
+
+/** Le regard de l'œil (et des yeux de Buzzy) dans le cycle de 3,4 s : à gauche, glisse, à droite, revient. */
+internal fun regardMemorise(cycle: Float): Float = when {
+    cycle < 0.3f -> -1f
+    cycle < 0.5f -> -1f + 2f * (cycle - 0.3f) / 0.2f
+    cycle < 0.8f -> 1f
+    else -> 1f - 2f * (cycle - 0.8f) / 0.2f
+}
+
+/** Ouverture des yeux (1 ouverts, 0,08 fermés) : un clignement à 92 % du cycle. */
+internal fun paupiereMemorise(cycle: Float): Float = when {
+    cycle < 0.88f -> 1f
+    cycle < 0.92f -> 1f - 0.92f * (cycle - 0.88f) / 0.04f
+    cycle < 0.96f -> 0.08f + 0.92f * (cycle - 0.92f) / 0.04f
+    else -> 1f
+}
+
+private val CyanLed = Color(0xFF7FF3FF)
+private val RoseOreille = Color(0xFFFF6FC3)
 
 /**
  * « BLIND TEST » de la présentation : Bungee en dégradé cyan → rose avec sa lueur, et la note double jaune qui flirte

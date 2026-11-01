@@ -26,4 +26,28 @@ class MasqueMimesTest {
         assertEquals("Animaux de la ferme", sousTitreMimes("Animaux de la ferme"))
         assertEquals("Équipe orange", sousTitreMimes("Équipe orange"))
     }
+
+    @Test
+    fun `titre en enseigne de neon qui clignote en s'allumant, et regle qui respire sur les cotes (choix D, 1-11)`() {
+        val src = java.io.File("src/main/java/com/littlemissparty/quiz/tv/MimeScreens.kt").readText()
+        assertTrue(src.contains("TitreMimesNeon(Modifier.apparition(0, Unit))"))
+        assertTrue(src.contains("modifier = Modifier.padding(horizontal = MARGE_REGLE_MIMES.dp)"))
+        assertTrue(MARGE_REGLE_MIMES >= 60f)
+        // La phrase la plus longue (705 dp mesurés en Rajdhani gras 24) tient sur une ligne entre les marges.
+        assertTrue(960f - 2 * 40f - 2 * MARGE_REGLE_MIMES >= 720f)
+        val neon = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/TitreMimesNeon.kt").readText()
+        assertTrue(neon.contains("text = AnnotatedString(\"Les Mimes !\")"))
+        assertTrue(neon.contains("\"les\"") && neon.contains("\"MIMES !\""))
+    }
+
+    @Test
+    fun `enseigne des mimes, eteinte puis allumee puis eteinte au debut de chaque cycle, allumee ensuite`() {
+        val a = com.littlemissparty.quiz.tv.habillage::allumageNeon
+        assertEquals(0.25f, a(0f), 0f)
+        assertEquals(1f, a(0.2f), 0f)
+        assertEquals(0.3f, a(0.35f), 0f)
+        assertEquals(1f, a(1.5f), 0f)
+        assertEquals(0.25f, a(3.05f), 0f)
+        assertEquals(1f, a(-0.4f + 3f * 0.5f), 0f)
+    }
 }

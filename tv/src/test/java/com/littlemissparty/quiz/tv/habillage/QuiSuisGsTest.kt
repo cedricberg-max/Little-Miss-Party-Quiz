@@ -64,4 +64,23 @@ class QuiSuisGsTest {
         assertTrue(tableau.contains("if (!revealed && !Look.gs) Text(\"?\""))
         assertTrue(tableau.contains("if (Look.gs) CarteIndiceGs("))
     }
+
+    @Test
+    fun `polaroid du personnage, penche, un peu plus petit que la planche et jamais hors du cadre de 1 a 8 equipes (choix C, 1-11)`() {
+        for ((l, h) in listOf(420f to 300f, 300f to 300f, 260f to 180f, 500f to 220f, 200f to 340f)) {
+            val (w, ht) = taillePolaroid(l, h)
+            assertEquals(POLAROID_RAPPORT, w / ht, 1e-3f)
+            val a = Math.toRadians(5.0)
+            val bl = (w * kotlin.math.cos(a) + ht * kotlin.math.sin(a)).toFloat() * 1.08f
+            val bh = (ht * kotlin.math.cos(a) + w * kotlin.math.sin(a)).toFloat() * 1.08f
+            assertTrue("$l x $h : $bl x $bh", bl <= l + 0.01f && bh <= h + 0.01f)
+            // « Très légèrement » plus petit : jamais la moitié.
+            assertTrue(maxOf(bl / l, bh / h) >= 0.8f)
+        }
+        assertEquals(-5f, POLAROID_ANGLE)
+        val src = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/RevelationPersonnage.kt").readText()
+        val bloc = src.substringAfter("private fun MedaillonSeul(").substringBefore("\n}\n")
+        assertTrue(bloc.contains(".background(Color.White, RoundedCornerShape(3.dp))"))
+        assertTrue("plus de rond", !bloc.contains("CircleShape"))
+    }
 }
