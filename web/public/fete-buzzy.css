@@ -17,9 +17,16 @@
 .fete-sous { position: relative; z-index: 2; margin: 0; max-width: 100%; font: 700 clamp(20px, min(5vw, 3.2vh), 36px) "GS Rajdhani", system-ui, sans-serif; color: #fff;
   text-shadow: 0 0 4px rgba(5, 1, 13, .95), 0 0 12px rgba(5, 1, 13, .9), 0 0 26px rgba(5, 1, 13, .7); }
 .fete-sous:empty { display: none; }
-.fete-video { position: relative; z-index: 1; height: min(62vh, 96vw); max-width: 100%; aspect-ratio: 540 / 552; object-fit: contain; filter: drop-shadow(0 0 26px rgba(200, 140, 255, .55)); }
+/* Jamais coupé net (cedric, 01/11) : les bords de la vidéo s'effacent en douceur (confettis sur les côtés, pied et flammes
+   en bas) et le bas passe derrière la petite phrase, posée par-dessus. */
+.fete-video { position: relative; z-index: 1; height: min(62vh, 96vw); max-width: 100%; aspect-ratio: 540 / 552; object-fit: contain; filter: drop-shadow(0 0 26px rgba(200, 140, 255, .55));
+  margin-bottom: calc(min(62vh, 96vw) * -0.1);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 6%, #000 80%, transparent 99%), linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to bottom, transparent 0, #000 6%, #000 80%, transparent 99%), linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+  mask-composite: intersect; }
 @media (orientation: landscape) {
-  .fete-video { height: min(70vh, 60vw); }
+  .fete-video { height: min(70vh, 60vw); margin-bottom: calc(min(70vh, 60vw) * -0.1); }
   .fete-mot { font-size: clamp(34px, min(6vw, 9vh), 90px); }
 }
 @keyframes fete-tourne { to { transform: rotate(360deg); } }
