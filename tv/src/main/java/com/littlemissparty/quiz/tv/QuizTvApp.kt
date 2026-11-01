@@ -53,7 +53,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -322,7 +322,8 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
     val focus = remember { FocusRequester() }
     // Posé sur le décor du plateau : chaque texte a le halo noir doux du Chrono, en gras, jamais de cadre derrière
     // (cedric, 31/10 : écran illisible sur la TV).
-    val halo = TextStyle(shadow = HALO_DECOR)
+    // La police des écrans (Baloo 2, interligne) est gardée : seul le halo s'ajoute.
+    val halo = LocalTextStyle.current.copy(shadow = HALO_DECOR)
     Column(
         Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.Center,

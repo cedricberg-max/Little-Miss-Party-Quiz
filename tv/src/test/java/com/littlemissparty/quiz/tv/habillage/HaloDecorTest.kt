@@ -26,7 +26,7 @@ class HaloDecorTest {
         val textes = Regex("""\bText\(""").findAll(bloc).count()
         assertEquals(4, textes)
         assertEquals(textes, Regex("""style = halo""").findAll(bloc).count())
-        assertTrue("val halo = TextStyle(shadow = HALO_DECOR)" in bloc)
+        assertTrue("val halo = LocalTextStyle.current.copy(shadow = HALO_DECOR)" in bloc)
         assertTrue(".background(" !in bloc)
     }
 }
