@@ -25,8 +25,8 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /*
- * Les coffres mystères en vraie 3D (Game Show) : maquette validée par cedric (nuit du 23 au 24 octobre), rendue avec
- * three.js en planches WebP (sources : the-game-show/nuit-24-octobre/coffres/source). Chaque coffre est dans une case
+ * Les coffres mystères en vraie 3D (Game Show) : refaits le 1er novembre en bois verni et or (style B choisi par cedric),
+ * rendus avec Blender / Cycles en planches WebP (sources : the-game-show/coffres-refonte-1er-novembre). Chaque coffre est dans une case
  * carrée ; il y fait exactement la taille du dessin Classique (largeur × hauteur du modèle), base posée à [FB] de la case.
  *  - gs_coffres_scene : 5 colonnes de 400 px, case 3m+0 fermé, 3m+1 néons vifs, 3m+2 ouvert calme (m = modèle 0..5).
  *  - gs_coffre_<m>, gs_coffre_or : 3 colonnes de 680 px, cases 0..7 du couvercle fermé au couvercle grand ouvert.
