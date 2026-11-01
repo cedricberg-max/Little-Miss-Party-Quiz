@@ -1,8 +1,10 @@
 package com.littlemissparty.quiz.tv.test.tour
 
+import android.os.SystemClock
 import android.util.Log
 import com.google.firebase.database.DataSnapshot
 import com.littlemissparty.quiz.tv.TEAM_COLORS
+import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.test.EXTRAIT_MP3
 import com.littlemissparty.quiz.tv.test.PupitreSimule
 import com.littlemissparty.quiz.tv.test.RegieSimulee
@@ -161,11 +163,22 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
             aller("t-mime")
             verifier("mimes-presentation", 1_500)
             assertEquals("applied", regie.commande(code, "mime_start", mapOf("team" to equipes.last().uid)))
-            verifier("mimes-tour", 1_500)
+            // Début de tour image par image (cedric, 1/11 au soir) : le bandeau seul, puis « TOP DÉPART ! » seul, puis la carte.
+            val debut = SystemClock.uptimeMillis()
+            fun aT(ms: Long, nom: String) {
+                SystemClock.sleep((debut + ms - SystemClock.uptimeMillis()).coerceAtLeast(0))
+                ecran.capture("tour-$nom-${nombre}eq")
+            }
+            aT(700, "mimes-debut-1-bandeau")
+            aT(Tempo.MIMES_ANNONCE + 500, "mimes-debut-2-top-depart")
+            aT(Tempo.MIMES_CARTE + 700, "mimes-debut-3-carte")
+            verifier("mimes-tour", 300)
             assertEquals("applied", regie.commande(code, "mime_found"))
             verifier("mimes-changement", 1_200)
             assertEquals("applied", regie.commande(code, "mime_stop"))
-            verifier("mimes-bravo", 1_500)
+            // « TEMPS ÉCOULÉ ! » dans la couleur de l'équipe qui vient de jouer (7 équipes : rouge, 8 : turquoise).
+            ecran.capture("tour-mimes-temps-ecoule-${nombre}eq", 500)
+            verifier("mimes-bravo", 1_000)
         }
         jeu("pictionary") {
             aller("t-picto")

@@ -343,18 +343,20 @@ private fun AnnonceEquipe(state: UiState.Playing) {
     val id = "${state.code} ${team.uid} ${m.turns.size}"
     var montrer by remember(id) { mutableStateOf(false) }
     LaunchedEffect(id) { montrer = Habillage.equipesAnnoncees.add(id) }
-    if (montrer) key(id) { Bandeau(team) { montrer = false } }
+    // Mimes : le bandeau a son moment à lui, avant « TOP DÉPART ! » et la première carte (Tempo.MIMES_ANNONCE).
+    val duree = if (m.picto) BANDEAU_MS else Tempo.MIMES_ANNONCE
+    if (montrer) key(id) { Bandeau(team, duree) { montrer = false } }
 }
 
 @Composable
-private fun Bandeau(team: Team, fini: () -> Unit) {
+private fun Bandeau(team: Team, dureeMs: Long, fini: () -> Unit) {
     val t = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        t.animateTo(BANDEAU_MS.toFloat(), tween(BANDEAU_MS.toInt(), easing = LinearEasing))
+        t.animateTo(dureeMs.toFloat(), tween(dureeMs.toInt(), easing = LinearEasing))
         fini()
     }
     val entree = { FastOutSlowInEasing.transform((t.value / 380f).coerceIn(0f, 1f)) }
-    val sortie = { FastOutSlowInEasing.transform(((t.value - (BANDEAU_MS - 400f)) / 400f).coerceIn(0f, 1f)) }
+    val sortie = { FastOutSlowInEasing.transform(((t.value - (dureeMs - 400f)) / 400f).coerceIn(0f, 1f)) }
     val couleur = team.color.toColor()
     Box(Modifier.fillMaxSize().clearAndSetSemantics {}, contentAlignment = Alignment.BottomStart) {
         Row(

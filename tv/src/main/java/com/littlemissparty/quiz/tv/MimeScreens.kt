@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -96,6 +97,9 @@ import com.littlemissparty.quiz.tv.habillage.PoliceLmp
 fun MimeScreen(state: UiState.Playing, actions: TvActions) {
     val m = state.mime ?: return
     val team = state.teams.find { it.uid == m.team }
+    // Début d'un tour, un élément à la fois (cedric, 1/11 au soir : « bouillie d'informations ») : le bandeau de
+    // l'équipe seul, puis « TOP DÉPART ! » seul, puis la première carte (Tempo.MIMES_ANNONCE / MIMES_CARTE).
+    val etape = etapeDebutTour(if (team != null) "${m.team} ${m.turns.size}" else null)
     Box(Modifier.fillMaxSize()) {
         // Halo de la couleur de l'équipe qui joue, qui respire doucement derrière la carte.
         if (team != null) TeamGlow(team.color.toColor())
@@ -113,7 +117,7 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
             Spacer(Modifier.height(8.dp))
             // Le bandeau des équipes est mesuré d'abord : ses boutons gardent toujours leur hauteur (cedric, 24/10 :
             // « Image suivante » rogné sous une carte avec photo et mot sur deux lignes) ; la carte prend le reste.
-            if (team != null) Turn(state, m, team, Modifier.weight(1f)) else BetweenTurns(state, m, Modifier.weight(1f))
+            if (team != null) Turn(state, m, team, carteVisible = etape >= DebutTourMimes.CARTE, modifier = Modifier.weight(1f)) else BetweenTurns(state, m, Modifier.weight(1f))
             Spacer(Modifier.height(12.dp))
             // De 1 à 8 équipes : les pastilles passent au-dessus des boutons quand elles ne tiennent plus à côté.
             BandeauEquipes(
@@ -127,8 +131,9 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
             }
         }
         // « TOP DÉPART ! » claque au début de chaque tour, « TEMPS ÉCOULÉ ! » à la fin, calés sur les sifflets.
-        Tampon("TOP DÉPART !", cle = "top ${m.team} ${m.turns.size}", actif = team != null)
-        Tampon("TEMPS ÉCOULÉ !", cle = "fin ${m.turns.size}", couleur = Neon.Halo, actif = team == null && m.last != null)
+        Tampon("TOP DÉPART !", cle = "top ${m.team} ${m.turns.size}", actif = team != null && etape >= DebutTourMimes.TOP)
+        // « TEMPS ÉCOULÉ ! » dans la couleur de l'équipe qui vient de jouer (cedric, 1/11 : il restait rose pour tous).
+        Tampon("TEMPS ÉCOULÉ !", cle = "fin ${m.turns.size}", couleur = couleurTempsEcoule(state.teams, m.last?.team), actif = team == null && m.last != null)
     }
 }
 
@@ -185,13 +190,35 @@ private fun EnTeteTour(state: UiState.Playing, team: Team) {
 internal const val PART_NOM_EN_TETE = 0.44f
 
 /** Tour en cours : la carte en très grand et le compteur de mimes trouvés (« Au tour de… » est dans l'en-tête). */
+/** Les étapes du début d'un tour de mimes : bandeau seul, puis « TOP DÉPART ! » seul, puis la carte. */
+internal enum class DebutTourMimes { BANDEAU, TOP, CARTE }
+
+/** L'étape du début du tour [tour] (null entre deux tours) : elle avance seule, au rythme de Tempo. */
 @Composable
-private fun Turn(state: UiState.Playing, m: MimeUi, team: Team, modifier: Modifier = Modifier) {
+private fun etapeDebutTour(tour: String?): DebutTourMimes {
+    var etape by remember(tour) { mutableStateOf(DebutTourMimes.BANDEAU) }
+    LaunchedEffect(tour) {
+        if (tour == null) return@LaunchedEffect
+        delay(Tempo.MIMES_ANNONCE)
+        etape = DebutTourMimes.TOP
+        delay(Tempo.MIMES_TOP_TAMPON)
+        etape = DebutTourMimes.CARTE
+    }
+    return etape
+}
+
+/** Couleur du « TEMPS ÉCOULÉ ! » : celle de l'équipe [uid] qui vient de jouer (rose de secours si elle a disparu). */
+internal fun couleurTempsEcoule(equipes: List<Team>, uid: String?): Color =
+    equipes.find { it.uid == uid }?.color?.toColor() ?: Neon.Halo
+
+@Composable
+private fun Turn(state: UiState.Playing, m: MimeUi, team: Team, carteVisible: Boolean, modifier: Modifier = Modifier) {
     val color = team.color.toColor()
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.reduitSiTropHaut(), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                MimeCardView(m, color, state.images)
+                // Cachée (sa place gardée) jusqu'à la fin du « TOP DÉPART ! », puis elle surgit avec son animation.
+                key(carteVisible) { Box(Modifier.alpha(if (carteVisible) 1f else 0f)) { MimeCardView(m, color, state.images) } }
                 FoundCounter(m.found)
             }
         }

@@ -245,9 +245,11 @@ class DirecteurSonore {
                 o += Ordre.Musique(Ambiance.MIMES_ENTRE, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
             }
             Ecran.MIMES_TOUR -> {
-                o += Ordre.Jouer(if (i.pictionary) Son.PICTIO_TOP else Son.MIME_TOP)
+                // Mimes : le « Top départ » sonne après le bandeau de l'équipe, avec son tampon (jamais en même temps).
+                val apres = if (i.pictionary) 0L else Tempo.MIMES_ANNONCE
+                o += Ordre.Jouer(if (i.pictionary) Son.PICTIO_TOP else Son.MIME_TOP, apres)
                 o += Ordre.Musique(Ambiance.SILENCE)
-                o += Ordre.Musique(Ambiance.MIMES, Tempo.MIME_TOP_IMPACT)
+                o += Ordre.Musique(Ambiance.MIMES, apres + Tempo.MIME_TOP_IMPACT)
             }
             Ecran.VERROUILLEE -> {
                 o += Ordre.Jouer(Son.VERROU)
@@ -1315,6 +1317,14 @@ object Tempo {
     const val FONDU_AU_REVOIR = 2_000L
     /** Coup de cuivres du « Top départ » des mimes, après les deux coups de sifflet. */
     const val MIME_TOP_IMPACT = 500L
+    /**
+     * Début d'un tour de mimes, un élément à la fois (cedric, 1/11 au soir : bandeau, « TOP DÉPART ! » et photo l'un
+     * sur l'autre) : le bandeau « À vous de mimer ! » seul pendant [MIMES_ANNONCE], puis « TOP DÉPART ! » (sifflets et
+     * cuivres) pendant [MIMES_TOP_TAMPON], puis la première carte.
+     */
+    const val MIMES_ANNONCE = 2_000L
+    const val MIMES_TOP_TAMPON = 1_200L
+    val MIMES_CARTE: Long get() = MIMES_ANNONCE + MIMES_TOP_TAMPON
     const val MIME_BILAN = 1_000L
     const val MIME_BILAN_MUSIQUE = 2_500L
     /** Jingle de changement de jeu : le logo aux cuivres tombe à 750 ms, l'animation y pose le nom du jeu. */

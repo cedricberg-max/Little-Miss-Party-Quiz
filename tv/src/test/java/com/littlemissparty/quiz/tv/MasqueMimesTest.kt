@@ -10,6 +10,27 @@ import org.junit.Test
 class MasqueMimesTest {
 
     @Test
+    fun `debut de tour un element a la fois, bandeau puis TOP DEPART puis la carte`() {
+        val t = com.littlemissparty.quiz.tv.habillage.Tempo
+        org.junit.Assert.assertTrue(t.MIMES_ANNONCE >= 1_500L)
+        org.junit.Assert.assertEquals(t.MIMES_ANNONCE + t.MIMES_TOP_TAMPON, t.MIMES_CARTE)
+        val code = java.io.File("src/main/java/com/littlemissparty/quiz/tv/MimeScreens.kt").readText()
+        org.junit.Assert.assertTrue(code.contains("actif = team != null && etape >= DebutTourMimes.TOP)"))
+        org.junit.Assert.assertTrue(code.contains("carteVisible = etape >= DebutTourMimes.CARTE"))
+        // Le tampon dure exactement son étape : il est fini quand la carte surgit.
+        org.junit.Assert.assertEquals(1_200L, t.MIMES_TOP_TAMPON)
+        val bandeau = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/Transitions.kt").readText()
+        org.junit.Assert.assertTrue(bandeau.contains("val duree = if (m.picto) BANDEAU_MS else Tempo.MIMES_ANNONCE"))
+    }
+
+    @Test
+    fun `TEMPS ECOULE dans la couleur de l'equipe qui vient de jouer`() {
+        org.junit.Assert.assertEquals(com.littlemissparty.quiz.tv.habillage.Neon.Halo, couleurTempsEcoule(emptyList(), "partie"))
+        val code = java.io.File("src/main/java/com/littlemissparty/quiz/tv/MimeScreens.kt").readText()
+        org.junit.Assert.assertTrue(code.contains("couleur = couleurTempsEcoule(state.teams, m.last?.team)"))
+    }
+
+    @Test
     fun `plus de pastille MIMES en haut a gauche dans le Game Show, le Classique la garde`() {
         org.junit.Assert.assertFalse(badgeMimesVisible(gs = true))
         org.junit.Assert.assertTrue(badgeMimesVisible(gs = false))
