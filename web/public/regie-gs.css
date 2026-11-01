@@ -54,3 +54,10 @@
 .regie .picto-lecture-pause { --picto: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M2 5l10 7-10 7z'/%3E%3Crect x='14' y='5' width='3.2' height='14' rx='.6'/%3E%3Crect x='19' y='5' width='3.2' height='14' rx='.6'/%3E%3C/svg%3E"); }
 /* Tous les boutons et champs de la régie dans la police Game Show (Retirer, ▶, bonus/malus, puces d'équipe…). */
 .regie :where(button, input, select, textarea) { font-family: inherit; }
+/* Duel des robots (cedric, 1/11) : − / ＋ en cases cyan, « = N duels prévus » et l'équipe choisie en jaune Game Show,
+   « ＋ Un duel en plus » en contour cyan (un détail), « C'est bon » et « Lancer le duel » en jaune (les actions). */
+.regie .duel-pm { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 10px rgba(0, 240, 255, .35); }
+.regie .duel-total { font-family: "GS Orbitron"; color: var(--jaune); text-shadow: 0 0 12px rgba(255, 230, 0, .55); }
+.regie .duel-vs { font-family: "GS Orbitron"; color: var(--jaune); text-shadow: 0 0 12px rgba(255, 230, 0, .6); }
+.regie .duel-face.pioche .duel-equipe, .regie .duel-tuile.cochee { border-color: var(--jaune); box-shadow: 0 0 0 3px var(--jaune), 0 0 18px rgba(255, 230, 0, .55); }
+.regie .duel-plus:where(.btn.secondary) { background: transparent; border: 2px solid var(--cyan); color: var(--cyan); box-shadow: 0 0 10px rgba(0, 240, 255, .35); }

@@ -835,7 +835,7 @@ function render() {
   const statues = statuesEtape(st);
   if (statues) next.disabled = next.disabled || (!!statues.choix && !statues.choix.personne && !statues.choix.equipes.size) || (!!statues.resultat && statues.annonce > 0);
   const duel = duelEtape(st);
-  if (duel) next.disabled = next.disabled || duel.d.step === "standoff" || (!!duel.choix && duel.choix.length !== 2);
+  if (duel) next.disabled = next.disabled || duelBoutonBloque(duel);
   const simon = simonEtape(st);
   if (simon) next.disabled = next.disabled || simon.s.step === "play" || simon.s.step === "none" || simon.verif > 0;
   const chrono = chronoEtape(st);
@@ -2011,17 +2011,42 @@ function renderStatuesAvant(st, teams) {
 
 /**
  * Le Duel des robots (cedric, 27/10) : la box prépare chaque duel (2 équipes, un joueur appelé de chaque) et garde
- * l'heure du PAN secrète, même pour la régie. Sarah lance le face-à-face, puis « ▶ Duel suivant ». Un duel à la volée
- * (2 équipes choisies) sert à une équipe qui n'a pas fini de jouer, ou à rejouer une paire.
+ * l'heure du PAN secrète, même pour la régie. Sarah lance le face-à-face, puis « ▶ Duel suivant ».
+ * Nouveau déroulé (cedric, 1/11) : pendant la présentation, Sarah donne les joueurs de chaque équipe (− / ＋) et la box
+ * prévoit les duels pour que tout le monde passe au moins une fois. Elle touche une équipe du duel proposé pour la
+ * changer (ce duel-là seulement), ou ajoute « ＋ Un duel en plus ». « Passer cette étape » : avant chaque duel, Sarah
+ * choisit elle-même qui affronte qui.
  */
-let duelChoix = null; // équipes choisies pour un duel à la volée (tableau d'uid), null = pas d'écran de choix
+// Choix des équipes d'un duel : { mode: "swap" (changer une équipe du duel proposé) | "plus" (duel en plus) |
+// "manuel" (étape passée), slots: [uid|null, uid|null], avant: la paire proposée (swap) }. null : pas de choix.
+let duelPioche = null;
+let duelCompte = null; // les − / ＋ avant « C'est bon » : { qid, counts: { uid: n } }
 let duelStopArme = null;
+const DUEL_MAX = 12;
+
+const duelPaire = (d) => (Array.isArray(d?.teams) ? d.teams : Object.values(d?.teams ?? {}));
+const duelManuel = (d) => d?.plan?.manual === true;
+
+/** « Combien de joueurs par équipe ? » : pendant la présentation, ou avant le premier duel, tant que rien n'est réglé. */
+function duelComptage(st) {
+  const d = st.duel;
+  if (st.kind !== "duel" || !d || d.plan || Object.keys(live.teams ?? {}).length < 2) return false;
+  if (st.phase === "intro") return true;
+  return st.phase === "question" && (d.step === "none" || (d.step === "ready" && (d.n ?? 1) === 1 && !d.extra));
+}
 
 function duelEtape(st) {
   const d = st.duel;
   if (st.kind !== "duel" || !d || (st.phase !== "question" && st.phase !== "closed")) return null;
-  if (d.step === "standoff") duelChoix = null;
-  return { d, choix: d.step === "standoff" ? null : duelChoix, equipes: Object.keys(live.teams ?? {}).length };
+  const equipes = Object.keys(live.teams ?? {}).length;
+  const comptage = duelComptage(st);
+  if (d.step === "standoff" || comptage || equipes < 2) duelPioche = null;
+  // Tout manuel : avant chaque duel, les 2 cases vides (« Duel N : qui affronte qui ? »).
+  else if (duelManuel(d) && duelPioche?.mode !== "manuel") duelPioche = { mode: "manuel", slots: [null, null] };
+  else if (!duelManuel(d) && duelPioche?.mode === "manuel") duelPioche = null;
+  // Changer une équipe : seulement tant que le duel proposé attend son lancement.
+  if (duelPioche?.mode === "swap" && d.step !== "ready") duelPioche = null;
+  return { d, pioche: duelPioche, comptage, equipes };
 }
 
 const duelNom = (id) => live.teams[id]?.name ?? "Une équipe";
@@ -2035,78 +2060,158 @@ function duelResultat(r) {
   return "Personne n'a tiré ! Duel nul, aucun point.";
 }
 
+/** Joueurs de chaque équipe à l'écran : ceux touchés par Sarah, sinon le nombre de la Régie PC (4 par défaut). */
+function duelComptes(st, teams) {
+  if (duelCompte?.qid !== st.qid) duelCompte = { qid: st.qid, counts: {} };
+  const depart = Math.min(DUEL_MAX, Math.max(1, Math.round(st.duel?.joueurs ?? 4)));
+  return Object.fromEntries(teams.map(([id]) => [id, duelCompte.counts[id] ?? depart]));
+}
+
+/** Comme la box (duelsPrevus) : la moitié des joueurs, arrondie au-dessus, et au moins l'équipe la plus nombreuse. */
+function duelsPrevus(counts) {
+  const v = Object.values(counts);
+  return v.length < 2 ? 0 : Math.max(Math.ceil(v.reduce((a, b) => a + b, 0) / 2), Math.max(...v));
+}
+
+function renderDuelCompte(st, teams, on, busy) {
+  const box = $("duel-compte");
+  box.hidden = !on;
+  if (!on) return;
+  const counts = duelComptes(st, teams);
+  const lignes = $("duel-lignes");
+  const key = teams.map(([id, t]) => `${id}:${t.name}:${t.color}:${counts[id]}`).join("|");
+  if (lignes.dataset.key !== key) {
+    lignes.dataset.key = key;
+    lignes.replaceChildren(...teams.map(([id, t]) => {
+      const li = document.createElement("div");
+      li.className = "duel-ligne";
+      li.dataset.team = id;
+      li.style.setProperty("--team", t.color ?? "#fff");
+      const pt = document.createElement("i");
+      pt.className = "duel-point";
+      const nom = document.createElement("b");
+      nom.textContent = t.name;
+      const bouton = (signe, pas) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "duel-pm";
+        b.textContent = signe;
+        b.setAttribute("aria-label", `${pas > 0 ? "Un joueur de plus" : "Un joueur de moins"} : ${t.name}`);
+        b.disabled = pas > 0 ? counts[id] >= DUEL_MAX : counts[id] <= 1;
+        b.onclick = () => {
+          navigator.vibrate?.(20);
+          duelCompte.counts[id] = Math.min(DUEL_MAX, Math.max(1, (duelComptes(live.state ?? st, teams)[id] ?? 1) + pas));
+          render();
+        };
+        return b;
+      };
+      const n = document.createElement("span");
+      n.className = "duel-n";
+      n.textContent = String(counts[id]);
+      li.append(pt, nom, bouton("−", -1), n, bouton("＋", 1));
+      return li;
+    }));
+  }
+  const total = duelsPrevus(counts);
+  $("duel-total").textContent = `= ${total} duel${total > 1 ? "s" : ""} prévu${total > 1 ? "s" : ""}`;
+  $("duel-ok").disabled = busy;
+  $("duel-passer").disabled = busy;
+}
+
+/** Une case du face-à-face : l'équipe dans sa couleur, ou une case vide en pointillés (« 1re équipe »). */
+function duelCase(id, i, touche) {
+  const c = document.createElement(touche ? "button" : "div");
+  if (touche) { c.type = "button"; c.onclick = touche; }
+  if (!id) {
+    c.className = "duel-slot";
+    c.textContent = i ? "2e équipe" : "1re équipe";
+    return c;
+  }
+  c.className = "duel-equipe";
+  c.dataset.team = id;
+  c.style.setProperty("--team", live.teams[id]?.color ?? "#fff");
+  const nom = document.createElement("b");
+  // Jamais de « joueur n° » : l'équipe joue, la rotation des enfants se fait entre eux (cedric, 31/10 au soir).
+  nom.textContent = duelNom(id);
+  c.append(nom);
+  return c;
+}
+
 function renderDuel(st, teams) {
-  const on = (st.phase === "question" || st.phase === "closed") && st.kind === "duel";
+  const comptage = duelComptage(st);
+  const on = st.kind === "duel" && (comptage || st.phase === "question" || st.phase === "closed");
   $("duel").hidden = !on;
-  if (!on) { duelChoix = null; clearTimeout(duelStopArme); duelStopArme = null; return; }
-  const e = duelEtape(st);
-  const d = e?.d ?? {};
+  if (!on) { duelPioche = null; clearTimeout(duelStopArme); duelStopArme = null; return; }
   const busy = !!pending?.advance || st.paused === true;
-  const paire = Array.isArray(d.teams) ? d.teams : Object.values(d.teams ?? {});
-  const joueurs = Array.isArray(d.players) ? d.players : Object.values(d.players ?? {});
-  const choix = e?.choix;
+  const e = duelEtape(st);
+  const d = st.duel ?? {};
+  const pioche = e?.pioche ?? null;
   const seule = teams.length < 2;
+  const manuel = duelManuel(d);
+  renderDuelCompte(st, teams, comptage, busy);
+  const nPioche = d.step === "result" || d.step === "none" ? (d.step === "result" ? (d.n ?? 0) + 1 : 1) : (d.n ?? 1);
   $("duel-info").textContent = seule ? "Il faut au moins 2 équipes pour un duel : passez au jeu suivant."
-    : choix ? "Qui affronte qui ? La paire proposée est cochée : touchez une équipe pour la changer."
-      : d.step === "standoff" ? "🤠 Face-à-face… mains sur les buzzers ! Le PAN tombe quand la TV le décide."
-        : d.step === "result" ? (d.allPlayed ? "Tous les joueurs sont passés." : `Duel ${d.n ?? 1} terminé.`)
-          : `${d.extra ? "Duel en plus" : `Duel ${d.n ?? 1} sur ${d.total ?? "?"}`} : appelez les deux joueurs.`;
-  // Les deux équipes face à face, dans leur couleur, avec le joueur appelé.
+    : comptage ? "Combien de joueurs par équipe ?"
+      : pioche?.mode === "manuel" ? `Duel ${nPioche} : qui affronte qui ?`
+        : pioche?.mode === "plus" ? "Duel en plus : qui affronte qui ?"
+          : pioche?.mode === "swap" ? `Duel ${d.n ?? 1} sur ${d.total ?? "?"} : touche l'équipe qui la remplace.`
+            : d.step === "standoff" ? "🤠 Face-à-face… mains sur les buzzers ! Le PAN tombe quand la TV le décide."
+              : d.step === "result" ? (d.allPlayed ? "Tous les joueurs sont passés." : `Duel ${d.n ?? 1}${manuel ? "" : ` sur ${d.total ?? "?"}`} terminé.`)
+                : `${d.extra ? "Duel en plus" : `Duel ${d.n ?? 1} sur ${d.total ?? "?"}`} : appelez les deux joueurs.`;
+  // Les deux équipes face à face, dans leur couleur ; une case vide tant que l'équipe n'est pas choisie.
+  const paire = duelPaire(d);
+  const slots = pioche ? pioche.slots : paire.slice(0, 2);
   const face = $("duel-face");
-  face.hidden = seule || !!choix || !paire.length;
-  const cle = JSON.stringify([paire, joueurs, paire.map((id) => [live.teams[id]?.name, live.teams[id]?.color])]);
+  face.hidden = seule || comptage || !slots.length;
+  // Duel proposé : touchez une équipe pour la changer (ce duel-là seulement).
+  const changeable = !pioche && !manuel && d.step === "ready" && paire.length === 2 && !busy;
+  const cle = JSON.stringify([slots, pioche?.mode ?? null, changeable, slots.map((id) => [live.teams[id]?.name, live.teams[id]?.color])]);
   if (face.dataset.key !== cle) {
     face.dataset.key = cle;
-    const carte = (id, i) => {
-      const c = document.createElement("div");
-      c.className = "duel-equipe";
-      c.style.setProperty("--team", live.teams[id]?.color ?? "#fff");
-      const nom = document.createElement("b");
-      nom.textContent = duelNom(id);
-      // Jamais de « joueur n° » : l'équipe joue, la rotation des enfants se fait entre eux (cedric, 31/10 au soir).
-      c.append(nom);
-      return c;
+    const touche = (i) => {
+      if (changeable) return () => { navigator.vibrate?.(30); const s = [...paire.slice(0, 2)]; s[i] = null; duelPioche = { mode: "swap", slots: s, avant: paire.slice(0, 2) }; render(); };
+      if (pioche && pioche.mode !== "swap" && slots[i]) return () => { navigator.vibrate?.(30); duelPioche.slots[i] = null; render(); };
+      return null;
     };
     const vs = document.createElement("span");
     vs.className = "duel-vs";
     vs.textContent = "VS";
-    face.replaceChildren(...paire.slice(0, 2).flatMap((id, i) => (i ? [vs, carte(id, i)] : [carte(id, i)])));
+    face.replaceChildren(duelCase(slots[0], 0, touche(0)), vs, duelCase(slots[1], 1, touche(1)));
   }
   face.classList.toggle("en-cours", d.step === "standoff");
-  // Résultat : bandeau dans la couleur de la gagnante.
+  face.classList.toggle("pioche", !!pioche);
+  $("duel-astuce").hidden = !changeable;
+  // Résultat : bandeau dans la couleur de la gagnante (aussi au-dessus du choix du duel suivant, en tout manuel).
   const res = $("duel-resultat");
-  const r = d.step === "result" && !choix ? d.result : null;
-  res.hidden = !r;
+  const r = d.step === "result" && (!pioche || pioche.mode === "manuel") ? d.result : null;
+  res.hidden = !r || comptage;
   res.textContent = duelResultat(r);
   if (r?.winner) res.style.setProperty("--team", live.teams[r.winner]?.color ?? "var(--gold)");
   else res.style.removeProperty("--team");
-  // Choix de 2 équipes pour un duel à la volée.
+  // La grille des équipes, dans leur couleur : la première touchée va dans la 1re case, la suivante dans la 2e.
   const box = $("duel-choix");
-  box.hidden = !choix;
+  box.hidden = !pioche;
   const key = teams.map(([id, t]) => `${id}:${t.name}:${t.color}`).join("|");
   if (box.dataset.key !== key) {
     box.dataset.key = key;
     box.replaceChildren(...teams.map(([id, t]) => {
       const b = document.createElement("button");
-      b.className = "statues-tuile";
+      b.type = "button";
+      b.className = "statues-tuile duel-tuile";
       b.dataset.team = id;
       b.style.setProperty("--team", t.color ?? "#fff");
       b.textContent = t.name;
-      b.onclick = () => {
-        if (!duelChoix) return;
-        navigator.vibrate?.(30);
-        duelChoix = duelChoix.includes(id) ? duelChoix.filter((x) => x !== id) : [...duelChoix, id].slice(-2);
-        render();
-      };
+      b.onclick = () => duelToucheEquipe(id);
       return b;
     }));
   }
   box.classList.toggle("serree", teams.length > 4);
+  const garde = pioche?.mode === "swap" ? pioche.slots.find(Boolean) : null;
   box.querySelectorAll("button").forEach((b) => {
-    const coche = !!choix?.includes(b.dataset.team);
+    const coche = !!pioche?.slots.includes(b.dataset.team);
     b.classList.toggle("cochee", coche);
     b.setAttribute("aria-pressed", String(coche));
-    b.disabled = busy;
+    b.disabled = busy || b.dataset.team === garde;
   });
   // Arrêter un face-à-face (buzzer en panne, enfant pas prêt) : deux appuis, jamais par erreur au moment du PAN.
   const stop = $("duel-stop");
@@ -2114,25 +2219,59 @@ function renderDuel(st, teams) {
   stop.disabled = busy;
   stop.textContent = duelStopArme ? "Touchez encore : arrêter sans points" : "✋ Arrêter le face-à-face";
   if (d.step !== "standoff") { clearTimeout(duelStopArme); duelStopArme = null; }
-  const pret = (d.step === "ready" || d.step === "result") && !choix && !seule;
-  $("duel-autres").hidden = !pret;
-  $("duel-autres").textContent = d.allPlayed && d.step === "result" ? "🤠 Duel en plus : choisir les 2 équipes" : "🎯 Choisir les 2 équipes";
-  $("duel-autres").disabled = busy;
-  $("duel-retour").hidden = !choix;
-  // « Jeu suivant » au milieu (le gros bouton du bas lance les duels) tant qu'il reste des joueurs à faire passer.
-  $("duel-fin").hidden = !pret || (d.step === "result" && !!d.allPlayed);
+  // « ＋ Un duel en plus » : à tout moment entre deux duels (pas en tout manuel, où chaque duel se choisit déjà).
+  const pret = (d.step === "ready" || d.step === "result") && !pioche && !seule && !comptage && !manuel && !!e;
+  $("duel-plus").hidden = !pret;
+  $("duel-plus").disabled = busy;
+  $("duel-retour").hidden = !pioche || pioche.mode === "manuel";
+  // « Jeu suivant » finit toujours le Duel ; tous les joueurs passés, c'est déjà le gros bouton du bas.
+  $("duel-fin").hidden = !e || seule || d.step === "standoff" || (d.step === "result" && !!d.allPlayed && !pioche);
   $("duel-fin").disabled = busy;
   $("duel-points").textContent = `${st.double ? 200 : 100} points par duel gagné. Tirer avant le PAN fait perdre le duel.`;
+}
+
+/** Une équipe touchée dans la grille : elle remplit la case vide ; touchée à nouveau, elle s'en va. */
+function duelToucheEquipe(id) {
+  const p = duelPioche;
+  if (!p) return;
+  navigator.vibrate?.(30);
+  const deja = p.slots.indexOf(id);
+  if (deja >= 0) {
+    if (p.mode !== "swap") p.slots[deja] = null;
+    return render();
+  }
+  const vide = p.slots.indexOf(null);
+  p.slots[vide >= 0 ? vide : 1] = id;
+  if (p.mode === "swap" && p.slots.every(Boolean)) {
+    const teams = [...p.slots];
+    duelPioche = null;
+    // La même équipe remise à sa place : rien ne change.
+    if (p.avant && teams.every((t) => p.avant.includes(t))) return render();
+    send("duel_swap", { teams }, { advance: true }).then((r) => {
+      if (r?.status === "applied") toast(`Ce duel : ${duelNom(teams[0])} contre ${duelNom(teams[1])}. Les suivants sont recalculés.`);
+    });
+    return;
+  }
+  render();
 }
 
 /** Le gros bouton du bas : lancer le duel, puis le suivant ; tous les joueurs passés, le jeu suivant. */
 function duelBoutonPrincipal(e, st) {
   const d = e.d;
   if (e.equipes < 2) return finDuelLabel(st);
-  if (e.choix) return e.choix.length === 2 ? `🤠 ${duelNom(e.choix[0])} contre ${duelNom(e.choix[1])}` : "Touchez 2 équipes";
+  if (e.comptage) return "Joueurs par équipe ↑";
+  if (e.pioche?.mode === "swap") return "Touche une équipe ↑";
+  if (e.pioche) return e.pioche.slots.every(Boolean) ? "▶ Lancer le duel" : "Touche 2 équipes";
   if (d.step === "standoff") return "Face-à-face… 🤠";
   if (d.step === "result") return d.allPlayed ? finDuelLabel(st) : "▶ Duel suivant";
-  return "🤠 Lancer le duel";
+  return "▶ Lancer le duel";
+}
+
+/** Le gros bouton attend : les joueurs à régler, une équipe à choisir, ou le face-à-face en cours. */
+function duelBoutonBloque(e) {
+  if (e.equipes < 2) return false;
+  if (e.comptage || e.d.step === "standoff") return true;
+  return !!e.pioche && (e.pioche.mode === "swap" || !e.pioche.slots.every(Boolean));
 }
 
 /** Fin du duel ou du Simon : le tableau des scores sur la TV (test du 28/10), puis « Jeu suivant » ; au dernier jeu, les résultats. */
@@ -2142,13 +2281,10 @@ function finDuelLabel(st) {
 
 function duelPrincipal(e) {
   const d = e.d;
+  if (duelBoutonBloque(e)) return;
   navigator.vibrate?.(60);
-  if (e.choix) {
-    if (e.choix.length !== 2) return;
-    const teams = e.choix;
-    duelChoix = null;
-    return send("duel_start", { teams }, { advance: true });
-  }
+  // Les 2 équipes choisies (duel en plus, ou tout manuel) : le choix reste affiché jusqu'au face-à-face.
+  if (e.pioche) return send("duel_start", { teams: [...e.pioche.slots] }, { advance: true });
   if (e.equipes < 2 || (d.step === "result" && d.allPlayed)) return send("next", {}, { advance: true });
   if (d.step === "result") return send("duel_next", {}, { advance: true });
   if (d.step === "ready") return send("duel_start", {}, { advance: true });
@@ -2163,28 +2299,24 @@ $("duel-stop").onclick = () => {
   duelStopArme = null;
   send("duel_stop", {}, { advance: true }).then((r) => { if (r?.status === "applied") toast("Face-à-face arrêté, sans points : relancez quand les joueurs sont prêts."); });
 };
-$("duel-autres").onclick = () => { duelChoix = pairePropose(live.state?.duel ?? {}); render(); };
-
-/**
- * Paire cochée d'avance dans le choix des équipes (cedric, 27/10) : le duel prêt proposé par la box ; après un duel,
- * comme la box, les 2 équipes qui ont le moins joué, sans redonner la même paire tout de suite. Sarah change si elle veut.
- */
-function pairePropose(d) {
-  const presentes = Object.keys(live.teams ?? {});
-  const paire = (Array.isArray(d.teams) ? d.teams : Object.values(d.teams ?? {})).filter((id) => presentes.includes(id));
-  if (d.step === "ready" && paire.length === 2) return paire;
-  const joues = d.played ?? {};
-  const ordre = presentes.map((id, i) => [id, joues[id] ?? 0, i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(([id]) => id);
-  if (ordre.length < 2) return [];
-  const meme = (a, b) => paire.length === 2 && paire.includes(a) && paire.includes(b);
-  for (let i = 0; i < ordre.length; i++) {
-    for (let j = i + 1; j < ordre.length; j++) {
-      if (ordre.length === 2 || !meme(ordre[i], ordre[j])) return [ordre[i], ordre[j]];
-    }
-  }
-  return ordre.slice(0, 2);
-}
-$("duel-retour").onclick = () => { duelChoix = null; render(); };
+$("duel-plus").onclick = () => { duelPioche = { mode: "plus", slots: [null, null] }; render(); };
+$("duel-retour").onclick = () => { duelPioche = null; render(); };
+$("duel-ok").onclick = () => {
+  const st = live.state;
+  if (!st || !duelComptage(st)) return;
+  const teams = Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0));
+  const counts = duelComptes(st, teams);
+  navigator.vibrate?.(40);
+  send("duel_plan", { counts }).then((r) => {
+    if (r?.status === "applied") toast(`${duelsPrevus(counts)} duels prévus : tout le monde passera au moins une fois.`);
+  });
+};
+$("duel-passer").onclick = () => {
+  if (!live.state || !duelComptage(live.state)) return;
+  send("duel_plan", { skip: true }).then((r) => {
+    if (r?.status === "applied") toast("Avant chaque duel, vous choisirez les 2 équipes.");
+  });
+};
 $("duel-fin").onclick = async () => {
   const d = live.state?.duel ?? {};
   const reste = d.allPlayed ? 0 : Math.max(0, (d.total ?? 0) - (d.n ?? 0) + (d.step === "ready" ? 1 : 0));

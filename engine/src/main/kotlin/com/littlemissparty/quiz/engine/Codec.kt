@@ -290,6 +290,8 @@ object Codec {
         if (q != null && s.intro) {
             game.gameStep()?.let { out["game"] = mapOf("title" to it.title, "n" to it.n, "of" to it.of, "label" to it.label) }
             out += mapOf("index" to s.index, "qid" to q.id, "kind" to q.kind.code, "deadline" to null, "buzzOpen" to false)
+            // Duel des robots (cedric, 1/11) : pendant la présentation, la régie demande les joueurs de chaque équipe.
+            if (q.isDuel) out["duel"] = duelState(game, teams)
             return out
         }
         if (q != null && s.phase != Phase.ENDED) {
@@ -366,6 +368,8 @@ object Codec {
             "result" to d?.result?.let { r -> mapOf("winner" to r.winner, "loser" to r.loser, "early" to r.early, "ms" to r.ms, "points" to r.points) },
             "played" to d?.played?.ifEmpty { null },
             "allPlayed" to game.duelTousPasses(teams),
+            // Joueurs par équipe réglés dans la Régie PC : le départ des − / ＋ de la régie.
+            "joueurs" to (game.question?.joueurs ?: DUEL_JOUEURS),
         )
     }
 

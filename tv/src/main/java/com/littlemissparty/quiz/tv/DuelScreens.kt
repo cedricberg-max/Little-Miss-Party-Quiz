@@ -158,9 +158,14 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
             EtapeDuel.PERSONNE -> ResultatDuel("Pas de points pour ce duel", null, "Personne n'a tiré !", GS.Cyan, null)
             else -> null
         }
-        val enPlus = d != null && (d.extra || d.n > state.duelTotal)
+        // Mode manuel (cedric, 1/11) : rien de prévu (total 0), juste le numéro du duel.
+        val enPlus = d != null && state.duelTotal > 0 && (d.extra || d.n > state.duelTotal)
         val textes = TextesDuel(
-            pastille = "🤠 LE DUEL DES ROBOTS " + if (enPlus) "EN PLUS" else "${d?.n} / ${state.duelTotal}",
+            pastille = "🤠 LE DUEL DES ROBOTS " + when {
+                enPlus -> "EN PLUS"
+                state.duelTotal == 0 -> "N° ${d?.n ?: 1}"
+                else -> "${d?.n} / ${state.duelTotal}"
+            },
             annonce = if (enPlus) "DUEL EN PLUS" else "DUEL N° ${d?.n}",
             consigne = when (etape) {
                 EtapeDuel.PRET -> "Les deux joueurs, la main au-dessus du buzzer !"
@@ -281,7 +286,11 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
         // Quel duel : petit compteur en haut à gauche.
         if (d != null && etape != EtapeDuel.ATTENTE) {
             Text(
-                if (d.extra || d.n > state.duelTotal) "🤠 Duel en plus" else "🤠 Duel ${d.n} sur ${state.duelTotal}", maxLines = 1,
+                when {
+                    state.duelTotal == 0 -> "🤠 Duel ${d.n}"
+                    d.extra || d.n > state.duelTotal -> "🤠 Duel en plus"
+                    else -> "🤠 Duel ${d.n} sur ${state.duelTotal}"
+                }, maxLines = 1,
                 style = styleCentre(20.sp, Neon.OrClair),
                 modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 16.dp)
                     .background(Neon.Plaque, RoundedCornerShape(50)).border(2.dp, Neon.Or, RoundedCornerShape(50))

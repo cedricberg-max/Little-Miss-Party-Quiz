@@ -1406,7 +1406,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 holdUntil = g.holdDeadline(),
                 statues = s.statues.takeIf { q?.isStatues == true && s.phase != Phase.LOBBY },
                 duel = s.duel.takeIf { q?.isDuel == true && s.phase != Phase.LOBBY },
-                duelTotal = if (q?.isDuel == true) g.duelsAPrevoir(teams().size) else 0,
+                duelTotal = if (q?.isDuel == true) g.duelsAPrevoir(teams().map { it.uid }) else 0,
                 duelTousPasses = q?.isDuel == true && g.duelTousPasses(teams().map { it.uid }),
                 duelGagnes = if (q?.isDuel == true) g.duelsGagnes() else emptyMap(),
                 chrono = s.chrono.takeIf { q?.isChrono == true && s.phase != Phase.LOBBY },

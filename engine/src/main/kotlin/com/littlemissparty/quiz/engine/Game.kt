@@ -353,11 +353,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /**
      * Pendant la présentation d'un jeu, seuls comptent le lancement, la pause, les points de la régie, le saut
-     * vers un autre jeu, la fin de partie et les réglages (multiplicateur) : aucune réponse, aucun buzz.
+     * vers un autre jeu, la fin de partie et les réglages (multiplicateur, joueurs du Duel) : aucune réponse, aucun buzz.
      */
     private fun reduce(s: GameState, e: GameEvent): GameState? =
         if (s.intro && e !is GameLaunched && e !is Paused && e !is Resumed && e !is ScoreAdjusted && e !is Undone &&
-            e !is Jumped && e !is GameEnded && e !is FactorChosen && e !is ProgramReset && e !is MimeTurnStarted) null
+            e !is Jumped && e !is GameEnded && e !is FactorChosen && e !is ProgramReset && e !is MimeTurnStarted && e !is DuelPlanned) null
         else reduceEvent(s, e)
 
     /** Jeu qui commence à la question [index] : il s'ouvre sur son écran de présentation, sans chrono ni buzzer. */
@@ -368,7 +368,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     private fun reduceEvent(s: GameState, e: GameEvent): GameState? = when (e) {
         is GameLaunched -> {
             val q = quiz.questions.getOrNull(s.index)
-            if (!s.intro || s.phase != Phase.QUESTION || q == null || s.paused) null else open(s.copy(intro = false), s.index, q, e.at)
+            // Les joueurs du Duel donnés pendant la présentation restent (cedric, 1/11).
+            if (!s.intro || s.phase != Phase.QUESTION || q == null || s.paused) null
+            else open(s.copy(intro = false), s.index, q, e.at).copy(duelPlan = s.duelPlan.takeIf { q.isDuel })
         }
         is QuestionOpened -> {
             val q = quiz.questions.getOrNull(e.index)

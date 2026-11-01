@@ -184,4 +184,23 @@ class DuelPlanTest {
         assertEquals(g.state, relu(g).state)
         assertEquals(CommandStatus.APPLIED, g.run("next", pan + 400_000, equipes).let { if (it.status == CommandStatus.APPLIED) it else g.run("duel_stop", pan + 400_000, equipes) }.status)
     }
+
+    @Test
+    fun `pendant la presentation du Duel, la regie voit le reglage de la Regie PC et donne les joueurs de chaque equipe`() {
+        val equipes = setOf("orange", "vert")
+        val g = Game(Quiz("p", "P", listOf(duel), intros = true)).apply { next(t0) }
+        assertTrue(g.state.intro)
+        val pub = Codec.publicState(g, teams = equipes)
+        assertEquals("intro", pub["phase"])
+        val d = pub["duel"] as Map<*, *>
+        assertEquals(2, d["joueurs"])
+        assertNull(d["plan"])
+        assertEquals(CommandStatus.APPLIED, g.run("duel_plan", t0 + 100, equipes, "counts" to mapOf("orange" to 5, "vert" to 3)).status)
+        assertEquals(mapOf("counts" to mapOf("orange" to 5, "vert" to 3)), (Codec.publicState(g, teams = equipes)["duel"] as Map<*, *>)["plan"])
+        assertFalse(g.needsDuel(), "rien avant le lancement de l'épreuve")
+        g.next(t0 + 1_000)
+        assertFalse(g.state.intro)
+        assertTrue(g.needsDuel())
+        assertEquals(5, g.duelsAPrevoir(equipes))
+    }
 }
