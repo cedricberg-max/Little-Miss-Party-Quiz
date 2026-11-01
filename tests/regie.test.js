@@ -7856,6 +7856,23 @@ describe("bibliothèque de quiz et prestations", () => {
     mini = await nouvelle("Lou");
     await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(9)");
     assert.deepEqual((await enregistrer("Lou")).q.zoomDepart, { x: 0, y: 0, z: 9 });
+    // La petite molette sous la photo (cedric, 31/10) : zoomer plus loin sans ouvrir le réglage, le même centre gardé.
+    const { zoomerDepart } = await import("../web/public/departzoom.js");
+    const centre = (d) => { const f = fenetreDuDepart(d); return [f.gauche + f.taille / 2, f.haut + f.taille / 2]; };
+    const plusFort = zoomerDepart({ x: 0.3, y: 0.6, z: 4 }, 8);
+    assert.equal(plusFort.z, 8);
+    centre(plusFort).forEach((c, k) => assert.ok(Math.abs(c - centre({ x: 0.3, y: 0.6, z: 4 })[k]) < 0.002, "même centre"));
+    const molette = page.locator("#show-rounds .quiz-complet-q .zoom-molette");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-molette")?.disabled === false);
+    assert.equal(await molette.inputValue(), "9");
+    assert.equal(await page.locator("#show-rounds .zoom-molette-force").textContent(), "×9");
+    await molette.fill("10");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(10)");
+    assert.equal((await enregistrer("Lou")).q.zoomDepart.z, 10);
+    await waitFor(async () => (await library(`departsZoom/${LION}`))?.z === 10, "la molette est gardée pour la photo");
+    // La molette ne dépasse pas sous la photo.
+    const [bloc, photo] = await Promise.all([page.locator("#show-rounds .zoom-depart-bloc").boundingBox(), page.locator("#show-rounds .zoom-depart").boundingBox()]);
+    assert.ok(bloc.width <= photo.width + 1, `molette pas plus large que la photo (${bloc.width} > ${photo.width})`);
     await page.context().close();
   });
 

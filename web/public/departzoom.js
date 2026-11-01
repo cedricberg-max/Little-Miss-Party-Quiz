@@ -74,6 +74,14 @@ export function departCentreSur(cx, cy, z) {
   return { x: Math.round(origine(cx) * 1000) / 1000, y: Math.round(origine(cy) * 1000) / 1000, z };
 }
 
+/** Le même départ à un autre zoom : on garde le centre de ce qu'on voit. Fonction pure, testée. */
+export function zoomerDepart(d, z) {
+  const f = fenetreDuDepart(d);
+  return departCentreSur(f.gauche + f.taille / 2, f.haut + f.taille / 2, z);
+}
+/** La molette sous chaque photo (cedric, 31/10) : du zoom ×2 (facile) au zoom ×10 (très dur), par demi-crans. */
+export const MOLETTE = { min: 2, max: 10, pas: 0.5 };
+
 const charger = async (src) => {
   const img = new Image();
   img.src = src;
@@ -136,10 +144,7 @@ export async function ouvrirDepartZoom(src, depart, auto) {
     el("div", { className: "row" }, valider, automatique, annuler));
   const voile = el("div", { className: "cadre-voile" }, boite);
   // Changer de force garde le centre de ce qu'on voit.
-  function recentrer(v, z) {
-    const f = fenetreDuDepart(v);
-    return departCentreSur(f.gauche + f.taille / 2, f.haut + f.taille / 2, z);
-  }
+  const recentrer = zoomerDepart;
   function dessiner() {
     const f = fenetreDuDepart(d);
     rect.style.left = `${f.gauche * 100}%`;

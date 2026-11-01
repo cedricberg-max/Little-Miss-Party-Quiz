@@ -55,7 +55,7 @@ import { lireZipEtSesZip } from "./zip.js";
 import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks, sourceDuDe, avecSesImages } from "./pioche-packs.js";
 import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage, dossierDe, garderLesQuestionsIllustrees } from "./pack-zip.js";
 import { ouvrirCadrage } from "./cadrage.js";
-import { ZOOM_MOYEN, graineDe, departAuto, premiereImage, ouvrirDepartZoom } from "./departzoom.js";
+import { ZOOM_MOYEN, MOLETTE, graineDe, departAuto, zoomerDepart, premiereImage, ouvrirDepartZoom } from "./departzoom.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
 import {
@@ -2320,7 +2320,9 @@ async function completerDepartsZoom(rounds) {
 }
 /**
  * Dans « Zoom mystère complet » : la première image de la TV en petit ; un clic ouvre le réglage du départ (pour cette
- * prestation, et gardé pour la photo). Une question d'un quiz rappelé en entier se règle dans la Bibliothèque : rien à cliquer.
+ * prestation, et gardé pour la photo). Dessous, une petite molette (cedric, 31/10 : « pour zoomer plus loin si le départ
+ * est trop facile ») change la force du zoom sans ouvrir le réglage, en gardant le même centre. Une question d'un quiz
+ * rappelé en entier se règle dans la Bibliothèque : rien à cliquer.
  */
 function departZoomMini(r, x, changer) {
   const gardee = questionGardee(r, x);
@@ -2329,17 +2331,47 @@ function departZoomMini(r, x, changer) {
   if (!src) return null;
   const bouton = h("button", { type: "button", class: "zoom-depart", disabled: !gardee, title: gardee ? "La première image sur la TV · cliquer pour régler le départ du zoom" : "La première image sur la TV",
     "aria-label": `Départ du zoom de « ${reponsePhoto(x.q)} »` });
-  Promise.all([sourceDuCadrage(src), departDeLaPhoto(q)]).then(([adresse, d]) => { if (adresse && d) bouton.replaceChildren(premiereImage(adresse, d)); }).catch((e) => console.error(e));
-  if (gardee) bouton.onclick = async (e) => {
-    e.stopPropagation();
-    const adresse = await sourceDuCadrage(src);
-    const choisi = await ouvrirDepartZoom(adresse, await departDeLaPhoto(gardee), (z) => departAuto(adresse, graineDe(src), z));
-    if (!choisi) return;
-    gardee.zoomDepart = departZoom(choisi);
+  let adresse = null, depart = null;
+  const montrer = () => { if (adresse && depart) bouton.replaceChildren(premiereImage(adresse, depart)); };
+  const garder = (d) => {
+    gardee.zoomDepart = departZoom(d);
     memoriserDepart(src, gardee.zoomDepart);
     changer();
   };
-  return bouton;
+  Promise.all([sourceDuCadrage(src), departDeLaPhoto(q)]).then(([a, d]) => {
+    adresse = a; depart = d; montrer();
+    if (molette && d) { molette.value = `${d.z}`; force.textContent = `×${d.z}`; molette.disabled = false; }
+  }).catch((e) => console.error(e));
+  if (!gardee) return bouton;
+  bouton.onclick = async (e) => {
+    e.stopPropagation();
+    const choisi = await ouvrirDepartZoom(adresse ?? await sourceDuCadrage(src), await departDeLaPhoto(gardee), (z) => departAuto(adresse, graineDe(src), z));
+    if (choisi) garder(choisi);
+  };
+  const force = h("span", { class: "zoom-molette-force", text: "" });
+  const molette = h("input", { type: "range", class: "zoom-molette", min: MOLETTE.min, max: MOLETTE.max, step: MOLETTE.pas, value: ZOOM_MOYEN, disabled: true,
+    title: "Force du zoom au départ : à droite, plus dur à deviner", "aria-label": `Force du zoom au départ de « ${reponsePhoto(x.q)} »` });
+  // Pendant qu'on tourne : la petite image suit ; au lâcher : le départ est gardé (prestation et photo).
+  molette.oninput = () => {
+    if (!depart) return;
+    depart = zoomerDepart(depart, Number(molette.value));
+    force.textContent = `×${depart.z}`;
+    montrer();
+  };
+  molette.onchange = () => { if (depart) garder(depart); };
+  // La ligne se glisse à la souris pour changer d'ordre : pas pendant qu'on tient la molette.
+  let avant = null;
+  const tenir = (oui) => {
+    const li = molette.closest("li");
+    if (!li) return;
+    if (oui) { avant ??= li.draggable; li.draggable = false; } else if (avant !== null) { li.draggable = avant; avant = null; }
+  };
+  molette.addEventListener("pointerdown", (e) => { e.stopPropagation(); tenir(true); });
+  molette.addEventListener("pointerup", () => tenir(false));
+  molette.addEventListener("pointercancel", () => tenir(false));
+  molette.addEventListener("click", (e) => e.stopPropagation());
+  return h("span", { class: "zoom-depart-bloc" }, bouton,
+    h("label", { class: "zoom-molette-ligne" }, molette, force));
 }
 
 /** L'image d'un objet (carte, mot, personnage) : son identifiant, ou « b-… » pour une photo libre de l'appli. */
