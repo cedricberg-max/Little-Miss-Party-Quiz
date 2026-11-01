@@ -106,6 +106,7 @@ private fun TransitionDeJeu(state: UiState.Playing) {
                 q.isFlou -> "L'Image floue !"
                 q.isChante -> "Chante le mot !"
                 q.isQuiSuis -> "Qui suis-je ?"
+                q.isRebus -> "Le Rébus !"
                 q.isBlind -> "Blind test !"
                 q.isStatues -> "Statues musicales !"
                 q.isDisparu -> "Qui a disparu ?"

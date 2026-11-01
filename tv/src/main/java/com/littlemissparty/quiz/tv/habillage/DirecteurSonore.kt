@@ -735,6 +735,8 @@ internal val PRESENTATIONS_PROPRES: Map<String, Ambiance> = mapOf(
     "patate" to Ambiance.PATATE_PRESENTATION,
     "pictionary" to Ambiance.PICTO_PRESENTATION,
     "quisuis" to Ambiance.QUISUIS_PRESENTATION,
+    // Rébus : la musique de présentation de Qui suis-je ? en attendant la sienne (vidéo d'intro en préparation).
+    "rebus" to Ambiance.QUISUIS_PRESENTATION,
     "express" to Ambiance.VRAIFAUX_PRESENTATION,
     "mimes" to Ambiance.MIMES_PRESENTATION,
     "statues" to Ambiance.STATUES_PRESENTATION,

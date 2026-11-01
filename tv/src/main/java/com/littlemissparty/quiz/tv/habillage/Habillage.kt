@@ -212,7 +212,8 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         jeuBuzz = s.question?.isBuzz == true,
         flou = s.question?.isFlou == true,
         chante = s.question?.isChante == true,
-        quiSuis = s.question?.isQuiSuis == true,
+        // Rébus : mêmes sons que Qui suis-je ? (musique des mimes en retrait, petit son à chaque nouveau morceau).
+        quiSuis = s.question?.let { it.isQuiSuis || it.isRebus } == true,
         buzzEquipe = s.teams.indexOfFirst { it.uid == s.buzzTeam },
         ratees = s.buzzBlocked.size,
         indices = indices,
@@ -266,6 +267,7 @@ internal fun epreuveDe(q: Question): String {
         QuestionKind.FLOU -> "flou"
         QuestionKind.CHANTE -> "chante"
         QuestionKind.QUISUIS -> "quisuis"
+        QuestionKind.REBUS -> "rebus"
         QuestionKind.BLIND -> "blind"
         QuestionKind.STATUES -> "statues"
         QuestionKind.DISPARU -> "disparu"
@@ -277,7 +279,7 @@ internal fun epreuveDe(q: Question): String {
 @Composable
 private fun indicesQuiSuis(s: UiState.Playing?): Int {
     var n by remember { mutableIntStateOf(0) }
-    val q = s?.question?.takeIf { it.isQuiSuis }
+    val q = s?.question?.takeIf { it.isQuiSuis || it.isRebus }
     // Chrono arrêté (pause, buzz en attente du verdict) : on ne compte plus, le nombre d'indices reste.
     val deadline = if (s != null && q != null && s.phase == Phase.QUESTION && !s.paused) s.deadline else null
     val depart = s?.resumeAt ?: 0L

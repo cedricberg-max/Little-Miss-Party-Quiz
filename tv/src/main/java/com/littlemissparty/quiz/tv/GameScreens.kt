@@ -98,7 +98,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
         if (Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION) ConfettisLegers(Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (Look.gs) EtapeGs(state.etape ?: "Question ${state.index + 1}", Modifier.weight(1f, fill = false))
+                // Rébus : ni nom du jeu ni compteur sur la TV (règle de cedric du 1/11), le chrono seul à droite.
+                if (q.isRebus) {}
+                else if (Look.gs) EtapeGs(state.etape ?: "Question ${state.index + 1}", Modifier.weight(1f, fill = false))
                 else Text(
                     state.etape ?: "Question ${state.index + 1}",
                     color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
@@ -141,7 +143,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             // Statues : le panneau porte déjà l'étiquette « STATUES MUSICALES », le titre en double lui volerait sa place.
             // Chante le mot en Game Show : le mot est déjà sur l'enseigne néon, en double il lui volerait sa hauteur.
             // Quiz musical, scène du titre : « Quel est ce titre ? » laisse sa hauteur à la scène (8 équipes, cedric, 30/10).
-            if (!q.isBlind && !q.isStatues && !sceneMusicale && !(Look.gs && q.isChante) && !(Look.gs && q.isDisparu && PropositionDisparu.sansEnseigne)) {
+            // Rébus : l'appel « BUZZEZ ! » et le mot sont dans sa propre scène, toute la hauteur va aux morceaux.
+            if (!q.isBlind && !q.isStatues && !q.isRebus && !sceneMusicale && !(Look.gs && q.isChante) && !(Look.gs && q.isDisparu && PropositionDisparu.sansEnseigne)) {
                 // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène). Qui a
                 // disparu ? y a droit aussi, lettres de couleur comme « Quel est ce titre ? » (cedric, 25/10 au soir).
                 val panneau = planchesQuiz3d()?.takeIf { !q.isBuzz || q.isDisparu }
@@ -177,6 +180,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     } else if (q.isChante) {
                         ChanteBoard(q, state, Modifier.weight(1.4f).fillMaxHeight())
                         Spacer(Modifier.width(20.dp))
+                    } else if (q.isRebus) {
+                        // Rébus : les morceaux sur toute la largeur, l'appel et la réponse au-dessus.
+                        RebusBoard(q, state, Modifier.weight(1f).fillMaxHeight())
                     } else if (q.isBlind) {
                         // Blind test : une scène par moment (présentation, écoute, « STOP ! », révélation) sur toute la largeur.
                         BlindScene(q, state, Modifier.weight(1f).fillMaxHeight())
@@ -196,7 +202,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     }
                     // Le blind test occupe déjà toute la largeur.
                     if (q.isStatues) StatuesBoard(q, state, actions, Modifier.weight(1f).fillMaxHeight())
-                    else if (q.isBlind) {}
+                    else if (q.isBlind || q.isRebus) {}
                     else if (q.isBuzz) FlouPanel(q, state, Modifier.weight(1f).fillMaxHeight())
                     else if (q.isNumber) NumberBoard(state, revealed, Modifier.weight(1f).fillMaxHeight())
                     else {

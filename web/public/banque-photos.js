@@ -166,9 +166,14 @@ export async function resolveBanque(questionsList, { photo, secours = async () =
 
 /**
  * Adresse d'une photo de la banque sur le site : celles des tout-petits dans banque/, celles du quiz classique tout prêt
- * (clés « qc-… », questions tirées au 🎲) dans banque-quiz/.
+ * (clés « qc-… », questions tirées au 🎲) dans banque-quiz/, celles du Rébus (clés « rebus-… ») dans banque-rebus/.
  */
-export const cheminPhotoBanque = (cle) => `${`${cle}`.startsWith("qc-") ? "banque-quiz" : "banque"}/${encodeURIComponent(cle)}.jpg`;
+export const cheminPhotoBanque = (cle) => {
+  const k = `${cle}`;
+  // Rébus (cedric, 1/11) : ses photos vivent à part (« rebus-pot » → banque-rebus/pot.jpg), jamais proposées aux autres jeux.
+  if (k.startsWith("rebus-")) return `banque-rebus/${encodeURIComponent(k.slice(6))}.jpg`;
+  return `${k.startsWith("qc-") ? "banque-quiz" : "banque"}/${encodeURIComponent(k)}.jpg`;
+};
 
 /** Lit une photo de la banque sur le site, en data URL (null si elle n'existe pas encore). */
 export async function lirePhotoBanque(cle) {

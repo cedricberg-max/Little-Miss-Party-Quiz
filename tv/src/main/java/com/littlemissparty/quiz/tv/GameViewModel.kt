@@ -2863,6 +2863,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "flou" to true,
             "chante" to true,
             "quisuis" to true,
+            // Le Rébus (1/11) : la régie prévient avant d'en envoyer à une TV trop ancienne.
+            "rebus" to true,
             "blind" to true,
             // Blind test morceau par morceau : « Lancer le morceau », relance, révéler sans points, passer, bilan.
             "blindPlay" to true,

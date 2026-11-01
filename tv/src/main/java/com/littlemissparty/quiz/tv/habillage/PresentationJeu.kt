@@ -93,6 +93,7 @@ fun emblemeJeu(famille: String): EmblemeJeu = when (famille.lowercase()) {
     "duel" -> EmblemeJeu("🤠", Color(0xFFFFB347))
     "simon" -> EmblemeJeu("🔴", Color(0xFFFF2A2A))
     "chrono" -> EmblemeJeu("⏱️", Color(0xFF00F0FF))
+    "rebus" -> EmblemeJeu("🧩", Color(0xFFFF3FA4))
     else -> EmblemeJeu("❓", Color(0xFFF0CC92))
 }
 
