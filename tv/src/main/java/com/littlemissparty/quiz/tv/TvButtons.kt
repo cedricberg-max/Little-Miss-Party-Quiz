@@ -14,6 +14,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -93,4 +95,21 @@ fun TvButton(
             style = styleCentre(fontSize, ink, if (focused || primary) FontWeight.ExtraBold else FontWeight.SemiBold).copy(textAlign = TextAlign.Center),
         )
     }
+}
+
+/**
+ * Boutons de secours à la télécommande sur les écrans de jeu (« Image suivante », « Top départ », « Arrêter le chrono »…).
+ * Cachés par défaut (cedric, 1/11 au soir : Sarah pilote depuis le téléphone, l'écran reste aux enfants). Le menu
+ * Retour les montre avec « Piloter avec la télécommande ». Chaque écran a donc deux mises en page, avec et sans ces
+ * boutons : elles lisent [Pilotage.telecommande] pour se partager l'espace. Le réglage repart à « caché » à chaque
+ * démarrage de l'appli.
+ */
+object Pilotage {
+    var telecommande by mutableStateOf(false)
+}
+
+/** N'affiche [contenu] (les boutons de secours d'un écran de jeu) que si « Piloter avec la télécommande » est allumé. */
+@Composable
+fun BoutonsTelecommande(contenu: @Composable () -> Unit) {
+    if (Pilotage.telecommande) contenu()
 }

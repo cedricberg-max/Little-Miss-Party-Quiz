@@ -15,6 +15,36 @@ import org.junit.runner.RunWith
 class NavigationTelecommandeTest : TestTv() {
 
     @Test
+    fun boutonsDeSecoursCachesParDefautPuisMontresParLeMenu() {
+        // cedric, 1/11 au soir : par défaut, aucun bouton de télécommande sur les écrans de jeu ; le menu Retour les
+        // montre avec « Piloter avec la télécommande », et les cache de nouveau au second appui.
+        com.littlemissparty.quiz.tv.Pilotage.telecommande = false
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        ecran.voit("Licornes")
+        // Le lancement passe par le menu Retour, dans les deux designs, quand les boutons sont cachés.
+        ecran.touche(KeyEvent.KEYCODE_BACK)
+        ecran.ok("Lancer la fête !  ▶")
+        attendreQuestion(licornes, code, 0)
+        ecran.neVoitPas("Arrêter le chrono  ▶")
+        ecran.capture("sans-boutons")
+
+        ecran.touche(KeyEvent.KEYCODE_BACK)
+        ecran.ok("🎮 Piloter avec la télécommande : non")
+        ecran.voit("🎮 Piloter avec la télécommande : oui")
+        ecran.ok("Continuer la partie")
+        ecran.voit("Arrêter le chrono  ▶")
+        ecran.entierementVisible("Arrêter le chrono  ▶")
+        ecran.capture("avec-boutons")
+
+        ecran.touche(KeyEvent.KEYCODE_BACK)
+        ecran.ok("🎮 Piloter avec la télécommande : oui")
+        ecran.voit("🎮 Piloter avec la télécommande : non")
+        ecran.ok("Continuer la partie")
+        ecran.neVoitPas("Arrêter le chrono  ▶")
+    }
+
+    @Test
     fun salonPuisLancementAvecOk() {
         val code = lancerBoite()
         ecran.voit("Scannez pour jouer")
@@ -129,7 +159,7 @@ class NavigationTelecommandeTest : TestTv() {
         val cible = "Terminer et lancer une nouvelle partie"
         val menu = listOf(
             "Continuer la partie", "Donner des points", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour",
-            "Vider le cache des médias", "🎨 Design : ${Look.design.nom}", "Quitter l'application", cible,
+            "Vider le cache des médias", "🎨 Design : ${Look.design.nom}", "🎮 Piloter avec la télécommande : oui", "Quitter l'application", cible,
             "Terminer la partie et quitter",
         )
         menu.forEachIndexed { i, bouton ->
@@ -162,7 +192,7 @@ class NavigationTelecommandeTest : TestTv() {
         ecran.voit("Continuer la partie")
         val avant = listOf(
             "Donner des points", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour",
-            "Vider le cache des médias", "🎨 Design : ${Look.design.nom}", "Quitter l'application", "Terminer et lancer une nouvelle partie",
+            "Vider le cache des médias", "🎨 Design : ${Look.design.nom}", "🎮 Piloter avec la télécommande : oui", "Quitter l'application", "Terminer et lancer une nouvelle partie",
         )
         avant.forEach { bouton -> ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN); ecran.focusSur(bouton) }
         ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)

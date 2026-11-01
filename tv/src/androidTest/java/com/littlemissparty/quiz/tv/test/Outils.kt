@@ -460,7 +460,7 @@ class Ecran(private val nomTest: () -> String) {
      * bouton est dans le menu Retour ; en Classique il est sur l'écran.
      */
     fun montrerLancement() {
-        if (Look.gs && !affiche("Lancer la fête !")) touche(KeyEvent.KEYCODE_BACK)
+        if ((Look.gs || !com.littlemissparty.quiz.tv.Pilotage.telecommande) && !affiche("Lancer la fête !")) touche(KeyEvent.KEYCODE_BACK)
         voit("Lancer la fête !")
         focusSur("Lancer la fête !")
     }

@@ -317,7 +317,7 @@ internal fun ClassementGameShow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             LogoQuiz(46.dp)
             Spacer(Modifier.weight(1f))
-            if (!state.paused) NextButton(suiteLabel(state), actions.next, key = state.index)
+            if (!state.paused && Pilotage.telecommande) NextButton(suiteLabel(state), actions.next, key = state.index)
         }
     }
 }

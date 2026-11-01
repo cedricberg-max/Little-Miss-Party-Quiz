@@ -254,7 +254,7 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
     }
 
     // Sans régie, à la télécommande : OK lance la suite, la suivante, le tour suivant, puis le jeu suivant.
-    if (!state.paused && state.regies == 0) Box(Modifier.fillMaxSize()) {
+    if (!state.paused && state.regies == 0 && Pilotage.telecommande) Box(Modifier.fillMaxSize()) {
         Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp)) {
             when {
                 vue.etape == EtapeSimon.ATTENTE && state.teams.isEmpty() -> NextButton(suiteLabel(state), actions.next, key = "simon-seul-${state.index}")

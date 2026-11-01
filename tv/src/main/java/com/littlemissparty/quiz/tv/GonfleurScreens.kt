@@ -76,7 +76,7 @@ fun GonfleurScreen(state: UiState.Playing, actions: TvActions) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (!state.paused) when {
+                if (!state.paused && Pilotage.telecommande) when {
                     revele -> NextButton(versClassement(state, "Voir les scores"), actions.next, key = "gonfleur-bilan-${state.index}")
                     // Sans régie, à la télécommande : arrêter la course, le plus gros ballon gagne.
                     state.regies == 0 && !depart -> TvButton("⏹ Arrêter la course", actions.next, fontSize = 22.sp)

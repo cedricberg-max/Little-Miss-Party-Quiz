@@ -2,6 +2,7 @@ package com.littlemissparty.quiz.tv.test.tour
 
 import android.util.Log
 import com.google.firebase.database.DataSnapshot
+import com.littlemissparty.quiz.tv.Pilotage
 import com.littlemissparty.quiz.tv.TEAM_COLORS
 import com.littlemissparty.quiz.tv.test.EXTRAIT_MP3
 import com.littlemissparty.quiz.tv.test.PupitreSimule
@@ -300,16 +301,32 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
 
     private fun etat() = equipes.first().etat(code)
 
-    /** Capture, puis textes coupés, chevauchements et plus petit texte : une ligne « TOUR| » dans le journal. */
+    /**
+     * Chaque moment dans ses deux mises en page (cedric, 1/11 au soir) : sans les boutons de télécommande (le réglage
+     * par défaut de la box), puis avec (« Piloter avec la télécommande »). Pour chacune : capture, textes coupés,
+     * chevauchements et plus petit texte, une ligne « TOUR| » dans le journal.
+     */
     private fun verifier(moment: String, attente: Long = 900) {
-        ecran.capture("tour-$moment-${nombre}eq", attente)
+        mode(false)
+        verifierMode(moment, "sans", attente)
+        mode(true)
+        // Le bouton sélectionné grossit en 160 ms : la capture attend qu'il soit posé.
+        verifierMode(moment, "avec", 400)
+        mode(false)
+    }
+
+    private fun mode(boutons: Boolean) =
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().runOnMainSync { Pilotage.telecommande = boutons }
+
+    private fun verifierMode(moment: String, mode: String, attente: Long) {
+        ecran.capture("tour-$moment-${nombre}eq-$mode", attente)
         val coupe = ecran.defautsTextes()
         val chevauche = ecran.recouvrements()
         val petit = ecran.plusPetitTexte()
         val taille = petit?.let { "%.0f px « %s »".format(it.first, it.second.replace('\n', ' ').take(40)) } ?: "-"
         val details = (coupe + chevauche).joinToString(" ; ").replace('\n', ' ').take(2_500)
-        Log.i(TAG, "TOUR|$nombre|$moment|coupés=${coupe.size}|chevauchements=${chevauche.size}|plus petit=$taille|$details")
-        if (coupe.isNotEmpty()) coupes += "$moment : ${coupe.joinToString(" ; ")}"
+        Log.i(TAG, "TOUR|$nombre|$moment|$mode|coupés=${coupe.size}|chevauchements=${chevauche.size}|plus petit=$taille|$details")
+        if (coupe.isNotEmpty()) coupes += "$moment ($mode boutons) : ${coupe.joinToString(" ; ")}"
     }
 
     private fun programme(quiz: Map<String, Any?>, photo: String, lion: String, extrait: String): List<Map<String, Any?>> {

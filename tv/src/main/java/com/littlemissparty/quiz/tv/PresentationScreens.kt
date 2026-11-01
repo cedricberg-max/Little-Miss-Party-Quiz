@@ -19,7 +19,7 @@ import com.littlemissparty.quiz.tv.habillage.familleJeu
 fun PresentationScreen(state: UiState.Playing, actions: TvActions) {
     Box(Modifier.fillMaxSize()) {
         PresentationJeu(state.gameTitle ?: "Quiz", familleJeu(state.question), Modifier.fillMaxSize(), video = !state.paused)
-        if (!state.paused) {
+        if (!state.paused && Pilotage.telecommande) {
             NextButton("Lancer l'épreuve", actions.next, Modifier.align(Alignment.BottomEnd).padding(36.dp), key = "presentation-${state.index}")
         }
     }

@@ -257,6 +257,7 @@ private fun PictoChip(team: Team, count: Int, playing: Boolean, passed: Boolean,
  */
 @Composable
 private fun PictoButtons(state: UiState.Playing, m: MimeUi, actions: TvActions) {
+    if (!Pilotage.telecommande) return
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         if (m.team != null) {
             TvButton("Arrêter le tour", actions.mimeStop, fontSize = 20.sp)

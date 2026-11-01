@@ -160,7 +160,8 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
                 DefiPause(state.childName)
                 Spacer(Modifier.height(24.dp))
                 // Secours à la télécommande ; avec la régie, c'est l'animatrice qui relance depuis son téléphone.
-                NextButton("Reprendre", onResume, key = "pause")
+                // Cachés par défaut : la touche lecture/pause de la télécommande relance aussi.
+                if (Pilotage.telecommande) NextButton("Reprendre", onResume, key = "pause")
             }
         }
     }

@@ -111,7 +111,7 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
                 }
-                if (!state.paused) when {
+                if (!state.paused && Pilotage.telecommande) when {
                     revele -> NextButton(versClassement(state, "Voir les scores"), actions.next, key = "patate-bilan-${state.index}")
                     explosion || annonce -> {}
                     // Sans régie, à la télécommande : la bombe part au hasard (tablette en panne).

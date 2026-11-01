@@ -207,7 +207,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, 
             paused = state.paused,
             onContinue = close,
             // Game Show : l'accueil reste neutre pour les invités, « Lancer la fête ! » est ici à la télécommande.
-            onLaunch = if (Look.gs && state.phase == Phase.LOBBY && state.teams.isNotEmpty()) ({ close(); actions.next() }) else null,
+            onLaunch = if ((Look.gs || !Pilotage.telecommande) && state.phase == Phase.LOBBY && state.teams.isNotEmpty()) ({ close(); actions.next() }) else null,
             // La pause du menu dure jusqu'à la fermeture de la fenêtre des points.
             onPoints = { confirmQuit = false; pointsOpen = true },
             onRegie = { close(); actions.showRegie() },
@@ -509,6 +509,11 @@ private fun QuitDialog(
             TvButton("Vider le cache des médias", onCache, wide, fontSize = 20.sp)
             // La fenêtre reste ouverte : l'écran derrière change de design aussitôt, un second appui revient en arrière.
             TvButton("🎨 Design : ${Look.design.nom}", onDesign, wide, fontSize = 20.sp)
+            // Boutons de secours des écrans de jeu, cachés par défaut ; la fenêtre reste ouverte, comme pour le design.
+            TvButton(
+                if (Pilotage.telecommande) "🎮 Piloter avec la télécommande : oui" else "🎮 Piloter avec la télécommande : non",
+                { Pilotage.telecommande = !Pilotage.telecommande }, wide, fontSize = 20.sp,
+            )
             TvButton("Quitter l'application", onQuit, wide, fontSize = 20.sp)
             TvButton("Terminer et lancer une nouvelle partie", onNewGame, wide, accent = Palette.Pink, fontSize = 20.sp)
             // Fin de soirée (cedric, 31/10) : terminer la partie et fermer l'appli d'un coup, rien à reprendre ensuite.
@@ -602,7 +607,7 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
                 )
                 Spacer(Modifier.height(12.dp))
             }
-            if (state.teams.isNotEmpty()) NextButton("Lancer la fête !", actions.next)
+            if (state.teams.isNotEmpty() && Pilotage.telecommande) NextButton("Lancer la fête !", actions.next)
         }
         Spacer(Modifier.width(40.dp))
         Column(

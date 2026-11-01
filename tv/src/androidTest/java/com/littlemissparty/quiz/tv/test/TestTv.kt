@@ -39,6 +39,9 @@ abstract class TestTv {
         // Chaque test part du Game Show sur le décor dessiné : même écran et mêmes boutons que le plateau 3D par défaut,
         // sans la vidéo de fond, que le décodeur logiciel de l'émulateur lirait en boucle pendant tout le test.
         Boite.choisirDesign(Boite.designDesTests)
+        // Les tests pilotent à la télécommande : boutons de secours visibles (cachés par défaut sur la vraie box,
+        // cedric 1/11 ; NavigationTelecommandeTest vérifie ce défaut et l'interrupteur du menu Retour).
+        com.littlemissparty.quiz.tv.Pilotage.telecommande = true
         val debut = System.currentTimeMillis()
         Boite.verifierEmulateur()
         Log.i(TAG, "Émulateur Firebase vérifié en ${System.currentTimeMillis() - debut} ms")

@@ -290,7 +290,7 @@ private fun AnnonceFacteur(state: UiState.Playing, fin: Long) {
 /** Boutons de l'animatrice sous la question. En pause, le seul bouton est « Reprendre » sur l'intermède. */
 @Composable
 private fun BoutonsQuestion(state: UiState.Playing, q: Question, actions: TvActions) {
-    if (!state.paused) when (state.phase) {
+    if (!state.paused && Pilotage.telecommande) when (state.phase) {
         // Jeux au buzzer : l'animatrice juge la réponse orale. Régie reliée : elle juge depuis la régie,
         // la TV ne montre pas de boutons de secours (la télécommande reprend la main sans régie).
         Phase.QUESTION -> if (q.isBuzz && state.buzzTeam != null) {
@@ -655,7 +655,7 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
             BlindBilanEcran(state, Modifier.weight(1f).fillMaxWidth())
             Row {
                 Spacer(Modifier.weight(1f))
-                if (!state.paused) NextButton(suiteLabel(state), actions.next, key = state.index)
+                if (!state.paused && Pilotage.telecommande) NextButton(suiteLabel(state), actions.next, key = state.index)
             }
         }
         return
@@ -676,7 +676,7 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             LogoLmp(64.dp)
             Spacer(Modifier.weight(1f))
-            if (!state.paused) NextButton(suiteLabel(state), actions.next, key = state.index)
+            if (!state.paused && Pilotage.telecommande) NextButton(suiteLabel(state), actions.next, key = state.index)
         }
     }
 }

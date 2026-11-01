@@ -211,7 +211,7 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
                 cle = "wanted-$cle",
             )
             // Sans régie, à la télécommande : OK lance le duel, puis prépare le suivant (ou passe aux scores).
-            if (!state.paused && state.regies == 0) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp)) {
+            if (!state.paused && state.regies == 0 && Pilotage.telecommande) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp)) {
                 when (etape) {
                     EtapeDuel.PRET -> NextButton("🤠 Lancer le duel", actions.next, key = "duel-pret-$cle")
                     EtapeDuel.GAGNE, EtapeDuel.TROP_TOT, EtapeDuel.PERSONNE ->
@@ -273,7 +273,7 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 // Sans régie, à la télécommande : OK lance le duel, puis prépare le suivant (ou passe aux scores).
-                if (!state.paused && state.regies == 0) when (etape) {
+                if (!state.paused && state.regies == 0 && Pilotage.telecommande) when (etape) {
                     EtapeDuel.ATTENTE -> if (state.teams.size < 2) NextButton(versClassement(state, "Voir les scores"), actions.next, key = "duel-seul-${state.index}")
                     EtapeDuel.PRET -> NextButton("🤠 Lancer le duel", actions.next, key = "duel-pret-$cle")
                     EtapeDuel.GAGNE, EtapeDuel.TROP_TOT, EtapeDuel.PERSONNE ->

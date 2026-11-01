@@ -581,6 +581,7 @@ private fun remainingTeams(state: UiState.Playing, m: MimeUi): List<Team> = stat
  */
 @Composable
 private fun MimeButtons(state: UiState.Playing, m: MimeUi, actions: TvActions) {
+    if (!Pilotage.telecommande) return
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         val enFile = state.question?.couleur != null
         if (m.team != null && m.relais != null) {
