@@ -520,6 +520,9 @@ class DirecteurSonore {
         Ecran.SALON -> Ambiance.SALON
         Ecran.PRESENTATION -> ambiancePresentation(i)
         Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
+            // Super Finale du Vrai ou Faux express : la même nappe « tout accélère » que les autres quiz (cedric, 1/11 :
+            // la règle vaut pour tous les jeux de quiz qui ont des questions multipliées).
+            i.express && i.superFinale -> Ambiance.DECISIVE
             i.express -> Ambiance.EXPRESS
             // Blind test, Game Show : la musique d'attente tant que Sarah n'a pas lancé le morceau.
             i.blindAttente && i.gameShow && i.ecran == Ecran.QUESTION -> Ambiance.BT_ATTENTE
