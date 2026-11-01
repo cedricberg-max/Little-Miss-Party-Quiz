@@ -31,6 +31,16 @@ class MasqueMimesTest {
     }
 
     @Test
+    fun `apres un tour, Prochaine equipe attend que le tampon TEMPS ECOULE soit parti (plus de textes melanges)`() {
+        val t = com.littlemissparty.quiz.tv.habillage.Tempo
+        // Le tampon dure 1,2 s (Tampon, dureeMs par défaut) : la consigne arrive après lui, et après le bravo.
+        assertTrue(delaiConsigneMimes(t.MIME_BILAN) > 1_200L)
+        assertTrue(delaiConsigneMimes(t.MIME_BILAN) > t.MIME_BILAN + t.TEMPS)
+        val code = java.io.File("src/main/java/com/littlemissparty/quiz/tv/MimeScreens.kt").readText()
+        assertTrue(code.contains("if (last != null) Modifier.apparition(delaiConsigneMimes(bilan), m.turns.size) else Modifier"))
+    }
+
+    @Test
     fun `plus de pastille MIMES en haut a gauche dans le Game Show, le Classique la garde`() {
         org.junit.Assert.assertFalse(badgeMimesVisible(gs = true))
         org.junit.Assert.assertTrue(badgeMimesVisible(gs = false))

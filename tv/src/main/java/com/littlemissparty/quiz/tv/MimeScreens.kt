@@ -483,6 +483,9 @@ internal val COULEUR_BILAN_MIMES = GS.Jaune
 /** Place des textes sous le masque : bravo sur 2 lignes (nom long), points, consigne sur 3 lignes et espaces (dp). */
 private const val TEXTES_ENTRE_TOURS = 250f
 
+/** Après un tour, la consigne (« Prochaine équipe… ») arrive après le bravo et les points, jamais sous le tampon. */
+internal fun delaiConsigneMimes(bilan: Long): Long = bilan + 2 * Tempo.TEMPS
+
 /** Entre deux tours : bilan du tour qui vient de finir, puis qui va mimer. */
 @Composable
 private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) {
@@ -548,7 +551,10 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                 color = Palette.Ink, fontSize = 24.sp, textAlign = TextAlign.Center, lineHeight = 32.sp,
                 maxLines = 3, overflow = TextOverflow.Ellipsis,
                 // Cedric, 1/11 (point 34) : la règle collait aux bords gauche et droit de l'écran, elle doit respirer.
-                modifier = Modifier.padding(horizontal = MARGE_REGLE_MIMES.dp),
+                // Après un tour, « Prochaine équipe… » attend que le tampon « TEMPS ÉCOULÉ ! » soit parti et arrive après
+                // le bravo et les points (tour des écrans du 1/11 : il s'affichait dessous, les deux se mélangeaient).
+                modifier = Modifier.padding(horizontal = MARGE_REGLE_MIMES.dp)
+                    .then(if (last != null) Modifier.apparition(delaiConsigneMimes(bilan), m.turns.size) else Modifier),
             )
             }
         }
