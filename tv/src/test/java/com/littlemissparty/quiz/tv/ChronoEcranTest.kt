@@ -91,7 +91,7 @@ class ChronoEcranTest {
         // Drap à 8 s : Buzzy part chercher le drap à 2,38 s (pendant que les chiffres défilent), le drap se pose à 8 s pile.
         assertEquals(8_000L - LANCER_POSE_MS, departLancer(8_000L))
         assertEquals(2_380L, departLancer(8_000L) + LANCER_PREFIXE_MS)
-        assertEquals(LANCER_PREFIXE_MS - 5_620L, tempsLancer(2_000L, 8_000L))
+        assertEquals("à 2 s, le clip est dans ses boucles d'attente", LANCER_POSE_MS - 6_000L, tempsLancer(2_000L, 8_000L))
         assertEquals(LANCER_POSE_MS, tempsLancer(8_000L, 8_000L))
         assertTrue("les chiffres tournent encore pendant que Buzzy va chercher le drap", chiffresVisibles(7_000L, 8_000L))
         assertTrue("le drap couvre le cadran : plus de chiffres", !chiffresVisibles(7_800L, 8_000L))
