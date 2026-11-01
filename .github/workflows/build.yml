@@ -62,8 +62,31 @@ jobs:
     needs: [moteur, regles-pupitre]
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-24.04
+    outputs:
+      tv-change: ${{ steps.tv.outputs.change }}
+      tv-derniere: ${{ steps.tv.outputs.derniere }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Une publication qui ne touche que le site (pupitre, Régie PC, fantômes) ne fabrique pas de nouvelle version TV :
+      # la box ne propose une mise à jour que si l'appli TV a vraiment changé (cedric, 1/11 au soir : une 0.1.971
+      # identique à la 0.1.969 proposée en pleine soirée de test).
+      - name: L'appli TV a-t-elle changé depuis la dernière version publiée ?
+        id: tv
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          derniere=$(gh release list --limit 30 --json tagName,createdAt -q '[.[] | select(.tagName | startswith("tv-v"))] | sort_by(.createdAt) | last | .tagName // ""')
+          echo "derniere=$derniere" >> "$GITHUB_OUTPUT"
+          if [ -z "$derniere" ] || ! git rev-parse -q --verify "refs/tags/$derniere" >/dev/null; then
+            echo "change=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$derniere" HEAD -- tv engine firebase-config.json settings.gradle.kts build.gradle.kts gradle gradle.properties; then
+            echo "Rien n'a changé dans l'appli TV depuis $derniere : pas de nouvelle version pour la box."
+            echo "change=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "change=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -100,7 +123,7 @@ jobs:
           # Copie de travail seulement : chaque version publiée reste dans les Releases (espace de stockage limité).
           retention-days: 3
       - name: Publier l'APK dans les Releases GitHub
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.tv.outputs.change != 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -142,14 +165,22 @@ jobs:
       # Mise à jour depuis la TV : le dépôt est privé, la box lit donc la dernière version stable
       # (description + APK) sur l'hébergement Firebase, publié en même temps que le pupitre.
       - uses: actions/download-artifact@v4
-        if: steps.check.outputs.ready == 'true'
+        if: steps.check.outputs.ready == 'true' && needs.apk.outputs.tv-change != 'false'
         with:
           name: little-miss-party-quiz-tv
           path: apk
+      # Site seul : la box garde la version TV déjà publiée (elle est remise en ligne telle quelle, même numéro).
+      - name: Reprendre la version TV déjà publiée
+        if: steps.check.outputs.ready == 'true' && needs.apk.outputs.tv-change == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ needs.apk.outputs.tv-derniere }}" -p little-miss-party-quiz-tv.apk -D apk
       - name: Préparer la mise à jour de la box (tv/latest.json)
         if: steps.check.outputs.ready == 'true'
         run: |
           vc=${{ github.run_number }}
+          derniere="${{ needs.apk.outputs.tv-derniere }}"
+          if [ "${{ needs.apk.outputs.tv-change }}" = "false" ]; then vc="${derniere#tv-v0.1.}"; fi
           apk="little-miss-party-quiz-tv-$vc.apk"
           mkdir -p web/public/tv
           cp apk/little-miss-party-quiz-tv.apk "web/public/tv/$apk"

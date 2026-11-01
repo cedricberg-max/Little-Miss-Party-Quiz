@@ -8,10 +8,8 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.storage.StorageManager
-import android.provider.Settings
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -82,6 +80,11 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
     /** « Installer maintenant » : on enchaîne téléchargement, vérification et installation. */
     private var autoInstall = false
     private var busy = false
+    /** Réglages Android encore à faire pour que les mises à jour passent toutes seules, proposés dès le lancement. */
+    private val _reglages = MutableStateFlow<List<Reglage>>(emptyList())
+    val reglages: StateFlow<List<Reglage>> = _reglages
+    /** « Plus tard » sur les réglages : plus proposés avant le prochain lancement. */
+    private var reglagesPlusTard = false
 
     private var job: Job? = null
     private val dir = File(app.filesDir, "updates")
@@ -272,19 +275,23 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Ouvre le réglage Android « Sources inconnues » pour cette appli. Faux si la box ne le propose pas. */
-    fun openInstallPermission(): Boolean {
-        val app = getApplication<Application>()
-        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${app.packageName}"))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return runCatching { app.startActivity(intent) }.isSuccess
+    /** « Plus tard » sur la fenêtre des réglages : redemandés au prochain lancement seulement. */
+    fun reglagesPlusTard() {
+        reglagesPlusTard = true
+        _reglages.value = emptyList()
     }
 
-    /** Retour sur l'appli (après les réglages Android ou l'écran d'installation). */
+    /**
+     * Retour sur l'appli (au lancement, après les réglages Android ou l'écran d'installation) : les réglages manquants
+     * sont recomptés, et une installation qui attendait la permission reprend toute seule (plus besoin de rappuyer).
+     */
     fun onResume() {
+        val app = getApplication<Application>()
+        _reglages.value = if (reglagesPlusTard || !ReglagesMiseAJour.proposerAuLancement) emptyList() else ReglagesMiseAJour.manquants(app)
         val s = _ui.value
-        if (s is UpdateUi.NeedsPermission && getApplication<Application>().packageManager.canRequestPackageInstalls()) {
+        if (s is UpdateUi.NeedsPermission && app.packageManager.canRequestPackageInstalls()) {
             _ui.value = UpdateUi.Ready(s.release)
+            install()
         }
     }
 
@@ -557,7 +564,10 @@ class InstallReceiver : BroadcastReceiver() {
     }
 }
 
-/** Après une mise à jour, l'appli se relance seule sur la TV (Android 9 de la Mi Box). */
+/**
+ * Après une mise à jour, l'appli se relance seule sur la TV : toujours en Android 9 (Mi Box) ; à partir d'Android 10,
+ * Android ne le permet que si le réglage « Afficher par-dessus d'autres applis » est accordé ([Reglage.RELANCER]).
+ */
 class UpdatedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return

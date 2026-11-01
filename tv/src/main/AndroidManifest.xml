@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Mise à jour sur un Wi-Fi faible : le Wi-Fi de la box reste allumé à pleine puissance pendant le téléchargement. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Android 10 et plus : seul moyen pour l'appli de se rouvrir toute seule juste après sa mise à jour
+         (réglage « Afficher par-dessus d'autres applis », proposé une fois au lancement). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- S'installe sur Android TV, mais aussi sur tablette ou téléphone pour les essais. -->
     <uses-feature android:name="android.software.leanback" android:required="false" />

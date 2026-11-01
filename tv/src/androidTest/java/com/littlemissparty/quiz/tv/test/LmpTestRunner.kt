@@ -14,6 +14,8 @@ import com.littlemissparty.quiz.tv.GameViewModel
 class LmpTestRunner : AndroidJUnitRunner() {
     override fun callApplicationOnCreate(app: Application) {
         super.callApplicationOnCreate(app)
+        // Réglages des mises à jour (sources inconnues…) jamais accordés sur l'émulateur : pas de fenêtre au lancement.
+        com.littlemissparty.quiz.tv.ReglagesMiseAJour.proposerAuLancement = false
         // L'appli de test doit déjà viser l'émulateur (workflow : -PlmpDatabaseUrl). Avec la vraie adresse,
         // useEmulator ne vaut que pour la première connexion : Firebase la range ensuite sous l'adresse de
         // l'émulateur, et la suivante (appli relancée, nouvelle partie) partirait vers la vraie base.
