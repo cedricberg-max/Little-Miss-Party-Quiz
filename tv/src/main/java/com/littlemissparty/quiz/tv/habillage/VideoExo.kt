@@ -13,6 +13,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
 
@@ -41,7 +42,7 @@ internal class VideoExo(
     private var repriseMs: Int? = repriseMs
     private var mode = modeDeLecture(boucle, repriseMs)
     private val handler = Handler(looper)
-    private val joueur: ExoPlayer = ExoPlayer.Builder(context).setLooper(looper).build()
+    private val joueur: ExoPlayer = ExoPlayer.Builder(context).setLooper(looper).setLoadControl(chargementLeger()).build()
     private var pretSignale = false
     private var imageSignalee = false
     private var finSignalee = false
@@ -231,3 +232,21 @@ internal fun modeDeLecture(boucle: Boolean, repriseMs: Int?): ModeLecture = when
 
 /** Délai avant de rendre un lecteur arrêté (ms) : son décodeur est lâché, le rendre ne bloque plus rien. */
 internal const val LIBERATION_DIFFEREE_MS = 800L
+
+/**
+ * Réserve de lecture d'un lecteur : quelques secondes d'avance seulement. Par défaut, ExoPlayer garde jusqu'à 50 s de
+ * vidéo en mémoire (plusieurs dizaines de Mo par vidéo 1080p) ; avec le décor, une intro et les clips de Buzzy ouverts
+ * en même temps, la mémoire de l'appli débordait. Les vidéos sont dans l'appli : elles se lisent bien plus vite qu'elles
+ * ne se jouent, et [VIDEO_AVANCE_MAX_MS] d'avance suffit à préparer le tour de boucle suivant.
+ */
+@OptIn(UnstableApi::class)
+internal fun chargementLeger(): DefaultLoadControl = DefaultLoadControl.Builder()
+    .setBufferDurationsMs(VIDEO_AVANCE_MIN_MS, VIDEO_AVANCE_MAX_MS, 250, 500)
+    .setTargetBufferBytes(VIDEO_RESERVE_OCTETS)
+    .setPrioritizeTimeOverSizeThresholds(false)
+    .build()
+
+internal const val VIDEO_AVANCE_MIN_MS = 1_500
+internal const val VIDEO_AVANCE_MAX_MS = 4_000
+/** Au plus 6 Mo de vidéo d'avance par lecteur. */
+internal const val VIDEO_RESERVE_OCTETS = 6 * 1024 * 1024

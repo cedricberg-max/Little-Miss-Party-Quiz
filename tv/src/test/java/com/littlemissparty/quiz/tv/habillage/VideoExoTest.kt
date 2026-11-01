@@ -33,6 +33,9 @@ class VideoExoTest {
         assertTrue(v.contains("joueur.stop()"))
         assertTrue(v.contains("handler.postDelayed(fin, LIBERATION_DIFFEREE_MS)"))
         assertTrue(LIBERATION_DIFFEREE_MS in 300L..2_000L)
+        // Quelques secondes d'avance seulement, jamais des dizaines de Mo par vidéo (mémoire de la box).
+        assertTrue(v.contains("setLoadControl(chargementLeger())"))
+        assertTrue(VIDEO_RESERVE_OCTETS <= 8 * 1024 * 1024 && VIDEO_AVANCE_MAX_MS <= 5_000 && VIDEO_AVANCE_MIN_MS >= 500)
     }
 
     @Test
