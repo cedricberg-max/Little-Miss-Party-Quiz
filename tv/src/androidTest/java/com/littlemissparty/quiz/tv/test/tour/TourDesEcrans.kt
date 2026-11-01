@@ -28,6 +28,9 @@ import org.junit.runners.Parameterized
  * le test échoue à la fin s'il y a un texte coupé ou un jeu bloqué.
  */
 abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
+    /** Seulement ces jeux (null : tous) : un tour court pour un seul jeu, de 1 à 8 équipes. */
+    protected open val seuls: Set<String>? = null
+
     private val regies = mutableListOf<RegieSimulee>()
     private val coupes = mutableListOf<String>()
     private val bloques = mutableListOf<String>()
@@ -55,6 +58,8 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
         regie.copierPhotoReponse(code, lion, PIXEL_ROUGE)
         val extrait = java.security.MessageDigest.getInstance("SHA-256").digest(EXTRAIT_MP3.toByteArray()).take(8).joinToString("") { "%02x".format(it) }
         regie.copierExtrait(code, extrait, EXTRAIT_MP3)
+        regie.copierPhoto(code, PIE, PhotosRebus.PIE)
+        regie.copierPhoto(code, RAT, PhotosRebus.RAT)
         @Suppress("UNCHECKED_CAST")
         val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
         val programme = programme(demo[0], photo, lion, extrait)
@@ -108,6 +113,19 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
         jeu("image-floue") { auBuzzer("t-flou", "image-floue") }
         jeu("chante") { auBuzzer("t-chante", "chante-le-mot") }
         jeu("qui-suis-je") { auBuzzer("t-quisuis", "qui-suis-je") }
+        // Le Rébus (cedric, 1/11) : une image de plus toutes les 12 s, puis le buzz et la révélation (syllabes puis le mot).
+        jeu("rebus") {
+            aller("t-rebus")
+            verifier("rebus-1-morceau", 3_000)
+            verifier("rebus-2-morceaux", 12_000)
+            verifier("rebus-3-morceaux", 12_000)
+            attendreQue("buzzer ouvert", 20_000) { etat().takeIf { it.child("qid").value == "t-rebus" && it.child("buzzOpen").value == true } }
+            assertTrue(equipes.last().buzzer(code))
+            verifier("rebus-buzz", 1_200)
+            assertEquals("applied", regie.commande(code, "buzz_ok"))
+            verifier("rebus-revelation", ATTENTE_REVELATION)
+            verifier("rebus-revelation-mot", 3_000)
+        }
         jeu("qui-a-disparu") {
             aller("t-disparu")
             verifier("qui-a-disparu-memoriser", 1_500)
@@ -233,6 +251,7 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
 
     /** Un jeu du tour : s'il bloque, c'est noté (avec une capture) et le tour passe au jeu suivant. */
     private fun jeu(nom: String, bloc: () -> Unit) {
+        if (seuls?.contains(nom) == false) return
         runCatching(bloc).onFailure { e ->
             bloques += "$nom : ${e.message}"
             Log.e(TAG, "TOUR|$nombre|$nom|BLOQUÉ|${e.message}")
@@ -307,6 +326,10 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
                 "cards" to listOf(mapOf("word" to "J'ai de grandes oreilles rondes"), mapOf("word" to "Je porte une culotte rouge")),
             ),
             mapOf(
+                "id" to "t-rebus", "text" to "Quel est ce mot ?", "choices" to listOf("Pirate"), "correct" to 0, "duration" to 36, "kind" to "rebus", "double" to false, "round" to "Le Rébus",
+                "cards" to listOf(mapOf("word" to "pie", "imageId" to PIE), mapOf("word" to "rat", "imageId" to RAT), mapOf("word" to "T")),
+            ),
+            mapOf(
                 "id" to "t-disparu", "text" to "Qui a disparu ?", "choices" to listOf("Téléphérique"), "correct" to 0, "image" to "🚡", "duration" to 30, "kind" to "disparu", "double" to false, "round" to "Qui a disparu ?",
                 "cards" to cartes("Petit avion" to "✈️", "Bateau à voile" to "⛵", "Téléphérique" to "🚡", "Montgolfière" to "🎈"),
             ),
@@ -338,6 +361,8 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
 
         /** Une révélation entière : tampons et points compris. */
         private const val ATTENTE_REVELATION = 3_500L
+        private const val PIE = "0a1b2c3d4e5f6071"
+        private const val RAT = "0a1b2c3d4e5f6072"
 
         /** Une petite image (PNG d'un pixel rouge), comme celles que l'admin prépare. */
         private const val PIXEL_ROUGE =
@@ -378,5 +403,17 @@ class TourDesEcrans78Test(nombre: Int) : TourDesEcrans(nombre) {
         @JvmStatic
         @Parameterized.Parameters(name = "{0} équipes")
         fun nombres() = listOf(7, 8)
+    }
+}
+
+/** Le Rébus seul, de 1 à 8 équipes (cedric, 1/11 : chaque nouvel écran vérifié à toutes les tailles). */
+@RunWith(Parameterized::class)
+class TourRebusTest(nombre: Int) : TourDesEcrans(nombre) {
+    override val seuls = setOf("rebus")
+
+    companion object {
+        @JvmStatic
+        @Parameterized.Parameters(name = "{0} équipes")
+        fun nombres() = (1..8).toList()
     }
 }
