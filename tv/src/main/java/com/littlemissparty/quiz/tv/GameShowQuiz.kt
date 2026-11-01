@@ -299,14 +299,11 @@ internal fun ClassementGameShow(
     Column(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 22.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(titre, style = styleTitreNeon(38.sp, GS.Cyan, TextAlign.Start), maxLines = 1, softWrap = false)
-            Spacer(Modifier.width(20.dp))
-            Text(
-                when {
-                    sousTitre != null -> sousTitre
-                    state.mime?.picto == true -> "Après le Pictionary"
-                    state.mime != null -> "Après les mimes"
-                    else -> "Après ${state.etape ?: "la question ${state.index + 1}"}"
-                },
+            // Plus de « Après Qui suis-je ? 2 / 3 » (cedric, 1/11 au soir : incompris, et le jeu et la question en cours ne
+            // sont plus sur la TV) ; seul un sous-titre voulu reste (« Points gagnés pendant le blind test »).
+            if (sousTitre != null) Spacer(Modifier.width(20.dp))
+            if (sousTitre != null) Text(
+                sousTitre,
                 color = GS.Encre.copy(alpha = 0.75f), fontSize = 20.sp, fontFamily = PoliceGsTexte, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 6.dp),
             )
@@ -355,6 +352,9 @@ private fun Jauges(ranking: List<Pair<Team, Int>>, gains: Map<String, Int>, modi
                             letterSpacing = if (serre) 1.5.sp else 2.5.sp, color = color, shadow = Shadow(color.copy(alpha = 0.8f), Offset.Zero, 20f), textAlign = TextAlign.Center,
                         ),
                     )
+                    // Les points gagnés à cette question, un peu détachés du score au-dessus (photo de cedric du 1/11 : « +450 »
+                    // collé sous « 350 » à 6 équipes).
+                    Spacer(Modifier.height(if (serre) 3.dp else 2.dp))
                     Text(
                         if (gain > 0) "+$gain" else " ", maxLines = 1, softWrap = false,
                         style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = if (serre) 13.sp else 15.sp, color = GS.Jaune),
