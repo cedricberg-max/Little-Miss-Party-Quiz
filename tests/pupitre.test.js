@@ -855,6 +855,33 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("La TV n'affiche plus le jeu ni la question en cours (cedric, 1/11) : la tablette les garde, sauf « mot 1 / 3 » de Chante le mot", async () => {
+    const page = await openPupitre("&look=gs");
+    await joinTeam(page, "Sacha");
+    const jeu = (title, n, of) => ({ title, n, of, label: `${title} · question ${n} / ${of}` });
+    // Écran du buzzer (image floue) : le jeu et la question au-dessus du BUZZ.
+    await hostState(question({ qid: "f1", kind: "flou", choices: null, text: "?", round: "f1-1", buzzOpen: true, game: jeu("Image floue", 2, 5) }));
+    await page.locator("#play-etape:not([hidden])", { hasText: "Image floue · question 2 / 5" }).waitFor();
+    if (process.env.CAPTURES) {
+      // Le « Bienvenue ! » de Buzzy passe d'abord par-dessus : la capture attend qu'il soit parti.
+      await page.locator(".fete-buzzy").waitFor({ state: "detached", timeout: 15_000 }).catch(() => {});
+      await page.setViewportSize({ width: 800, height: 1280 });
+      await page.screenshot({ path: `${process.env.CAPTURES}/tablette-image-floue-portrait.png` });
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.screenshot({ path: `${process.env.CAPTURES}/tablette-image-floue-paysage.png` });
+    }
+    // Chante le mot : le nom du jeu seul.
+    await hostState(question({ qid: "c1", kind: "chante", choices: null, text: "soleil", round: "c1-1", buzzOpen: true, game: jeu("Chante le mot !", 1, 3) }));
+    await page.locator("#play-etape:not([hidden])", { hasText: "Chante le mot !" }).waitFor();
+    assert.doesNotMatch(await page.locator("#play-etape").textContent(), /1 \/ 3/);
+    // Zoom mystère : la question en cours avec la consigne.
+    await hostState(question({ qid: "z1", kind: "zoom", game: jeu("Zoom mystère", 1, 3) }));
+    await page.locator("#q-number", { hasText: "Zoom mystère · question 1 / 3" }).waitFor();
+    assert.equal(await page.locator("#play-etape").isHidden(), true, "rien de resté de l'écran du buzzer");
+    if (process.env.CAPTURES) { await page.waitForTimeout(1_500); await page.screenshot({ path: `${process.env.CAPTURES}/tablette-zoom-paysage.png` }); }
+    await page.context().close();
+  });
+
   test("Fin de la fête : ni place ni points sur la tablette avant que la TV annonce le gagnant ; rien du classement au dernier jeu", async () => {
     // cedric, 26/10 : la place s'affichait sur les tablettes pendant le suspense des jauges.
     const page = await openPupitre("&look=classique");

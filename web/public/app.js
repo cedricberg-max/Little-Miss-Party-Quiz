@@ -750,7 +750,7 @@ function renderQuestion(st) {
   show("question");
   $("q-number").textContent = st.kind === "express" ? (st.game?.label ?? "Vrai ou Faux express !")
     // La TV n'affiche plus le jeu ni le numéro de la question (cedric, 1/11) : la tablette les garde toujours.
-    : st.kind === "zoom" ? `${st.game?.label ?? "Zoom mystère"} : regardez la TV !`
+    : st.kind === "zoom" ? (st.game?.label ?? "Zoom mystère : regardez la TV !")
     // Box à jour : la position dans le jeu en cours (« Quiz · question 5 / 10 »), jamais dans toute la prestation.
     : st.game?.label ?? `Question ${(st.index ?? 0) + 1}`;
   $("q-double").hidden = !st.double;
