@@ -101,8 +101,10 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
         if (team != null) TeamGlow(team.color.toColor())
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             if (team != null) EnTeteTour(state, team) else Row(verticalAlignment = Alignment.CenterVertically) {
-                BadgeMimes()
-                Spacer(Modifier.width(14.dp))
+                if (badgeMimesVisible(Look.gs)) {
+                    BadgeMimes()
+                    Spacer(Modifier.width(14.dp))
+                }
                 Text(
                     sousTitreMimes(state.question?.text).orEmpty(), color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
@@ -130,6 +132,12 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
     }
 }
 
+/**
+ * La pastille « MIMES » en haut à gauche : plus dans le Game Show (cedric, 1/11 au soir : « il sert à rien », le titre
+ * néon et les noms disent déjà le jeu) ; le Classique la garde.
+ */
+internal fun badgeMimesVisible(gs: Boolean): Boolean = !gs
+
 @Composable
 private fun BadgeMimes() = Text(
     "MIMES",
@@ -150,8 +158,10 @@ private fun EnTeteTour(state: UiState.Playing, team: Team) {
         val cote = (maxWidth - centre) / 2
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.width(cote), verticalAlignment = Alignment.CenterVertically) {
-                BadgeMimes()
-                Spacer(Modifier.width(14.dp))
+                if (badgeMimesVisible(Look.gs)) {
+                    BadgeMimes()
+                    Spacer(Modifier.width(14.dp))
+                }
                 // Thème du paquet : sur deux lignes et plus petit s'il est long, jamais « … ».
                 TexteAjuste(
                     sousTitreMimes(state.question?.text).orEmpty(), color = Palette.InkSoft, max = 22.sp, min = 14.sp,

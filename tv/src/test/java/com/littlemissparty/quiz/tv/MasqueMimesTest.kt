@@ -10,6 +10,15 @@ import org.junit.Test
 class MasqueMimesTest {
 
     @Test
+    fun `plus de pastille MIMES en haut a gauche dans le Game Show, le Classique la garde`() {
+        org.junit.Assert.assertFalse(badgeMimesVisible(gs = true))
+        org.junit.Assert.assertTrue(badgeMimesVisible(gs = false))
+        val code = java.io.File("src/main/java/com/littlemissparty/quiz/tv/MimeScreens.kt").readText()
+        // Les deux en-têtes (entre deux tours et pendant un tour) passent par la même règle.
+        org.junit.Assert.assertEquals(2, Regex("if \\(badgeMimesVisible\\(Look.gs\\)\\) \\{\\s+BadgeMimes\\(\\)").findAll(code).count())
+    }
+
+    @Test
     fun `le masque grandit avec la place, plafonne a 220 et laisse toujours la place des textes`() {
         assertEquals(220f, tailleMasqueMimes(600f))
         val moyen = tailleMasqueMimes(420f)
