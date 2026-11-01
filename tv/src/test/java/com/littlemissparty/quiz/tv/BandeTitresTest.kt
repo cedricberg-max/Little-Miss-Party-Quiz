@@ -11,16 +11,6 @@ import java.io.File
 class BandeTitresTest {
 
     @Test
-    fun `la regle du Pictionary, trois lignes en Game Show, deux en Classique, meme texte`() {
-        val gs = reglePictionary(90, 150, gs = true)
-        val classique = reglePictionary(90, 150, gs = false)
-        assertEquals(3, gs.lines().size)
-        assertEquals(2, classique.lines().size)
-        assertEquals(gs.replace("\n", " "), classique.replace("\n", " "))
-        assertTrue(gs.endsWith("Son équipe a 90 secondes pour trouver le mot : 150 points !"))
-    }
-
-    @Test
     fun `la bande laisse deviner le decor et ne touche pas au Classique`() {
         assertTrue(BANDE_TITRE_ALPHA in 0.45f..0.75f)
         val source = File("src/main/java/com/littlemissparty/quiz/tv/habillage/PanneauJeu.kt").readText()
@@ -28,12 +18,13 @@ class BandeTitresTest {
     }
 
     @Test
-    fun `Mimes et Pictionary n'ont plus de bande, la regle prend le contour des jauges (31-10)`() {
+    fun `Mimes et Pictionary n'ont plus de bande, plus de regle sous le logo (1-11)`() {
         val mimes = File("src/main/java/com/littlemissparty/quiz/tv/MimeScreens.kt").readText()
         assertFalse(mimes.contains("bandeTitre()"))
         val picto = File("src/main/java/com/littlemissparty/quiz/tv/PictionaryScreens.kt").readText()
         assertFalse(picto.contains("bandeTitre()"))
-        assertTrue(picto.contains("TexteJauge(\n            reglePictionary("))
+        // Plus de règle écrite sous le logo (cedric, 1/11 au soir) : le logo seul.
+        assertFalse(picto.contains("Un enfant dessine"))
         // Les plaques des équipes : noir au contour néon en Game Show.
         assertTrue(picto.contains("Look.gs -> Neon.Nuit.copy(alpha = 0.88f)"))
     }

@@ -342,7 +342,8 @@ class RegieTest : TestTv() {
         // Pictionary : l'intro, puis Sarah montre 3 mots au dessinateur des Licornes.
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("PICTIONARY")
-        ecran.voit("Un enfant dessine sur la tablette")
+        // Le logo seul, plus de règle écrite (cedric, 1/11 au soir).
+        ecran.neVoitPas("Un enfant dessine sur la tablette")
         assertFalse("le nom n'est écrit qu'une fois", ecran.affiche("Pictionary !"))
         assertEquals("applied", regie.commande(code, "picto_show", mapOf("team" to licornes.uid)))
         ecran.voit("Au tour de")

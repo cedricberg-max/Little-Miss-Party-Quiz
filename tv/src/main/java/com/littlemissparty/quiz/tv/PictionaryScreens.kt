@@ -196,24 +196,10 @@ private fun Presentation(state: UiState.Playing, m: MimeUi) {
         val crayon = if (Look.gs) logoNeonJeu("pictionary") else null
         if (crayon != null) Image(painterResource(crayon), contentDescription = null, modifier = Modifier.size(120.dp).rebond(true))
         else Text("✏️", fontSize = 90.sp, lineHeight = 96.sp, modifier = Modifier.rebond(true))
-        // Le nom est déjà en grand au-dessus du crayon : plus de « Pictionary ! » en double (cedric, 28/10).
-        // Game Show : plus de bande sombre, la règle est posée sur le décor « comme les jauges » (n° 15 du 31/10), jamais de
-        // cadre autour. Le titre PICTIONARY ne bouge pas.
-        TexteJauge(
-            reglePictionary(state.question?.durationSec ?: 90, m.points, Look.gs),
-            color = Palette.Ink, fontSize = 26.sp, lineHeight = 34.sp, textAlign = TextAlign.Center,
-        )
+        // Plus de règle écrite sous le logo (cedric, 1/11 au soir : « un gros logo et c'est tout sur cet écran ») :
+        // c'est Sarah qui explique. Le logo stylisé définitif se choisit sur la planche (3 propositions).
     }
 }
-
-/**
- * La règle du Pictionary ; Game Show : en trois lignes équilibrées, contour « comme les jauges » (planche du 29/10, n° 15
- * du 31/10), Classique : en deux lignes comme avant.
- */
-internal fun reglePictionary(secondes: Int, points: Int, gs: Boolean): String =
-    (if (gs) "Un enfant dessine sur la tablette de son équipe,\nle dessin apparaît ici en direct.\n"
-    else "Un enfant dessine sur la tablette de son équipe, le dessin apparaît ici en direct.\n") +
-        "Son équipe a $secondes secondes pour trouver le mot : $points points !"
 
 @Composable
 private fun PictoChip(team: Team, count: Int, playing: Boolean, passed: Boolean, compacte: Boolean = false, modifier: Modifier = Modifier) {
