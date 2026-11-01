@@ -394,7 +394,7 @@ private fun MorceauQuiSort(carte: MimeCard, photo: ImageBitmap?, cote: Dp, ms: F
         Modifier.fillMaxSize().drawWithContent {
             val chemin = Path().apply { addOval(androidx.compose.ui.geometry.Rect(center, size.maxDimension * 0.75f * iris)) }
             clipPath(chemin) {
-                drawContent()
+                this@drawWithContent.drawContent()
                 if (voile > 0f) drawRect(Color.White.copy(alpha = voile))
             }
         }.background(if (lettre) Color(0xFF140B2E) else Color.White),
