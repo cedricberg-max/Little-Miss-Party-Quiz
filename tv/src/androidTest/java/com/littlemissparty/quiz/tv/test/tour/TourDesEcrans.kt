@@ -82,6 +82,8 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
             verifier("juste-chiffre-question", 1_500)
             equipes.forEachIndexed { i, e -> e.repondre(code, "t-juste", 150 + 20 * i) }
             reveler("t-juste")
+            // Pendant la machine à sous (cedric, 1/11 au soir : une phrase coupée juste sous les chiffres qui tournent).
+            verifier("juste-chiffre-roulette", 900)
             verifier("juste-chiffre-revelation", ATTENTE_REVELATION)
         }
         jeu("vrai-faux") {
