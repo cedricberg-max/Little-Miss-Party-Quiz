@@ -30,7 +30,7 @@ export const REVELATION_MS = 1800;
 /** « +150 », « −100 » (vrai signe moins), comme sur la TV. */
 export const signe = (v) => `${v < 0 ? "−" : "+"}${Math.abs(v)}`;
 
-/** Game Show : les coffres 3D de la TV (img/coffres/gs-coffre-N.webp), fenêtre noire sans numéro (cedric, 29/10). */
+/** Game Show : les coffres 3D de la TV (img/coffres/gs-coffre-N.webp), bois verni et or (cedric, 1/11, style B). */
 const PLAQUES_GS = [[67.6, 23.4], [60, 23.4], [68.4, 23.4], [64.2, 23.4], [64.2, 23.4], [66.8, 23.4]];
 
 const coffreHTML = (i) => {
@@ -89,6 +89,10 @@ export function ecranCoffres(hote, { surChoix }) {
       grille.style.setProperty("--n", `${count}`);
       const rangees = repartitionCoffres(count);
       grille.style.setProperty("--par-rangee", `${Math.max(1, ...rangees)}`);
+      // Tablette debout (Game Show) : chaque rangée de la TV passe sur 2 lignes, pour des coffres plus gros (cedric, 1/11).
+      // Seulement jusqu'à 2 rangées (12 coffres) : au-delà, les lignes ne tiendraient plus en hauteur.
+      const plus = Math.max(1, ...rangees);
+      grille.style.setProperty("--par-ligne", `${rangees.length <= 2 && plus > 3 ? Math.ceil(plus / 2) : plus}`);
       let rangee = null;
       let reste = 0;
       for (let i = 0; i < count; i++) {
