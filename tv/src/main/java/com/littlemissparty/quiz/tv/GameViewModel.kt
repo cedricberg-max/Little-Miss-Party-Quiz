@@ -1522,7 +1522,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** État de chaque extrait déjà publié pour la régie dans cette partie (prêt, en chargement, manquant). */
     private val soundMarks = mutableMapOf<String, String>()
 
-    /** La régie voit, morceau par morceau, si la box a bien l'extrait avant de le lancer. */
+    /**
+     * La régie voit, média par média, si la box l'a bien avant de le lancer : extraits et chansons, et depuis le 1/11
+     * les photos du programme (voyants du conducteur, cedric 31/10 : ils ne suivaient que les musiques).
+     */
     private fun markSound(id: String, status: String) {
         if (soundMarks[id] == status) return
         val ref = gameRef ?: return
@@ -1662,6 +1665,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val bytes = photoOnBox(id) ?: downloadPhoto(ref, dir, id)
             imagesLoading -= id
+            markSound(id, if (bytes != null) "ok" else "missing")
             if (bytes == null) return@launch
             Photos.prechauffer(bytes, cible)
             imageBytes[id] = bytes
@@ -1712,7 +1716,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val there = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     java.io.File(photoDir, id).takeIf { it.isFile && it.length() > 0 }?.also { medias.toucher(it) } != null
                 }
-                if (!there && id !in imagesLoading) downloadPhoto(ref, dir, id)
+                when {
+                    there -> markSound(id, "ok")
+                    // Déjà en route pour l'écran : elle sera marquée à son arrivée.
+                    id in imagesLoading -> {}
+                    else -> {
+                        markSound(id, "loading")
+                        markSound(id, if (downloadPhoto(ref, dir, id) != null) "ok" else "missing")
+                    }
+                }
             }
         }
     }
