@@ -304,6 +304,12 @@ private fun CarteClassementA(
 /** Le gain (ou le malus) de l'équipe qui joue, à droite de sa carte : il gonfle, penche et se balance, puis s'en va. */
 @Composable
 private fun PastilleGainA(gain: Int, f: Float, modifier: Modifier, t: () -> Float) {
+    // Parti avant l'arrivée de l'autocollant, qui se pose au même endroit (tour des écrans à 7-8 équipes, 1/11 :
+    // « +3 PLACES ! » sur « +150 »).
+    // Pas encore là tant qu'il n'a pas commencé à gonfler (sinon il est lu à taille zéro au bord de l'écran, tour des
+    // écrans à 1 équipe, 1/11 : « +300 » rogné).
+    val present by remember { derivedStateOf { t() > 0.3f && t() < TempsClassementA.FETE } }
+    if (!present) return
     val fond = if (gain < 0) RougeA else VertA
     Box(
         modifier.offset(x = (85f * f).dp)
@@ -312,7 +318,7 @@ private fun PastilleGainA(gain: Int, f: Float, modifier: Modifier, t: () -> Floa
                 val p = gonfleA((s - 0.25f) / 0.4f)
                 scaleX = p; scaleY = p
                 rotationZ = -6f + 3f * sin(s * 8f)
-                alpha = borne(p * 3f) * (1f - borne((s - TempsClassementA.FETE - 0.3f) * 3f))
+                alpha = borne(p * 3f) * (1f - borne((s - TempsClassementA.FETE + 0.35f) * 3f))
             }
             .drawBehind { drawRoundRect(fond.copy(alpha = 0.45f), topLeft = Offset(-6f * density, -6f * density), size = Size(size.width + 12f * density, size.height + 12f * density), cornerRadius = CornerRadius(size.height)) }
             .background(fond, RoundedCornerShape(50))

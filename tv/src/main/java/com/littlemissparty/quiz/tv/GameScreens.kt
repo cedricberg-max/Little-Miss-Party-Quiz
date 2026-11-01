@@ -560,7 +560,11 @@ private fun CarteImage(
     Box(modifier) {
         if (dessus) {
             Column(Modifier.fillMaxSize().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.weight(1f).aspectRatio(1f, matchHeightConstraintsFirst = true)) { Image() }
+                // Carré aussi grand que la place le permet, sans jamais dépasser la largeur de la carte (tour des écrans à
+                // 5-6 équipes sans boutons, 1/11 : cartes hautes, le carré pris sur la hauteur débordait des côtés).
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(minOf(maxWidth, maxHeight))) { Image() }
+                }
                 Spacer(Modifier.height(6.dp))
                 // Lettre, mot et verdict sur la ligne sous l'image : rien ne se pose sur l'image.
                 Row(Modifier.height(34.dp), verticalAlignment = Alignment.CenterVertically) {
