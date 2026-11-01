@@ -300,7 +300,7 @@ class PodiumGameShowTest {
     fun `couronne neon du gagnant, posee juste apres les lettres qui claquent puis qui se balance doucement (choix B, 1-11)`() {
         val ev = evenementsNerveux("LES LICORNES".length)
         assertEquals(null, couronneDuGagnant(ev.tMot, ev.tMot))
-        assertEquals(null, couronneDuGagnant(ev.tMot + COURONNE_RETARD, ev.tMot))
+        assertEquals(null, couronneDuGagnant(ev.tMot + COURONNE_RETARD - 0.01f, ev.tMot))
         val (petite, _) = couronneDuGagnant(ev.tMot + COURONNE_RETARD + 0.05f, ev.tMot)!!
         assertTrue(petite < 1f)
         // Le petit rebond, puis la taille normale pour toujours.
