@@ -158,6 +158,27 @@ describe("équipes fantômes", () => {
     }
   });
 
+  test("« Lancer » de nouveau pendant qu'ils attendent : les 6 fantômes se reconnectent, Fantôme 1 compris (cedric, 1/11)", async () => {
+    const page = await ouvrirFantomes(6);
+    try {
+      await waitFor(async () => Object.keys((await read("joinRequests")) ?? {}).length >= 6, "6 demandes d'entrée");
+      // Comme cedric à 20:14 : « Lancer » de nouveau pendant qu'ils attendent (la page arrête les anciens puis relance
+      // aussitôt), deux fois. Avant : Fantôme 1 restait sur « connexion… », coupé par la fin de l'arrêt de l'ancien.
+      for (let i = 0; i < 2; i++) {
+        await page.click("#lancer");
+        await waitFor(async () => (await page.evaluate(() => window.fantomes().length)) === 6, "6 nouveaux fantômes");
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      await waitFor(async () => (await page.evaluate(() => window.fantomes().map((f) => f.statut))).every((t) => t.startsWith("en attente")),
+        "les 6 fantômes en attente, aucun bloqué sur « connexion… »");
+      await waitFor(async () => Object.keys((await read("joinRequests")) ?? {}).length >= 6, "6 demandes d'entrée après la relance");
+      await new Promise((r) => setTimeout(r, 1500));
+      assert.equal(Object.keys((await read("joinRequests")) ?? {}).length, 6, "les demandes restent (aucune déconnexion tardive)");
+    } finally {
+      await page.context().close();
+    }
+  });
+
   test("3 fantômes entrent, répondent au quiz, buzzent, gonflent, se passent la bombe, ouvrent un coffre et dessinent", async () => {
     const page = await ouvrirFantomes(3);
     const ids = await admettreTout(3);
