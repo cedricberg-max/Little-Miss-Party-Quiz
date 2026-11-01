@@ -85,6 +85,15 @@ if (/--essai\b/.test(location.hostname)) document.body.classList.add("essai");
 // l'appareil reste reconnu après un rechargement, jusqu'au prochain changement du mot de passe.
 
 const $ = (id) => document.getElementById(id);
+
+// Look « The Game Show » sur fond clair (cedric, 31/10) : ?look=classique remet l'ancien look sur ce PC, ?look=gs le nouveau.
+{
+  const demande = new URLSearchParams(location.search).get("look");
+  try { if (demande === "classique" || demande === "gs") localStorage.setItem("lmp-admin-look", demande); } catch { /* stockage refusé */ }
+  let look = demande;
+  try { look ??= localStorage.getItem("lmp-admin-look"); } catch { /* stockage refusé */ }
+  document.body.classList.toggle("regie-gs", look !== "classique");
+}
 const params = new URLSearchParams(location.search);
 // Tests automatiques uniquement : émulateur Firebase, depuis l'ordinateur de test.
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
@@ -560,6 +569,8 @@ function renderHome() {
 
 /** Accueil : chaque jeu en tuile, par famille ; la tuile mène à son contenu (ou à sa fiche s'il n'y a rien à préparer). */
 function renderHomeGames() {
+  // La vitrine compte les jeux (le Chrono de Buzzy compris, cedric 31/10).
+  $("vitrine-jeux").textContent = GAME_GROUPS.reduce((n, g) => n + g.games.length, 0);
   $("home-games").replaceChildren(...GAME_GROUPS.map((group) => h("div", { class: "home-group" },
     h("h3", { text: group.title }),
     h("div", { class: "tiles" }, ...group.games.map((g) => {
@@ -11311,6 +11322,9 @@ function openGame(type) {
   renderGame();
 }
 
+/** Version des vidéos de présentation des jeux (apercus-jeux/) : à changer quand elles changent. */
+const APERCUS_V = 2;
+
 function renderGame() {
   const type = gameType;
   if (!type) return;
@@ -11319,12 +11333,13 @@ function renderGame() {
   $("game-h1").textContent = `${g.icon ?? ""} ${ROUND_TYPES[type]}`.trim();
   $("game-rule").textContent = gameInfo(g).rule;
   $("game-tabs").replaceChildren(...gameTabs(type, "manches"));
-  // Aperçu de l'écran d'ouverture du jeu sur la TV (vidéo en boucle, l'image en attendant).
+  // Vidéo de présentation du jeu, celle de la TV (cedric, 31/10) : petite, sans son, chargée seulement à l'ouverture
+  // du jeu, puis gardée par le navigateur (une semaine) ; changer APERCUS_V quand les vidéos changent.
   const apercu = $("game-apercu");
   if (apercu.dataset.jeu !== type) {
     apercu.dataset.jeu = type;
-    apercu.poster = `apercus-jeux/${type}.webp`;
-    apercu.src = `apercus-jeux/${type}.mp4`;
+    apercu.poster = `apercus-jeux/${type}.webp?v=${APERCUS_V}`;
+    apercu.src = `apercus-jeux/${type}.mp4?v=${APERCUS_V}`;
     apercu.play?.()?.catch?.(() => {});
   }
   // Les manches se composent dans les prestations (cedric, 21/10) : ici, celles qui y ont été faites, à réutiliser.
