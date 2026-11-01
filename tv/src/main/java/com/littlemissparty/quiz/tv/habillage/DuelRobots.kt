@@ -292,6 +292,8 @@ private fun VideoDuel(nomEtBoucle: Pair<String, Boolean>?, surImage: (Boolean) -
 internal class LecteurDuel(context: Context, private val surImage: (Boolean) -> Unit) : TextureView(context), TextureView.SurfaceTextureListener {
     private var surface: Surface? = null
     private var lecteur: MediaPlayer? = null
+    /** Nouveau lecteur (point 46) : gardé d'un plan à l'autre, sur la même surface ; boucles sans trou. */
+    private var exo: VideoExo? = null
     private var demande: Pair<Int, Boolean>? = null
     private var fini = false
     /** Change à chaque plan demandé : un lecteur rendu en retard ne lance jamais un plan dépassé. */
@@ -310,7 +312,28 @@ internal class LecteurDuel(context: Context, private val surImage: (Boolean) -> 
 
     private fun lancer() {
         val s = surface ?: return
-        if (demande == null || fini) return
+        val (resId, boucle) = demande ?: return
+        if (fini) return
+        // Nouveau lecteur : le plan suivant prend la place du précédent, sans rien rendre entre les deux.
+        exo?.let { e ->
+            generation++
+            e.charger(resId, boucle)
+            return
+        }
+        if (lecteur == null && !MoteurVideo.ancien) {
+            generation++
+            val e = VideoExo(context, resId, android.os.Looper.getMainLooper(), boucle = boucle)
+            exo = e
+            e.surPremiereImage = { if (exo === e && !fini) surImage(true) }
+            e.surPrete = { if (exo === e && !fini) e.demarrer() }
+            e.surErreur = { quoi ->
+                Log.w("Habillage", "Vidéo du duel ignorée : nouveau lecteur $quoi")
+                MoteurVideo.ancien = true
+                surImage(false)
+            }
+            e.preparer(s)
+            return
+        }
         val jeton = ++generation
         val ancien = lecteur
         lecteur = null
@@ -370,9 +393,15 @@ internal class LecteurDuel(context: Context, private val surImage: (Boolean) -> 
 
     private fun arreter(apres: () -> Unit = {}) {
         generation++
+        val e = exo
+        exo = null
         val l = lecteur
         lecteur = null
-        if (l != null) Liberation.lecteur(l, stop = true, apres) else apres()
+        when {
+            e != null -> e.liberer(apres = apres)
+            l != null -> Liberation.lecteur(l, stop = true, apres)
+            else -> apres()
+        }
     }
 }
 

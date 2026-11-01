@@ -13,6 +13,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.viewinterop.AndroidView
 import com.littlemissparty.quiz.tv.habillage.Liberation
+import com.littlemissparty.quiz.tv.habillage.MoteurVideo
+import com.littlemissparty.quiz.tv.habillage.VideoExo
 
 /**
  * Le lancer du drap « à deux mains » (cedric, 31/10, version lente validée le matin) : le clip 3D du plateau entier,
@@ -85,6 +87,8 @@ internal class LecteurLancer(
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     private var surface: Surface? = null
     private var lecteur: MediaPlayer? = null
+    /** Nouveau lecteur (point 46) : le clip puis sa boucle s'enchaînent sans trou, sur le même lecteur. */
+    private var exo: VideoExo? = null
     private var pret = false
     private var cle: Any? = null
     private var depart = 0L
@@ -111,8 +115,28 @@ internal class LecteurLancer(
         val s = surface ?: return
         if (fini || cle == null) return
         removeCallbacks(lancer)
-        val jeton = ++generation
         pret = false
+        if (lecteur == null && !MoteurVideo.ancien) {
+            generation++
+            val e = exo ?: VideoExo(context, clip, android.os.Looper.getMainLooper(), boucle = false).also { e ->
+                exo = e
+                e.surPrete = {
+                    if (exo === e && !fini) {
+                        pret = true
+                        demarrer()
+                    }
+                }
+                e.surErreur = { quoi ->
+                    Log.w("Chrono", "Clip du lancer ignoré : nouveau lecteur $quoi")
+                    MoteurVideo.ancien = true
+                    echec()
+                }
+            }
+            e.charger(clip, boucle = false, puisBoucle = boucle)
+            e.preparer(s)
+            return
+        }
+        val jeton = ++generation
         val ancien = lecteur
         lecteur = null
         if (ancien == null) creer(s, clip, false, jeton) else Liberation.lecteur(ancien, stop = true) {
@@ -150,6 +174,23 @@ internal class LecteurLancer(
 
     /** À l'heure : le clip part (en sautant ce qui est déjà passé) ; trop tôt : il attend ; tout passé : la boucle. */
     private fun demarrer() {
+        exo?.let { e ->
+            if (!pret || fini) return
+            removeCallbacks(lancer)
+            val avance = depart - maintenant()
+            when {
+                avance > 15 -> postDelayed(lancer, avance)
+                -avance >= LANCER_DUREE_MS - 200 -> {
+                    e.allerALaBoucle()
+                    e.demarrer()
+                }
+                else -> {
+                    if (-avance > 80) e.caler((-avance).toInt())
+                    e.demarrer()
+                }
+            }
+            return
+        }
         val mp = lecteur ?: return
         if (!pret || fini) return
         removeCallbacks(lancer)
@@ -199,8 +240,14 @@ internal class LecteurLancer(
     private fun arreter(apres: () -> Unit = {}) {
         removeCallbacks(lancer)
         generation++
+        val e = exo
+        exo = null
         val l = lecteur
         lecteur = null
-        if (l != null) Liberation.lecteur(l, stop = true, apres) else apres()
+        when {
+            e != null -> e.liberer(apres = apres)
+            l != null -> Liberation.lecteur(l, stop = true, apres)
+            else -> apres()
+        }
     }
 }

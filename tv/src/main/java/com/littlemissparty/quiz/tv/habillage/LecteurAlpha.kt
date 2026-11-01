@@ -119,6 +119,8 @@ internal class LecteurAlpha(
     private var video: SurfaceTexture? = null
     private var surfaceVideo: Surface? = null
     private var lecteur: MediaPlayer? = null
+    /** Le nouveau lecteur (point 46), sur ce même fil : boucles sans trou. [lecteur] ne sert plus que de secours. */
+    private var exo: VideoExo? = null
     private var programme = 0
     private var texture = 0
     private val matrice = FloatArray(16)
@@ -219,6 +221,28 @@ internal class LecteurAlpha(
             val s = Surface(v).also { surfaceVideo = it }
             GelFond.clipsOuverts.incrementAndGet()
             ouvert = true
+            if (!MoteurVideo.ancien) {
+                val ex = VideoExo(context, resId, fil.looper, boucle = boucle, repriseMs = boucleDepuisMs.takeIf { it >= 0 })
+                exo = ex
+                ex.surPremiereImage = {
+                    image = true
+                    if (cible != 1f) appliquerVitesse()
+                    post { surDebut() }
+                }
+                ex.surErreur = { quoi ->
+                    // Les clips suivants reprennent l'ancien lecteur ; celui-ci laisse simplement la place.
+                    MoteurVideo.ancien = true
+                    echec(IllegalStateException("nouveau lecteur $quoi"))
+                }
+                ex.surPrete = {
+                    if (!fini) {
+                        prepare = true
+                        ex.demarrer()
+                    }
+                }
+                ex.preparer(s)
+                return
+            }
             lecteur = MediaPlayer().apply {
                 context.resources.openRawResourceFd(resId).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
                 setSurface(s)
@@ -289,6 +313,10 @@ internal class LecteurAlpha(
     }
 
     private fun appliquerVitesse() {
+        exo?.let { e ->
+            if (!fini && prepare && image) e.vitesse(cible)
+            return
+        }
         val mp = lecteur ?: return
         if (fini || !prepare || !image) return
         val v = cible
@@ -316,6 +344,9 @@ internal class LecteurAlpha(
             GelFond.rendre()
         }
         h.post {
+            // Sur ce fil à part : le rendre tout de suite ne gêne pas l'écran.
+            exo?.liberer(differe = false)
+            exo = null
             try { lecteur?.release() } catch (_: Throwable) {}
             lecteur = null
             if (ouvert) {
