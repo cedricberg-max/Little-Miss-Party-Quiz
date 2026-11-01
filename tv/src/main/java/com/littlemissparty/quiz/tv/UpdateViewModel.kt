@@ -34,7 +34,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
@@ -226,7 +225,7 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 Log.w(TAG, "Téléchargement de la mise à jour", e)
                 _ui.value = UpdateUi.Failed(
-                    "Le téléchargement n'a pas abouti après $ESSAIS_TELECHARGEMENT essais (${raisonEnClair(e)}). " +
+                    "Plus rien n'arrive depuis $ESSAIS_TELECHARGEMENT essais (${raisonEnClair(e)}). " +
                         "${mo(alreadyDownloaded(r))} Mo sur ${mo(r.size)} sont déjà reçus : « Réessayer » reprend là où il s'est arrêté.",
                     r,
                 )
@@ -338,73 +337,60 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun apkFile(r: Release) = File(dir, "lmp-tv-${r.versionCode}.apk")
 
-    private fun alreadyDownloaded(r: Release): Long =
-        apkFile(r).takeIf { it.exists() }?.length() ?: File(dir, "${apkFile(r).name}.part").length()
+    private fun alreadyDownloaded(r: Release): Long = TelechargementApk.dejaRecu(apkFile(r))
 
     /**
-     * Wi-Fi faible (cedric, 31/10 : bloqué à 0 %) : le téléchargement ne renonce pas à la première coupure. Il reprend là
-     * où il s'est arrêté, jusqu'à [ESSAIS_TELECHARGEMENT] fois, en patientant un peu plus à chaque fois, et passe d'une
-     * source à l'autre (hébergement Firebase, puis la même version publiée sur GitHub). L'écran dit ce qui se passe.
+     * Wi-Fi faible (cedric, 31/10 : bloqué à 0 % ; 1/11 au soir : « j'exige que les mises à jour soient acceptées ») :
+     * le téléchargement n'abandonne jamais tant que le fichier avance. Chaque coupure reprend là où elle s'est arrêtée,
+     * en passant d'une source à l'autre (hébergement Firebase, puis la même version publiée sur GitHub) ; il ne
+     * s'arrête qu'après [PatienceTelechargement.ESSAIS_SANS_AVANCER] essais d'affilée sans un octet (plus d'Internet du
+     * tout). Le Wi-Fi de la box reste allumé à pleine puissance pendant ce temps ([verrouWifi]). L'écran dit ce qui se passe.
      */
     private suspend fun telechargerAvecPatience(r: Release) {
         var essai = 0
-        while (true) {
-            try {
-                fetchApk(r, sourcesApk(r)[essai % sourcesApk(r).size])
-                return
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                essai++
-                Log.w(TAG, "Téléchargement, essai $essai/$ESSAIS_TELECHARGEMENT", e)
-                if (essai >= ESSAIS_TELECHARGEMENT) throw e
-                _ui.value = UpdateUi.Downloading(r, withContext(Dispatchers.IO) { alreadyDownloaded(r) }, essai, raisonEnClair(e))
-                delay(pauseAvantEssai(essai))
+        var sansAvancer = 0
+        val verrou = verrouWifi()
+        try {
+            while (true) {
+                val avant = withContext(Dispatchers.IO) { alreadyDownloaded(r) }
+                try {
+                    fetchApk(r, sourcesApk(r)[essai % sourcesApk(r).size])
+                    return
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    essai++
+                    val apres = withContext(Dispatchers.IO) { alreadyDownloaded(r) }
+                    sansAvancer = PatienceTelechargement.apresCoupure(sansAvancer, apres > avant)
+                    Log.w(TAG, "Téléchargement coupé (essai $essai, $sansAvancer sans avancer, $apres/${r.size})", e)
+                    if (PatienceTelechargement.renoncer(sansAvancer)) throw e
+                    _ui.value = UpdateUi.Downloading(r, apres, essai, raisonEnClair(e))
+                    delay(PatienceTelechargement.pause(maxOf(sansAvancer, 1)))
+                }
             }
+        } finally {
+            runCatching { verrou?.release() }
         }
     }
+
+    /** Garde le Wi-Fi de la box allumé à pleine puissance pendant un téléchargement (null si la box refuse). */
+    @Suppress("DEPRECATION")
+    private fun verrouWifi(): android.net.wifi.WifiManager.WifiLock? = runCatching {
+        val wifi = getApplication<Application>().applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+        wifi.createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "lmp:mise-a-jour").apply { setReferenceCounted(false); acquire() }
+    }.getOrNull()
 
     /** Les adresses de l'APK, dans l'ordre : l'hébergement Firebase, puis la release GitHub de la même version. */
     private fun sourcesApk(r: Release): List<URL> = listOfNotNull(apkUrl(r), runCatching { URL(urlGithub(r.versionName)) }.getOrNull())
 
     /** Télécharge l'APK depuis [source] en reprenant un fichier partiel, avec la progression à l'écran. */
     private suspend fun fetchApk(r: Release, source: URL = apkUrl(r)) = withContext(Dispatchers.IO) {
-        val target = apkFile(r)
-        if (target.exists() && target.length() == r.size) return@withContext
-        target.delete()
-        val part = File(dir, "${target.name}.part")
-        var have = if (part.exists() && part.length() < r.size) part.length() else 0L.also { part.delete() }
-        val conn = connect(source).apply { if (have > 0) setRequestProperty("Range", "bytes=$have-") }
-        try {
-            when (conn.responseCode) {
-                206 -> Unit
-                200 -> have = 0 // le serveur ne reprend pas : on recommence au début
-                else -> error("HTTP ${conn.responseCode}")
-            }
-            FileOutputStream(part, have > 0).use { out ->
-                conn.inputStream.use { input ->
-                    val buf = ByteArray(64 * 1024)
-                    var lastShown = 0L
-                    while (true) {
-                        ensureActive()
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        out.write(buf, 0, n)
-                        have += n
-                        check(have <= r.size) { "Fichier plus gros qu'annoncé" }
-                        // Wi-Fi faible : la progression bouge dès 64 Ko, jamais figée à 0 % tant que ça avance.
-                        if (have - lastShown >= 64 * 1024 || have == r.size) {
-                            lastShown = have
-                            _ui.update { s -> if (s is UpdateUi.Downloading && s.release == r) UpdateUi.Downloading(r, have) else s }
-                        }
-                    }
-                }
-            }
-        } finally {
-            conn.disconnect()
-        }
-        check(part.length() == r.size) { "Téléchargement incomplet" }
-        check(part.renameTo(target)) { "Fichier impossible à enregistrer" }
+        TelechargementApk.reprendre(
+            source, apkFile(r), r.size, ::connect,
+            // Wi-Fi faible : la progression bouge dès 64 Ko, jamais figée à 0 % tant que ça avance.
+            progres = { have -> _ui.update { s -> if (s is UpdateUi.Downloading && s.release == r) UpdateUi.Downloading(r, have) else s } },
+            actif = { ensureActive() },
+        )
     }
 
     /** Null si l'APK téléchargé est bien la version annoncée, intacte, de notre appli, signée par notre clé. */
@@ -447,11 +433,8 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
         private const val AUTO_CHECK_DELAY_MS = 20_000L
         /** Box allumée toute la journée : nouvelle recherche toutes les 30 minutes (un petit fichier). */
         private const val RECHECK_MS = 30L * 60 * 1000
-        /** Essais du téléchargement avant de renoncer (chacun reprend là où le précédent s'est arrêté). */
-        const val ESSAIS_TELECHARGEMENT = 8
-
-        /** Pause avant le nouvel essai n° [essai] : 3 s, 6 s, 9 s… jusqu'à 20 s. */
-        fun pauseAvantEssai(essai: Int): Long = (3_000L * essai).coerceAtMost(20_000L)
+        /** Essais d'affilée sans un octet avant d'afficher l'échec (tant que ça avance, on ne renonce jamais). */
+        const val ESSAIS_TELECHARGEMENT = PatienceTelechargement.ESSAIS_SANS_AVANCER
 
         /** La même version publiée sur GitHub (release « tv-v0.1.N »), secours quand l'hébergement Firebase coince. */
         fun urlGithub(versionName: String) =

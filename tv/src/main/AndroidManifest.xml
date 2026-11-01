@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Mise à jour depuis la TV : Android demande toujours confirmation avant d'installer. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Mise à jour sur un Wi-Fi faible : le Wi-Fi de la box reste allumé à pleine puissance pendant le téléchargement. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- S'installe sur Android TV, mais aussi sur tablette ou téléphone pour les essais. -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
