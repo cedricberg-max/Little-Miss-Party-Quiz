@@ -596,3 +596,22 @@ body.look-gs:not(.regie-mode) .bc-rangee .bc-case { max-width: min(220px, 24vh);
     flex-basis: calc((100% - (var(--par-ligne, 3) - 1) * 10px) / var(--par-ligne, 3)); max-width: min(240px, 15vh);
   }
 }
+
+/* ---------- Règle de toutes les petites animations de Buzzy (cedric, 01/11) ----------
+   Buzzy n'est jamais coupé net dans un « carré invisible » : le bas de son image s'efface en douceur et passe DERRIÈRE
+   le texte qui suit (symbole, titre). Ses entrées et sorties par le bas (« Raté », suspense) se font donc derrière le
+   texte. L'écran isole ses calques : Buzzy (z-index −1) reste devant le décor, sous tous les textes. */
+body.look-gs:not(.regie-mode) :is(#app .screen, #paused, .sm) { isolation: isolate; }
+body.look-gs:not(.regie-mode) :is(.result-icon, #screen-ended .logo.small, #paused, .sm:is([data-etat="attente"], [data-etat="regarde"], [data-etat="chiffres"], [data-etat="continue"], [data-etat="spectateur"], [data-etat="gagne"], [data-etat="elimine"]), .logo:not(.small), #screen-waiting .logo.small, .intro-jeu)::before {
+  position: relative; z-index: -1;
+  -webkit-mask-image: linear-gradient(to bottom, #000 76%, transparent 99%); mask-image: linear-gradient(to bottom, #000 76%, transparent 99%);
+}
+/* Le bas de Buzzy glisse sous le symbole ✓ / ✗ et le titre (environ un quart de sa hauteur). */
+body.look-gs:not(.regie-mode) .result-icon::before { --bz-h: clamp(150px, 36vh, 460px); height: var(--bz-h); margin-bottom: calc(var(--bz-h) * -0.24); }
+body.look-gs:not(.regie-mode) #screen-ended .logo.small::before { --bz-h: clamp(150px, 36vh, 460px); height: var(--bz-h); margin-bottom: calc(var(--bz-h) * -0.2); }
+body.look-gs:not(.regie-mode) #paused::before { --bz-h: clamp(150px, 36vh, 460px); height: var(--bz-h); margin-bottom: calc(var(--bz-h) * -0.2); }
+body.look-gs:not(.regie-mode) .sm:is([data-etat="attente"], [data-etat="regarde"], [data-etat="chiffres"], [data-etat="continue"], [data-etat="spectateur"], [data-etat="gagne"], [data-etat="elimine"])::before {
+  --bz-h: clamp(150px, 34vh, 440px); height: var(--bz-h); margin-bottom: calc(var(--bz-h) * -0.2);
+}
+/* Écrans d'arrivée : même fondu au pied de Buzzy, posé sur son anneau lumineux. */
+.arrivee-buzzy { -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent 98%); mask-image: linear-gradient(to bottom, #000 72%, transparent 98%); }
