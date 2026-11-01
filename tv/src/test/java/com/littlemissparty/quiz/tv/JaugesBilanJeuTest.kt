@@ -9,7 +9,7 @@ class JaugesBilanJeuTest {
     @Test
     fun `tableau des scores de fin de jeu, les jauges montent de tout le jeu`() {
         val vm = File("src/main/java/com/littlemissparty/quiz/tv/GameViewModel.kt").readText()
-        assertTrue(vm.contains("s.phase == Phase.SCORES -> g.gameGains()"))
+        assertTrue(vm.contains("s.phase == Phase.SCORES && (g.nextGameTitle() != null || g.isLastQuestion) -> g.gameGains()"))
     }
 
     @Test
