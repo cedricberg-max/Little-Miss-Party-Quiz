@@ -49,17 +49,18 @@ class HaloDecorTest {
     fun `Pictionary, « Au tour de » avec le halo noir doux, le nom de l'equipe en neon qui se detache (point 33, 1-11)`() {
         val src = File("src/main/java/com/littlemissparty/quiz/tv/habillage/Pictionary.kt").readText()
         val bloc = src.substringAfter("fun IntroPictionary(").substringBefore("Spacer(Modifier.height(30.dp))\n            Box(")
-        val auTour = bloc.substringAfter("\"Au tour de\"").substringBefore("NomNeonPictionary(")
+        val auTour = bloc.substringAfter("\"Au tour de\"").substringBefore("// Le nom de l'équipe")
         assertTrue(auTour, "shadow = HALO_DECOR" in auTour && "FontWeight.Bold" in auTour)
         assertTrue(bloc, "NomNeonPictionary(equipe, couleur" in bloc)
         // Le néon d'avant (cedric préfère), mais détaché : halo noir doux dessous, lueur pleine de la couleur dessus.
         val neon = src.substringAfter("internal fun NomNeonPictionary(").substringBefore("\n}\n")
         assertTrue(neon, "shadow = HALO_DECOR" in neon)
         assertTrue(neon, "Shadow(couleur, Offset.Zero, NEON_NOM_LUEUR)" in neon)
-        assertTrue(neon, "Shadow(couleur, Offset.Zero, NEON_NOM_LUEUR_LARGE)" in neon)
-        // Couleur pure de l'équipe partout (plus de cœur éclairci, qui la délavait), lueurs pleines, plus fortes qu'avant.
-        assertTrue(neon, "lerp(" !in neon && "alpha" !in neon)
-        assertTrue(NEON_NOM_LUEUR_LARGE > 26f && NEON_NOM_LUEUR in 8f..26f)
+        // Halo noir posé deux fois (le décor clair s'assombrit autour), lueur serrée, lettres nettes sans ombre dessus.
+        assertEquals(neon, 2, Regex("shadow = HALO_DECOR").findAll(neon).count())
+        assertTrue(NEON_NOM_LUEUR in 4f..12f)
+        assertTrue(NEON_NOM_COEUR in 0.05f..0.3f)
+        assertTrue(neon, neon.trimEnd().lines().dropLast(1).last().trim().endsWith("style = base)"))
         assertTrue("jamais de cadre", "background(" !in neon && "border(" !in neon)
     }
 

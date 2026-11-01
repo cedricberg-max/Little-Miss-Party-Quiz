@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -391,15 +392,14 @@ fun IntroPictionary(equipe: String, couleur: Color, motMontre: Boolean, modifier
                 },
             )
             Spacer(Modifier.height(30.dp))
-            // « Au tour de » : petit texte sur le décor, le halo noir doux du Chrono (règle du 31/10).
-            Text(
-                "Au tour de",
-                color = Neon.Blanc, fontSize = 30.sp, fontWeight = FontWeight.Bold,
-                style = TextStyle(shadow = HALO_DECOR),
-                modifier = Modifier.apparition(300, equipe),
-            )
+            // « Au tour de » : petit texte sur le décor, le halo noir doux du Chrono (règle du 31/10), posé deux fois pour
+            // assombrir davantage le décor clair autour des lettres ; les lettres restent nettes par-dessus.
+            Box(Modifier.apparition(300, equipe), contentAlignment = Alignment.Center) {
+                Text("Au tour de", color = Neon.Blanc, fontSize = 30.sp, fontWeight = FontWeight.Bold, style = TextStyle(shadow = HALO_DECOR), modifier = Modifier.clearAndSetSemantics {})
+                Text("Au tour de", color = Neon.Blanc, fontSize = 30.sp, fontWeight = FontWeight.Bold, style = TextStyle(shadow = HALO_DECOR))
+            }
             // Le nom de l'équipe en néon, comme avant (cedric, 1/11 : il préfère le néon au halo noir), mais qui se détache
-            // mieux : un halo noir doux dessous, puis le néon, cœur plus clair et lueur de la couleur plus forte.
+            // mieux et reste net : halo noir doux renforcé dessous, lueur serrée de la couleur, lettres nettes et claires dessus.
             NomNeonPictionary(equipe, couleur, Modifier.widthIn(max = 880.dp).apparition(450, equipe))
             Spacer(Modifier.height(30.dp))
             Box(
@@ -495,15 +495,16 @@ fun RevelationPictionary(
     }
 }
 
-/** Lueur proche des lettres, pleine couleur de l'équipe (avant le 1/11 : une seule lueur, à 0,7 et 26). */
-internal const val NEON_NOM_LUEUR = 16f
-/** Lueur large autour, pleine couleur aussi : les deux ensemble font le néon qui se voit de loin. */
-internal const val NEON_NOM_LUEUR_LARGE = 40f
+/** Lueur serrée de la couleur de l'équipe autour des lettres (petite : les lettres restent nettes). */
+internal const val NEON_NOM_LUEUR = 8f
+/** Cœur des lettres : la couleur de l'équipe à peine éclaircie, pour qu'elles brillent sur leur lueur. */
+internal const val NEON_NOM_COEUR = 0.18f
 
 /**
- * Nom de l'équipe du Pictionary en néon (point 33, cedric 1/11 : « comme avant », dans la couleur de l'équipe, mais
- * plus fort et plus contrasté) : le même texte trois fois, l'un sur l'autre, toujours dans la couleur pure de l'équipe.
- * Dessous, le halo noir doux qui le détache du décor ; puis la lueur large ; dessus, la lueur proche. Jamais de cadre.
+ * Nom de l'équipe du Pictionary en néon (point 33, cedric 1/11 : « comme avant », dans la couleur de l'équipe, avec
+ * plus de halo et de contraste pour que le nom sorte mieux, net à 2 m de la TV). Le même texte quatre fois, l'un sur
+ * l'autre : deux fois le halo noir doux du Chrono ([HALO_DECOR]), qui assombrit le décor clair autour des lettres ; la
+ * lueur serrée de la couleur ; dessus, les lettres nettes, sans flou, à peine éclaircies. Jamais de cadre.
  */
 @Composable
 internal fun NomNeonPictionary(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
@@ -511,7 +512,8 @@ internal fun NomNeonPictionary(equipe: String, couleur: Color, modifier: Modifie
     Box(modifier, contentAlignment = Alignment.Center) {
         // Les calques du dessous ne sont pas lus (un seul nom pour l'accessibilité et les tests).
         Text(equipe, color = couleur, maxLines = 1, overflow = TextOverflow.Ellipsis, style = base.copy(shadow = HALO_DECOR), modifier = Modifier.clearAndSetSemantics {})
-        Text(equipe, color = couleur, maxLines = 1, overflow = TextOverflow.Ellipsis, style = base.copy(shadow = Shadow(couleur, Offset.Zero, NEON_NOM_LUEUR_LARGE)), modifier = Modifier.clearAndSetSemantics {})
-        Text(equipe, color = couleur, maxLines = 1, overflow = TextOverflow.Ellipsis, style = base.copy(shadow = Shadow(couleur, Offset.Zero, NEON_NOM_LUEUR)))
+        Text(equipe, color = couleur, maxLines = 1, overflow = TextOverflow.Ellipsis, style = base.copy(shadow = HALO_DECOR), modifier = Modifier.clearAndSetSemantics {})
+        Text(equipe, color = couleur, maxLines = 1, overflow = TextOverflow.Ellipsis, style = base.copy(shadow = Shadow(couleur, Offset.Zero, NEON_NOM_LUEUR)), modifier = Modifier.clearAndSetSemantics {})
+        Text(equipe, color = lerp(couleur, Color.White, NEON_NOM_COEUR), maxLines = 1, overflow = TextOverflow.Ellipsis, style = base)
     }
 }
