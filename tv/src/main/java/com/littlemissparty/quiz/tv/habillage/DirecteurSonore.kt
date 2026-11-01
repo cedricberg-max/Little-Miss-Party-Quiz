@@ -766,6 +766,9 @@ internal const val DISPARU_INTRO_REPRISE_IMAGE = 145_547L
 internal const val CHRONO_INTRO_REPRISE_MS = 7_737L
 internal const val CHRONO_INTRO_REPRISE_IMAGE = 341_202L
 
+/** Chrono de Buzzy, nappe sous le drap : la boucle repart de cet échantillon (44,1 kHz), 56 s avant la fin du fichier. */
+internal const val CHRONO_NAPPE_REPRISE_IMAGE = 1_278_905L
+
 /** Quiz : la boucle de Questions pour un champion repart de là, après les trompettes (échantillon 95 256). */
 internal const val QUIZ_INTRO_REPRISE_MS = 2_160L
 
@@ -929,10 +932,12 @@ enum class Lit(
      */
     PODIUM_ATTENTE(null, "gs_podium_attente", repriseMs = PODIUM_ATTENTE_REPRISE_MS),
     /**
-     * Game Show, le Chrono de Buzzy sous le drap (cedric, 31/10) : nappe grave et stressante, sans aucun rythme (rien ne
-     * doit aider à compter), 27,3 s fondues sur leur début (3 s), −16 LUFS.
+     * Game Show, le Chrono de Buzzy sous le drap : la nappe choisie par cedric le 1/11 (son MP3, pris à 0:13 : son fondu
+     * d'entrée de 0,8 s, l'intro douce, puis la montée ; « elle a un battement, ça perturbe celui qui compte »). 85 s,
+     * −16 LUFS ; si le tour dure plus, elle reboucle à l'échantillon [CHRONO_NAPPE_REPRISE_IMAGE] (29,0 s), en plein
+     * dans la mesure qui se répète, à plein volume, jamais sur le fondu du début (raccord fondu 40 ms).
      */
-    CHRONO_NAPPE(null, "gs_chrono_nappe"),
+    CHRONO_NAPPE(null, "gs_chrono_nappe", repriseMs = 29_000L, repriseImage = CHRONO_NAPPE_REPRISE_IMAGE),
     /**
      * Game Show, le Chrono de Buzzy pendant la révélation (cedric, 31/10 : « boucle B ») : Around the World pris à 1:03,5,
      * 8 mesures ramenées à 120 BPM comme gs_bed_light, 16,000 s, raccord fondu 25 ms, −16 LUFS.
@@ -1264,8 +1269,8 @@ object Tempo {
     /** Temps fort qui suit la dernière note du générique (16 temps) : la musique du salon prend le relais. */
     const val GENERIQUE_RELAIS = 8_000L
     const val FONDU_RELAIS = 120L
-    /** Le Chrono de Buzzy : la nappe entre doucement sous le drap, après son « fffouf ». */
-    const val CHRONO_NAPPE_ENTREE = 1_500L
+    /** Le Chrono de Buzzy : la nappe part avec le « fffouf » du drap ; son fichier a déjà son fondu d'entrée (0,8 s). */
+    const val CHRONO_NAPPE_ENTREE = 150L
     /** Blind test : la musique d'attente entre à la fin du générique court (4,8 s). */
     const val BT_ATTENTE_APRES_GENERIQUE = 4_500L
     /** Duel des robots : la boucle western prend le relais à la fin de son début (gs_duel_intro_debut, 2,95 s). */

@@ -38,12 +38,28 @@ class ChronoEcranTest {
     }
 
     @Test
-    fun `la regle montre la cible et toutes les equipes, jamais avant 0`() {
-        assertEquals(24 to 36, bornesRegle(30, listOf(-500L, 1_200L)))
-        val (bas, haut) = bornesRegle(10, listOf(-9_000L, 14_500L))
-        assertEquals(0, bas)
-        assertTrue(haut >= 26)
-        assertEquals(24 to 36, bornesRegle(30, emptyList()))
+    fun `chaque bip et chaque tic tombent pile quand le chiffre change a l ecran, jamais sous le drap`() {
+        // 3, 2, 1 : le chiffre change à −3000, −2000, −1000 ms ; le bip de chacun part à ce moment-là.
+        assertEquals(-3L, secondeTic(-3_000, 0))
+        assertEquals(-4L, secondeTic(-3_001, 0))
+        assertEquals(1L, secondeTic(1_000, 0))
+        assertEquals(0L, secondeTic(999, 0))
+        // Box qui met 120 ms à faire entendre un son : il part 95 ms avant le chiffre (une image et demie d'écran).
+        assertEquals(95L, avanceTic(120))
+        assertEquals(1L, secondeTic(905, avanceTic(120)))
+        assertEquals(0L, secondeTic(904, avanceTic(120)))
+        assertEquals("latence pas encore mesurée : pile sur l'image", 0L, avanceTic(-1))
+        assertEquals(200L, avanceTic(5_000))
+        assertEquals(listOf(Son.CHRONO_BIP, Son.CHRONO_BIP, Son.CHRONO_BIP, Son.CHRONO_GO), (-3L..0L).map { sonSeconde(it, 8_000) })
+        assertEquals(Son.CHRONO_TIC, sonSeconde(1, 8_000))
+        assertEquals(Son.CHRONO_TAC, sonSeconde(2, 8_000))
+        // Un tic seulement si son chiffre est encore à l'écran : le drap le cache 0,5 s avant de se poser.
+        for (cache in listOf(3_600L, 7_300L, 8_000L, 12_400L)) for (s in 1L..15L) {
+            val son = sonSeconde(s, cache)
+            if (son != null) assertTrue("tic $s sous le drap ($cache)", chiffresVisibles(s * 1_000, cache))
+        }
+        assertEquals(null, sonSeconde(7, 7_300))
+        assertEquals(Son.CHRONO_TIC, sonSeconde(7, 8_000))
     }
 
     @Test
@@ -54,15 +70,45 @@ class ChronoEcranTest {
     @Test
     fun `sons de la revelation cales sur les images, le ralenti pour la plus proche, puis gagne, pile ou personne`() {
         val sons = sonsRevelation(mapOf("orange" to -500L, "vert" to 1_200L, "rose" to 300L), listOf("rose"))
-        assertEquals(Son.CHRONO_REGLE, sons.first().son)
-        assertEquals(listOf(Son.CHRONO_PASTILLE, Son.CHRONO_PASTILLE, Son.CHRONO_RALENTI), sons.drop(2).take(3).map { it.son })
-        assertTrue("chaque pastille un peu plus aigue", sons[3].vitesse > sons[2].vitesse)
+        assertEquals(listOf(Son.CHRONO_REGLE, Son.CHRONO_DRAPEAU), sons.take(2).map { it.son })
+        assertEquals(REV_DRAPEAU_MS, sons[1].instant)
+        assertEquals(
+            listOf(Son.WHOOSH, Son.CHRONO_PASTILLE, Son.WHOOSH, Son.CHRONO_PASTILLE, Son.WHOOSH, Son.CHRONO_RALENTI),
+            sons.drop(2).take(6).map { it.son },
+        )
+        assertEquals("dans l'ordre du temps", sons.map { it.instant }.sorted(), sons.map { it.instant })
+        val pastilles = sons.filter { it.son == Son.CHRONO_PASTILLE }
+        assertTrue("chaque pastille un peu plus aigue", pastilles[1].vitesse > pastilles[0].vitesse)
+        assertEquals(arriveeLigne(0, 3) + 300, pastilles[0].instant)
         val ralenti = sons.single { it.son == Son.CHRONO_RALENTI }
-        assertEquals(REGLE_MS + 2 * PASTILLE_PAS_MS, ralenti.instant)
-        assertEquals(SonChrono(ralenti.instant + PASTILLE_RALENTI_MS, Son.CHRONO_GAGNE, volume = 1f), sons.last())
-        assertTrue("les petits sons à 0,7 sous la boucle B", sons.dropLast(1).all { it.volume == CHRONO_SFX_VOLUME })
+        assertEquals(arriveeLigne(2, 3) + 300, ralenti.instant)
+        assertEquals(SonChrono(finRevelation(3), Son.CHRONO_GAGNE, volume = 1f), sons.last())
+        assertTrue("la gagnante finit de glisser avant la fanfare", ralenti.instant < sons.last().instant)
         assertEquals(Son.CHRONO_PILE, sonsRevelation(mapOf("orange" to 4L), listOf("orange")).last().son)
         assertEquals(Son.CHRONO_PERSONNE, sonsRevelation(emptyMap(), emptyList()).last().son)
+    }
+
+    @Test
+    fun `les lignes des equipes tiennent toujours dans l ecran, plus serrees a 8`() {
+        for (n in 1..8) {
+            val g = geoResultats(n)
+            assertTrue("$n équipes : la dernière ligne tient (${g.y0 + (n - 1) * g.h})", g.y0 + (n - 1) * g.h + g.h / 2 <= 1080f)
+            assertTrue("$n équipes : sous la ligne repère", g.y0 > g.yRepere + 60f)
+            assertTrue(g.police in 20f..44f)
+        }
+        assertEquals(130f, geoResultats(2).h, 0.01f)
+        assertTrue(geoResultats(8).h < geoResultats(4).h)
+        assertTrue("plus rapide à 8", finRevelation(8) < 8 * 1_100L + REV_PREMIERE_MS)
+    }
+
+    @Test
+    fun `la ligne du temps contient toutes les equipes`() {
+        assertEquals(2, demiRegle(listOf(-500L, 1_200L)))
+        assertEquals(3, demiRegle(listOf(2_680L)))
+        assertEquals(15, demiRegle(listOf(-9_000L, 14_500L)))
+        assertEquals(2, demiRegle(emptyList()))
+        assertTrue(15 / pasGraduation(15) <= 6)
+        assertEquals(1, pasGraduation(2))
     }
 
     @Test
@@ -88,15 +134,20 @@ class ChronoEcranTest {
 
     @Test
     fun `le clip du lancer part pour que le drap se pose pile au moment tire par la box, les chiffres s'effacent juste avant`() {
-        // Drap à 8 s : le clip part à 2,38 s (Buzzy sort du cadre pendant le tic-tac), le drap se pose à 8 s pile.
+        // Drap à 8 s : Buzzy part chercher le drap à 2,38 s (pendant que les chiffres défilent), le drap se pose à 8 s pile.
         assertEquals(8_000L - LANCER_POSE_MS, departLancer(8_000L))
-        assertEquals(null, tempsLancer(2_000L, 8_000L))
+        assertEquals(2_380L, departLancer(8_000L) + LANCER_PREFIXE_MS)
+        assertEquals("à 2 s, le clip est dans ses boucles d'attente", LANCER_POSE_MS - 6_000L, tempsLancer(2_000L, 8_000L))
         assertEquals(LANCER_POSE_MS, tempsLancer(8_000L, 8_000L))
         assertTrue("les chiffres tournent encore pendant que Buzzy va chercher le drap", chiffresVisibles(7_000L, 8_000L))
         assertTrue("le drap couvre le cadran : plus de chiffres", !chiffresVisibles(7_800L, 8_000L))
         assertTrue("effacés avant que le drap ne se pose", LANCER_COUVRE_MS < LANCER_POSE_MS)
-        // Plus petit drap possible (cible 10 s : 3,6 s) : le clip part pendant le décompte, jamais avant « Lancer ».
-        assertTrue(departLancer(3_600L) > -com.littlemissparty.quiz.engine.CHRONO_DECOMPTE_MS)
+        // Buzzy n'est jamais figé (cedric, 1/11) : quel que soit le moment du drap, le clip (ses boucles d'attente) tourne déjà
+        // quand le décompte commence, et le lancer lui-même ne part jamais avant « Lancer ».
+        for (cache in listOf(3_600L, com.littlemissparty.quiz.engine.CHRONO_CACHE_MIN_MS, com.littlemissparty.quiz.engine.CHRONO_CACHE_MAX_MS)) {
+            assertTrue("drap à $cache ms", departLancer(cache) <= -com.littlemissparty.quiz.engine.CHRONO_DECOMPTE_MS)
+            assertTrue("drap à $cache ms", departLancer(cache) + LANCER_PREFIXE_MS > -com.littlemissparty.quiz.engine.CHRONO_DECOMPTE_MS)
+        }
     }
 
     @Test
@@ -124,40 +175,5 @@ class ChronoEcranTest {
         assertTrue("il s'écrase un peu en arrivant", ecrase < 0.97f)
         val (_, calme) = positionDrap(1f, DRAP_CHUTE_MS + 5_000L)
         assertEquals(1f, calme, 0.01f)
-    }
-
-    @Test
-    fun `etiquettes sous la regle, jamais deux qui se touchent sur la meme rangee a 8 equipes`() {
-        // Le cas des captures du 31/10 : Ninjas et Pirates du lac côte à côte sur la même rangée.
-        val x = listOf(300f, 420f, 560f, 640f, 1180f, 1260f, 1400f, 1600f)
-        val r = rangeesEtiquettes(x)
-        for (i in x.indices) for (j in i + 1 until x.size) if (r[i] == r[j]) assertTrue("$i et $j se touchent", x[j] - x[i] >= ETIQUETTE_L)
-        assertTrue(r.all { it in 0..3 })
-        assertEquals(listOf(0, 1, 2, 3), rangeesEtiquettes(listOf(100f, 110f, 120f, 130f)))
-        assertEquals(listOf(0, 0), rangeesEtiquettes(listOf(100f, 900f)))
-    }
-
-    @Test
-    fun `huit equipes serrees, les etiquettes se decalent mais ne se touchent jamais`() {
-        // Le cas des captures du 31/10 (8 h) : Panthères, Dragons dorés, Pirates du lac, Sirènes bleues à droite, serrées.
-        val x = listOf(600f, 820f, 969f, 1025f, 1170f, 1206f, 1236f, 1330f)
-        val noms = listOf("Les Fusées", "Les Comètes", "Les Ninjas", "Les Licornes roses", "Les Panthères", "Les Dragons dorés", "Les Pirates du lac", "Les Sirènes bleues")
-        val l = noms.map { largeurEtiquette(it, "+2,68 s · +100") }
-        val p = placesEtiquettes(x, l)
-        for (i in x.indices) for (j in i + 1 until x.size) if (p[i].first == p[j].first) {
-            assertTrue("$i et $j se touchent", p[j].second - l[j] / 2 >= p[i].second + l[i] / 2)
-        }
-        p.forEachIndexed { i, (_, cx) -> assertTrue("dans l'écran", cx - l[i] / 2 >= 0f && cx + l[i] / 2 <= 1920f) }
-        // Sans voisine, l'étiquette reste juste sous sa pastille.
-        assertEquals(600f, p[0].second, 0.01f)
-    }
-
-    @Test
-    fun `la largeur estimee d une etiquette colle a la capture TV`() {
-        // Capture du 31/10 (8 h 30) : « LES FUSÉES » occupe environ 260 px de la scène, « +0,35 s · +100 » environ 255 px.
-        assertTrue(largeurEtiquette("Les Fusées", "") >= 262f)
-        assertTrue(largeurEtiquette("", "+0,35 s · +100") >= 255f)
-        // Un nom très long reste plafonné : le texte se réduit au lieu de déborder.
-        assertEquals(ETIQUETTE_L, largeurEtiquette("Les Supers Licornes Arc-en-ciel", ""), 0.01f)
     }
 }
