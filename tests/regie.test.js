@@ -1012,7 +1012,7 @@ describe("régie", () => {
     await inRegie(page);
     await page.locator('.mime-team.selected[data-team="dragons"]').waitFor();
     await page.locator("#mime-info", { hasText: "Au tour de l'équipe Rose : Dragons." }).waitFor();
-    await page.locator("#mime-progress", { hasText: "Manche de l'équipe Rose : ses 2 images" }).waitFor();
+    await page.locator("#mime-progress", { hasText: "Tour de l'équipe Rose : ses 2 images" }).waitFor();
     assert.equal(await page.textContent("#c-step"), "Mimes · Équipe Rose");
     // Un seul jeu « Mimes » dans le conducteur, pas trois.
     assert.match(await page.textContent("#c-games"), /En cours : Mimes(?! :)/);
@@ -4336,8 +4336,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
     await deplierJeux(page);
-    await page.locator("#show-summary", { hasText: "3 questions · 1 manche de mimes jouables" }).waitFor();
-    await page.locator("#show-rounds .round").nth(1).locator(".mime-ancienne", { hasText: "Manche préparée à l'ancienne" }).waitFor();
+    await page.locator("#show-summary", { hasText: "3 questions · 1 jeu de mimes jouables" }).waitFor();
+    await page.locator("#show-rounds .round").nth(1).locator(".mime-ancienne", { hasText: "Jeu préparé à l'ancienne" }).waitFor();
     await page.context().close();
 
     box = startBox();
@@ -5978,7 +5978,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // La page du jeu : son aperçu, ses manches, son historique ; on n'y compose plus de manche (cedric, 21/10).
     await page.locator('#home-games .tile[data-game=mimes]').click();
     await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Mimes" }).waitFor();
-    await page.locator("#manches-list", { hasText: "Aucune manche pour l'instant : elles arrivent ici quand vous composez une prestation." }).waitFor();
+    await page.locator("#manches-list", { hasText: "Aucun jeu gardé pour l'instant : ils arrivent ici quand vous composez une prestation." }).waitFor();
     assert.equal(await page.locator("#manche-new").count(), 0);
     assert.match(await page.locator("#game-apercu").getAttribute("src"), /apercus-jeux\/mimes\.mp4$/);
     assert.match(await page.locator("#game-manche-hint").textContent(), /« ＋ Ajouter un jeu »/);
@@ -6027,9 +6027,9 @@ describe("bibliothèque de quiz et prestations", () => {
     // Dans la page du jeu : la manche, épinglée en tête ; l'historique dit qu'elle est gardée.
     await openGamePage(page, "mimes");
     await page.locator(`#manches-list [data-manche="${id}"] button`, { hasText: "⭐ Épingler" }).click();
-    await page.locator(`#manches-pinned [data-manche="${id}"]`, { hasText: "⭐ Épinglée" }).waitFor();
+    await page.locator(`#manches-pinned [data-manche="${id}"]`, { hasText: "⭐ Épinglé" }).waitFor();
     assert.equal((await library(`manches/${id}`)).pinned, true);
-    await page.locator("#manches-shows .manche-from-show", { hasText: "Gardée : « Mimes · Anniversaire de Léa »" }).waitFor();
+    await page.locator("#manches-shows .manche-from-show", { hasText: "Gardé : « Mimes · Anniversaire de Léa »" }).waitFor();
     await capture(page, "page-jeu-mimes");
 
     // Prestation de 6 équipes : le 🎲 tire pour les 6 couleurs (pas de « Reprendre » dans les Mimes).
@@ -6207,15 +6207,15 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await ordre(), ["t", "m", "a", "s"], "sans recherche : les plus récentes d'abord");
     // « ma » : Maman (commence par), La marelle (un mot commence par), Tomates (contient) ; Soleil disparaît.
     await page.locator("#manche-search").pressSequentially("ma");
-    await page.locator("#manche-search-count", { hasText: "4 manches trouvées" }).waitFor();
+    await page.locator("#manche-search-count", { hasText: "4 jeux trouvés" }).waitFor();
     assert.deepEqual(await ordre(), ["a", "m", "t"]);
     assert.equal(await page.locator("#manches-archived-box").evaluate((d) => d.open), true, "l'archivée trouvée s'ouvre toute seule");
     await page.locator('#manches-archived [data-manche="v"]').waitFor();
     assert.equal(await page.locator("#manches-shows-count").textContent(), "0");
     // Le prénom d'une prestation retrouve ses manches.
     await page.fill("#manche-search", "zoe");
-    await page.locator("#manche-search-count", { hasText: "1 manche trouvée" }).waitFor();
-    await page.locator("#manches-list", { hasText: "Aucune de vos manches ne correspond" }).waitFor();
+    await page.locator("#manche-search-count", { hasText: "1 jeu trouvé" }).waitFor();
+    await page.locator("#manches-list", { hasText: "Aucun de vos jeux gardés ne correspond" }).waitFor();
     assert.equal(await page.locator("#manches-shows-box").evaluate((d) => d.open), true);
     await page.locator("#manches-shows .manche-from-show", { hasText: "Anniversaire de Zoé" }).waitFor();
     await page.fill("#manche-search", "");
@@ -6460,7 +6460,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await seedLibrary("manches/gouter", { type: "patate", title: "Patate du goûter", origin: "admin", round: { type: "patate" }, updatedAt: 1 });
     await openGamePage(page, "patate");
     await page.locator(".manche-card", { hasText: "Patate du goûter" }).getByRole("button", { name: "Dupliquer" }).click();
-    await page.locator("#game-status", { hasText: "« Copie de Patate du goûter » est ajoutée à vos manches." }).waitFor();
+    await page.locator("#game-status", { hasText: "« Copie de Patate du goûter » est ajouté à vos jeux gardés." }).waitFor();
     await page.locator(".manche-card.copie-recente", { hasText: "Copie de Patate du goûter" }).waitFor();
     assert.equal(await page.locator("#screen-manche-edit").isHidden(), true);
     const titres = Object.values(await library("manches")).map((m) => [m.title, m.type, m.origin]).sort();
@@ -8945,7 +8945,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // sous le jeu, dans « Reste à faire avant le jour J » et à l'enregistrement.
     const trou = "il manque 1 chanson (case 🎲 vide) : 7 jouées au lieu de 8.";
     await round.locator(".alerte-equipes", { hasText: `⚠ I${trou.slice(1)}` }).waitFor();
-    await page.locator("#show-ready li", { hasText: `Manche 1 (Blind test) : ${trou}` }).waitFor();
+    await page.locator("#show-ready li", { hasText: `Jeu n° 1 (Blind test) : ${trou}` }).waitFor();
 
     // 🎧 (cedric : vérifier l'extrait et le hook sans charger la page) : un petit menu sous la chanson, un seul ouvert.
     await chanson("sp").locator(".blind-ecouter").click();
@@ -8979,7 +8979,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // « ⏱ Régler… » : la prestation (pas encore enregistrée) l'est d'abord, puis les réglages de la chanson s'ouvrent.
     await menu.locator(".blind-regler").click();
     assert.match(await repondreFenetre(page), /la prestation est d'abord enregistrée/);
-    await page.locator("#annonce", { hasText: `Enregistrée. À revoir avant le jour J : Manche 1 (Blind test) : ${trou}` }).waitFor();
+    await page.locator("#annonce", { hasText: `Enregistrée. À revoir avant le jour J : Jeu n° 1 (Blind test) : ${trou}` }).waitFor();
     await page.locator("#screen-playlist-edit:not([hidden])").waitFor();
     assert.equal(await page.textContent("#playlist-edit-title"), "Réglages de « Complète 1 »");
     // Ses paroles arrivent dans les réglages : les lire n'est pas une modification.
@@ -10045,7 +10045,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="vieux"]').getByRole("button", { name: "Ouvrir" }).click();
     await deplierJeux(page);
-    await page.locator("#show-status-msg", { hasText: "Les manches Quiz qui se suivaient n'en font plus qu'une" }).waitFor();
+    await page.locator("#show-status-msg", { hasText: "Les jeux Quiz qui se suivaient n'en font plus qu'une" }).waitFor();
     assert.equal(await page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] .round').count(), 1);
     const round = page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] .round');
     // Ses séries (le quiz, puis les questions tirées) se voient dans le « Quiz complet » (cedric, 25/10), bougies comprises.
@@ -10243,7 +10243,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await page.locator('#home-upcoming [data-show="vieille"]').getByRole("button", { name: "Ouvrir" }).click();
     await deplierJeux(page);
-    await page.locator("#show-status-msg", { hasText: "L'ancienne manche « Super Finale » est devenue le réglage du quiz" }).waitFor();
+    await page.locator("#show-status-msg", { hasText: "L'ancien jeu « Super Finale » est devenue le réglage du quiz" }).waitFor();
     // Un seul jeu, le Quiz, avec une manche ; la Super Finale n'est plus proposée comme jeu.
     assert.equal(await page.locator("#show-rounds .round").count(), 1);
     assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((els) => els.map((e) => e.dataset.jeu)), ["quiz"]);
@@ -10314,7 +10314,7 @@ describe("bibliothèque de quiz et prestations", () => {
     cadre = await carteDuJeu(regie, "patate");
     box.refuseNextProgram("current_round");
     await regie.locator("#carte-envoyer:not([disabled])").click();
-    await regie.locator("#r-toast", { hasText: "La manche en cours ne peut pas changer" }).waitFor();
+    await regie.locator("#r-toast", { hasText: "Le jeu en cours ne peut pas changer" }).waitFor();
     assert.equal(await regie.locator("#carte").isHidden(), false, "la carte reste ouverte");
     await regie.locator("#carte-envoyer:not([disabled])").click();
     await regie.locator("#r-toast", { hasText: "« Ça va exploser ! » est ajouté après le jeu en cours." }).waitFor();
@@ -11807,7 +11807,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(message, /Créer la prestation de test \?/);
     assert.match(message, /2 prestations de test : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux », « ANNIVERSAIRE TEST – Léa, 9 ans »|2 prestations de test : « ANNIVERSAIRE TEST – Léa, 9 ans », « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux »/);
     assert.match(message, /1 quiz de démo, 1 paquet de mimes de démo, 1 playlist de démo/);
-    assert.match(message, /1 manche gardée pour elles/);
+    assert.match(message, /1 jeu gardé pour elles/);
     assert.match(message, /leurs photos dessinées et comptines \(2 fichiers\)/);
     // La prestation s'ouvre, remplie, et s'enregistre « À venir ».
     await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor({ timeout: 30000 });
@@ -11857,7 +11857,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#test-prestation");
     const encore = await repondreFenetre(page);
     assert.match(encore, /1 prestation de test : « ANNIVERSAIRE TEST – Touktouka, 9 ans »/);
-    assert.match(encore, /13 manches gardées pour elles/);
+    assert.match(encore, /13 jeux gardés pour elles/);
     await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor({ timeout: 30000 });
     shows = await library("shows");
     assert.deepEqual(Object.keys(shows).sort(), ["copie", "ines", "test-prestation"]);

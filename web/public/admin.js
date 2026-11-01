@@ -576,7 +576,7 @@ function contentLabel(snapshot) {
   const q = items.filter((x) => x.kind !== "mime" && x.kind !== "pictionary").length;
   const m = items.filter((x) => x.kind === "mime").length;
   const p = items.filter((x) => x.kind === "pictionary").length;
-  return [q ? `${q} question${q > 1 ? "s" : ""}` : "", m ? `${m} manche${m > 1 ? "s" : ""} de mimes` : "", p ? `${p} Pictionary` : ""].filter(Boolean).join(" · ");
+  return [q ? `${q} question${q > 1 ? "s" : ""}` : "", m ? `${m} jeu${m > 1 ? "x" : ""} de mimes` : "", p ? `${p} Pictionary` : ""].filter(Boolean).join(" · ");
 }
 $("home-new").onclick = () => editShow(null);
 document.querySelectorAll("#screen-home [data-etat]").forEach((b) => { b.onclick = () => openShows(b.dataset.etat); });
@@ -922,9 +922,9 @@ function editShow(id) {
   $("show-notes").value = s.notes ?? "";
   $("show-defis").value = Array.isArray(s.defis) ? s.defis.join("\n") : "";
   status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
-    : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement."
-    : fusions ? "Les manches Quiz qui se suivaient n'en font plus qu'une (une seule Super Finale, à la fin). Enregistrez pour garder ce changement."
-    : fusionsBlind ? "Les manches de blind test (ou de quiz musical) qui se suivaient n'en font plus qu'une (leurs chansons à la suite). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded || !!fusions || !!fusionsBlind);
+    : folded ? "L'ancien jeu « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement."
+    : fusions ? "Les jeux Quiz qui se suivaient n'en font plus qu'une (une seule Super Finale, à la fin). Enregistrez pour garder ce changement."
+    : fusionsBlind ? "Les jeux de blind test (ou de quiz musical) qui se suivaient n'en font plus qu'une (leurs chansons à la suite). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded || !!fusions || !!fusionsBlind);
   show("show-edit");
   refreshRounds();
   histPrestation.depart();
@@ -1348,7 +1348,7 @@ function mancheMimes(r) {
   });
   // Une manche préparée avant (un paquet, un tirage au lancement) : elle se joue encore telle quelle.
   const ancienne = !tire && (r.deckId || r.random === true || mimeCards(r.cards).length)
-    ? h("p", { class: "small hint mime-ancienne", text: `Manche préparée à l'ancienne : ${mancheSummary(r, { mimes })}, jouée telle quelle. Le 🎲 d'une équipe la remplace par une présélection pour chaque équipe.` })
+    ? h("p", { class: "small hint mime-ancienne", text: `Jeu préparé à l'ancienne : ${mancheSummary(r, { mimes })}, joué tel quel. Le 🎲 d'une équipe la remplace par une présélection pour chaque équipe.` })
     : null;
   return [
     compteur,
@@ -1644,7 +1644,7 @@ function chansonsAilleurs(r) {
   const out = roundCtx.chansons?.() ?? new Map();
   (editing?.rounds ?? []).forEach((x) => {
     if (!x || x === r) return;
-    const nom = ROUND_TYPES[x.type ?? "quiz"] ?? "une autre manche";
+    const nom = ROUND_TYPES[x.type ?? "quiz"] ?? "un autre jeu";
     const noter = (k) => { if (k && !out.has(k)) out.set(k, nom); };
     chansonsDe(x).forEach((id) => { noter(id); noter(songs[id]?.audioId); });
     if (MUSIC_GAMES[x.type]) {
@@ -5299,7 +5299,7 @@ function roundFields(r) {
 
 /** Note de la manche (cedric, 23/10) : pour s'en souvenir, et la retrouver avec « Reprendre une manche ». */
 const noteManche = (r) => h("label", { class: "manche-note" }, "Note",
-  h("input", { type: "text", maxlength: "200", value: r.note ?? "", placeholder: "Pour la retrouver : thème, âge, remarque…", "aria-label": "Note de la manche", oninput: (e) => { r.note = e.target.value; } }));
+  h("input", { type: "text", maxlength: "200", value: r.note ?? "", placeholder: "Pour la retrouver : thème, âge, remarque…", "aria-label": "Note du jeu", oninput: (e) => { r.note = e.target.value; } }));
 
 /** Deux façons de remplir une manche (une source entière, ou des éléments au choix) : deux puces. */
 function modeSwitch(r, byItem, whole, items, set) {
@@ -5566,7 +5566,7 @@ function renderBanqueGalerie() {
   const items = banqueItems();
   const box = $("banque-galerie");
   box.hidden = !items.length;
-  box.querySelector("summary").textContent = `📷 ${plural(items.length, "photo de la banque", "photos de la banque")} : toujours disponibles, à choisir dans les manches`;
+  box.querySelector("summary").textContent = `📷 ${plural(items.length, "photo de la banque", "photos de la banque")} : toujours disponibles, à choisir dans les jeux`;
   const groupes = [...new Set(items.map((x) => x.group))];
   box.querySelector(".galerie").replaceChildren(...groupes.flatMap((g) => [
     h("h3", { class: "content-series", text: g.replace(/^Photos · /, "") }),
@@ -7018,7 +7018,7 @@ function lignesDemos(plan) {
     plan.shows.length ? `${n("shows", "prestation de test", "prestations de test")} : ${plan.shows.map((id) => `« ${showTitle(shows[id])} »`).join(", ")}` : null,
     [n("quizzes", "quiz de démo", "quiz de démo"), n("mimes", "paquet de mimes de démo", "paquets de mimes de démo"), n("playlists", "playlist de démo", "playlists de démo")]
       .filter(Boolean).join(", ") || null,
-    n("manches", "manche gardée pour elles", "manches gardées pour elles"),
+    n("manches", "jeu gardé pour elles", "jeux gardés pour elles"),
     plan.medias.length ? `leurs photos dessinées et comptines (${plural(plan.medias.length, "fichier")})` : null,
   ].filter(Boolean).map((x) => `• ${x}`);
 }
@@ -7351,7 +7351,7 @@ $("mime-save").onclick = async () => {
     histPaquet.enregistre();
     $("mime-delete").hidden = false;
     $("mime-edit-title").textContent = title;
-    status("mime-status", `Enregistré : ${deck.cards.length} carte${deck.cards.length > 1 ? "s" : ""}. Ajoutez-le à une prestation comme manche « Mimes ».`, true);
+    status("mime-status", `Enregistré : ${deck.cards.length} carte${deck.cards.length > 1 ? "s" : ""}. Ajoutez-le à une prestation comme jeu « Mimes ».`, true);
   } catch (err) {
     console.error(err);
     status("mime-status", "Enregistrement refusé : vérifiez Internet ou reconnectez-vous.");
@@ -8403,8 +8403,8 @@ function renderTracks() {
       statues ? null : h("input", { type: "text", class: "track-note", maxlength: 120, placeholder: "Droits (facultatif, pour information)", value: t.rights, "aria-label": "Droits", oninput: (e) => { t.rights = e.target.value; } }));
   }));
   if (!playlist.tracks.length) $("playlist-tracks").append(h("p", { class: "hint small", text: playlist.use === "statues"
-    ? `Aucune chanson rien qu'aux statues pour l'instant. ${statuesChoices(playlists).length === 1 ? "La chanson de vos playlists est déjà proposée dans les manches de statues."
-      : statuesChoices(playlists).length ? `Les ${statuesChoices(playlists).length} chansons de vos playlists sont déjà proposées dans les manches de statues.`
+    ? `Aucune chanson rien qu'aux statues pour l'instant. ${statuesChoices(playlists).length === 1 ? "La chanson de vos playlists est déjà proposée dans les jeux de statues."
+      : statuesChoices(playlists).length ? `Les ${statuesChoices(playlists).length} chansons de vos playlists sont déjà proposées dans les jeux de statues.`
       : "Sans chanson, la TV joue la musique de la fête."}`
     : "Aucun morceau : ajoutez vos fichiers musicaux." }));
 }
@@ -8990,8 +8990,8 @@ async function enregistrerPlaylist() {
     $("playlist-edit-title").textContent = title;
     renderTracks();
     status("playlist-status", (statues
-      ? `Enregistrée : ${plural(playlist.tracks.length, "chanson")}. Cochez-les dans une manche « Statues musicales » de la prestation.`
-      : `Enregistrée : ${playlist.tracks.length} morceau${playlist.tracks.length > 1 ? "x" : ""}. Ajoutez-la à une prestation comme manche « Blind test » ou « Quiz musical ».`) + nonLus, !illisibles.length);
+      ? `Enregistrée : ${plural(playlist.tracks.length, "chanson")}. Cochez-les dans un jeu « Statues musicales » de la prestation.`
+      : `Enregistrée : ${playlist.tracks.length} morceau${playlist.tracks.length > 1 ? "x" : ""}. Ajoutez-la à une prestation comme jeu « Blind test » ou « Quiz musical ».`) + nonLus, !illisibles.length);
     return true;
   } catch (err) {
     console.error(err);
@@ -9739,7 +9739,7 @@ function dessinerQuestions() {
         type: "button", class: `chip${qType === k ? " active" : ""}`, "data-type": k, text: `${label} (${tousTypes.filter(garde).length})`,
         onclick: () => { qType = k; renderQuestions(); },
       }))) : null,
-    qGroupe === "vraifaux" ? h("p", { class: "hint small", text: "Vrai ou Faux express : des affirmations toutes prêtes, à dire vraies ou fausses, sans image. Dans une prestation, le 🎲 de la manche Vrai ou Faux express en tire autant de vraies que de fausses, du niveau choisi." }) : null,
+    qGroupe === "vraifaux" ? h("p", { class: "hint small", text: "Vrai ou Faux express : des affirmations toutes prêtes, à dire vraies ou fausses, sans image. Dans une prestation, le 🎲 du jeu Vrai ou Faux express en tire autant de vraies que de fausses, du niveau choisi." }) : null,
     parNiveau ? h("div", { class: "chips q-niveaux" },
       h("button", { type: "button", class: `chip${qNiveau ? "" : " active"}`, "data-niveau": "tous", text: `Tous les niveaux (${duType.length})`, onclick: () => { qNiveau = null; renderQuestions(); } }),
       ...Object.keys(NIVEAUX_CHIFFRES).map(Number).map((n) => h("button", {
@@ -10842,7 +10842,7 @@ const GAME_GROUPS = [
     { type: "illustre", icon: "📷", rule: "Pour les petits, dès 5 ans : l'animatrice lit la question, chaque réponse est une photo avec son mot, sur la TV et les tablettes. Toutes les équipes qui trouvent marquent, comme au Quiz. Les questions se piochent dans la banque des tout-petits (388 mots en photos) ou se font à la main.",
       status: () => quizTileLine(illustreQuestions), },
     { type: "mimes", icon: "🎭", rule: "Équipe par équipe : un enfant devine, ses coéquipiers miment l'image. 50 points par mime trouvé.",
-      status: () => `${plural(Object.keys(mimes).length, "collection perso", "collections perso")} · ${plural(mancheGroups(manches, "mimes").pinned.length + mancheGroups(manches, "mimes").active.length, "manche")}`, },
+      status: () => `${plural(Object.keys(mimes).length, "collection perso", "collections perso")} · ${plural(mancheGroups(manches, "mimes").pinned.length + mancheGroups(manches, "mimes").active.length, "jeu gardé", "jeux gardés")}`, },
     { type: "blind", icon: "🎵", rule: "Les morceaux d'une playlist, dans l'ordre : le premier qui buzze donne le titre à voix haute, vous validez.",
       status: () => plural(Object.values(playlists).filter((p) => !isStatuesList(p)).length, "playlist"), },
     { type: "musical", icon: "🎶", rule: "Un extrait sur la TV, et sur les pupitres le vrai titre parmi 3 mots de son refrain (modifiables dans la prestation).",
@@ -10855,7 +10855,7 @@ const GAME_GROUPS = [
     { type: "zoom", icon: "🔍", rule: "Une photo d'un quiz ou de la banque se dévoile peu à peu.", needs: "photos" },
     { type: "flou", icon: "🌫", rule: "Une photo d'un quiz ou de la banque devient nette peu à peu, le premier qui buzze répond.", needs: "photos" },
   ] },
-  { title: "Contenu intégré", hint: "Prêts à jouer : la manche tire au hasard dans un catalogue adapté à l'âge. Vous pouvez retirer des éléments et ajouter les vôtres.", games: [
+  { title: "Contenu intégré", hint: "Prêts à jouer : le jeu tire au hasard dans un catalogue adapté à l'âge. Vous pouvez retirer des éléments et ajouter les vôtres.", games: [
     { type: "chante", icon: "🎤" }, { type: "quisuis", icon: "🕵" }, { type: "disparu", icon: "🎩" },
     { type: "pictionary", icon: "✏️", rule: `Équipe par équipe : vous montrez un mot sur la tablette de l'équipe, un enfant le dessine et le dessin s'affiche en direct sur la TV. ${PICTO_POINTS} points si son équipe trouve avant la fin du chrono. Le temps de dessin se choisit dans la prestation.` },
   ] },
@@ -10910,7 +10910,7 @@ function openBuiltin(type) {
   builtinType = type;
   $("builtin-title").textContent = ROUND_TYPES[type];
   const rule = BUILTIN_GAMES[type]?.rule ?? PICTO_RULE;
-  $("builtin-rule").textContent = `${rule[0].toUpperCase()}${rule.slice(1)}. ${type === "pictionary" ? "Chaque tour tire un mot au hasard parmi les mots actifs" : "Chaque manche tire au hasard parmi les éléments actifs ; le nombre se choisit dans la prestation"}. Les éléments marqués « grands » ne sortent pas pour les 6-8 ans.`;
+  $("builtin-rule").textContent = `${rule[0].toUpperCase()}${rule.slice(1)}. ${type === "pictionary" ? "Chaque tour tire un mot au hasard parmi les mots actifs" : "Chaque jeu tire au hasard parmi les éléments actifs ; le nombre se choisit dans la prestation"}. Les éléments marqués « grands » ne sortent pas pour les 6-8 ans.`;
   status("builtin-status", "");
   renderBuiltinForm();
   show("builtin");
@@ -11224,7 +11224,7 @@ const deJeu = (nom) => (/[!?]$/.test(nom) ? `de « ${nom} »` : nom.startsWith("
 function gameTabs(type, active) {
   const tab = (key, text, fn) => h("button", { type: "button", class: `chip${active === key ? " active" : ""}`, "data-tab": key, "aria-pressed": active === key ? "true" : "false", text, onclick: fn });
   return [
-    tab("manches", `Manches ${deJeu(ROUND_TYPES[type])}`, () => openGame(type)),
+    tab("manches", `Jeux gardés ${deJeu(ROUND_TYPES[type])}`, () => openGame(type)),
     COLLECTION_SCREEN[type] ? tab("collections", `Collections (${COLLECTION_UNIT[type][1]})`, () => { gameType = type; COLLECTION_SCREEN[type](); }) : null,
   ].filter(Boolean);
 }
@@ -11264,7 +11264,7 @@ function renderGame() {
   // Les manches se composent dans les prestations (cedric, 21/10) : ici, celles qui y ont été faites, à réutiliser.
   $("game-manche-hint").textContent = SANS_CONTENU.includes(type)
     ? "Rien à préparer : ajoutez ce jeu à une prestation avec « ＋ Ajouter un jeu »."
-    : "Les manches se composent dans une prestation, avec « ＋ Ajouter un jeu ». Chacune est gardée ici toute seule, pour la reprendre dans une autre prestation ; épinglez celles qui marchent bien.";
+    : "Les jeux se composent dans une prestation, avec « ＋ Ajouter un jeu ». Chacun est gardé ici tout seul, pour la reprendre dans une autre prestation ; épinglez ceux qui marchent bien.";
   // Recherche : chaque mot tapé dans le nom ou le contenu de la manche ; les noms qui commencent par elle d'abord.
   const query = $("manche-search").value.trim();
   const lib = { mimes, playlists, quizzes };
@@ -11274,8 +11274,8 @@ function renderGame() {
   $("manches-pinned-box").hidden = !pinned.length;
   $("manches-pinned").replaceChildren(...pinned.map(([id, m]) => mancheCard(id, m)));
   $("manches-list").replaceChildren(...(active.length ? active.map(([id, m]) => mancheCard(id, m))
-    : [h("p", { class: "hint", text: query ? "Aucune de vos manches ne correspond : voir aussi plus bas." : pinned.length ? "Les autres manches s'afficheront ici."
-      : "Aucune manche pour l'instant : elles arrivent ici quand vous composez une prestation." })]));
+    : [h("p", { class: "hint", text: query ? "Aucun de vos jeux gardés ne correspond : voir aussi plus bas." : pinned.length ? "Les autres jeux gardés s'afficheront ici."
+      : "Aucun jeu gardé pour l'instant : ils arrivent ici quand vous composez une prestation." })]));
   $("manches-archived-count").textContent = archived.length;
   $("manches-archived").replaceChildren(...archived.map(([id, m]) => mancheCard(id, m)));
   // Manches déjà placées dans les prestations : on peut les garder comme manches.
@@ -11289,7 +11289,7 @@ function renderGame() {
     $("manches-shows-box").open = fromShows.length > 0;
   }
   const n = pinned.length + active.length + archived.length + fromShows.length;
-  $("manche-search-count").textContent = query ? plural(n, "manche trouvée", "manches trouvées") : "";
+  $("manche-search-count").textContent = query ? plural(n, "jeu trouvé", "jeux trouvés") : "";
   $("manches-shows-count").textContent = fromShows.length;
   // Historique (cedric, 21/10) : chaque manche jouée dans une prestation, la plus récente d'abord ; gardée ou à garder.
   $("manches-shows").replaceChildren(...fromShows.map(([sid, s, r]) => {
@@ -11297,13 +11297,13 @@ function renderGame() {
     return h("div", { class: "item manche-from-show" },
       h("b", { text: showTitle(s) }),
       h("span", { text: [s.date ? dateLabel(s.date) : "", mancheSummary(r, lib)].filter(Boolean).join(" · ") }),
-      gardee ? h("span", { class: "small hint", text: `Gardée : « ${gardee.title} »` })
+      gardee ? h("span", { class: "small hint", text: `Gardé : « ${gardee.title} »` })
         : SANS_CONTENU.includes(type) ? null
           : h("div", { class: "row" }, h("button", {
-            class: "btn secondary", text: "Garder comme manche",
+            class: "btn secondary", text: "Garder ce jeu",
             onclick: async () => {
               const id = await saveManche(null, { type, title: `${ROUND_TYPES[type]} · ${showTitle(s)}`.slice(0, 60), round: cleanRound({ ...r, mancheId: null }, playlists), showId: sid });
-              if (id) status("game-status", "Manche ajoutée à vos manches.", true);
+              if (id) status("game-status", "Jeu ajouté à vos jeux gardés.", true);
             },
           })));
   }));
@@ -11316,16 +11316,16 @@ function mancheCard(id, m) {
   const path = `library/manches/${id}`;
   const flag = (field, on, message) => saveManche(id, { ...m, [field]: on || null }).then((ok) => ok && status("game-status", message, true));
   return h("div", { class: `item manche-card${m.pinned ? " pinned" : ""}${copieRecente(id)}`, "data-manche": id },
-    m.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée" }) : m.origin === "direct" ? h("span", { class: "pill", text: "Jouée en direct" }) : null,
+    m.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglé" }) : m.origin === "direct" ? h("span", { class: "pill", text: "Joué en direct" }) : null,
     h("b", { text: m.title }),
     h("span", { text: mancheSummary(m.round, { mimes, playlists, quizzes }) }),
     m.round?.note ? h("span", { class: "reprise-note", text: `📝 ${m.round.note}` }) : null,
     h("div", { class: "row" },
       h("button", { class: "btn secondary", text: "Éditer", onclick: () => editManche(id) }),
-      h("button", { class: "btn secondary", text: "Renommer", onclick: () => rename(path, m.title, "de la manche") }),
+      h("button", { class: "btn secondary", text: "Renommer", onclick: () => rename(path, m.title, "du jeu") }),
       h("button", { class: "btn secondary", text: "Dupliquer", onclick: () => duplicateManche(m) }),
-      m.archived ? null : h("button", { class: "btn secondary", text: m.pinned ? "☆ Désépingler" : "⭐ Épingler", onclick: () => flag("pinned", !m.pinned, m.pinned ? "Manche désépinglée." : "Manche épinglée : elle est proposée en premier.") }),
-      h("button", { class: "btn secondary", text: m.archived ? "Désarchiver" : "Archiver", onclick: () => flag("archived", !m.archived, m.archived ? "Manche remise dans vos manches." : "Manche archivée.") }),
+      m.archived ? null : h("button", { class: "btn secondary", text: m.pinned ? "☆ Désépingler" : "⭐ Épingler", onclick: () => flag("pinned", !m.pinned, m.pinned ? "Jeu désépinglé." : "Jeu épinglé : il est proposé en premier.") }),
+      h("button", { class: "btn secondary", text: m.archived ? "Désarchiver" : "Archiver", onclick: () => flag("archived", !m.archived, m.archived ? "Jeu remis dans vos jeux gardés." : "Jeu archivé.") }),
       h("button", { class: "btn danger", text: "Supprimer", onclick: () => deleteManche(id, m) })));
 }
 
@@ -11342,7 +11342,7 @@ async function saveManche(id, m) {
     return key;
   } catch (err) {
     console.error(err);
-    await avertir("Enregistrement de la manche refusé : vérifiez Internet ou reconnectez-vous.");
+    await avertir("Enregistrement du jeu refusé : vérifiez Internet ou reconnectez-vous.");
     return null;
   }
 }
@@ -11353,13 +11353,13 @@ async function duplicateManche(m) {
   if (!id) return;
   signalerCopie(id);
   refreshLists();
-  status("game-status", `« ${titreCopie(m.title)} » est ajoutée à vos manches.`, true);
+  status("game-status", `« ${titreCopie(m.title)} » est ajouté à vos jeux gardés.`, true);
 }
 
 async function deleteManche(id, m) {
-  if (!(await confirmer(`Supprimer la manche « ${m.title} » ? Les prestations qui l'ont chargée gardent leur copie.`, { ok: "Supprimer", danger: true }))) return;
+  if (!(await confirmer(`Supprimer le jeu « ${m.title} » ? Les prestations qui l'ont chargée gardent leur copie.`, { ok: "Supprimer", danger: true }))) return;
   await set(ref(db, `library/manches/${id}`), null);
-  status("game-status", "Manche supprimée.", true);
+  status("game-status", "Jeu supprimé.", true);
 }
 
 /** Âge et équipes du tirage d'une manche seule (page du jeu). */
@@ -11383,7 +11383,7 @@ function editManche(id, fresh = null) {
     mancheEdit.round.random = true;
   }
   $("manche-crumb").textContent = ROUND_TYPES[m.type];
-  $("manche-edit-title").textContent = id ? m.title : "Nouvelle manche";
+  $("manche-edit-title").textContent = id ? m.title : "Nouveau jeu";
   $("manche-title").value = m.title ?? "";
   $("manche-title").placeholder = defaultMancheTitle(m.type);
   $("manche-delete").hidden = !id;
@@ -11448,7 +11448,7 @@ $("manche-save").onclick = async () => {
   if (!mancheEdit) return;
   const r = mancheEdit.round;
   if (!roundFilled(r) || (r.type === "mimes" && !r.deckId && !mimeCards(r.cards).length)) {
-    return status("manche-status", r.type === "mimes" ? "Choisissez des cartes, ou « Tirer au hasard »." : "La manche est vide : choisissez son contenu.");
+    return status("manche-status", r.type === "mimes" ? "Choisissez des cartes, ou « Tirer au hasard »." : "Le jeu est vide : choisissez son contenu.");
   }
   const title = $("manche-title").value.trim() || defaultMancheTitle(mancheEdit.type);
   const prev = mancheEdit.id ? manches[mancheEdit.id] ?? {} : {};
@@ -11459,12 +11459,12 @@ $("manche-save").onclick = async () => {
   $("manche-edit-title").textContent = title;
   $("manche-delete").hidden = false;
   histManche.enregistre();
-  status("manche-status", "Manche enregistrée : chargez-la dans une prestation (« Charger une manche… »).", true);
+  status("manche-status", "Jeu enregistré : chargez-le dans une prestation (« ＋ Ajouter un jeu »).", true);
 };
 $("manche-delete").onclick = async () => {
   if (!mancheEdit?.id) return;
   const m = manches[mancheEdit.id];
-  if (!m || !(await confirmer(`Supprimer la manche « ${m.title} » ?`, { ok: "Supprimer", danger: true }))) return;
+  if (!m || !(await confirmer(`Supprimer le jeu « ${m.title} » ?`, { ok: "Supprimer", danger: true }))) return;
   await set(ref(db, `library/manches/${mancheEdit.id}`), null);
   histManche.abandonner();
   openGame(mancheEdit.type);

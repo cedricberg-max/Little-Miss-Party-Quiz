@@ -687,7 +687,7 @@ export function blocsDeJeu(rounds) {
 
 /** Nom proposé pour une nouvelle manche : « Mimes du 20 octobre ». */
 export function defaultMancheTitle(type, date = new Date()) {
-  return `${ROUND_TYPES[type] ?? "Manche"} du ${date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`;
+  return `${ROUND_TYPES[type] ?? "Jeu"} du ${date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`;
 }
 
 /** Cartes à prévoir pour une manche de mimes dans une prestation : par équipe × équipes prévues. */
@@ -703,7 +703,7 @@ export function usedElsewhere(rounds, index, lib = {}) {
   const others = new Map();
   (rounds ?? []).forEach((r, j) => {
     if (j === index || !r) return;
-    fixedConcepts(r, lib.quizzes, lib.mimes, lib.contents).forEach((k) => { if (!others.has(k)) others.set(k, ROUND_TYPES[r.type ?? "quiz"] ?? "une autre manche"); });
+    fixedConcepts(r, lib.quizzes, lib.mimes, lib.contents).forEach((k) => { if (!others.has(k)) others.set(k, ROUND_TYPES[r.type ?? "quiz"] ?? "un autre jeu"); });
   });
   return others;
 }

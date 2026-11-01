@@ -1353,7 +1353,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
   (show.rounds ?? []).filter(Boolean).map((r) => [r, jeuDeLaManche(r, quizzes)]).forEach(([prepare, round], i) => {
     begin(round.type);
     // Une case oubliée sur le 🎲, une chanson supprimée : la manche se joue sans elle, mais « Reste à faire » le dit.
-    trousDuJeu(round, { songs, couleurs: couleursEquipes(show) }).forEach((t) => problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type ?? "quiz"]}) : ${t}.`));
+    trousDuJeu(round, { songs, couleurs: couleursEquipes(show) }).forEach((t) => problems.push(`Jeu n° ${i + 1} (${ROUND_TYPES[round.type ?? "quiz"]}) : ${t}.`));
     if (round.type === "mimes" && mimeEquipes(round).some((l) => l.length)) {
       // Une manche de mimes par équipe (cedric, 23/10), à la suite dans le même jeu : la 1re couleur de la prestation
       // joue la 1re présélection, et ainsi de suite. Chaque équipe ne mime que ses images, pendant un tour.
@@ -1361,7 +1361,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const equipes = mimeEquipes(round);
       const duration = Number.isInteger(round.duration) && round.duration >= 15 && round.duration <= MIME_TURN_MAX ? round.duration : MIME_TURN;
       const vides = couleurs.filter((c, k) => !equipes[k]?.length);
-      if (vides.length) problems.push(`Manche ${i + 1} (Mimes) : ${vides.map((c) => titreMimeEquipe(c).toLowerCase()).join(", ")} sans images (🎲 dans la Régie PC).`);
+      if (vides.length) problems.push(`Jeu n° ${i + 1} (Mimes) : ${vides.map((c) => titreMimeEquipe(c).toLowerCase()).join(", ")} sans images (🎲 dans la Régie PC).`);
       const jouees = couleurs.map((c, k) => [c, equipes[k] ?? []]).filter(([, cartes]) => cartes.length);
       if (!jouees.length) return;
       rounds.push({ title: ROUND_TYPES.mimes, count: jouees.length, kind: "mime" });
@@ -1381,11 +1381,11 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const deck = round.deckId ? mimes[round.deckId] : null;
       if (!deck && round.random !== true && !mimeCards(round.cards).length) {
         // Rien de tiré : « Reste à faire » le dit (cedric, 24/10) ; un paquet effacé depuis, autrement.
-        problems.push((!round.deckId && texteJeuVide(show, i)) || `Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`);
+        problems.push((!round.deckId && texteJeuVide(show, i)) || `Jeu n° ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`);
         return;
       }
       const item = mimeItem(round, deck, i, random, profile, mimes, show.teams, used.mimes, pris);
-      if (!item.cards.length) { problems.push(`Manche ${i + 1} (${item.text}) : aucune carte.`); return; }
+      if (!item.cards.length) { problems.push(`Jeu n° ${i + 1} (${item.text}) : aucune carte.`); return; }
       rounds.push({ title: item.text, count: 1, kind: "mime" });
       questions.push(item);
       return;
@@ -1483,7 +1483,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         .filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))))
         .map((w) => pourLeHasard("pictionary", w)).filter(Boolean);
       const words = chosen.length ? chosen : neufsSiPossible(all.some(fresh) ? all.filter(fresh) : all, concepts, pris, PICTO_MIN_FRESH);
-      if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif${series ? " dans les séries choisies" : ""} (page du jeu dans l'administration).`); return; }
+      if (!words.length) { problems.push(`Jeu n° ${i + 1} (Pictionary) : aucun mot actif${series ? " dans les séries choisies" : ""} (page du jeu dans l'administration).`); return; }
       const duration = PICTO_SECONDS.includes(round.duration) ? round.duration : PICTO_SEC;
       rounds.push({ title: ROUND_TYPES.pictionary, count: 1, kind: "pictionary" });
       questions.push({
@@ -1499,8 +1499,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const playlist = tirees ? chansonsPlaylist(round, songs, round.title)
         : roundTracks(round).length ? tracksPlaylist(roundTracks(round), playlists, round.title) : playlists[round.playlistId];
       if (!playlist) {
-        problems.push(tirees ? `Manche ${i + 1} (${ROUND_TYPES[round.type]}) : ses chansons ne sont plus dans la bibliothèque des sons (touchez 🎲).`
-          : (!round.playlistId && !roundTracks(round).length && texteJeuVide(show, i)) || `Manche ${i + 1} : la playlist n'existe plus dans la bibliothèque.`);
+        problems.push(tirees ? `Jeu n° ${i + 1} (${ROUND_TYPES[round.type]}) : ses chansons ne sont plus dans la bibliothèque des sons (touchez 🎲).`
+          : (!round.playlistId && !roundTracks(round).length && texteJeuVide(show, i)) || `Jeu n° ${i + 1} : la playlist n'existe plus dans la bibliothèque.`);
         return;
       }
       // Quiz musical en séries (cedric, 24/10) : l'ordre du « Quiz musical complet », les mauvaises réponses complétées
@@ -1509,10 +1509,10 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         dansLOrdre: true, autresTitres: Object.values(songs ?? {}).filter(chansonJouable).map((x) => x.title),
       } : {});
       if (round.type === "musical" && list.some((q) => q.choices.length < 2)) {
-        problems.push(`Manche ${i + 1} (${playlist.title}) : il faut au moins 2 morceaux pour proposer des titres.`);
+        problems.push(`Jeu n° ${i + 1} (${playlist.title}) : il faut au moins 2 morceaux pour proposer des titres.`);
         return;
       }
-      if (!list.length) { problems.push(`Manche ${i + 1} (${playlist.title}) : aucun morceau avec un extrait.`); return; }
+      if (!list.length) { problems.push(`Jeu n° ${i + 1} (${playlist.title}) : aucun morceau avec un extrait.`); return; }
       const label = list[0].round;
       rounds.push({ title: label, count: list.length });
       questions.push(...list);
@@ -1543,7 +1543,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         : parPhotos(round, shuffle(builtin.items(profile, random, pool, round, false, pris), random)).slice(0, count);
       picked.forEach((x) => seen.add(game.key(x)));
       if (!picked.length) {
-        problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : aucun ${CONTENT_GAMES[round.type].unit} actif (page du jeu dans l'administration).`);
+        problems.push(`Jeu n° ${i + 1} (${ROUND_TYPES[round.type]}) : aucun ${CONTENT_GAMES[round.type].unit} actif (page du jeu dans l'administration).`);
         return;
       }
       rounds.push({ title: ROUND_TYPES[round.type], count: picked.length });
@@ -1556,7 +1556,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // Photos choisies une par une, dans tous les quiz (la même photo n'est jouée qu'une fois) ; ou en séries
       // (cedric, 23/10 : 🎲, ancien anniversaire, ses séries de photos), dans l'ordre de passage.
       const list = zoomRoundQuestions(round, quizzes);
-      if (!list.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : ${roundSeriesQuiz(round).length ? "aucune photo" : "les photos choisies n'existent plus"}.`); return; }
+      if (!list.length) { problems.push(`Jeu n° ${i + 1} (${ROUND_TYPES[round.type]}) : ${roundSeriesQuiz(round).length ? "aucune photo" : "les photos choisies n'existent plus"}.`); return; }
       const label = ROUND_TYPES[round.type];
       rounds.push({ title: label, count: list.length });
       list.forEach((q, j) => questions.push({
@@ -1593,10 +1593,10 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const zoom = round.type === "zoom";
     const flou = round.type === "flou";
     const game = QUIZ_GAMES[round.type];
-    const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
-    if (choisis.length < ids.length) problems.push(`Manche ${i + 1} : ${ids.length > 1 ? "un des quiz choisis" : "le quiz"} n'existe plus dans la bibliothèque.`);
-    if (series.length && !found[0].questions.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type ?? "quiz"]}) : aucune question.`); return; }
-    if (!quiz) { if (!ids.length) problems.push(texteJeuVide(show, i) ?? `Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
+    const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Jeu n° ${i + 1}`;
+    if (choisis.length < ids.length) problems.push(`Jeu n° ${i + 1} : ${ids.length > 1 ? "un des quiz choisis" : "le quiz"} n'existe plus dans la bibliothèque.`);
+    if (series.length && !found[0].questions.length) { problems.push(`Jeu n° ${i + 1} (${ROUND_TYPES[round.type ?? "quiz"]}) : aucune question.`); return; }
+    if (!quiz) { if (!ids.length) problems.push(texteJeuVide(show, i) ?? `Jeu n° ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
     // Nombre de questions choisi dans la prestation : les premières du quiz, dans son ordre. « 🔁 Rejouer » sur la
     // régie (cedric, 21/10) : jamais une question déjà posée pendant la fête ([avoid].questions).
     const toutes = game ? game.questions(quiz) : playable(quiz);
@@ -1616,7 +1616,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const voulues = limite || restantes.length;
     const list = (sansMesImages ? neufsSiPossible(restantes, questionConcepts, pris, voulues) : restantes).slice(0, limite || undefined);
     if (!list.length) {
-      problems.push(`Manche ${i + 1} (${quiz.title}) : ${!toutes.length ? game?.missing ?? "aucune question validée"
+      problems.push(`Jeu n° ${i + 1} (${quiz.title}) : ${!toutes.length ? game?.missing ?? "aucune question validée"
         : !reprises.length ? "aucune question à reprendre au hasard : au hasard, chaque réponse en photo doit avoir sa photo dans la banque ou son émoji (jamais vos images)"
         : "toutes ses questions ont déjà été posées pendant la fête"}.`);
       return;
@@ -1680,7 +1680,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     questions.length = MAX_QUESTIONS;
   }
   if (!questions.length) {
-    problems.push("Aucune question jouable : ajoutez une manche avec des questions validées.");
+    problems.push("Aucune question jouable : ajoutez un jeu avec des questions validées.");
     return { snapshot: null, problems };
   }
   // Multiplicateur de chaque Super Finale choisi dans la Régie PC (cedric, 23/10), par sa première question : la régie le
@@ -1944,7 +1944,7 @@ export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = 
   else {
     const { snapshot, problems } = buildSnapshot("x", show, quizzes, mimes, Math.random, playlists, contents, {}, songs);
     todo.push(...problems.filter((p) => snapshot || !p.startsWith("Aucune question jouable")));
-    if (!snapshot && !problems.some((p) => p.startsWith("Manche")) && !vides.some((x) => !x.hasard)) todo.push("Valider des questions");
+    if (!snapshot && !problems.some((p) => p.startsWith("Jeu n° ")) && !vides.some((x) => !x.hasard)) todo.push("Valider des questions");
   }
   if (!todo.length && show.status !== "publiee") todo.push("Passer le statut à « À venir »");
   return { level: todo.length ? "a-completer" : "prete", todo, alertes: vides.filter((x) => x.hasard).map((x) => x.texte) };

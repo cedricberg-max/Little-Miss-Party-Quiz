@@ -1583,7 +1583,7 @@ function renderMime(st, teams) {
   const remaining = mimeRemaining(st);
   const done = [...new Set(turns)].filter((id) => live.teams[id]).map(name);
   $("mime-progress").textContent = seule
-    ? done.length ? `Manche de ${lEquipe(titre)} jouée : touchez « ${versClassement(st, "Voir le classement")} ».` : `Manche de ${lEquipe(titre)} : ses ${m.left ?? 0} images`
+    ? done.length ? `Tour de ${lEquipe(titre)} joué : touchez « ${versClassement(st, "Voir le classement")} ».` : `Tour de ${lEquipe(titre)} : ses ${m.left ?? 0} images`
     : !done.length
     ? `À faire passer : ${remaining.map(name).join(", ") || "aucune équipe"}`
     : remaining.length
@@ -2696,7 +2696,7 @@ function gameDetail(r, questions) {
   const q = questions[r.start];
   if (q?.kind === "mime" && couleurMimeEquipe(q.text)) {
     const k = r.end - r.start + 1;
-    return `une manche par équipe (${k}) · ${q.cards?.length ?? 0} images chacune · tour de ${q.duration} s`;
+    return `un tour par équipe (${k}) · ${q.cards?.length ?? 0} images chacune · tour de ${q.duration} s`;
   }
   if (q?.kind === "mime") return `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s par équipe`;
   if (q?.kind === "pictionary") return `un mot par équipe · ${q.duration} s de dessin · ${q.points ?? 150} points`;
@@ -3229,7 +3229,7 @@ function planItem(q, i, current) {
 
 const PROGRAM_MESSAGES = {
   stale: "Le programme venait de changer (autre téléphone ?) : rien n'a été fait, le conducteur est à jour.",
-  current_round: "La manche en cours ne peut pas changer : rien n'a été fait.",
+  current_round: "Le jeu en cours ne peut pas changer : rien n'a été fait.",
   ended: "La partie est terminée : le programme ne change plus.",
   not_now: "Pas possible à cette étape.",
   invalid: "La TV n'a pas pu lire ce programme : rien n'a été fait.",
@@ -3291,7 +3291,7 @@ async function fetchLibrary() {
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
       .flatMap(([id, show]) => (show.rounds ?? []).map((r) => jeuDeLaManche(r, quizzes)).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
         const series = roundSeriesQuiz(round);
-        const title = [...(roundTirees(round).length ? ["Quiz tiré au hasard"] : []), ...roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)].join(" + ") || `Manche ${i + 1}`;
+        const title = [...(roundTirees(round).length ? ["Quiz tiré au hasard"] : []), ...roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)].join(" + ") || `Jeu n° ${i + 1}`;
         // Quiz et Quiz illustré en séries (cedric, 23/10) : le nom du jeu, puis ses séries.
         const label = series.length ? `${ROUND_TYPES[round.type ?? "quiz"]} (${series.length > 1 ? `${series.length} séries` : roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)[0] ?? "1 série"})`
           : QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
@@ -3988,7 +3988,7 @@ function renderPreview() {
   const lobby = st.phase === "lobby";
   const rejeu = enRejeu();
   const after = $("lib-after");
-  after.textContent = editing ? "Envoi à la TV…" : adding ? "Préparation des images…" : rejeu ? "Après le jeu en cours" : lobby ? "Ajouter au début" : "Ajouter après la manche actuelle";
+  after.textContent = editing ? "Envoi à la TV…" : adding ? "Préparation des images…" : rejeu ? "Après le jeu en cours" : lobby ? "Ajouter au début" : "Ajouter après le jeu en cours";
   after.disabled = editing || adding || !questions.length;
   // Rejeu : « ▶ Rejouer maintenant » en premier, « Après le jeu en cours » ensuite (rien à attendre une fois la fête finie).
   after.classList.toggle("main", !rejeu);
@@ -4093,7 +4093,7 @@ async function addPicked(where) {
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
   const now = where === "now";
   const program = insertGame(current, added, now ? "after" : where, index);
-  const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : now || rejeuEnCours ? "après le jeu en cours" : "après la manche en cours";
+  const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : now || rejeuEnCours ? "après le jeu en cours" : "après le jeu en cours";
   const keep = choix.random ? liveManche(choix, title) : null;
   // « ▶ Rejouer maintenant » : le jeu en cours s'arrête là (ses points sont gardés) et la TV ouvre le jeu rejoué.
   const lancer = now ? async () => {
@@ -4126,7 +4126,7 @@ function liveManche({ random, source, questions }, title) {
     set(push(ref(db, "library/manches")), {
       type, title: name || defaultMancheTitle(type), round: cleanRound({ ...round, type, perTeam: null }, library?.playlists ?? {}),
       origin: "direct", createdAt: Date.now(), updatedAt: serverTimestamp(), ...showId,
-    }).catch((e) => console.warn("manche en direct non gardée", e));
+    }).catch((e) => console.warn("jeu en direct non gardé", e));
   };
 }
 
