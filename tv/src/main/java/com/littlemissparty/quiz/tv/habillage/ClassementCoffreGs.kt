@@ -296,7 +296,9 @@ private fun CarteClassementA(
                 modifier = Modifier.widthIn(min = (70f * f).dp),
             )
         }
-        if (joue) PastilleGainA(e.apres - e.avant, f, Modifier.align(Alignment.CenterEnd), t)
+        // Seulement une fois la carte arrivée (tour des écrans à 1-2 équipes, 1/11 : « +300 », « −100 » lus pendant que la
+        // carte glissait encore).
+        if (joue && arrivee) PastilleGainA(e.apres - e.avant, f, Modifier.align(Alignment.CenterEnd), t)
         if (premierFete) CouronneA(f, Modifier.align(Alignment.TopStart), t)
     }
 }
@@ -358,10 +360,10 @@ private fun CouronneA(f: Float, modifier: Modifier, t: () -> Float) {
 /**
  * Place de l'autocollant à droite des cartes (x0 110 + largeur 560) : au plus [AUTOCOLLANT_MAX_DP] de large, même au
  * plus fort du ressort (× 1,16), il reste dans l'écran de 960 (tour des écrans à 3 équipes, 31/10 : « GARDE SA PLACE »
- * touchait le bord).
+ * touchait le bord ; 1/11 à 2 équipes, encore à cheval avec la lueur et la pente : ramené de 235 à 215).
  */
 internal const val AUTOCOLLANT_ECART_DP = 12f
-internal const val AUTOCOLLANT_MAX_DP = 235f
+internal const val AUTOCOLLANT_MAX_DP = 215f
 
 /** Le gros autocollant de l'équipe qui joue, à droite de sa nouvelle ligne : il arrive en ressort et se balance. */
 @Composable

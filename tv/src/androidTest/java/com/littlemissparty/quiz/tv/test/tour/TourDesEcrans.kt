@@ -249,7 +249,11 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
             verifier("simon-a-vous", 600)
         }
         jeu("podium") {
-            assertEquals("applied", regie.commande(code, "end"))
+            // Le Simon écrit encore son état quand « Terminer » part : la régie répond « stale », elle renvoie alors
+            // (tour des écrans à 3 et 6 équipes, 1/11).
+            val reponse = (1..5).asSequence().map { regie.commande(code, "end").also { r -> if (r == "stale") Thread.sleep(800) } }
+                .firstOrNull { it != "stale" }
+            assertEquals("applied", reponse)
             ecran.voit("Bravo à toutes les équipes", 60_000)
             verifier("podium", 1_500)
         }
