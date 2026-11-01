@@ -62,11 +62,19 @@ import kotlinx.coroutines.withContext
 private val NIVEAUX = listOf(5, 8, 12, 18, 26, 38, 56, 80, 120, 170)
 
 /**
+ * Les largeurs de cette question : réglée plus floue dans la Régie PC (flouDepart 2, 3 ou 4 pixels), la photo part
+ * de là puis rejoint les niveaux d'aujourd'hui, dans le même temps de chrono (cedric, 1/11 : « ça se dévoile un peu
+ * plus vite, le temps ne change pas »).
+ */
+internal fun niveauxDe(q: Question): List<Int> =
+    (q.flouDepart?.takeIf { it in 2..4 }?.let { (it..4).toList() } ?: emptyList()) + NIVEAUX
+
+/**
  * Les deux niveaux de la pile (flous de [NIVEAUX], puis la photo nette) fondus l'un dans l'autre pour [niveau]. Avant la
  * révélation, jamais la photo nette : le niveau le plus net reste une petite image agrandie.
  */
-internal fun niveauxAffiches(niveau: Float, revealed: Boolean): Pair<Int, Int> {
-    val max = if (revealed) NIVEAUX.size else NIVEAUX.size - 1
+internal fun niveauxAffiches(niveau: Float, revealed: Boolean, flous: Int = NIVEAUX.size): Pair<Int, Int> {
+    val max = if (revealed) flous else flous - 1
     val bas = niveau.toInt().coerceIn(0, max)
     return bas to (bas + 1).coerceAtMost(max)
 }
@@ -98,7 +106,7 @@ fun chronoRestant(q: Question, state: UiState.Playing): Long {
 }
 
 /** Les photos de plus en plus nettes de l'Image floue ([NIVEAUX] pixels de large), calculées hors de l'écran. */
-private fun niveauxDeFlou(p: Bitmap): List<ImageBitmap> = NIVEAUX.map { w ->
+private fun niveauxDeFlou(p: Bitmap, largeurs: List<Int>): List<ImageBitmap> = largeurs.map { w ->
     val largeur = w.coerceAtMost(p.width)
     val hauteur = (p.height * largeur / p.width.toFloat()).toInt().coerceAtLeast(1)
     Bitmap.createScaledBitmap(p, largeur, hauteur, true).asImageBitmap()
@@ -114,17 +122,19 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     // Photo et niveaux de flou préparés en fond (test du 27/10 au soir : petits blocages au début des questions) ;
     // la photo nette, décodée d'avance par la box, sert de base.
     val nette = rememberPhoto(bytes)
-    val pile by produceState<Pair<ImageBitmap?, List<ImageBitmap>>>(null to emptyList(), nette) {
+    val largeurs = remember(q.id, q.flouDepart) { niveauxDe(q) }
+    val pile by produceState<Pair<ImageBitmap?, List<ImageBitmap>>>(null to emptyList(), nette, largeurs) {
         val p = nette ?: return@produceState
-        value = p to withContext(Photos.fil) { niveauxDeFlou(p.asAndroidBitmap()) }
+        value = p to withContext(Photos.fil) { niveauxDeFlou(p.asAndroidBitmap(), largeurs) }
     }
-    val niveaux = pile.second.takeIf { pile.first === nette && nette != null }.orEmpty()
+    val niveaux = pile.second.takeIf { pile.first === nette && nette != null && it.size == largeurs.size }.orEmpty()
     val total = q.durationMs.coerceAtLeast(1)
     val remaining = chronoRestant(q, state)
     val revealed = state.phase == Phase.REVEAL || state.phase == Phase.SCORES
     val progress = (1f - remaining.toFloat() / total).coerceIn(0f, 1f)
     // Lent au début, plus rapide vers la fin : l'image reste mystérieuse un bon moment.
-    val cible = if (revealed) NIVEAUX.size.toFloat() else (NIVEAUX.size - 1) * progress * progress
+    val flous = largeurs.size
+    val cible = if (revealed) flous.toFloat() else (flous - 1) * progress * progress
     // Une animation par question : partie de la photo nette de la révélation d'avant, elle repassait une fraction de
     // seconde par les niveaux nets sur la nouvelle photo (test du 27/10 au soir : « on l'a vue une fraction de seconde »).
     val anim = remember(q.id) { Animatable(cible) }
@@ -139,7 +149,7 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
         if (nette != null && niveaux.isNotEmpty()) {
             // Fondu entre deux niveaux voisins : la photo se précise en douceur, sans à-coups.
             val pile = niveaux + nette
-            val (bas, haut) = niveauxAffiches(niveau, revealed)
+            val (bas, haut) = niveauxAffiches(niveau, revealed, flous)
             val t = (niveau - bas).coerceIn(0f, 1f)
             Image(
                 pile[bas], contentDescription = "Image floue", contentScale = ContentScale.Crop, alignment = CadrageHaut,

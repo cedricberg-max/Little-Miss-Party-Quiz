@@ -148,6 +148,11 @@ data class Question(
      */
     val zoomDepart: ZoomDepart? = null,
     /**
+     * Image floue : largeur en pixels de la toute première image (2 à 4), réglée dans la Régie PC pour un départ plus flou
+     * (cedric, 1/11) ; null : le flou d'aujourd'hui (5 pixels). La durée totale ne change pas.
+     */
+    val flouDepart: Int? = null,
+    /**
      * Réponses en images (quiz des petits) : une photo par proposition, dans l'ordre des propositions, lue dans
      * games/<code>/choiceImages. Vide : propositions en texte. Une proposition sans photo reste en texte.
      */

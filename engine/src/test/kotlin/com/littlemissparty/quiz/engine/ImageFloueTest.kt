@@ -104,4 +104,24 @@ class ImageFloueTest {
         assertEquals(g.state, replay.state)
         assertEquals(Command.Judge("c", 3, false), Command.decode("c", mapOf("type" to "buzz_ko", "expectSeq" to 3)))
     }
+
+    @Test
+    fun `depart plus flou regle dans la Regie PC, lu par la TV seulement de 2 a 4 pixels`() {
+        // cedric, 1/11 : pouvoir partir encore plus flou ; 5 ou absent, le flou d'aujourd'hui.
+        val quiz = QuizJson.parse(
+            """{"id":"p","questions":[
+               {"id":"a","text":"?","choices":["A","B"],"correct":0,"kind":"flou","imageId":"$photo","flouDepart":{"w":3}},
+               {"id":"b","text":"?","choices":["A","B"],"correct":0,"kind":"flou","imageId":"$photo","flouDepart":{"w":2}},
+               {"id":"c","text":"?","choices":["A","B"],"correct":0,"kind":"flou","imageId":"$photo","flouDepart":{"w":5}},
+               {"id":"d","text":"?","choices":["A","B"],"correct":0,"kind":"flou","imageId":"$photo","flouDepart":{"w":9}},
+               {"id":"e","text":"?","choices":["A","B"],"correct":0,"kind":"flou","imageId":"$photo"},
+               {"id":"f","text":"?","choices":["A","B"],"correct":0,"kind":"zoom","imageId":"$photo","flouDepart":{"w":3}}]}""",
+        )
+        assertEquals(3, quiz.questions[0].flouDepart)
+        assertEquals(2, quiz.questions[1].flouDepart)
+        assertNull(quiz.questions[2].flouDepart, "5 : le flou d'aujourd'hui")
+        assertNull(quiz.questions[3].flouDepart, "hors bornes")
+        assertNull(quiz.questions[4].flouDepart)
+        assertNull(quiz.questions[5].flouDepart, "seulement à l'Image floue")
+    }
 }
