@@ -29,19 +29,27 @@ class NavigationTelecommandeTest : TestTv() {
         ecran.neVoitPas("Arrêter le chrono  ▶")
         ecran.capture("sans-boutons")
 
-        ecran.touche(KeyEvent.KEYCODE_BACK)
-        ecran.ok("🎮 Piloter avec la télécommande : non")
+        piloter("non")
         ecran.voit("🎮 Piloter avec la télécommande : oui")
-        ecran.ok("Continuer la partie")
+        ecran.touche(KeyEvent.KEYCODE_BACK)
         ecran.voit("Arrêter le chrono  ▶")
         ecran.entierementVisible("Arrêter le chrono  ▶")
         ecran.capture("avec-boutons")
 
-        ecran.touche(KeyEvent.KEYCODE_BACK)
-        ecran.ok("🎮 Piloter avec la télécommande : oui")
+        piloter("oui")
         ecran.voit("🎮 Piloter avec la télécommande : non")
-        ecran.ok("Continuer la partie")
+        ecran.touche(KeyEvent.KEYCODE_BACK)
         ecran.neVoitPas("Arrêter le chrono  ▶")
+    }
+
+    /** Menu Retour, flèche du bas jusqu'à « 🎮 Piloter avec la télécommande : [etat] » (sous le bas de l'écran), puis OK. */
+    private fun piloter(etat: String) {
+        ecran.touche(KeyEvent.KEYCODE_BACK)
+        ecran.voit("Continuer la partie")
+        val avant = listOf("Donner des points", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour", "Vider le cache des médias", "🎨 Design : ${Look.design.nom}")
+        avant.forEach { bouton -> ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN); ecran.focusSur(bouton) }
+        ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
+        ecran.ok("🎮 Piloter avec la télécommande : $etat")
     }
 
     @Test
