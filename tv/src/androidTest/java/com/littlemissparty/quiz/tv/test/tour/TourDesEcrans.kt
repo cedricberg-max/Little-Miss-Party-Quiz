@@ -58,8 +58,8 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
         regie.copierPhotoReponse(code, lion, PIXEL_ROUGE)
         val extrait = java.security.MessageDigest.getInstance("SHA-256").digest(EXTRAIT_MP3.toByteArray()).take(8).joinToString("") { "%02x".format(it) }
         regie.copierExtrait(code, extrait, EXTRAIT_MP3)
-        regie.copierPhoto(code, PIE, PhotosRebus.PIE)
-        regie.copierPhoto(code, RAT, PhotosRebus.RAT)
+        regie.copierPhotoReponse(code, PIE, PhotosRebus.PIE)
+        regie.copierPhotoReponse(code, RAT, PhotosRebus.RAT)
         @Suppress("UNCHECKED_CAST")
         val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
         val programme = programme(demo[0], photo, lion, extrait)
