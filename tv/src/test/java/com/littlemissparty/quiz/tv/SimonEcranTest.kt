@@ -191,8 +191,7 @@ class SimonEcranTest {
                 assertTrue("${p.name} dans les verres", pu.g - 4 >= YEUX_X && pu.h - 4 >= YEUX_Y && pu.d + 4 <= YEUX_X + 140 && pu.b + 4 <= YEUX_Y + 112)
             }
             for (morceau in listOf("verres", "pupilles")) {
-                val nom = when (p) { PoseSimon.BAH_ALORS -> "bahalors"; else -> p.name.lowercase() }
-                assertTrue("$nom $morceau", java.io.File("src/main/res/drawable-nodpi/gs_simon_prof_${nom}_$morceau.webp").exists())
+                assertTrue("${p.nom} $morceau", java.io.File("src/main/res/drawable-nodpi/gs_simon_prof_${p.nom}_$morceau.webp").exists())
             }
             assertTrue("${p.name} antenne au-dessus des yeux", p.yeux.antenneY < p.yeux.gauche.h - 100)
         }

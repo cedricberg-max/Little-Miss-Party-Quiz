@@ -6,7 +6,6 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.FilterQuality
@@ -91,6 +90,7 @@ import com.littlemissparty.quiz.tv.habillage.Son
 import com.littlemissparty.quiz.tv.habillage.Sons
 import com.littlemissparty.quiz.tv.habillage.TexteNeon
 import com.littlemissparty.quiz.tv.habillage.apparition
+import com.littlemissparty.quiz.tv.habillage.imageAppli
 import kotlinx.coroutines.delay
 
 /*
@@ -285,25 +285,25 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
 private fun sonSimon(s: Son) = Sons.executer(listOf(Ordre.Jouer(s)))
 
 /** Les poses du robot prof (design du 27/10) : même cadre pour toutes, on passe de l'une à l'autre en fondu. */
-internal enum class PoseSimon(val image: Int, val verres: Int, val pupilles: Int, val yeux: YeuxProf) {
+internal enum class PoseSimon(val nom: String, val yeux: YeuxProf) {
     ATTEND(
-        R.drawable.gs_simon_prof_attend, R.drawable.gs_simon_prof_attend_verres, R.drawable.gs_simon_prof_attend_pupilles,
+        "attend",
         YeuxProf(Pupille(310, 383, 341, 411), Pupille(389, 384, 422, 412), 358, 232),
     ),
     MONTRE(
-        R.drawable.gs_simon_prof_montre, R.drawable.gs_simon_prof_montre_verres, R.drawable.gs_simon_prof_montre_pupilles,
+        "montre",
         YeuxProf(Pupille(310, 383, 341, 411), Pupille(388, 384, 422, 412), 358, 232),
     ),
     CHIFFRES(
-        R.drawable.gs_simon_prof_chiffres, R.drawable.gs_simon_prof_chiffres_verres, R.drawable.gs_simon_prof_chiffres_pupilles,
+        "chiffres",
         YeuxProf(Pupille(309, 340, 341, 374), Pupille(389, 351, 420, 373), 358, 194),
     ),
     BAH_ALORS(
-        R.drawable.gs_simon_prof_bahalors, R.drawable.gs_simon_prof_bahalors_verres, R.drawable.gs_simon_prof_bahalors_pupilles,
+        "bahalors",
         YeuxProf(Pupille(309, 376, 341, 411), Pupille(389, 393, 420, 416), 371, 236),
     ),
     FELICITE(
-        R.drawable.gs_simon_prof_felicite, R.drawable.gs_simon_prof_felicite_verres, R.drawable.gs_simon_prof_felicite_pupilles,
+        "felicite",
         YeuxProf(Pupille(309, 394, 341, 422), Pupille(389, 395, 420, 423), 365, 232),
     ),
 }
@@ -399,9 +399,10 @@ private fun RobotProf(pose: PoseSimon, hauteur: Float, modifier: Modifier) {
         },
     ) {
         Crossfade(pose, Modifier.fillMaxSize(), animationSpec = tween(250), label = "robot-prof") { p ->
-            val image = ImageBitmap.imageResource(p.image)
-            val verres = ImageBitmap.imageResource(p.verres)
-            val pupilles = ImageBitmap.imageResource(p.pupilles)
+            // Décodées une fois pour la soirée (ImagesAppli), jamais à chaque entrée dans l'écran.
+            val image = imageAppli("gs_simon_prof_${p.nom}") ?: return@Crossfade
+            val verres = imageAppli("gs_simon_prof_${p.nom}_verres")
+            val pupilles = imageAppli("gs_simon_prof_${p.nom}_pupilles")
             Canvas(Modifier.fillMaxSize()) {
                 // Tout se dessine en pixels de l'image (954 × 1000) : les morceaux tombent pile au même endroit.
                 scale(size.width / image.width, size.height / image.height, pivot = Offset.Zero) {
@@ -409,7 +410,7 @@ private fun RobotProf(pose: PoseSimon, hauteur: Float, modifier: Modifier) {
                     val y = p.yeux
                     val dx = regard.value * VieDuProf.REGARD_PX
                     val ferme = VieDuProf.paupiere(cligne.value)
-                    if (dx != 0f || ferme != 0f) {
+                    if ((dx != 0f || ferme != 0f) && verres != null && pupilles != null) {
                         // Les verres sans pupilles par-dessus, puis chaque pupille décalée et/ou fermée.
                         drawImage(verres, Offset(YEUX_X.toFloat(), YEUX_Y.toFloat()))
                         for (pu in listOf(y.gauche, y.droite)) pupille(pupilles, pu, dx, ferme)
