@@ -98,7 +98,10 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
         if (Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION) ConfettisLegers(Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (Look.gs) EtapeGs(state.etape ?: "Question ${state.index + 1}", Modifier.weight(1f, fill = false))
+                // Blind test du Game Show : pas d'onglet « Blind test 1 / 3 », le titre et « Morceau 1 / 3 » le disent déjà
+                // (cedric, 1/11 au soir) ; la scène reprend la place.
+                if (Look.gs && q.isBlind) Unit
+                else if (Look.gs) EtapeGs(state.etape ?: "Question ${state.index + 1}", Modifier.weight(1f, fill = false))
                 else Text(
                     state.etape ?: "Question ${state.index + 1}",
                     color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,

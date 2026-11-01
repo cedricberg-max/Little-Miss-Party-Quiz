@@ -164,18 +164,19 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
         // Le nom de la playlist (quand il y en a un) au-dessus du titre, la planche n'en a pas.
         if (playlist.isNotBlank()) TexteJauge(
             playlist, color = Neon.Blanc, fontSize = pxSp(30f), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
-            modifier = Modifier.planche(400f, 150f, ancreX = 0f).apparition(900, playlist),
+            modifier = Modifier.planche(400f, 112f, ancreX = 0f).apparition(900, playlist),
         )
-        // Le titre en Bungee dégradé avec sa note jaune, validé par cedric le 31/10 à 11:12 : 76 px, bord gauche x 400, centre y 222.
-        TitreBlindTest(px(76f), Modifier.planche(400f, 222f, ancreX = 0f).apparition(400, playlist))
-        // L'info en rose, 24 px : bord gauche x 406, centre y 300.
+        // Le titre en Bungee dégradé avec sa note jaune (validé par cedric le 31/10 à 11:12 à 76 px, centre y 222) : plus
+        // d'onglet « Blind test 1 / 3 » au-dessus (cedric, 1/11 au soir), il remonte et grandit un peu : 88 px, centre y 178.
+        TitreBlindTest(px(88f), Modifier.planche(400f, 178f, ancreX = 0f).apparition(400, playlist))
+        // L'info en rose, 28 px : bord gauche x 406, centre y 268.
         TexteJauge(
-            "Morceau 1 / $morceaux · $points points", color = RoseChante, fontSize = pxSp(24f),
+            "Morceau 1 / $morceaux · $points points", color = RoseChante, fontSize = pxSp(28f),
             fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
-            modifier = Modifier.planche(406f, 300f, ancreX = 0f).apparition(1300, playlist),
+            modifier = Modifier.planche(406f, 268f, ancreX = 0f).apparition(1300, playlist),
         )
-        // L'onglet « PRÊTS ? » (299 × 116) : bord gauche x 400, centre y 398.
-        PlaqueAppel(GenrePlaque.BLIND, "PRÊTS ?", "Écoutez bien…", Modifier.planche(400f, 398f, ancreX = 0f).apparition(1700, playlist), k = k)
+        // L'onglet « PRÊTS ? » (299 × 116 à k, ici 12 % plus grand : 335 × 130) : bord gauche x 400, centre y 380.
+        PlaqueAppel(GenrePlaque.BLIND, "PRÊTS ?", "Écoutez bien…", Modifier.planche(400f, 380f, ancreX = 0f).apparition(1700, playlist), k = k * 1.12f)
     }
     }
 }
