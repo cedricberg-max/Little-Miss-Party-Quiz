@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv
 
+import com.littlemissparty.quiz.tv.habillage.allumageNeon
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -42,7 +43,7 @@ class MasqueMimesTest {
 
     @Test
     fun `enseigne des mimes, eteinte puis allumee puis eteinte au debut de chaque cycle, allumee ensuite`() {
-        val a = com.littlemissparty.quiz.tv.habillage::allumageNeon
+        val a: (Float) -> Float = ::allumageNeon
         assertEquals(0.25f, a(0f), 0f)
         assertEquals(1f, a(0.2f), 0f)
         assertEquals(0.3f, a(0.35f), 0f)
