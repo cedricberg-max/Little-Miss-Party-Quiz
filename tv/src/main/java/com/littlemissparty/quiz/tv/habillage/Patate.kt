@@ -65,6 +65,9 @@ import kotlin.math.sin
 
 private val jouerSonPatate: (Son) -> Unit = { Sons.executer(listOf(Ordre.Jouer(it))) }
 
+/** Halo noir doux du Chrono ([HALO_DECOR]), un peu plus large pour les très grandes lettres du BOUM. */
+internal val HALO_BOUM = Shadow(Color.Black, Offset.Zero, 30f)
+
 private val stylePatate = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontWeight = FontWeight.ExtraBold)
 
 /** Place du socle de l'équipe [i] sur [n] : en arc, celles du milieu un peu plus loin (plus haut, plus petites) ; arc plus plat et socles plus petits au-delà de 5 équipes. */
@@ -363,7 +366,8 @@ fun ScenePatate(
                 },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("BOUM !", maxLines = 1, style = stylePatate.copy(fontSize = 80.sp, color = Color(0xFFFFB347), shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 4f), 14f)))
+                // « BOUM ! » et les points perdus détachés du décor par le halo noir doux du Chrono (cedric, 31/10 : ils se fondaient).
+                Text("BOUM !", maxLines = 1, style = stylePatate.copy(fontSize = 80.sp, color = Color(0xFFFFB347), shadow = HALO_BOUM))
                 Text(
                     "La bombe a explosé chez $nomP !", maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.background(Neon.Plaque, RoundedCornerShape(50)).border(3.dp, couleurP, RoundedCornerShape(50)).padding(horizontal = 24.dp, vertical = 5.dp),
@@ -372,7 +376,7 @@ fun ScenePatate(
                 if (pointsPerdus != null) {
                     Text(
                         texteValeur(pointsPerdus) + " POINTS", maxLines = 1,
-                        style = stylePatate.copy(fontSize = 54.sp, color = Color(0xFFFF5A5F), shadow = Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 4f), 16f)),
+                        style = stylePatate.copy(fontSize = 54.sp, color = Color(0xFFFF5A5F), shadow = HALO_BOUM),
                     )
                 }
             }
