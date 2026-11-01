@@ -114,6 +114,50 @@ async function admettreTout(nombre) {
 }
 
 describe("équipes fantômes", () => {
+  /** La TV termine la partie (« Fin de la fête ») et ouvre la suivante : [suite] existe, l'ancienne pointe vers elle. */
+  async function finDeFeteVers(suite) {
+    await set(ref(hostDb(), `games/${suite}`), {
+      hostUid: HOST, regieActive: true, public: { title: "Nouvelle fête" },
+      state: { phase: "lobby", seq: 1, round: 1, scores: {} },
+    });
+    await update(ref(hostDb(), `games/${CODE}/state`), { phase: "ended", endedAt: Date.now(), leftAt: Date.now(), suite });
+  }
+  const lireSuite = async (suite, path) => (await get(ref(hostDb(), `games/${suite}/${path}`))).val();
+
+  test("fin de la fête : les fantômes ne suivent JAMAIS la nouvelle partie tout seuls (cedric, 1/11)", async () => {
+    const page = await ouvrirFantomes(2);
+    try {
+      await admettreTout(2);
+      await finDeFeteVers("SUITE1");
+      await waitFor(async () => (await page.evaluate(() => window.fantomes().map((f) => f.statut))).every((t) => t.startsWith("partie terminée")),
+        "les fantômes s'arrêtent à la fin de la partie");
+      await new Promise((r) => setTimeout(r, 2500));
+      assert.equal(await lireSuite("SUITE1", "joinRequests"), null, "aucune demande d'entrée dans la nouvelle partie");
+      assert.equal(await lireSuite("SUITE1", "teams"), null, "aucune équipe fantôme dans la nouvelle partie");
+      assert.equal(await page.inputValue("#code"), CODE, "le code tapé ne change pas tout seul");
+    } finally {
+      await page.context().close();
+    }
+  });
+
+  test("« Arrêter les fantômes » puis fin de la fête et nouvelle partie : aucun robot nulle part, même une demande en attente", async () => {
+    const page = await ouvrirFantomes(2);
+    try {
+      // Les deux fantômes demandent à entrer, personne ne les a encore acceptés.
+      await waitFor(async () => Object.keys((await read("joinRequests")) ?? {}).length >= 2, "2 demandes d'entrée");
+      await page.click("#arreter");
+      await waitFor(async () => (await read("joinRequests")) === null, "les demandes en attente sont retirées");
+      await finDeFeteVers("SUITE2");
+      await new Promise((r) => setTimeout(r, 2500));
+      assert.equal(await read("teams"), null, "aucune équipe fantôme dans l'ancienne partie");
+      assert.equal(await lireSuite("SUITE2", "joinRequests"), null, "aucune demande dans la nouvelle partie");
+      assert.equal(await lireSuite("SUITE2", "teams"), null, "aucune équipe fantôme dans la nouvelle partie");
+      assert.ok((await page.evaluate(() => window.fantomes().length)) === 0, "plus aucun fantôme sur la page");
+    } finally {
+      await page.context().close();
+    }
+  });
+
   test("3 fantômes entrent, répondent au quiz, buzzent, gonflent, se passent la bombe, ouvrent un coffre et dessinent", async () => {
     const page = await ouvrirFantomes(3);
     const ids = await admettreTout(3);

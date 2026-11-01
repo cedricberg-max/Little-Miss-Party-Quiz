@@ -5,7 +5,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
 import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import {
-  getDatabase, ref, get, set, push, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator, goOffline, goOnline,
+  getDatabase, ref, get, set, remove, push, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator, goOffline, goOnline,
   query, orderByKey, limitToLast,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { SIMON_COULEURS, SIMON_CHIFFRES } from "./simon.js";
@@ -97,12 +97,16 @@ class Fantome {
   }
 
   async demarrer(code) {
+    if (this.arrete) return;
     if (!this.db) Object.assign(this, await connexion(`fantome-${this.i + 1}`));
+    if (this.arrete) return;
     this.code = code;
     this.arreterEcoutes();
     const g = (p) => get(ref(this.db, `games/${code}/${p}`)).then((s) => s.val());
     if (!await g("hostUid")) return this.maj("partie introuvable");
     const teams = (await g("teams")) ?? {};
+    // « Arrêter les fantômes » pendant la connexion : il n'entre nulle part.
+    if (this.arrete) return;
     const mine = this.monEquipe(teams);
     if (mine) { this.teamId = mine; return this.jouer(); }
     if ((await g("state/phase")) === "ended") return this.maj("partie terminée");
@@ -110,8 +114,9 @@ class Fantome {
     this.maj("attend la régie…");
     let demande = false;
     this.ecouter("regieActive", (s) => {
-      if (s.val() !== true || demande) return;
+      if (s.val() !== true || demande || this.arrete) return;
       demande = true;
+      this.demandeEnCours = code;
       set(ref(this.db, `games/${code}/joinRequests/${this.uid}`), { at: serverTimestamp() })
         .then(() => this.attendreEntree())
         .catch(() => this.maj("demande refusée"));
@@ -153,16 +158,20 @@ class Fantome {
     });
     this.ecouter("state", (s) => {
       this.state = s.val();
-      const suite = this.state?.suite;
-      // « 🏁 Fin de la fête » : la TV ouvre une nouvelle partie, les fantômes la suivent comme les tablettes.
-      if (typeof suite === "string" && /^[A-Z0-9]{4,8}$/.test(suite) && suite !== this.code) {
-        this.teamId = null;
-        journal(`${this.nom} suit la nouvelle partie ${suite}`);
-        $("code").value = suite;
-        return this.demarrer(suite);
-      }
+      // Fin de la partie (« 🏁 Fin de la fête », « Terminer la partie ») : les fantômes s'arrêtent là. Ils ne suivent
+      // JAMAIS la partie suivante tout seuls (cedric, 31/10 puis 1/11 : une page restée ouverte entrait dans chaque
+      // nouvelle partie) : ils n'entrent que dans la partie dont on a tapé le code.
+      if (finDePartie(this.state)) return this.quitter();
       this.reagir();
     });
+  }
+
+  /** La partie est finie : plus aucune écoute ni action, la page attend qu'on tape un nouveau code. */
+  quitter() {
+    this.arreterEcoutes();
+    this.teamId = null;
+    journal(`${this.nom} : partie terminée, il ne rejoint rien tout seul`);
+    this.maj("partie terminée · tapez un code pour rejouer");
   }
 
   ecouter(chemin, fn, brut = false) {
@@ -441,15 +450,24 @@ class Fantome {
 
   /** Coupe ou rebranche Internet pour ce fantôme seul (comme une tablette qui perd le wifi). */
   basculerCoupure() {
-    if (!this.db) return;
+    if (!this.db || this.arrete) return;
     this.coupe = !this.coupe;
     if (this.coupe) { goOffline(this.db); journal(`${this.nom} perd la connexion`); } else { goOnline(this.db); journal(`${this.nom} revient`); }
     this.reagir();
   }
 
+  /**
+   * « Arrêter les fantômes » : définitif pour ce fantôme. Plus d'écoute, plus d'action, plus de connexion, et sa demande
+   * d'entrée encore en attente est retirée (sinon la TV ou le téléphone pouvait encore l'accepter après coup).
+   */
   arreter() {
+    this.arrete = true;
     this.arreterEcoutes();
-    if (this.db) goOffline(this.db);
+    const demande = this.demandeEnCours;
+    this.demandeEnCours = null;
+    if (this.db && demande && !this.teamId) {
+      remove(ref(this.db, `games/${demande}/joinRequests/${this.uid}`)).catch(() => {}).finally(() => goOffline(this.db));
+    } else if (this.db) goOffline(this.db);
     this.maj("arrêté");
   }
 
@@ -471,6 +489,11 @@ function gribouillis(n) {
     else p.push(cx - r + 2 * r * t, cy + (k % 2 ? r : -r) * 0.4);
   }
   return { id: `f${n}`, c: n % 6, w: 1, p };
+}
+
+/** Partie finie : terminée, ou la TV a déjà ouvert la suivante (« suite »). Les fantômes n'y suivent jamais personne. */
+export function finDePartie(state) {
+  return state?.phase === "ended" || (typeof state?.suite === "string" && state.suite.length > 0);
 }
 
 // ---------- Entrée automatique (mot de passe régie) ----------
@@ -612,6 +635,8 @@ async function lancer() {
 
 function arreterTout() {
   fantomes.forEach((f) => f.arreter());
+  // Plus aucune entrée automatique en attente : rien ne rentre après « Arrêter ».
+  entrees.file = [];
   if (fantomes.length) journal("Fantômes arrêtés : leurs équipes passent hors ligne");
   fantomes = [];
   afficher();
