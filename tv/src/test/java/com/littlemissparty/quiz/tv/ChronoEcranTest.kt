@@ -88,15 +88,20 @@ class ChronoEcranTest {
 
     @Test
     fun `le clip du lancer part pour que le drap se pose pile au moment tire par la box, les chiffres s'effacent juste avant`() {
-        // Drap à 8 s : le clip part à 2,38 s (Buzzy sort du cadre pendant le tic-tac), le drap se pose à 8 s pile.
+        // Drap à 8 s : Buzzy part chercher le drap à 2,38 s (pendant que les chiffres défilent), le drap se pose à 8 s pile.
         assertEquals(8_000L - LANCER_POSE_MS, departLancer(8_000L))
-        assertEquals(null, tempsLancer(2_000L, 8_000L))
+        assertEquals(2_380L, departLancer(8_000L) + LANCER_PREFIXE_MS)
+        assertEquals(LANCER_PREFIXE_MS - 5_620L, tempsLancer(2_000L, 8_000L))
         assertEquals(LANCER_POSE_MS, tempsLancer(8_000L, 8_000L))
         assertTrue("les chiffres tournent encore pendant que Buzzy va chercher le drap", chiffresVisibles(7_000L, 8_000L))
         assertTrue("le drap couvre le cadran : plus de chiffres", !chiffresVisibles(7_800L, 8_000L))
         assertTrue("effacés avant que le drap ne se pose", LANCER_COUVRE_MS < LANCER_POSE_MS)
-        // Plus petit drap possible (cible 10 s : 3,6 s) : le clip part pendant le décompte, jamais avant « Lancer ».
-        assertTrue(departLancer(3_600L) > -com.littlemissparty.quiz.engine.CHRONO_DECOMPTE_MS)
+        // Buzzy n'est jamais figé (cedric, 1/11) : quel que soit le moment du drap, le clip (ses boucles d'attente) tourne déjà
+        // quand le décompte commence, et le lancer lui-même ne part jamais avant « Lancer ».
+        for (cache in listOf(3_600L, com.littlemissparty.quiz.engine.CHRONO_CACHE_MIN_MS, com.littlemissparty.quiz.engine.CHRONO_CACHE_MAX_MS)) {
+            assertTrue("drap à $cache ms", departLancer(cache) <= -com.littlemissparty.quiz.engine.CHRONO_DECOMPTE_MS)
+            assertTrue("drap à $cache ms", departLancer(cache) + LANCER_PREFIXE_MS > -com.littlemissparty.quiz.engine.CHRONO_DECOMPTE_MS)
+        }
     }
 
     @Test

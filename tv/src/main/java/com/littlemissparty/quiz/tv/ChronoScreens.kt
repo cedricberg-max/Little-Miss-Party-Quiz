@@ -263,10 +263,14 @@ internal fun sonsNouveauxBuzz(buzzes: List<ChronoBuzz>, vus: Int, equipes: List<
 private fun jouerChrono(son: Son, vitesse: Float = 1f, volume: Float = 1f) =
     Sons.executer(listOf(Ordre.Jouer(son, gauche = volume, droite = volume, vitesse = vitesse)))
 
-/** Le tour prêt : le chrono à zéro, la consigne. */
+/** Le tour prêt : le chrono à zéro, Buzzy qui bouge un tout petit peu à côté (cedric, 1/11), la consigne. */
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.ChronoPret(c: ChronoRound) {
-    Cadran(0L, c.cible, null, Modifier.fillMaxSize())
+    var enPanne by remember(c.tour) { mutableStateOf(false) }
+    val boucle = attenteDisponible() && !enPanne
+    Cadran(0L, c.cible, null, Modifier.fillMaxSize(), video = if (!boucle) null else {
+        { ClipAttente({ enPanne = true }, Modifier.fillMaxSize()) }
+    })
     Consigne("Prêts ? Comptez dans votre tête et buzzez à ${c.cible} secondes pile !", Modifier.align(Alignment.BottomCenter).padding(bottom = 60.dp), GS.Rose)
 }
 
