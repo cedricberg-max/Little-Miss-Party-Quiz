@@ -97,10 +97,20 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
             // Une tablette qui perd le Wi-Fi (cedric, 1/11 au soir : « Fantôme 7 » plus petit, puis coupé « Fantô / me 7 ») :
             // le nom garde sa taille, « hors ligne » est à part. La tablette revient avant de répondre.
             val absente = equipes.last()
+            val coupeA = System.currentTimeMillis()
             absente.couperReseau()
             attendreQue("équipe hors ligne", 30_000) { equipes.first().lire("games/$code/presence/${absente.uid}/online").takeIf { it == false } }
             verifier("zoom-hors-ligne", 1_200)
             absente.retablirReseau(code)
+            // Comme en vrai : la coupure d'un pupitre en pleine question met la partie en pause automatique ; Sarah reprend.
+            // (4 s de grâce côté TV : on attend de l'avoir passée pour ne pas reprendre avant la pause).
+            attendreQue("partie reprise", 30_000) {
+                when {
+                    etat().child("paused").value == true -> { regie.commande(code, "resume"); Thread.sleep(500); null }
+                    System.currentTimeMillis() - coupeA < 6_000 -> { Thread.sleep(300); null }
+                    else -> true
+                }
+            }
             equipes.forEachIndexed { i, e -> e.repondre(code, "t-zoom", i % 2) }
             reveler("t-zoom")
             verifier("zoom-revelation", ATTENTE_REVELATION)
@@ -191,7 +201,9 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
                 if ((etat().child("chests/turn").value as Number).toInt() > tour) true
                 else { joueuse.ouvrirCoffre(code, 0); Thread.sleep(800); null }
             }
-            verifier("coffres-ouverture", 1_200)
+            // 600 ms seulement : l'analyse de la capture prend jusqu'à 5 s, et le classement qui suit ne reste que 4 s
+            // (de 4,5 à 8,5 s après l'ouverture) ; à 1,2 s, le tour à 7 équipes l'a manqué (1/11, chest -50).
+            verifier("coffres-ouverture", 600)
             // Le classement entre deux coffres (cedric, 30/10 : les ronds des rangs serrés dans leur carte).
             // Game Show : « LE CLASSEMENT » en capitales ; il ne reste que quelques secondes, capturé dès qu'il paraît.
             attendreQue("classement des coffres", 15_000) { (ecran.affiche("LE CLASSEMENT") || ecran.affiche("Le classement")).takeIf { it } }
