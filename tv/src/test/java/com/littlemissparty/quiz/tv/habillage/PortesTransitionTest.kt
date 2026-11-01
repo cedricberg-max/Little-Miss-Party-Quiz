@@ -29,4 +29,22 @@ class PortesTransitionTest {
         assertTrue(fond > 0 && fond < t.indexOf("Battant(portes.first"))
         assertTrue(t.contains("0.018f * sin(PI.toFloat() * (v - FERMETURE_MS) / REBOND_PORTES_MS)"))
     }
+    /**
+     * Cedric, 1/11 au soir : la « texture métallique à traits » était la lumière du joint, dessinée en 12 bandes qui se
+     * chevauchaient d'un pixel (un trait clair tous les douzièmes de l'écran, vu sur le film de l'émulateur).
+     */
+    @Test
+    fun `lumiere du joint d'un seul trait, fondu haut et bas continu, plus aucune bande`() {
+        val t = File("src/main/java/com/littlemissparty/quiz/tv/habillage/Transitions.kt").readText()
+        assertFalse(t.contains("val bandes = 12"))
+        assertFalse(t.contains("for (b in 0 until bandes)"))
+        assertTrue(t.contains("drawRect(MasqueJoint, blendMode = BlendMode.DstIn)"))
+        assertTrue(t.contains("compositingStrategy = CompositingStrategy.Offscreen"))
+        // Profil : 1 au milieu, 0,65 en haut et en bas, sans marche entre deux arrêts voisins.
+        org.junit.Assert.assertEquals(1f, profilJoint(0f), 1e-6f)
+        org.junit.Assert.assertEquals(0.65f, profilJoint(-1f), 1e-6f)
+        org.junit.Assert.assertEquals(0.65f, profilJoint(1f), 1e-6f)
+        assertTrue(ARRETS_JOINT.size >= 17)
+        ARRETS_JOINT.zipWithNext().forEach { (a, b) -> assertTrue(kotlin.math.abs(a.second - b.second) < 0.05f) }
+    }
 }

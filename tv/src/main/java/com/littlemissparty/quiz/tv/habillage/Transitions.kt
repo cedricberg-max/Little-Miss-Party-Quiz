@@ -33,8 +33,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
@@ -291,24 +293,45 @@ private fun Battant(image: ImageBitmap, modifier: Modifier) {
 @Composable
 private fun LumieresDuJoint(ms: () -> Float, dureeMs: Long) {
     Box(
-        Modifier.fillMaxSize().drawBehind {
+        // Calque à part : le fondu du haut et du bas s'applique à toute la lumière d'un coup ([MasqueJoint]).
+        Modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawBehind {
             val v = ms()
             val k = size.width / 1920f
+            var lumiere = false
             if (v >= FERMETURE_MS && v < FERMETURE_MS + 420f) {
-                colonne(10f + 30f * (v - FERMETURE_MS) / 420f, k, TEINTE_PORTES, 0.85f * exp(-(v - FERMETURE_MS) / 150f))
+                lumiere = colonne(10f + 30f * (v - FERMETURE_MS) / 420f, k, TEINTE_PORTES, 0.85f * exp(-(v - FERMETURE_MS) / 150f)) || lumiere
             }
             val u = (v - (dureeMs - OUVERTURE_MS)) / OUVERTURE_MS
             if (u in 0f..1f) {
-                colonne(30f + 260f * u, k, TEINTE_PORTES, 0.55f * sin(PI.toFloat() * minOf(1f, u * 1.4f)).coerceAtLeast(0f).pow(0.8f))
-                colonne(8f + 60f * u, k, Color.White, 0.7f * (1f - u))
+                lumiere = colonne(30f + 260f * u, k, TEINTE_PORTES, 0.55f * sin(PI.toFloat() * minOf(1f, u * 1.4f)).coerceAtLeast(0f).pow(0.8f)) || lumiere
+                lumiere = colonne(8f + 60f * u, k, Color.White, 0.7f * (1f - u)) || lumiere
             }
+            if (lumiere) drawRect(MasqueJoint, blendMode = BlendMode.DstIn)
         },
     )
 }
 
-/** Colonne de lumière verticale au milieu de l'écran : demi-largeur gaussienne [largeur] (px d'un écran 1920 × [k]). */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.colonne(largeur: Float, k: Float, couleur: Color, a: Float) {
-    if (a <= 0.01f) return
+/**
+ * Profil vertical de la lumière du joint : un peu moins forte en haut et en bas (1 − 0,35·y², y de −1 en haut à 1 en
+ * bas), sans aucune marche.
+ */
+internal fun profilJoint(y: Float): Float = 1f - 0.35f * y * y
+
+/** Le profil en dégradé continu (17 arrêts), appliqué d'un seul trait sur toute la hauteur. */
+internal val ARRETS_JOINT: List<Pair<Float, Float>> = List(17) { i -> val t = i / 16f; t to profilJoint(t * 2f - 1f) }
+
+private val MasqueJoint = Brush.verticalGradient(*ARRETS_JOINT.map { (t, a) -> t to Color.White.copy(alpha = a) }.toTypedArray())
+
+/**
+ * Colonne de lumière verticale au milieu de l'écran : demi-largeur gaussienne [largeur] (px d'un écran 1920 × [k]),
+ * sur toute la hauteur, d'un seul rectangle. Vrai si elle a été dessinée.
+ * Cedric, 31/10 et 1/11 : une « texture métallique à traits » à la réouverture des portes. C'était cette lumière :
+ * dessinée en 12 bandes qui se chevauchaient d'un pixel, elle traçait un trait plus clair tous les douzièmes de
+ * l'écran (vu sur le film de l'émulateur : traits à y = 60, 120, 180… sur 720). Le fondu du haut et du bas est
+ * maintenant un dégradé continu posé sur tout le calque ([MasqueJoint]).
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.colonne(largeur: Float, k: Float, couleur: Color, a: Float): Boolean {
+    if (a <= 0.01f) return false
     val l = largeur * k
     val x = size.width / 2f
     val pas = List(13) { i -> (i - 6) / 2f }
@@ -316,13 +339,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.colonne(largeur: Fl
         *pas.map { p -> ((p + 3f) / 6f) to couleur.copy(alpha = exp(-p * p)) }.toTypedArray(),
         startX = x - 3f * l, endX = x + 3f * l,
     )
-    // Un peu moins forte en haut et en bas (1 − 0,35·y²), par bandes trop fines pour se voir.
-    val bandes = 12
-    val h = size.height / bandes
-    for (b in 0 until bandes) {
-        val y = (b + 0.5f) / bandes * 2f - 1f
-        drawRect(brosse, Offset(x - 3f * l, b * h), androidx.compose.ui.geometry.Size(6f * l, h + 1f), alpha = (a * (1f - 0.35f * y * y)).coerceIn(0f, 1f))
-    }
+    drawRect(brosse, Offset(x - 3f * l, 0f), androidx.compose.ui.geometry.Size(6f * l, size.height), alpha = a.coerceIn(0f, 1f))
+    return true
 }
 
 /** Petit rebond à l'arrivée (léger dépassement, puis retour à 1). */
