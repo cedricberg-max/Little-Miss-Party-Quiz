@@ -179,3 +179,37 @@ body.regie-gs {
   .regie-gs .vitrine .vitrine-titre { font-size: 8px; }
   .regie-gs .vitrine-buzzy { width: 76px; }
 }
+
+/*
+ * L'affichage suit la largeur de l'écran (cedric, 01/11), pas son orientation :
+ * - écran large (les bandes à gauche et à droite font plus de 220 px) : un Buzzy discret, fondu, dans chaque bande ;
+ *   l'image n'est chargée que là ;
+ * - téléphone, debout ou couché (jusqu'à 940 px de large) : seulement le milieu, texte un peu plus gros.
+ */
+.bord-buzzy { display: none; }
+@media (min-width: 1640px) {
+  .regie-gs .bord-buzzy {
+    --bande: calc((100vw - 1200px) / 2);
+    --large: min(560px, calc(var(--bande) - 48px));
+    display: block; position: fixed; bottom: 0; z-index: -1; pointer-events: none;
+    width: var(--large); height: min(82vh, 800px);
+    background: url("img/buzzy-fier.webp") no-repeat center bottom / contain;
+    opacity: .3; filter: saturate(.8);
+  }
+  .regie-gs .bord-buzzy.gauche { left: calc((var(--bande) - var(--large)) / 2); }
+  .regie-gs .bord-buzzy.droite { right: calc((var(--bande) - var(--large)) / 2); transform: scaleX(-1); }
+  .regie-gs.buzzy-fort .bord-buzzy { opacity: .5; filter: saturate(1); }
+}
+@media (max-width: 940px) {
+  .regie-gs main { zoom: 1.1; }
+  .regie-gs .brand small { display: none; }
+  /* La barre du bas tient sur une ligne : Enregistrer · Annuler · ← Retour. */
+  .regie-gs .retour-barre.bas { gap: 6px; justify-content: flex-end; }
+  .regie-gs .retour-barre.bas .btn { padding: 10px 14px; font-size: 15px; white-space: nowrap; }
+  .regie-gs .retour-barre.bas .status { flex: 1 1 100%; }
+  .regie-gs .retour-barre .suite-longue { display: none; }
+}
+/* Téléphone couché (peu de hauteur) : l'en-tête ne suit pas l'écran, la place va au contenu. */
+@media (max-width: 940px) and (max-height: 520px) {
+  .regie-gs header { position: static; }
+}
