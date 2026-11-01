@@ -18,6 +18,7 @@ import { ecranPatate } from "./patate.js";
 import { ecranSimon, noteSimon } from "./simon.js";
 import { afficherMotsDePasse } from "./oeil.js";
 import { ouvrirScanner } from "./scanner.js";
+import { feter, fermerFete, ecranSousFete, prechargerFetes } from "./fete-buzzy.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -180,6 +181,8 @@ function show(name) {
     if (AWAKE_SCREENS.has(name)) setAwake(true);
     else if (SLEEP_SCREENS.has(name)) setAwake(false);
   }
+  // Buzzy en plein écran : il laisse la place dès que l'écran du jeu change (une question n'est jamais cachée).
+  if (ecranSousFete() && ecranSousFete() !== name) fermerFete();
   if (lastScreen === name) return;
   lastScreen = name;
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === `screen-${name}`));
@@ -514,6 +517,7 @@ function waitForAdmission(text = "L'animatrice vous fait entrer dans la partie d
     done = true;
     clearTimeout(refusal);
     teamId = mine;
+    bienvenueAFeter = true;
     setTimeout(play, 0); // hors de l'écouteur en cours, qui sera débranché par play()
     return true;
   };
@@ -547,6 +551,7 @@ onAwakeChange((awake) => {
 function play() {
   stopListening();
   retenirPartie();
+  if (lookGs) prechargerFetes();
   // Game Show : les mots de Daft Punk se chargent dès l'entrée dans l'équipe, prêts pour le tout premier buzz (la
   // tablette n'est plus touchée avant : l'animatrice l'a fait entrer depuis son téléphone, cedric 24/10).
   if (lookGs) {
@@ -640,6 +645,11 @@ function render() {
   $("play-intro").hidden = true;
   $("chante-mot").hidden = true;
   $("play-status").classList.remove("fete");
+  afficherPhase(st);
+  momentsDeFete(st);
+}
+
+function afficherPhase(st) {
   switch (st.phase) {
     case "question":
     case "closed":
@@ -664,6 +674,51 @@ function render() {
     default:
       return renderLobby(st);
   }
+}
+
+/**
+ * Buzzy en plein écran (fete-buzzy.js, cedric 01/11, point 43) : les moments validés sur la planche. Game Show seulement ;
+ * chaque moment une seule fois (clé = partie + question) ; jamais sur un écran où l'équipe doit toucher quelque chose.
+ */
+let bienvenueAFeter = false;
+let phaseVue = null;
+function fete(nom, cle, sous = null) {
+  if (!lookGs || document.body.classList.contains("regie-mode")) return false;
+  return feter(nom, `${code}:${cle}`, lastScreen, sous);
+}
+function momentsDeFete(st) {
+  const avant = phaseVue;
+  phaseVue = st.phase;
+  if (!lookGs) return;
+  const q = `${st.qid ?? ""}:${st.index ?? ""}`;
+  if (bienvenueAFeter) {
+    bienvenueAFeter = false;
+    if (st.phase === "lobby") return fete("bienvenue", `bienvenue:${teamId}`, `${game.teams[teamId]?.name ?? "L'équipe"}, vous êtes dans la fête !`);
+  }
+  if (avant === "lobby" && st.phase === "intro") return fete("parti", "parti");
+  if (st.phase === "question" && BUZZ_KINDS.includes(st.kind) && st.buzz?.team === teamId) return fete("premiers", `premiers:${q}:${st.round ?? ""}`);
+  if (st.phase === "closed" && (st.kind === "number" || st.kind === "chrono")) return fete("roulement", `roulement:${q}`);
+  if (st.phase !== "reveal" && st.phase !== "scores") return;
+  const ok = st.awards?.[teamId]?.correct === true;
+  let nom = null;
+  let sous = null;
+  if (st.mime) nom = (st.mime.counts?.[teamId] ?? 0) > 0 ? "trouve" : null;
+  else if (st.kind === "coffres") {
+    const gains = st.chests?.gains ?? {};
+    const meilleur = Math.max(0, ...Object.values(gains).map(Number).filter(Number.isFinite));
+    nom = st.phase === "scores" && meilleur > 0 && Number(gains[teamId]) === meilleur ? "gagne" : null;
+  } else if (!ok || st.kind === "patate") nom = null;
+  else if (st.kind === "gonfleur") { nom = "gagne"; sous = "Votre ballon a gagné !"; }
+  else if (st.kind === "statues") nom = "statues";
+  else if (st.kind === "duel") nom = "duel";
+  else if (st.kind === "chrono") nom = "chrono";
+  else if (st.kind === "number") { nom = "points"; sous = game.myAnswer?.choice === st.correct ? "Pile le bon nombre !" : "Le plus proche !"; }
+  else if (st.kind === "blind" || /musical/i.test(st.game?.title ?? "")) nom = "chanson";
+  else if (BUZZ_KINDS.includes(st.kind)) nom = "points";
+  else nom = "bonne";
+  if (nom && fete(nom, `resultat:${q}`, sous)) return;
+  // Fin d'un jeu (dernière question de la série) : petite pause pendant que l'animatrice prépare la suite.
+  if (st.phase === "scores" && st.game?.n != null && st.game.n === st.game.of) fete("pause", `pause:${st.game.title ?? ""}:${q}`);
 }
 
 function renderLobby(st) {
@@ -1781,10 +1836,12 @@ function renderEnded(st) {
   if (attente) {
     $("e-rank").textContent = "Le grand gagnant est…";
     $("e-total").textContent = "Regardez la télé !";
+    fete("podium", `podium:${st.endedAt ?? ""}`);
     finHandle = setTimeout(() => { if (game.state === st) renderEnded(st); }, reste + 50);
     return;
   }
   const { mine, rank } = rankOf(st.scores);
+  fete("merci", `merci:${st.endedAt ?? ""}`);
   $("e-rank").textContent = rank === 1 ? "Vous avez gagné !" : `${rank}e place`;
   $("e-total").textContent = `${mine} points`;
 }

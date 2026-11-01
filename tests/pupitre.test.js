@@ -1237,6 +1237,44 @@ describe("pupitre", () => {
     await inconnue.context().close();
   });
 
+  test("Buzzy en plein écran (cedric, 01/11) : bienvenue, bonne réponse ; jamais par-dessus une question, une seule fois, rien de coupé", async () => {
+    const page = await openPupitre("&look=gs");
+    await joinTeam(page, "Les Licornes");
+    const fete = page.locator(".fete-buzzy");
+    await page.locator('.fete-buzzy[data-fete="bienvenue"]').waitFor();
+    assert.match(await fete.locator(".fete-sous").textContent(), /Les Licornes, vous êtes dans la fête/);
+    // Rien de coupé ni hors de l'écran : tablette debout, couchée, téléphone dans les deux sens.
+    for (const [width, height] of [[800, 1280], [1280, 800], [412, 860], [860, 412]]) {
+      await page.setViewportSize({ width, height });
+      const boites = await page.evaluate(() => [".fete-mot", ".fete-video", ".fete-sous"].map((s) => {
+        const e = document.querySelector(`.fete-buzzy ${s}`); const r = e.getBoundingClientRect();
+        return { s, l: r.left, t: r.top, r: r.right, b: r.bottom, coupe: e.scrollWidth > e.clientWidth + 1 };
+      }));
+      for (const x of boites) {
+        assert.ok(x.l >= 0 && x.t >= 0 && x.r <= width + 0.5 && x.b <= height + 0.5 && !x.coupe, `${x.s} tient dans ${width}×${height} : ${JSON.stringify(x)}`);
+      }
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    // Une question s'ouvre : Buzzy laisse la place tout de suite.
+    const uid = (await page.locator("#screen-waiting").getAttribute("data-device"));
+    await hostState(question());
+    await page.locator("#screen-question.active").waitFor();
+    await fete.waitFor({ state: "detached", timeout: 1000 });
+    await page.locator(".choice").nth(1).click();
+    await waitFor(async () => (await read(`answers/q1/${uid}`)) != null, "réponse enregistrée");
+    await hostState(question({ phase: "reveal", correct: 1, awards: { [uid]: { correct: true, points: 100, bonus: 0 } }, scores: { [uid]: 100 } }));
+    await page.locator('.fete-buzzy[data-fete="bonne"] .fete-mot', { hasText: "BONNE RÉPONSE !" }).waitFor();
+    // 3 secondes, puis la tablette revient seule sur son résultat.
+    await fete.waitFor({ state: "detached", timeout: 5000 });
+    await page.locator("#r-title", { hasText: "Bravo ! +100 points" }).waitFor();
+    // Rechargée, la tablette ne rejoue pas la même fête.
+    await page.reload();
+    await page.locator("#screen-result.active").waitFor();
+    await new Promise((r) => setTimeout(r, 800));
+    assert.equal(await fete.count(), 0, "la même fête ne se rejoue pas");
+    await page.context().close();
+  });
+
   test("pendant la pause, impossible de répondre", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
