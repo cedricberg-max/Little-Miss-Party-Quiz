@@ -1,0 +1,650 @@
+{
+ "manquants": [],
+ "restants": [],
+ "sources": {
+  "rebus-pain": [
+   {
+    "n": 1,
+    "titre": "File:Bread-breakfast-baguette-sliced (24244220141).jpg",
+    "auteur": "www.Pixel.la Free Stock Photos",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Bread-breakfast-baguette-sliced_(24244220141).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Bread-food-bowl-baguette (24243445311).jpg",
+    "auteur": "www.Pixel.la Free Stock Photos",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Bread-food-bowl-baguette_(24243445311).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Baguette-246424.jpg",
+    "auteur": "cocoparisienne",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Baguette-246424.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Baguette en épi.jpg",
+    "auteur": "Jberkel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Baguette_en_%C3%A9pi.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Baguette-177858.jpg",
+    "auteur": "heiteu",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Baguette-177858.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Baguette and Classic Breakfast - Harrisons Of Hove.jpg",
+    "auteur": "Andy Li",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Baguette_and_Classic_Breakfast_-_Harrisons_Of_Hove.jpg",
+    "source": "commons"
+   }
+  ],
+  "rebus-rat": [
+   {
+    "n": 1,
+    "titre": "File:Pet white fancy rat.JPG",
+    "auteur": "John Ruby, aka Satyadasa at en.wikipedia",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pet_white_fancy_rat.JPG",
+    "source": "commons"
+   }
+  ],
+  "rebus-roue": [
+   {
+    "n": 1,
+    "titre": "File:Car tire tracks in snow under sodium light.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Car_tire_tracks_in_snow_under_sodium_light.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:The tire wheel of Mercedes-Benz C200 STATIONWAGON Sports (S205).JPG",
+    "auteur": "Tokumeigakarinoaoshima",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:The_tire_wheel_of_Mercedes-Benz_C200_STATIONWAGON_Sports_(S205).JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:The tire wheel of Mercedes-Benz A45 AMG 4MATIC Performance Studio Special (W176).JPG",
+    "auteur": "Tokumeigakarinoaoshima",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:The_tire_wheel_of_Mercedes-Benz_A45_AMG_4MATIC_Performance_Studio_Special_(W176).JPG",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Tire showing tread separation on automobile.jpg",
+    "auteur": "CZmarlin  — Christopher Ziemnowicz, releases all rights but a photo credit would be appreciated if this image is used anywhere other than Wikipedia. Please leave a note at Wikipedia here. Thank you!",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tire_showing_tread_separation_on_automobile.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:CL7R 03.jpg",
+    "auteur": "Jacksonpuaminghow",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:CL7R_03.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Wheel of car.jpg",
+    "auteur": "Iorisrandombses5001",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Wheel_of_car.jpg",
+    "source": "commons"
+   }
+  ],
+  "rebus-patte": [
+   {
+    "n": 1,
+    "titre": "File:Asimina triloba3.jpg",
+    "auteur": "Scott Bauer, USDA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Asimina_triloba3.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Paw Paw (Asimina triloba) flower buds.jpg",
+    "auteur": "Abigail Staffelbach",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Paw_Paw_(Asimina_triloba)_flower_buds.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Chopped Pawpaw (Asimina triloba) Fruit.jpg",
+    "auteur": "Ñandu09",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Chopped_Pawpaw_(Asimina_triloba)_Fruit.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Asimina triloba pollination.jpg",
+    "auteur": "DickClarkMises",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Asimina_triloba_pollination.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Pawpaw (Asimina triloba) Tree with Fruit at Night.jpg",
+    "auteur": "Ñandu09",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pawpaw_(Asimina_triloba)_Tree_with_Fruit_at_Night.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Pawpaw (Asimina triloba) Ripe Fruit Cross Section.jpg",
+    "auteur": "Ñandu09",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pawpaw_(Asimina_triloba)_Ripe_Fruit_Cross_Section.jpg",
+    "source": "commons"
+   }
+  ],
+  "rebus-carte": [
+   {
+    "n": 1,
+    "titre": "File:Playing Card, Ace of Hearts, late 19th century (CH 18405265).jpg",
+    "auteur": "Made by B.P. Grimaud",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Playing_Card,_Ace_of_Hearts,_late_19th_century_(CH_18405265).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Playing Card, Ace of Diamonds, late 19th century (CH 18405287).jpg",
+    "auteur": "Made by B.P. Grimaud",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Playing_Card,_Ace_of_Diamonds,_late_19th_century_(CH_18405287).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Playing Card, Ace of Clubs, late 19th century (CH 18405309).jpg",
+    "auteur": "Made by B.P. Grimaud",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Playing_Card,_Ace_of_Clubs,_late_19th_century_(CH_18405309).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Playing Card, Ace of Spades, late 19th century (CH 18405261).jpg",
+    "auteur": "Made by B.P. Grimaud",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Playing_Card,_Ace_of_Spades,_late_19th_century_(CH_18405261).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Portuguese-style Maltese card game with dragons. Ace of Coins.jpg",
+    "auteur": "Andrea Inferrera",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Portuguese-style_Maltese_card_game_with_dragons._Ace_of_Coins.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Russian style ace of clubs.jpg",
+    "auteur": "Dondorf GmbH (Germany)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Russian_style_ace_of_clubs.jpg",
+    "source": "commons"
+   }
+  ],
+  "rebus-lac": [
+   {
+    "n": 1,
+    "titre": "File:Mountain Lake Park Maryland from Book of the Royal Blue April 1909 Vol 12 No 07 Page 09.jpg",
+    "auteur": "Baltimore &amp; Ohio Railroad Company",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mountain_Lake_Park_Maryland_from_Book_of_the_Royal_Blue_April_1909_Vol_12_No_07_Page_09.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Moraine Lake 17092005.jpg",
+    "auteur": "Gorgo",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Moraine_Lake_17092005.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Lake Mountain Landscape.jpg",
+    "auteur": "Bonnie Moreland",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Lake_Mountain_Landscape.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Smith Mountain Lake February 2025.jpg",
+    "auteur": "Bernini123",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Smith_Mountain_Lake_February_2025.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:View of Blue Mountain Lake from Mt. Magazine Lodge.jpg",
+    "auteur": "Profmarv",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:View_of_Blue_Mountain_Lake_from_Mt._Magazine_Lodge.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Mountain Lake Park - San Francisco, CA - 1.jpg",
+    "auteur": "Daderot",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Mountain_Lake_Park_-_San_Francisco,_CA_-_1.jpg",
+    "source": "commons"
+   }
+  ],
+  "rebus-veau": [
+   {
+    "n": 1,
+    "titre": "File:Bison Cow and Calf (42111612312).jpg",
+    "auteur": "GrandTetonNPS",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bison_Cow_and_Calf_(42111612312).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Cow and calf K9486-1.jpg",
+    "auteur": "Scott Bauer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Cow_and_calf_K9486-1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Wall painting - cow with calf and cow milking scene Tempera painting on clay and straw - Museo Egizio, Turin S 14354 13 p05.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Wall_painting_-_cow_with_calf_and_cow_milking_scene_Tempera_painting_on_clay_and_straw_-_Museo_Egizio,_Turin_S_14354_13_p05.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Footprints of a cow and its calf Tamilnadu, India.jpg",
+    "auteur": "Sindugab",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Footprints_of_a_cow_and_its_calf_Tamilnadu,_India.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Wall painting - cow with calf and cow milking scene Tempera painting on clay and straw - Museo Egizio, Turin S 14354 13 p06.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Wall_painting_-_cow_with_calf_and_cow_milking_scene_Tempera_painting_on_clay_and_straw_-_Museo_Egizio,_Turin_S_14354_13_p06.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Wall painting - cow with calf and cow milking scene Tempera painting on clay and straw - Museo Egizio, Turin S 14354 13 p02.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Wall_painting_-_cow_with_calf_and_cow_milking_scene_Tempera_painting_on_clay_and_straw_-_Museo_Egizio,_Turin_S_14354_13_p02.jpg",
+    "source": "commons"
+   }
+  ],
+  "rebus-bras": [
+   {
+    "n": 1,
+    "titre": "File:Biceps (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Biceps_(PSF).png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Gray — musculus biceps brachii.png",
+    "auteur": "Henry Vandyke Carter",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Gray_%E2%80%94_musculus_biceps_brachii.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Proximal rupture repair.png",
+    "auteur": "Whoisjohngalt",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Proximal_rupture_repair.png",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Braus 1921 167.png",
+    "auteur": "Braus, Hermann",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Braus_1921_167.png",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Braus 1921 163.png",
+    "auteur": "Braus, Hermann",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Braus_1921_163.png",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Braus 1921 169.png",
+    "auteur": "Braus, Hermann",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Braus_1921_169.png",
+    "source": "commons"
+   }
+  ],
+  "rebus-gant": [
+   {
+    "n": 1,
+    "titre": "File:Rubber Glove 1938 SLNSW FL9613382.jpg",
+    "auteur": "Ray Olson",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rubber_Glove_1938_SLNSW_FL9613382.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Technician mounting glove on Hoshides EMU during SSATA training for Expedition 32.jpg",
+    "auteur": "Mark Sowa",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Technician_mounting_glove_on_Hoshides_EMU_during_SSATA_training_for_Expedition_32.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:HEUraniumC.jpg",
+    "auteur": "Unspecified",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:HEUraniumC.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Ruhe (Repose) from Ein Handschuh (A Glove). Cyclus von zehn Compositionen radirt. Rad. Opus VI, Plate VIII. First edition MET DP334015.jpg",
+    "auteur": "Max Klinger",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ruhe_(Repose)_from_Ein_Handschuh_(A_Glove)._Cyclus_von_zehn_Compositionen_radirt._Rad._Opus_VI,_Plate_VIII._First_edition_MET_DP334015.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Clara Löfgren Still life with flowers binoculars and white gloves on the table.jpg",
+    "auteur": "Clara Löfgren (Swedish, 1843-1923)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Clara_L%C3%B6fgren_Still_life_with_flowers_binoculars_and_white_gloves_on_the_table.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Pilgrim's Badge with Becket's Gloves MET tr248-20-2002s2.jpeg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pilgrim%27s_Badge_with_Becket%27s_Gloves_MET_tr248-20-2002s2.jpeg",
+    "source": "commons"
+   }
+  ],
+  "rebus-fee": [
+   {
+    "n": 1,
+    "titre": "File:StateLibQld 1 167747 Girls from Milton College, Warwick, Queensland, in fancy dress, 1900.jpg",
+    "auteur": "Poulsen, W. H.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:StateLibQld_1_167747_Girls_from_Milton_College,_Warwick,_Queensland,_in_fancy_dress,_1900.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Near east relief lawn fete LCCN2016828049.jpg",
+    "auteur": "National Photo Company Collection",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Near_east_relief_lawn_fete_LCCN2016828049.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Near east relief lawn fete LCCN2016828048.jpg",
+    "auteur": "National Photo Company Collection",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Near_east_relief_lawn_fete_LCCN2016828048.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:A group portrait at Rosherville Gardens, Northfleet RMG G02346.tiff",
+    "auteur": "F C Gould &amp; Son",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:A_group_portrait_at_Rosherville_Gardens,_Northfleet_RMG_G02346.tiff",
+    "source": "commons"
+   }
+  ],
+  "rebus-toit": [
+   {
+    "n": 1,
+    "titre": "File:Broken red roof tiles 3.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Broken_red_roof_tiles_3.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Broken black roof tiles 2.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Broken_black_roof_tiles_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Broken red and black roof tiles 2.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Broken_red_and_black_roof_tiles_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Roof Tiles Outside St Mary and St Chad's Church, Brewood.jpg",
+    "auteur": "MagicRubberDuck",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Roof_Tiles_Outside_St_Mary_and_St_Chad%27s_Church,_Brewood.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Roof tiles with lichen.jpg",
+    "auteur": "Øyvind Holmstad",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Roof_tiles_with_lichen.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Graduated Spanish Roof Tiles.tif",
+    "auteur": "Wolsey Garnet Worcester",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Graduated_Spanish_Roof_Tiles.tif",
+    "source": "commons"
+   }
+  ],
+  "rebus-nez": [
+   {
+    "n": 1,
+    "titre": "File:Millicent Fawcett.jpg",
+    "auteur": "Adam Cuerden",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Millicent_Fawcett.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Alexei Leonov.jpg",
+    "auteur": "This image or video was catalogued by Lyndon B. Johnson Space Center of the United States National Aeronautics and Space Administration (NASA) under Photo ID: S74-20824.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Alexei_Leonov.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Upclose photo of a female ocicat's face.jpg",
+    "auteur": "Ljhlusko",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Upclose_photo_of_a_female_ocicat%27s_face.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:KC-10A Boyou Babe Nose Art.jpeg",
+    "auteur": "SPEC. Joe Moore",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:KC-10A_Boyou_Babe_Nose_Art.jpeg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Song of the nose (NYPL Hades-609646-1997139).jpg",
+    "auteur": "Scan by NYPL",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Song_of_the_nose_(NYPL_Hades-609646-1997139).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Song of the nose (NYPL Hades-609646-1256597).jpg",
+    "auteur": "Scan by NYPL",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Song_of_the_nose_(NYPL_Hades-609646-1256597).jpg",
+    "source": "commons"
+   }
+  ],
+  "rebus-cage": [
+   {
+    "n": 1,
+    "titre": "File:View over the garden square Artisplein with bird cage; free photo Amsterdam, Fons Heijnsbroek, 10-2022.jpg",
+    "auteur": "Fons Heijnsbroek",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:View_over_the_garden_square_Artisplein_with_bird_cage;_free_photo_Amsterdam,_Fons_Heijnsbroek,_10-2022.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Jeanne-Elisabeth Chaudet - A young girl kneeling by a bird cage while tending to her birds.jpg",
+    "auteur": "Jeanne-Élisabeth Chaudet",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Jeanne-Elisabeth_Chaudet_-_A_young_girl_kneeling_by_a_bird_cage_while_tending_to_her_birds.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Caged Bird in Tree.jpg",
+    "auteur": "no credited illustrator, author Alfred Gatty (1809-1873), published by Bell and Daldy, London",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Caged_Bird_in_Tree.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Bird's cage 1939 SLNSW FL1389324.jpg",
+    "auteur": "Sam Hood",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bird%27s_cage_1939_SLNSW_FL1389324.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:EMMA SOYER The escape - a young girl with a bird cage, 1836.jpg",
+    "auteur": "Emma Soyer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:EMMA_SOYER_The_escape_-_a_young_girl_with_a_bird_cage,_1836.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:The Pima Indians - pg 102b.png",
+    "auteur": "Frank Russell",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Pima_Indians_-_pg_102b.png",
+    "source": "commons"
+   }
+  ],
+  "rebus-vase": [
+   {
+    "n": 1,
+    "titre": "File:Carnival glass vase.jpg",
+    "auteur": "Dave Pape",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Carnival_glass_vase.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Morgan Vase glass version by Hobbs, Brockunier and Company.jpg",
+    "auteur": "J. H. Hobbs, Brockunier and Company",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Morgan_Vase_glass_version_by_Hobbs,_Brockunier_and_Company.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Tangerine vase by Whitefrairs Glass Works, V&A London.jpg",
+    "auteur": "14GTR",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Tangerine_vase_by_Whitefrairs_Glass_Works,_V%26A_London.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Glass Vase (49320596312).jpg",
+    "auteur": "Jonas Salcedo",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Glass_Vase_(49320596312).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Jan Davidsz. de Heem - Bouquet in a Glass Vase - WGA11272.jpg",
+    "auteur": "Jan Davidsz. de Heem",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Jan_Davidsz._de_Heem_-_Bouquet_in_a_Glass_Vase_-_WGA11272.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Dante Marioni vase Feb 2026.jpg",
+    "auteur": "MauraWen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dante_Marioni_vase_Feb_2026.jpg",
+    "source": "commons"
+   }
+  ]
+ }
+}
