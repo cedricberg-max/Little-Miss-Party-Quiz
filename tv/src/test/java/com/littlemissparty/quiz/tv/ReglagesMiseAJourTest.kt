@@ -19,7 +19,7 @@ class ReglagesMiseAJourTest {
     }
 
     @Test
-    fun `Mi Box en Android 9, seule la permission d'installer compte`() {
+    fun `box en Android 9, seule la permission d'installer compte`() {
         assertEquals(listOf(Reglage.INSTALLER), ReglagesMiseAJour.manquants(false, 28, false, false))
         assertEquals(emptyList<Reglage>(), ReglagesMiseAJour.manquants(true, 28, false, false))
         assertTrue(ReglagesMiseAJour.seRouvreSeule(28, peutSAfficher = false))

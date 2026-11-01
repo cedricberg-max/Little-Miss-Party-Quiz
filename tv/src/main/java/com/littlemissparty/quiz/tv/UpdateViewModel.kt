@@ -565,7 +565,7 @@ class InstallReceiver : BroadcastReceiver() {
 }
 
 /**
- * Après une mise à jour, l'appli se relance seule sur la TV : toujours en Android 9 (Mi Box) ; à partir d'Android 10,
+ * Après une mise à jour, l'appli se relance seule sur la TV : toujours en Android 9 ; à partir d'Android 10,
  * Android ne le permet que si le réglage « Afficher par-dessus d'autres applis » est accordé ([Reglage.RELANCER]).
  */
 class UpdatedReceiver : BroadcastReceiver() {

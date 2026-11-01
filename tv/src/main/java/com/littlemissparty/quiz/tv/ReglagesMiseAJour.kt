@@ -14,7 +14,7 @@ enum class Reglage {
 
     /**
      * « Afficher par-dessus les autres applis » : depuis Android 10, c'est le seul moyen pour une appli de se rouvrir
-     * toute seule juste après sa mise à jour (la box de cedric est en Android 14 ; la Mi Box en Android 9 n'en a pas
+     * toute seule juste après sa mise à jour (box de cedric en Android 14, Mi Box en Android 11 ; seules les box en Android 9 n'en ont pas
      * besoin). Facultatif : si la box n'a pas ce réglage, on ne le redemande pas.
      */
     RELANCER,
