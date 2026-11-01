@@ -50,7 +50,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -496,25 +495,23 @@ fun RevelationPictionary(
     }
 }
 
-/** Cœur du néon : la couleur de l'équipe éclaircie, pour que les lettres « brillent » sur leur lueur. */
-internal const val NEON_NOM_COEUR = 0.35f
-/** Lueur de la couleur de l'équipe autour des lettres (avant le 1/11 : 0,7 et 26). */
-internal const val NEON_NOM_LUEUR = 34f
+/** Lueur proche des lettres, pleine couleur de l'équipe (avant le 1/11 : une seule lueur, à 0,7 et 26). */
+internal const val NEON_NOM_LUEUR = 16f
+/** Lueur large autour, pleine couleur aussi : les deux ensemble font le néon qui se voit de loin. */
+internal const val NEON_NOM_LUEUR_LARGE = 40f
 
 /**
- * Nom de l'équipe du Pictionary en néon (point 33, cedric 1/11) : deux fois le même texte, l'un sur l'autre. Dessous, la
- * couleur de l'équipe avec le halo noir doux qui la détache du décor ; dessus, le néon (cœur éclairci, lueur pleine de
- * la couleur). Jamais de cadre.
+ * Nom de l'équipe du Pictionary en néon (point 33, cedric 1/11 : « comme avant », dans la couleur de l'équipe, mais
+ * plus fort et plus contrasté) : le même texte trois fois, l'un sur l'autre, toujours dans la couleur pure de l'équipe.
+ * Dessous, le halo noir doux qui le détache du décor ; puis la lueur large ; dessus, la lueur proche. Jamais de cadre.
  */
 @Composable
 internal fun NomNeonPictionary(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
     val base = TextStyle(fontFamily = PoliceLmp, fontSize = 64.sp, fontWeight = FontWeight.Black, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, textAlign = TextAlign.Center)
     Box(modifier, contentAlignment = Alignment.Center) {
-        // Le calque du dessous n'est pas lu (un seul nom pour l'accessibilité et les tests).
+        // Les calques du dessous ne sont pas lus (un seul nom pour l'accessibilité et les tests).
         Text(equipe, color = couleur, maxLines = 1, overflow = TextOverflow.Ellipsis, style = base.copy(shadow = HALO_DECOR), modifier = Modifier.clearAndSetSemantics {})
-        Text(
-            equipe, color = lerp(couleur, Color.White, NEON_NOM_COEUR), maxLines = 1, overflow = TextOverflow.Ellipsis,
-            style = base.copy(shadow = Shadow(couleur, Offset.Zero, NEON_NOM_LUEUR)),
-        )
+        Text(equipe, color = couleur, maxLines = 1, overflow = TextOverflow.Ellipsis, style = base.copy(shadow = Shadow(couleur, Offset.Zero, NEON_NOM_LUEUR_LARGE)), modifier = Modifier.clearAndSetSemantics {})
+        Text(equipe, color = couleur, maxLines = 1, overflow = TextOverflow.Ellipsis, style = base.copy(shadow = Shadow(couleur, Offset.Zero, NEON_NOM_LUEUR)))
     }
 }

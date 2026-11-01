@@ -56,8 +56,10 @@ class HaloDecorTest {
         val neon = src.substringAfter("internal fun NomNeonPictionary(").substringBefore("\n}\n")
         assertTrue(neon, "shadow = HALO_DECOR" in neon)
         assertTrue(neon, "Shadow(couleur, Offset.Zero, NEON_NOM_LUEUR)" in neon)
-        assertTrue(NEON_NOM_LUEUR > 26f)
-        assertTrue(NEON_NOM_COEUR in 0.2f..0.5f)
+        assertTrue(neon, "Shadow(couleur, Offset.Zero, NEON_NOM_LUEUR_LARGE)" in neon)
+        // Couleur pure de l'équipe partout (plus de cœur éclairci, qui la délavait), lueurs pleines, plus fortes qu'avant.
+        assertTrue(neon, "lerp(" !in neon && "alpha" !in neon)
+        assertTrue(NEON_NOM_LUEUR_LARGE > 26f && NEON_NOM_LUEUR in 8f..26f)
         assertTrue("jamais de cadre", "background(" !in neon && "border(" !in neon)
     }
 
