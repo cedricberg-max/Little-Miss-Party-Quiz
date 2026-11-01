@@ -39,6 +39,13 @@ let finSansOutro = false;
 let countdownTimer = null;
 let unsubscribers = [];
 let live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, requests: {}, connected: true };
+// Coupure du téléphone (cedric, 31/10 : 43 s sans régie, « je n'ai pas quitté l'appli ») : la page dit à la box quand elle
+// passe en arrière-plan (appli quittée, écran éteint, autre appli). Une coupure qui suit une page cachée n'est pas le
+// réseau ; une coupure page affichée, si. La box l'écrit dans ses rapports.
+let presenceRegie = null;
+document.addEventListener("visibilitychange", () => {
+  if (presenceRegie && live.connected) update(presenceRegie, { cachee: document.visibilityState === "hidden" }).catch(() => {});
+});
 /** Appareils dont la demande d'entrée est en cours de traitement par la box. */
 const admitting = new Set();
 let answersUnsub = null;
@@ -515,8 +522,9 @@ function control() {
     // Présence du téléphone (cedric, 30/10) : la box compte ses coupures dans ses rapports, comme celles des tablettes.
     if (!live.connected) return;
     const presence = ref(db, `games/${code}/regiePresence/${uid}`);
+    presenceRegie = presence;
     onDisconnect(presence).set({ online: false, at: serverTimestamp() })
-      .then(() => set(presence, { online: true, at: serverTimestamp() }))
+      .then(() => set(presence, { online: true, at: serverTimestamp(), cachee: document.visibilityState === "hidden" }))
       .catch(() => { /* téléphone plus relié à cette partie */ });
   });
   listen(`games/${code}/regie/${uid}`, (s) => {

@@ -147,6 +147,10 @@ describe("équipes", () => {
     await assertFails(set(ref(db("tel"), `games/${CODE}/regiePresence/autre`), { online: true, at: serverTimestamp() }));
     await assertFails(set(ref(db("tel"), `games/${CODE}/regiePresence/tel`), { online: "oui", at: serverTimestamp() }));
     await assertFails(set(ref(db("tel"), `games/${CODE}/regiePresence/tel`), { online: true, at: serverTimestamp(), nom: "Sarah" }));
+    // Page passée en arrière-plan (appli quittée, écran éteint) : signalée à la box, oui ou non seulement.
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/regiePresence/tel`), { online: true, at: serverTimestamp(), cachee: false }));
+    await assertSucceeds(update(ref(db("tel"), `games/${CODE}/regiePresence/tel`), { cachee: true }));
+    await assertFails(update(ref(db("tel"), `games/${CODE}/regiePresence/tel`), { cachee: "oui" }));
   });
 });
 

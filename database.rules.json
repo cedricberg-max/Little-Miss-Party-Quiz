@@ -240,6 +240,9 @@
           "$uid": {
             ".write": "auth != null && auth.uid === $uid && root.child('games').child($code).child('regie').child($uid).exists()",
             ".validate": "newData.hasChildren(['online', 'at']) && newData.child('online').isBoolean() && newData.child('at').isNumber()",
+            "cachee": {
+              ".validate": "newData.isBoolean()"
+            },
             "$other": {
               ".validate": "$other === 'online' || $other === 'at'"
             }

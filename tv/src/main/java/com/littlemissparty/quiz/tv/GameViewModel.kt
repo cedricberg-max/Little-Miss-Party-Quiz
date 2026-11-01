@@ -2299,7 +2299,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Le téléphone de la régie signale sa présence : ses coupures vont dans les rapports, comme celles des tablettes.
         observe(ref.child("regiePresence")) { snap ->
             val maintenant = System.currentTimeMillis()
-            snap.children.forEach { c -> c.key?.let { coupures.vu(REGIE_COUPURE + it, c.child("online").getValue(Boolean::class.java) == true, maintenant) } }
+            snap.children.forEach { c ->
+                c.key?.let {
+                    coupures.vu(
+                        REGIE_COUPURE + it, c.child("online").getValue(Boolean::class.java) == true, maintenant,
+                        cachee = c.child("cachee").getValue(Boolean::class.java) ?: false,
+                    )
+                }
+            }
         }
         observe(ref.child("regie")) { snap ->
             val uids = snap.children.mapNotNull { it.key }.toSet()
