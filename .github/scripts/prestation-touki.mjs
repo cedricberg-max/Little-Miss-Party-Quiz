@@ -18,11 +18,14 @@ const COMPLETE = process.env.QUOI === "complete";
 // QUOI=epstein (cedric, 30/10) : « Anniversaire Epstein », la même pour la TV 0.1.831 (tous les jeux, Simon et Duel
 // compris, le plus possible d'images des packs).
 // QUOI=diddy (cedric, 31/10) : « Anniversaire P Diddy », la même pour la version du 31/10, le Chrono de Buzzy en plus.
-const DIDDY = process.env.QUOI === "diddy" || /^menage4/.test(process.env.MODE ?? "");
+// QUOI=guy (cedric, 1er/11) : « Anniversaire Guy Georges », la même pour la version du 1er/11 ; le ménage (menage4)
+// garde désormais celle-ci et compte P Diddy parmi les prestations de test.
+const GUY = process.env.QUOI === "guy" || /^menage4/.test(process.env.MODE ?? "");
+const DIDDY = process.env.QUOI === "diddy" || GUY;
 const EPSTEIN = process.env.QUOI === "epstein" || DIDDY;
 const MARCO = process.env.QUOI === "marco" || EPSTEIN;
 const COURTE = process.env.QUOI === "courte" || MARCO;
-const ID = DIDDY ? "anniversaire-p-diddy" : EPSTEIN ? "anniversaire-epstein" : MARCO ? "anniversaire-marco-mouly" : COURTE ? "prestation-test-courte" : COMPLETE ? "prestation-test-complete" : "prestation-test-touki-touki";
+const ID = GUY ? "anniversaire-guy-georges" : DIDDY ? "anniversaire-p-diddy" : EPSTEIN ? "anniversaire-epstein" : MARCO ? "anniversaire-marco-mouly" : COURTE ? "prestation-test-courte" : COMPLETE ? "prestation-test-complete" : "prestation-test-touki-touki";
 const base = JSON.parse(readFileSync("firebase-config.json", "utf8")).databaseURL.replace(/\/$/, "");
 // LIBRAIRIE=<fichier JSON { quizzes, contents }> : essai local, sans rien lire ni écrire en ligne.
 const locale = process.env.LIBRAIRIE ? JSON.parse(readFileSync(process.env.LIBRAIRIE, "utf8")) : null;
@@ -97,11 +100,11 @@ if ((process.env.MODE === "menage3" || process.env.MODE === "menage3ecrire") && 
 if ((process.env.MODE === "menage4" || process.env.MODE === "menage4ecrire") && !locale) {
   const shows = (await get("library/shows")) ?? {};
   const manches = (await get("library/manches")) ?? {};
-  if (!shows[ID]) { console.log("« Anniversaire P Diddy » n'existe pas encore : rien n'est effacé."); process.exit(1); }
+  if (!shows[ID]) { console.log("« Anniversaire Guy Georges » n'existe pas encore : rien n'est effacé."); process.exit(1); }
   const jour = (t) => (typeof t === "number" ? new Date(t).toISOString().slice(0, 16).replace("T", " ") + "Z" : "?");
   const autres = Object.entries(shows).filter(([id, x]) => x && id !== ID);
   const vraie = ([, x]) => `${x.date ?? ""}` >= "2026-12-01";
-  const test = ([id, x]) => /^(test-|prestation-test-|anniversaire-(epstein|marco-mouly)$)/.test(id) || x.origine === "test" || /test|🧪/i.test(`${x.title ?? ""}`);
+  const test = ([id, x]) => /^(test-|prestation-test-|anniversaire-(epstein|marco-mouly|p-diddy)$)/.test(id) || x.origine === "test" || /test|🧪/i.test(`${x.title ?? ""}`);
   for (const [id, x] of autres) console.log(`${vraie([id, x]) ? "Gardée (date de vraie fête)" : test([id, x]) ? "Test, à effacer" : "Pas un test connu, gardée"} : ${test([id, x]) ? id : "(sans nom)"} · date ${x.date ?? "?"} · ${x.status ?? "?"} · ${(Array.isArray(x.rounds) ? x.rounds : Object.values(x.rounds ?? {})).length} jeux · créée ${jour(x.createdAt)} · modifiée ${jour(x.updatedAt)}`);
   const acceptees = new Set(`${process.env.QUOI ?? ""}`.split(",").map((x) => x.trim()).filter(Boolean));
   const effacees = autres.filter((e) => !vraie(e) && test(e)).map(([id]) => id).filter((id) => process.env.MODE === "menage4" || acceptees.has(id));
@@ -216,7 +219,10 @@ const rounds = [
 ].filter(Boolean).map((r) => cleanRound(r));
 
 const demain = new Date(Date.now() + 864e5).toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" });
-const show = DIDDY
+const show = GUY
+  ? { childName: "Guy Georges", age: 9, teams: 4, date: isoDay(), status: "publiee", title: "Anniversaire Guy Georges", rounds,
+    notes: "Prestation de test (1er/11) : tous les jeux, Simon, Duel et Chrono de Buzzy compris, séries courtes, images des packs d'abord." }
+  : DIDDY
   ? { childName: "P Diddy", age: 9, teams: 4, date: isoDay(), status: "publiee", title: "Anniversaire P Diddy", rounds,
     notes: "Prestation de test (31/10) : tous les jeux, Simon, Duel et Chrono de Buzzy compris, séries courtes, images des packs d'abord." }
   : EPSTEIN

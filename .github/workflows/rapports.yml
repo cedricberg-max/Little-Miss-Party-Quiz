@@ -24,7 +24,7 @@ on:
         description: "Prestation de test : « apercu » ou « ecrire » (ajoute, ne remplace ni n'efface rien) ; « menage4 » liste ce qui serait effacé, « menage4ecrire » efface les prestations de test nommées dans quoi"
         default: ""
       quoi:
-        description: "Avec touki : « diddy » (Anniversaire P Diddy, 31/10) ; avec menage4ecrire, les prestations à effacer, séparées par des virgules"
+        description: "Avec touki : « guy » (Anniversaire Guy Georges, 1er/11), « diddy » (31/10) ; avec menage4ecrire, les prestations à effacer, séparées par des virgules"
         default: ""
       noms:
         description: "Captures à afficher, séparées par des virgules"
