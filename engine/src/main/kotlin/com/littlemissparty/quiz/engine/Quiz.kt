@@ -117,7 +117,15 @@ enum class QuestionKind(val code: String) {
      * ⏱️ Le Chrono de Buzzy : le chrono de la TV part, Buzzy le cache sous un drap, les équipes comptent dans leur tête et
      * buzzent à la cible ; la plus proche gagne le tour (voir [ChronoRound]). Rien à préparer que la cible et les tours.
      */
-    CHRONO("chrono");
+    CHRONO("chrono"),
+
+    /**
+     * 🧩 Le Rébus (cedric, 1/11) : un mot coupé en morceaux qui se prononcent ([Question.cards], dans l'ordre : une photo,
+     * un émoji ou une lettre / un chiffre en néon par morceau, et ce qu'il fait entendre). Les morceaux se dévoilent un à
+     * un au fil du chrono, comme les indices du Qui suis-je ? ; la première équipe qui buzze dit le mot et l'animatrice
+     * valide. Plus on trouve tôt, plus on gagne ([Scoring.rebus]). Réponse unique : [Question.choices] contient le mot.
+     */
+    REBUS("rebus");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -224,10 +232,11 @@ data class Question(
             // Mimes : durée du tour réglée à la seconde près dans la Régie PC (cedric, 26/10), jusqu'à 5 minutes.
             require(durationSec in 15..MAX_MIME_TURN_SEC) { "Mimes $id : tour entre 15 et $MAX_MIME_TURN_SEC s" }
             require(points == null || points in 1..MAX_TRACK_POINTS) { "Pictionary $id : valeur entre 1 et $MAX_TRACK_POINTS points" }
-        } else if (kind == QuestionKind.CHANTE || kind == QuestionKind.QUISUIS || kind == QuestionKind.BLIND) {
+        } else if (kind == QuestionKind.CHANTE || kind == QuestionKind.QUISUIS || kind == QuestionKind.BLIND || kind == QuestionKind.REBUS) {
             // Réponse orale jugée par l'animatrice : une seule réponse attendue, pas de propositions à l'écran.
             require(choices.size == 1 && choices[0].isNotBlank() && correct == 0) { "Question $id : une seule réponse attendue" }
             require(kind != QuestionKind.QUISUIS || cards.size in 2..MAX_CLUES) { "Qui suis-je $id : il faut 2 à $MAX_CLUES indices" }
+            require(kind != QuestionKind.REBUS || cards.size in 2..MAX_REBUS) { "Rébus $id : il faut 2 à $MAX_REBUS morceaux" }
             require(cards.none { it.word.isBlank() }) { "Question $id : indice vide" }
             require(durationSec in 10..120) { "Question $id : durée entre 10 et 120 s" }
             require(points == null || points in 1..MAX_TRACK_POINTS) { "Blind test $id : valeur entre 1 et $MAX_TRACK_POINTS points" }
@@ -297,6 +306,7 @@ data class Question(
     val isFlou: Boolean get() = kind == QuestionKind.FLOU
     val isChante: Boolean get() = kind == QuestionKind.CHANTE
     val isQuiSuis: Boolean get() = kind == QuestionKind.QUISUIS
+    val isRebus: Boolean get() = kind == QuestionKind.REBUS
     val isBlind: Boolean get() = kind == QuestionKind.BLIND
     val isStatues: Boolean get() = kind == QuestionKind.STATUES
     val isDisparu: Boolean get() = kind == QuestionKind.DISPARU
@@ -325,14 +335,14 @@ data class Question(
     /** Jeux au buzzer : la première équipe qui buzze répond à voix haute, l'animatrice valide. */
     /** Au moins une proposition en image. */
     val hasChoiceImages: Boolean get() = choiceImages.any { it != null }
-    val isBuzz: Boolean get() = isFlou || isChante || isQuiSuis || isBlind || isDisparu
+    val isBuzz: Boolean get() = isFlou || isChante || isQuiSuis || isBlind || isDisparu || isRebus
 
     /**
-     * Qui suis-je ? : nombre d'indices visibles après [elapsedMs] de chrono. Le premier dès l'ouverture,
-     * puis un nouveau à intervalles réguliers ; tous sont visibles avant la fin du chrono.
+     * Qui suis-je ? et Rébus : nombre d'indices (de morceaux du rébus) visibles après [elapsedMs] de chrono. Le premier
+     * dès l'ouverture, puis un nouveau à intervalles réguliers ; tous sont visibles avant la fin du chrono.
      */
     fun cluesShown(elapsedMs: Long): Int {
-        if (!isQuiSuis) return 0
+        if (!isQuiSuis && !isRebus) return 0
         val step = durationMs / cards.size
         return (1 + (elapsedMs.coerceAtLeast(0) / step).toInt()).coerceAtMost(cards.size)
     }
@@ -366,6 +376,12 @@ const val MAX_MIME_CARDS = 200
 
 /** Tour de mimes (ou de Pictionary) le plus long, en secondes. */
 const val MAX_MIME_TURN_SEC = 300
+
+/** Rébus : nombre maximum de morceaux (un par syllabe, ou une image pour plusieurs syllabes). */
+const val MAX_REBUS = 6
+
+/** Rébus : durée par défaut, par morceau (secondes). */
+const val REBUS_SEC_PAR_MORCEAU = 12
 
 /** Qui suis-je ? : nombre maximum d'indices d'un personnage. */
 const val MAX_CLUES = 6

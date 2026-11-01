@@ -32,6 +32,16 @@ object Scoring {
     /** Buzzer : bonne réponse après l'erreur d'une autre équipe (rebond). */
     const val BUZZ_REBOUND = 100
 
+    /**
+     * Rébus (proposition du 1/11) : plus on trouve tôt, plus on gagne. 300 points avec un seul morceau à l'écran, 200 avec
+     * deux, 100 ensuite ; une erreur d'une autre équipe ne change rien (le morceau suivant baisse déjà la valeur).
+     */
+    fun rebus(morceauxVus: Int): Int = when {
+        morceauxVus <= 1 -> 300
+        morceauxVus == 2 -> 200
+        else -> 100
+    }
+
     /** Blind test : valeur d'un morceau quand l'administration n'en donne pas (les derniers valent souvent le double). */
     const val BLIND_POINTS = 100
 

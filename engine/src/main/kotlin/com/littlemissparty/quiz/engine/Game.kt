@@ -914,6 +914,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 val factor = if (q.isBlind) (if (q.double) 2 else 1) else factorIn(s, s.index)
                 // Blind test : la valeur du morceau, quel que soit le moment du buzz.
                 val points = if (q.isBlind) q.trackPoints * factor
+                // Rébus : la valeur dépend des morceaux visibles au moment du buzz (le chrono est figé depuis).
+                else if (q.isRebus) Scoring.rebus(q.cluesShown(s.elapsedAt(e.at))) * factor
                 else (if (b.blocked.isEmpty()) Scoring.BUZZ else Scoring.BUZZ_REBOUND) * factor
                 s.copy(phase = Phase.REVEAL, awards = s.awards + (q.id to mapOf(team to Award(q.correct, correct = true, points = points, bonus = 0))))
             }

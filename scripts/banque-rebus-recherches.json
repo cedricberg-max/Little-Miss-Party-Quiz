@@ -1,0 +1,342 @@
+[
+{
+"cle": "rebus-pot",
+"recherche": "flower pot",
+"etiquette": "pot"
+},
+{
+"cle": "rebus-dos",
+"recherche": "human back",
+"etiquette": "dos"
+},
+{
+"cle": "rebus-rat",
+"recherche": "rat animal",
+"etiquette": "rat"
+},
+{
+"cle": "rebus-roue",
+"recherche": "bicycle wheel",
+"etiquette": "roue"
+},
+{
+"cle": "rebus-bain",
+"recherche": "bathtub bath",
+"etiquette": "bain"
+},
+{
+"cle": "rebus-banc",
+"recherche": "park bench",
+"etiquette": "banc"
+},
+{
+"cle": "rebus-thon",
+"recherche": "tuna fish",
+"etiquette": "thon"
+},
+{
+"cle": "rebus-toit",
+"recherche": "house roof",
+"etiquette": "toit"
+},
+{
+"cle": "rebus-pie",
+"recherche": "magpie bird",
+"etiquette": "pie"
+},
+{
+"cle": "rebus-noix",
+"recherche": "walnut",
+"etiquette": "noix"
+},
+{
+"cle": "rebus-bois",
+"recherche": "firewood logs",
+"etiquette": "bois"
+},
+{
+"cle": "rebus-vis",
+"recherche": "screw hardware",
+"etiquette": "vis"
+},
+{
+"cle": "rebus-fil",
+"recherche": "thread spool",
+"etiquette": "fil"
+},
+{
+"cle": "rebus-mur",
+"recherche": "brick wall",
+"etiquette": "mur"
+},
+{
+"cle": "rebus-lac",
+"recherche": "lake",
+"etiquette": "lac"
+},
+{
+"cle": "rebus-sac",
+"recherche": "backpack bag",
+"etiquette": "sac"
+},
+{
+"cle": "rebus-bec",
+"recherche": "bird beak",
+"etiquette": "bec"
+},
+{
+"cle": "rebus-cor",
+"recherche": "french horn",
+"etiquette": "cor"
+},
+{
+"cle": "rebus-the",
+"recherche": "cup of tea",
+"etiquette": "the"
+},
+{
+"cle": "rebus-faon",
+"recherche": "fawn deer",
+"etiquette": "faon"
+},
+{
+"cle": "rebus-veau",
+"recherche": "calf cow",
+"etiquette": "veau"
+},
+{
+"cle": "rebus-louche",
+"recherche": "ladle kitchen",
+"etiquette": "louche"
+},
+{
+"cle": "rebus-poche",
+"recherche": "jeans pocket",
+"etiquette": "poche"
+},
+{
+"cle": "rebus-roche",
+"recherche": "rock boulder",
+"etiquette": "roche"
+},
+{
+"cle": "rebus-cloche",
+"recherche": "bell",
+"etiquette": "cloche"
+},
+{
+"cle": "rebus-niche",
+"recherche": "dog kennel",
+"etiquette": "niche"
+},
+{
+"cle": "rebus-ruche",
+"recherche": "beehive",
+"etiquette": "ruche"
+},
+{
+"cle": "rebus-quille",
+"recherche": "bowling pin",
+"etiquette": "quille"
+},
+{
+"cle": "rebus-grue",
+"recherche": "construction crane",
+"etiquette": "grue"
+},
+{
+"cle": "rebus-rue",
+"recherche": "street",
+"etiquette": "rue"
+},
+{
+"cle": "rebus-vase",
+"recherche": "flower vase",
+"etiquette": "vase"
+},
+{
+"cle": "rebus-cage",
+"recherche": "bird cage",
+"etiquette": "cage"
+},
+{
+"cle": "rebus-page",
+"recherche": "book page",
+"etiquette": "page"
+},
+{
+"cle": "rebus-carte",
+"recherche": "map",
+"etiquette": "carte"
+},
+{
+"cle": "rebus-tarte",
+"recherche": "fruit tart pie",
+"etiquette": "tarte"
+},
+{
+"cle": "rebus-gare",
+"recherche": "train station",
+"etiquette": "gare"
+},
+{
+"cle": "rebus-mare",
+"recherche": "pond",
+"etiquette": "mare"
+},
+{
+"cle": "rebus-boule",
+"recherche": "christmas ball ornament",
+"etiquette": "boule"
+},
+{
+"cle": "rebus-moule",
+"recherche": "mussel",
+"etiquette": "moule"
+},
+{
+"cle": "rebus-joue",
+"recherche": "cheek child",
+"etiquette": "joue"
+},
+{
+"cle": "rebus-chou",
+"recherche": "cabbage",
+"etiquette": "chou"
+},
+{
+"cle": "rebus-clou",
+"recherche": "nail hardware",
+"etiquette": "clou"
+},
+{
+"cle": "rebus-cou",
+"recherche": "giraffe neck",
+"etiquette": "cou"
+},
+{
+"cle": "rebus-trou",
+"recherche": "hole ground",
+"etiquette": "trou"
+},
+{
+"cle": "rebus-cil",
+"recherche": "eyelash",
+"etiquette": "cil"
+},
+{
+"cle": "rebus-lis",
+"recherche": "lily flower",
+"etiquette": "lis"
+},
+{
+"cle": "rebus-ski",
+"recherche": "ski",
+"etiquette": "ski"
+},
+{
+"cle": "rebus-puits",
+"recherche": "water well",
+"etiquette": "puits"
+},
+{
+"cle": "rebus-fruit",
+"recherche": "fruit basket",
+"etiquette": "fruit"
+},
+{
+"cle": "rebus-hutte",
+"recherche": "hut",
+"etiquette": "hutte"
+},
+{
+"cle": "rebus-dune",
+"recherche": "sand dune",
+"etiquette": "dune"
+},
+{
+"cle": "rebus-nain",
+"recherche": "garden gnome",
+"etiquette": "nain"
+},
+{
+"cle": "rebus-pin",
+"recherche": "pine tree",
+"etiquette": "pin"
+},
+{
+"cle": "rebus-frein",
+"recherche": "bicycle brake",
+"etiquette": "frein"
+},
+{
+"cle": "rebus-mat",
+"recherche": "sailboat mast",
+"etiquette": "mat"
+},
+{
+"cle": "rebus-nez",
+"recherche": "nose",
+"etiquette": "nez"
+},
+{
+"cle": "rebus-gant",
+"recherche": "glove",
+"etiquette": "gant"
+},
+{
+"cle": "rebus-sel",
+"recherche": "salt",
+"etiquette": "sel"
+},
+{
+"cle": "rebus-tas",
+"recherche": "pile of sand",
+"etiquette": "tas"
+},
+{
+"cle": "rebus-bas",
+"recherche": "stocking",
+"etiquette": "bas"
+},
+{
+"cle": "rebus-vent",
+"recherche": "wind sock",
+"etiquette": "vent"
+},
+{
+"cle": "rebus-camp",
+"recherche": "camp tent",
+"etiquette": "camp"
+},
+{
+"cle": "rebus-taupe",
+"recherche": "mole animal",
+"etiquette": "taupe"
+},
+{
+"cle": "rebus-bulle",
+"recherche": "soap bubble",
+"etiquette": "bulle"
+},
+{
+"cle": "rebus-canne",
+"recherche": "walking cane",
+"etiquette": "canne"
+},
+{
+"cle": "rebus-cane",
+"recherche": "female duck",
+"etiquette": "cane"
+},
+{
+"cle": "rebus-porc",
+"recherche": "pig",
+"etiquette": "porc"
+},
+{
+"cle": "rebus-cafe",
+"recherche": "coffee cup",
+"etiquette": "cafe"
+}
+]

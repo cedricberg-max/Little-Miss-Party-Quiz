@@ -112,7 +112,8 @@ object QuizJson {
             text = q.getString("text").let { if (kind == QuestionKind.SIMON) nouveauNomSimon(it) else it },
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
             correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE || kind == QuestionKind.DUEL || kind == QuestionKind.SIMON || kind == QuestionKind.CHRONO) q.optInt("correct", -1) else q.getInt("correct"),
-            durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else if (kind == QuestionKind.GONFLEUR) 45 else if (kind == QuestionKind.STATUES) 90 else 20),
+            durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else if (kind == QuestionKind.GONFLEUR) 45 else if (kind == QuestionKind.STATUES) 90
+                else if (kind == QuestionKind.REBUS) (REBUS_SEC_PAR_MORCEAU * cards.length()).coerceIn(10, 120) else 20),
             kind = kind,
             double = q.optBoolean("double", false),
             roundTitle = q.optString("round").ifBlank { null }?.let { if (kind == QuestionKind.SIMON) nouveauNomSimon(it) else it },
