@@ -402,18 +402,12 @@ fun IntroPictionary(equipe: String, couleur: Color, motMontre: Boolean, modifier
             // mieux et reste net : halo noir doux renforcé dessous, lueur serrée de la couleur, lettres nettes et claires dessus.
             NomNeonPictionary(equipe, couleur, Modifier.widthIn(max = 880.dp).apparition(450, equipe))
             Spacer(Modifier.height(30.dp))
-            Box(
-                Modifier
-                    .background(Neon.Nuit.copy(alpha = 0.45f), RoundedCornerShape(24.dp))
-                    .border(2.dp, Neon.Or.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
-                    .padding(horizontal = 30.dp, vertical = 14.dp)
-                    .apparition(700, motMontre),
-            ) {
-                Text(
-                    if (motMontre) "🤫  Chut… le dessinateur découvre son mot secret" else "🙈  Toute l'équipe se retourne, sauf le dessinateur !",
-                    color = Neon.Blanc, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
-                )
-            }
+            // La consigne posée sur le décor, sans cadre (cedric, 1/11 au soir : plus de boîte autour des textes), halo noir doux.
+            TexteDetache(
+                if (motMontre) "🤫  Chut… le dessinateur découvre son mot secret" else "🙈  Toute l'équipe se retourne, sauf le dessinateur !",
+                TextStyle(color = Neon.Blanc, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                Modifier.apparition(700, motMontre),
+            )
         }
     }
 }
