@@ -46,7 +46,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -163,7 +165,8 @@ fun ClassementCoffreGs(lignes: List<LigneClassement>, joue: Int, modifier: Modif
             Modifier.fillMaxSize().clearAndSetSemantics {}.drawBehind {
                 drawRect(
                     Brush.radialGradient(
-                        listOf(NuitA.copy(alpha = 0.62f), NuitA.copy(alpha = 0.86f)),
+                        // Adouci (cedric, 1/11 au soir : contraste trop agressif) : le plateau se devine mieux.
+                        listOf(NuitA.copy(alpha = 0.45f), NuitA.copy(alpha = 0.7f)),
                         center = Offset(size.width * 0.5f, size.height * 0.55f), radius = size.width * 0.62f,
                     ),
                 )
@@ -240,7 +243,10 @@ private fun CarteClassementA(
                 drawRoundRect(e.couleur.copy(alpha = (0.22f * brille).coerceAtMost(0.6f)), cornerRadius = coin, style = Stroke(9f * f * brille * density))
                 drawRoundRect(e.couleur.copy(alpha = (0.45f * brille).coerceAtMost(0.9f)), cornerRadius = coin, style = Stroke(5f * f * density))
             }
-            .background(NuitA.copy(alpha = 0.88f), forme)
+            // Intérieur adouci (cedric, 1/11 au soir : « beaucoup trop sombre ») : nuit moins dense, teintée de la couleur
+            // de l'équipe, le nom blanc reste bien lisible.
+            .background(NuitA.copy(alpha = 0.62f), forme)
+            .background(e.couleur.copy(alpha = 0.16f), forme)
             .drawBehind {
                 // Lueur intérieure.
                 val coin = CornerRadius(13f * f * density)
@@ -262,7 +268,14 @@ private fun CarteClassementA(
             ) {
                 Text(
                     "${(if (nouveauxRangs) evo.rangApres else evo.rangAvant) + 1}", maxLines = 1, softWrap = false,
-                    style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = (17f * f).sp, color = NuitA),
+                    // Centré au pixel dans le rond (cedric, 1/11 : le « 1 » décalé) : sans marge de police, ligne à la hauteur
+                    // du chiffre, centrée.
+                    style = TextStyle(
+                        fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = (17f * f).sp, color = NuitA,
+                        textAlign = TextAlign.Center, lineHeight = (17f * f).sp,
+                        platformStyle = PlatformTextStyle(includeFontPadding = false),
+                        lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+                    ),
                 )
             }
             // Le nom prend toute la place libre et rétrécit plutôt que d'être coupé (règle de l'appli).

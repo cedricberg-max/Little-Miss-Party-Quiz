@@ -43,6 +43,12 @@ private const val CASE_OUVERTURE = 680
 private const val OR = 6
 
 private var sceneLue by mutableStateOf<ImageBitmap?>(null)
+/**
+ * Coffres déjà ouverts sur les gradins (cedric, 1/11 au soir : le couvercle grand ouvert touchait encore le coffre de la
+ * rangée de derrière) : couvercle à peine soulevé, l'or visible, tirés de la case 2 de chaque planche d'ouverture
+ * (6 cases de 400 px, même cadrage que la scène). Manque : la case « ouvert » de la scène reprend la main.
+ */
+private var entrouvertsLus by mutableStateOf<ImageBitmap?>(null)
 private var sceneEssayee = false
 private var ouvertureLue by mutableStateOf<Pair<Int, ImageBitmap>?>(null)
 
@@ -62,6 +68,7 @@ internal fun ChargerCoffresGs() {
         if (sceneEssayee) return@LaunchedEffect
         sceneEssayee = true
         sceneLue = withContext(Dispatchers.IO) { lire(context, "gs_coffres_scene") }
+        entrouvertsLus = withContext(Dispatchers.IO) { lire(context, "gs_coffres_entrouverts") }
         for (cle in 0..OR) {
             if (cle in fermesLus) continue
             withContext(Dispatchers.IO) { lireFerme(context, if (cle == OR) "gs_coffre_or" else "gs_coffre_$cle") }?.let { fermesLus[cle] = it }
@@ -125,6 +132,7 @@ internal fun DrawScope.dessineCoffreGs(modele: Int, ouverture: Float, assombri: 
         planche != null -> Quatre(planche, CASE_OUVERTURE, (ouverture.coerceIn(0f, 1f) * 7f).roundToInt(), 3)
         ferme != null -> Quatre(ferme, CASE_OUVERTURE, 0, 1)
         dore -> return false
+        enScene && ouverture >= 0.5f && entrouvertsLus != null -> Quatre(entrouvertsLus!!, CASE_SCENE, modele, 6)
         else -> Quatre(sceneLue ?: return false, CASE_SCENE, 3 * modele + if (ouverture >= 0.5f) 2 else 1, 5)
     }
     val cote = CASES[modele] / largeurModele(modele) * size.width

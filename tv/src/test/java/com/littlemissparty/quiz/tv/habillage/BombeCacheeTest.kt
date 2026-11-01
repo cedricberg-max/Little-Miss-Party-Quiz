@@ -96,4 +96,12 @@ class BombeCacheeTest {
         for (m in 0..5) assertTrue(java.io.File("src/main/res/drawable-nodpi/gs_coffre_$m.webp").isFile)
         assertTrue(java.io.File("src/main/res/drawable-nodpi/gs_coffre_or.webp").isFile)
     }
+
+    /** cedric 1/11 au soir : le couvercle grand ouvert d'un coffre touchait le coffre de la rangée de derrière. */
+    @Test
+    fun `sur les gradins, un coffre ouvert garde le couvercle a peine souleve`() {
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/CoffresGs.kt").readText()
+        assertTrue(source.contains("enScene && ouverture >= 0.5f && entrouvertsLus != null -> Quatre(entrouvertsLus!!, CASE_SCENE, modele, 6)"))
+        assertTrue(java.io.File("src/main/res/drawable-nodpi/gs_coffres_entrouverts.webp").isFile)
+    }
 }
