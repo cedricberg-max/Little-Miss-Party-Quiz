@@ -41,6 +41,7 @@ export function questionConcepts(q) {
     case "disparu":
       return cards.flatMap(concepts);
     case "chante":
+    case "rebus":
       return concepts({ word: q.choices?.[0] });
     case "quisuis":
       return concepts({ word: q.choices?.[0], image: q.image, imageId: q.imageId });

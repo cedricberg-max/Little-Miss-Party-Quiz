@@ -51,13 +51,14 @@ for (const id of ["app", "paused", "resume-count"]) {
   insecables.observe($(id), { childList: true, subtree: true, characterData: true });
 }
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
-const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu"];
+const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu", "rebus"];
 const BUZZ_INVITE = {
   flou: "Image floue : buzzez dès que vous la reconnaissez !",
   chante: "À vos micros ! Buzzez et chantez une chanson avec ce mot !",
   quisuis: "Qui suis-je ? Écoutez les indices de la TV et buzzez dès que vous savez !",
   blind: "Blind test : écoutez la musique et buzzez dès que vous reconnaissez la chanson !",
   disparu: "Qui a disparu ? Buzzez dès que vous savez quel objet manque sur la TV !",
+  rebus: "Le Rébus : regardez les images de la TV et buzzez dès que vous avez trouvé le mot !",
 };
 const params = new URLSearchParams(location.search);
 const code = (params.get("g") || "").toUpperCase();

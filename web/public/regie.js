@@ -637,7 +637,7 @@ function watchPumps() {
 }
 
 /** Jeux au buzzer : la première équipe qui buzze répond à voix haute (ou chante), la régie juge. */
-const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu"];
+const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu", "rebus"];
 /** Blind test : plein tarif seulement pour un buzz dans ces premières millisecondes de l'extrait. */
 const BLIND_FAST_MS = 10_000;
 
@@ -3552,6 +3552,7 @@ const JEUX_AJOUT = [
   ["flou", "🌫", "🎲 des photos, vos images"],
   ["chante", "🎤", "🎲 des mots, vos séries"],
   ["quisuis", "🕵", "🎲 des personnages, vos séries"],
+  ["rebus", "🧩", "🎲 des rébus, selon la difficulté"],
   ["disparu", "🎩", "🎲 des grilles, émojis ou photos"],
   ["pictionary", "✏️", "🎲 des mots, le temps de dessin"],
   ["coffres", "🗝️", "rien à préparer"],
@@ -3679,7 +3680,7 @@ function roundDuJeu(qs) {
     return { type, tours: deck.offres.map((ps) => (ps ?? []).map((p) => (p ?? []).map((i) => deck.cards?.[i]).filter(Boolean))), duration: deck.duration, ...(deck.propositions ? { propositions: deck.propositions } : {}) };
   }
   if (type === "pictionary" && deck) return { type, picks: (deck.cards ?? []).map((c) => c?.word?.toLowerCase()).filter(Boolean), duration: deck.duration };
-  if (type === "chante" || type === "quisuis") return { type, picks: qs.map((q) => q?.choices?.[0]?.toLowerCase()).filter(Boolean), count: qs.length };
+  if (type === "chante" || type === "quisuis" || type === "rebus") return { type, picks: qs.map((q) => q?.choices?.[0]?.toLowerCase()).filter(Boolean), count: qs.length };
   if (type === "blind" || type === "musical") return { type, tracks: qs.map((q) => q?.audioId).filter(Boolean) };
   if (type === "disparu") return { type, count: qs.length };
   return { type };
@@ -4144,6 +4145,7 @@ const OLD_TV_EXPRESS = "La TV doit être mise à jour pour jouer au Vrai ou Faux
 const OLD_TV_ZOOM = "La TV doit être mise à jour pour jouer au Zoom mystère : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_FLOU = "La TV doit être mise à jour pour jouer à l'Image floue : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_CHANTE = "La TV doit être mise à jour pour jouer à « Chante le mot ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_REBUS = "La TV doit être mise à jour pour jouer au « Rébus » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_QUISUIS = "La TV doit être mise à jour pour jouer à « Qui suis-je ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_STATUES = "La TV doit être mise à jour pour jouer aux statues musicales : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DISPARU = "La TV doit être mise à jour pour jouer à « Qui a disparu ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
@@ -4166,6 +4168,7 @@ function tvRefuses(questions) {
   if (live.plan.flou !== true && questions.some((q) => q?.kind === "flou")) return OLD_TV_FLOU;
   if (live.plan.chante !== true && questions.some((q) => q?.kind === "chante")) return OLD_TV_CHANTE;
   if (live.plan.quisuis !== true && questions.some((q) => q?.kind === "quisuis")) return OLD_TV_QUISUIS;
+  if (live.plan.rebus !== true && questions.some((q) => q?.kind === "rebus")) return OLD_TV_REBUS;
   if (live.plan.statues !== true && questions.some((q) => q?.kind === "statues")) return OLD_TV_STATUES;
   if (live.plan.disparu !== true && questions.some((q) => q?.kind === "disparu")) return OLD_TV_DISPARU;
   if (live.plan.coffres !== true && questions.some((q) => q?.kind === "coffres")) return OLD_TV_COFFRES;
@@ -4250,7 +4253,7 @@ function liveManche({ random, source, questions }, title) {
   else if (type === "pictionary" && deck) round = { ...round, picks: deck.cards.map((c) => c.word.toLowerCase()), duration: deck.duration };
   else if (type === "zoom" || type === "flou") round = { ...round, picks: (round.picks ?? []).filter((k) => questions.some((q) => q.imageId === k || (q.banque && `${BANQUE}${q.banque}` === k))) };
   else if (type === "blind" || type === "musical") round = { ...round, tracks: (round.tracks ?? []).filter((k) => questions.some((q) => q.audioId === k)) };
-  else if (type === "chante" || type === "quisuis") round = { ...round, seriesMots: null, ordreMots: null, picks: questions.map((q) => q.choices?.[0]?.toLowerCase()).filter(Boolean), count: questions.length };
+  else if (type === "chante" || type === "quisuis" || type === "rebus") round = { ...round, seriesMots: null, ordreMots: null, picks: questions.map((q) => q.choices?.[0]?.toLowerCase()).filter(Boolean), count: questions.length };
   else if (type === "disparu") round = { ...round, seriesMots: null, ordreMots: null, count: questions.length };
   return () => {
     const showId = typeof live.plan?.id === "string" && live.plan.id.length <= 40 ? { showId: live.plan.id } : {};

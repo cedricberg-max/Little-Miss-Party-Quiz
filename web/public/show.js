@@ -10,6 +10,7 @@ import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { trackFromSong } from "./sons.js";
 import { propositionsDeTitre, cle, LEURRE_MAX } from "./paroles.js";
 import { lireFamille, lireNiveau } from "./rangement.js";
+import { REBUS, NIVEAUX_REBUS, questionRebus } from "./banque-rebus.js";
 
 /**
  * Les coffres mystères : chaque équipe à son tour ouvre un coffre sur sa tablette, bonus ou
@@ -94,7 +95,7 @@ export const roundType = (type) => (type === "portes" ? "coffres" : type);
 // Super Finale : au Quiz, au Quiz illustré et au Vrai ou Faux express (cedric, 23/10 : « à l'image du quiz »).
 export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre" || type === "express";
 
-export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots", simon: "Le Simon de Buzzy", chrono: "Le Chrono de Buzzy" };
+export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !", duel: "Le Duel des robots", simon: "Le Simon de Buzzy", chrono: "Le Chrono de Buzzy", rebus: "Le Rébus" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -307,6 +308,12 @@ export const BUILTIN_GAMES = {
     // Le personnage se montre à la révélation : son image (préparée dans l'administration), sinon son émoji.
     question: (p) => ({ text: "Qui suis-je ?", choices: [p.answer], correct: 0, kind: "quisuis", cards: p.clues.map((word) => ({ word })), image: p.emoji, ...(p.imageId ? { imageId: p.imageId } : {}) }),
   },
+  // Le Rébus (cedric, 1/11) : la difficulté choisie sur la carte de la manche (round.niveau), sinon selon l'âge.
+  rebus: {
+    unit: "rébus", count: 6, duration: 24, rule: "une image de plus toutes les 12 secondes, plus tôt = plus de points",
+    items: (profile, random, list, round, chosen) => (chosen ? list : list.filter((r) => niveauxRebus(round, profile).includes(r.niveau))),
+    question: (r) => questionRebus(r),
+  },
   disparu: {
     unit: "grille", count: 4, duration: 45, rule: "on mémorise les objets, puis l'un d'eux disparaît",
     // Nombre d'objets par grille : réglé sur la manche (4 à 12), sinon selon l'âge.
@@ -325,6 +332,21 @@ export const BUILTIN_GAMES = {
  * code n'est jamais modifié ; un ajout mal formé est ignoré, il n'empêche jamais de jouer.
  */
 export const CONTENT_GAMES = {
+  rebus: {
+    unit: "rébus", catalog: REBUS, key: (r) => r.mot.toLowerCase(), label: (r) => r.mot,
+    clean: (x) => {
+      if (typeof x?.mot !== "string" || !x.mot.trim() || !Array.isArray(x.morceaux)) return null;
+      const morceaux = x.morceaux.map((m) => {
+        const son = typeof m?.son === "string" ? m.son.trim().slice(0, 20) : "";
+        if (typeof m?.banque === "string" && /^[a-z0-9-]{1,60}$/.test(m.banque)) return { son, banque: m.banque };
+        if (/^[0-9a-f]{16}$/.test(m?.imageId ?? "")) return { son, imageId: m.imageId };
+        if (typeof m?.texte === "string" && m.texte.trim()) return { son: son || m.texte.trim(), texte: m.texte.trim().slice(0, 3) };
+        return null;
+      }).filter(Boolean).slice(0, 6);
+      if (morceaux.length < 2) return null;
+      return { mot: x.mot.trim().slice(0, 40), niveau: NIVEAUX_REBUS.includes(x.niveau) ? x.niveau : "moyen", morceaux };
+    },
+  },
   chante: {
     unit: "mot", catalog: CHANTE_WORDS, key: (w) => w.word.toLowerCase(), label: (w) => w.word,
     clean: (x) => (typeof x?.word === "string" && x.word.trim() ? { word: x.word.trim().slice(0, 40), level: 1 } : null),
@@ -778,7 +800,7 @@ function rangerSelonOrdre(parSerie, ordre, extras = []) {
  */
 // Qui suis-je ? aussi (cedric, 24/10 : « même principe que tous les autres ») : ses personnages en séries.
 // Qui a disparu ? aussi (cedric, 24/10) : ses grilles en séries (🎲 dans les émojis, vos images, les photos libres).
-export const JEUX_DE_MOTS = ["chante", "quisuis", "disparu"];
+export const JEUX_DE_MOTS = ["chante", "quisuis", "disparu", "rebus"];
 export const estJeuDeMots = (type) => JEUX_DE_MOTS.includes(type);
 /**
  * Origines d'une série de mots : le 🎲, les mots écrits à la main (Qui suis-je ? d'avant les séries : choisis un par un) ;
@@ -1094,9 +1116,21 @@ export function pickedItems(type, content, picks) {
 /** Mots du Pictionary qu'on garde neufs (jamais montrés ailleurs) avant de reprendre tout le paquet. */
 const PICTO_MIN_FRESH = 24;
 
+/**
+ * Rébus : les niveaux tirés au 🎲. Choisi sur la carte de la manche (« facile », « moyen », « difficile ») ; sinon selon
+ * l'âge : les petits ont les faciles, les moyens faciles et moyens, les grands et les adultes tout.
+ */
+export function niveauxRebus(round, profile) {
+  if (NIVEAUX_REBUS.includes(round?.niveau)) return [round.niveau];
+  if (profile === "PETITS") return ["facile"];
+  if (profile === "MOYENS") return ["facile", "moyen"];
+  return NIVEAUX_REBUS;
+}
+
 /** Ce que montre un élément d'un jeu intégré ou du Pictionary (Qui a disparu ? : objet par objet, dans sa grille). */
 export function builtinConcepts(type, x) {
   if (type === "chante") return concepts({ word: x?.word });
+  if (type === "rebus") return concepts({ word: x?.mot });
   if (type === "quisuis") return concepts({ word: x?.answer, image: x?.emoji, imageId: x?.imageId });
   if (type === "pictionary") return concepts(x);
   return [];
@@ -1129,7 +1163,7 @@ export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
   if (type === "disparu" && motsDuJeu(round).length) return motsDuJeu(round).flatMap((x) => x.m.objects).flatMap(concepts);
   // Pictionary préparé par équipe (cedric, 24/10) : tous les mots proposés.
   if (type === "pictionary" && pictoEnSeries(round)) return pictoTours(round).flat(2).flatMap(concepts);
-  if (type === "chante" || type === "quisuis" || type === "pictionary") {
+  if (type === "chante" || type === "quisuis" || type === "pictionary" || type === "rebus") {
     // En séries (cedric, 24/10) : tous ses mots, ceux tirés au 🎲 compris (ils comptent une fois tirés).
     const enSeries = estJeuDeMots(type) ? motsDuJeu(round).map((x) => x.m) : [];
     return (enSeries.length ? enSeries : pickedItems(type, contents?.[type], roundPicks(round))).flatMap((x) => builtinConcepts(type, x));

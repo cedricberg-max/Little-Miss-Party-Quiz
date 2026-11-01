@@ -60,12 +60,27 @@ export const NIVEAUX_REBUS = ["facile", "moyen", "difficile"];
  */
 export function questionRebus(r, id) {
   return {
-    id,
+    ...(id ? { id } : {}),
     kind: "rebus",
     text: "Quel est ce mot ?",
     choices: [r.mot],
     correct: 0,
     duration: Math.min(120, Math.max(10, 12 * r.morceaux.length)),
-    cards: r.morceaux.map((m) => (m.banque ? { word: m.son, banque: m.banque } : { word: m.texte, son: m.son })),
+    // Photo de la banque (copiée dans la partie au chargement), image de Sarah (imageId), ou lettre / chiffre en néon.
+    cards: r.morceaux.map((m) => (m.banque ? { word: m.son, banque: m.banque } : m.imageId ? { word: m.son, imageId: m.imageId } : { word: m.texte })),
   };
+}
+
+const sansAccents = (s) => `${s ?? ""}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+/**
+ * Un morceau écrit à la main par Sarah (« pain », « 6 », « K ») : une lettre ou un chiffre devient du néon, un son déjà
+ * illustré dans la banque du Rébus reprend sa photo. Null : il faudra une photo à soi.
+ */
+export function morceauConnu(son) {
+  const s = `${son ?? ""}`.trim();
+  if (/^[\p{L}\d]{1,2}$/u.test(s) && (/^\d+$/.test(s) || s.length === 1)) return { son: s, texte: s.toUpperCase() };
+  const cle = sansAccents(s);
+  for (const r of REBUS) for (const m of r.morceaux) if (m.banque && sansAccents(m.son) === cle) return { son: m.son, banque: m.banque };
+  return null;
 }

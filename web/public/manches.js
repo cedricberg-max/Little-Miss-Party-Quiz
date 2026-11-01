@@ -24,17 +24,17 @@ import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.
 import { BANQUE, banqueItems, motDeLaBanque } from "./banque-photos.js";
 
 /** Jeux qu'on peut enregistrer en manches, dans l'ordre des tuiles de l'accueil. */
-export const MANCHE_TYPES = ["quiz", "illustre", "mimes", "blind", "musical", "statues", "express", "zoom", "flou", "chante", "quisuis", "disparu", "pictionary", "coffres", "patate", "gonfleur", "duel", "simon", "chrono"];
+export const MANCHE_TYPES = ["quiz", "illustre", "mimes", "blind", "musical", "statues", "express", "zoom", "flou", "chante", "quisuis", "disparu", "pictionary", "coffres", "patate", "gonfleur", "duel", "simon", "chrono", "rebus"];
 
 /** Ce que contient la collection d'un jeu (null : jeu sans contenu à choisir). */
 export const COLLECTION_UNIT = {
-  mimes: ["carte", "cartes"], pictionary: ["mot", "mots"], chante: ["mot", "mots"], quisuis: ["personnage", "personnages"],
+  mimes: ["carte", "cartes"], pictionary: ["mot", "mots"], chante: ["mot", "mots"], quisuis: ["personnage", "personnages"], rebus: ["rébus", "rébus"],
   disparu: ["famille", "familles"], zoom: ["photo", "photos"], flou: ["photo", "photos"], blind: ["titre", "titres"],
   musical: ["titre", "titres"], statues: ["chanson", "chansons"], quiz: ["quiz", "quiz"], illustre: ["quiz", "quiz"], express: ["quiz", "quiz"],
 };
 
 /** Jeux où « Au hasard » et « Rejouer avec d'autres… » piochent dans la collection. */
-export const RANDOM_TYPES = ["mimes", "pictionary", "chante", "quisuis", "disparu", "zoom", "flou", "blind", "musical"];
+export const RANDOM_TYPES = ["mimes", "pictionary", "chante", "quisuis", "rebus", "disparu", "zoom", "flou", "blind", "musical"];
 
 /** Nombre d'éléments tirés par défaut pour une manche au hasard. */
 export const RANDOM_COUNT = { mimes: MIME_RANDOM, pictionary: 24, zoom: 6, flou: 6, blind: 8, musical: 8 };
@@ -198,6 +198,7 @@ export function playedKeys(questions, contents = {}) {
     else if (q.kind === "pictionary") (q.cards ?? []).forEach((c) => add("pictionary", c?.word));
     else if (q.kind === "chante") add("chante", q.choices?.[0]);
     else if (q.kind === "quisuis") add("quisuis", q.choices?.[0]);
+    else if (q.kind === "rebus") add("rebus", q.choices?.[0]);
     else if (q.kind === "disparu") {
       const words = new Set((q.cards ?? []).map((c) => c?.word));
       const theme = themes.find((t) => [...words].every((w) => t.objects.some((o) => o.word === w)));
@@ -219,7 +220,7 @@ export function playedKeys(questions, contents = {}) {
 export function questionType(q) {
   if (!q) return null;
   if (q.kind === "mime") return "mimes";
-  if (["pictionary", "chante", "quisuis", "disparu", "zoom", "flou", "statues", "coffres", "patate", "gonfleur", "express"].includes(q.kind)) return q.kind;
+  if (["pictionary", "chante", "quisuis", "rebus", "disparu", "zoom", "flou", "statues", "coffres", "patate", "gonfleur", "express"].includes(q.kind)) return q.kind;
   if (q.kind === "blind") return "blind";
   if (q.audioId) return "musical";
   return "quiz";

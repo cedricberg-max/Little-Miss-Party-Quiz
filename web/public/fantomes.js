@@ -21,7 +21,7 @@ const params = new URLSearchParams(location.search);
 // Tests automatiques uniquement : l'émulateur Firebase n'est accepté que depuis l'ordinateur de test.
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
 
-const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu"];
+const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu", "rebus"];
 const NOMS = ["Fantôme 1", "Fantôme 2", "Fantôme 3", "Fantôme 4", "Fantôme 5", "Fantôme 6", "Fantôme 7"];
 const VITESSES = { lente: 1.8, normale: 1, rapide: 0.45 };
 

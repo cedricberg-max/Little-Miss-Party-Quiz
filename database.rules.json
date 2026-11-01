@@ -650,7 +650,7 @@
         ".read": "auth != null && root.child('boxes/allowed').child(auth.uid).exists()",
         "$game": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
-          ".validate": "!newData.exists() || ($game.matches(/^(chante|quisuis|disparu|pictionary|petits)$/) && newData.child('updatedAt').val() === now)",
+          ".validate": "!newData.exists() || ($game.matches(/^(chante|quisuis|disparu|pictionary|petits|rebus)$/) && newData.child('updatedAt').val() === now)",
           "off": {
             "$i": {
               ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80"
@@ -688,7 +688,7 @@
       "manches": {
         "$id": {
           ".write": "(auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()) || (auth != null && root.child('settings/regie/hash').isString() && root.child('regieProof').child(auth.uid).child('hash').val() === root.child('settings/regie/hash').val() && !data.exists() && newData.child('origin').val() === 'direct')",
-          ".validate": "!newData.exists() || (newData.child('type').isString() && newData.child('type').val().matches(/^(quiz|illustre|mimes|blind|musical|statues|express|zoom|flou|chante|quisuis|disparu|pictionary|coffres|patate|gonfleur)$/) && newData.child('round').hasChildren() && newData.child('round/type').val() === newData.child('type').val() && newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('updatedAt').val() === now && newData.child('origin').val().matches(/^(admin|direct)$/))",
+          ".validate": "!newData.exists() || (newData.child('type').isString() && newData.child('type').val().matches(/^(quiz|illustre|mimes|blind|musical|statues|express|zoom|flou|chante|quisuis|disparu|pictionary|coffres|patate|gonfleur|rebus)$/) && newData.child('round').hasChildren() && newData.child('round/type').val() === newData.child('type').val() && newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('updatedAt').val() === now && newData.child('origin').val().matches(/^(admin|direct)$/))",
           "pinned": {
             ".validate": "newData.isBoolean()"
           },

@@ -31,6 +31,7 @@ import {
 } from "./show.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre, questionBanque } from "./banque-photos.js";
+import { NIVEAUX_REBUS, morceauConnu } from "./banque-rebus.js";
 import { AFFIRMATIONS, tirerAffirmations } from "./banque-vrai-faux.js";
 import { shuffle } from "./mime-cards.js";
 import {
@@ -3030,6 +3031,60 @@ function desGrilles(r, { sans, ranger, changer, ailleurs }) {
 }
 
 /**
+ * Rébus : la difficulté des rébus tirés au 🎲 (« Selon l'âge » d'office). Changer de difficulté refait le tirage du 🎲 ;
+ * les rébus choisis autrement ne bougent pas.
+ */
+function ligneNiveauRebus(r, retirer) {
+  const choix = [["", "Difficulté selon l'âge"], ["facile", "Faciles"], ["moyen", "Moyens"], ["difficile", "Difficiles"]];
+  const select = h("select", {
+    class: "tirage-nombre rebus-niveau", "aria-label": "Difficulté des rébus",
+    onchange: (e) => {
+      if (e.target.value) r.niveau = e.target.value; else delete r.niveau;
+      retirer();
+    },
+  }, ...choix.map(([v, t]) => h("option", { value: v, selected: (r.niveau ?? "") === v, text: t })));
+  return h("div", { class: "tirage-ligne" }, h("span", { class: "hint small", text: "Difficulté :" }), select);
+}
+
+/**
+ * Rébus : ses morceaux en petit, dans l'ordre (photo de la banque, image à soi, ou lettre / chiffre en néon) ; un clic
+ * sur un morceau choisit une autre image sur l'ordinateur (elle remplace celle-ci pour cette prestation seulement).
+ */
+function morceauxDuRebus(m, changer) {
+  return h("span", { class: "grille-vignettes rebus-morceaux" }, ...(m.morceaux ?? []).map((x, k) => {
+    const titre = `« ${x.son || x.texte} » : cliquer pour mettre une autre image`;
+    const vignette = x.imageId ? photoBibliotheque(x.imageId, { class: "grille-vignette", alt: x.son, title: titre })
+      : x.banque ? h("img", { class: "grille-vignette", src: cheminPhotoBanque(x.banque), alt: x.son, title: titre, loading: "lazy" })
+      : h("span", { class: "grille-vignette rebus-lettre", title: titre, text: x.texte });
+    const fichier = h("input", {
+      type: "file", accept: "image/*", hidden: true,
+      onchange: async (e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (!f) return;
+        try {
+          const id = await storeChoiceImage(f);
+          m.morceaux[k] = { son: x.son || x.texte || "", imageId: id };
+          changer();
+          annonce(`Nouvelle image pour « ${x.son || x.texte} » dans « ${m.mot} ».`);
+        } catch (err) {
+          console.error(err);
+          annonce("Image refusée : essayez une autre image (JPEG ou PNG).");
+        }
+      },
+    });
+    return h("button", { type: "button", class: "rebus-morceau", "aria-label": titre, onclick: () => fichier.click() }, vignette, fichier);
+  }));
+}
+
+/** Les morceaux d'un rébus du catalogue, en vignettes simples (sans clic). */
+function apercuRebus(m) {
+  return h("span", { class: "grille-vignettes rebus-morceaux" }, ...(m.morceaux ?? []).map((x) => (x.imageId ? photoBibliotheque(x.imageId, { class: "grille-vignette", alt: x.son, title: x.son })
+    : x.banque ? h("img", { class: "grille-vignette", src: cheminPhotoBanque(x.banque), alt: x.son, title: x.son, loading: "lazy" })
+    : h("span", { class: "grille-vignette rebus-lettre", title: x.son, text: x.texte }))));
+}
+
+/**
  * Chante le mot ! dans une prestation (cedric, 24/10 : « à la manière des quiz ») : le 🎲 tire le nombre de mots choisi
  * dans les mots du jeu (selon l'âge, jamais un mot déjà dans la fête tant qu'il en reste) ; une ligne pour écrire un
  * mot à la main ; puis les séries et le « Chante le mot ! complet » (↑ ↓ ✕, 🔀). Un mot n'y passe qu'une fois ; écrit à
@@ -3050,7 +3105,10 @@ function mancheMots(r) {
   // Qui a disparu ? (cedric, 27/10) : la même carte, chaque tour montre ses cartes en petit.
   const disparu = type === "disparu";
   const unique = (quisuis && deUnique(r)) || disparu;
-  const nomDe = (m) => m.word ?? m.answer ?? m.theme ?? "";
+  // Le Rébus (cedric, 1/11) : comme les autres jeux, le nombre et le 🎲, plus la difficulté ; chaque rébus montre ses
+  // images en petit, et un clic sur l'une la remplace par une image à soi.
+  const rebus = type === "rebus";
+  const nomDe = (m) => m.word ?? m.answer ?? m.mot ?? m.theme ?? "";
   const e = "";
   const ce = "ce";
   const tous = "tous";
@@ -3190,6 +3248,7 @@ function mancheMots(r) {
   const outils = disparu ? h("div", { class: "quiz-outils" }, ...grilles.lignes, rappel, ligneGrilleVosImages(r, ajouterGrille, changer))
     : unique ? h("div", { class: "quiz-outils" }, persos.ligneUnique, rappel)
     : quisuis ? h("div", { class: "quiz-outils" }, ...persos.lignes, rappel)
+    : rebus ? h("div", { class: "quiz-outils" }, ligne, ligneNiveauRebus(r, () => tirerTout(Number(nombre.value))))
     : h("div", { class: "quiz-outils" }, ligne, ecrire);
 
   // Qui suis-je ? : la petite image du personnage (cedric, 24/10 : « vérifier qu'elle me convient »), celle que la TV
@@ -3202,6 +3261,7 @@ function mancheMots(r) {
     return [quisuis ? imageRecadrable(vignette(m), r, m, changer) : null, h("span", { class: "tirage-texte mot-texte" }, nomDe(m),
       quisuis ? h("small", { class: "mot-indices", text: m.clues.join(" · ") }) : null,
       disparu ? h("span", { class: "grille-vignettes" }, ...(m.objects ?? []).map((o, k) => objetRecadrable(vignetteObjet(o), r, m, k, changer))) : null,
+      rebus ? morceauxDuRebus(m, changer) : null,
       autre ? h("small", { class: "mot-deja", text: `Déjà dans « ${autre} »` }) : null)];
   };
   // ✕ : au 🎲, un 🎲 prend sa place ; écrit à la main, il part.
@@ -10922,7 +10982,7 @@ const GAME_GROUPS = [
     { type: "flou", icon: "🌫", rule: "Une photo d'un quiz ou de la banque devient nette peu à peu, le premier qui buzze répond.", needs: "photos" },
   ] },
   { title: "Contenu intégré", hint: "Prêts à jouer : le jeu tire au hasard dans un catalogue adapté à l'âge. Vous pouvez retirer des éléments et ajouter les vôtres.", games: [
-    { type: "chante", icon: "🎤" }, { type: "quisuis", icon: "🕵" }, { type: "disparu", icon: "🎩" },
+    { type: "chante", icon: "🎤" }, { type: "quisuis", icon: "🕵" }, { type: "disparu", icon: "🎩" }, { type: "rebus", icon: "🧩" },
     { type: "pictionary", icon: "✏️", rule: `Équipe par équipe : vous montrez un mot sur la tablette de l'équipe, un enfant le dessine et le dessin s'affiche en direct sur la TV. ${PICTO_POINTS} points si son équipe trouve avant la fin du chrono. Le temps de dessin se choisit dans la prestation.` },
   ] },
   { title: "Sans contenu", hint: "Rien à préparer.", games: [
@@ -11041,6 +11101,10 @@ function renderBuiltin() {
       : null;
     // Qui suis-je ? : image du personnage ; Pictionary : vraie photo du mot, à la place de son émoji.
     const photo = type === "quisuis" || type === "pictionary" ? contentPhoto(type, item, key, images) : null;
+    // Rébus : ses morceaux en vignettes ; sur un rébus ajouté, un clic change l'image d'un morceau.
+    const morceaux = type === "rebus" ? (custom
+      ? morceauxDuRebus(item, () => saveBuiltin(type, { off, extra: extra.map((x) => (game.key(x) === key ? item : x)) }, `« ${item.mot} » : image changée.`))
+      : apercuRebus(item)) : null;
     // Repère de préparation, jamais bloquant : le personnage se révélera sans visuel.
     const missing = type === "quisuis" && !item.emoji && !images[contentSlot(key)];
     return h("div", { class: `content-item${on ? " on" : ""}${custom ? " custom" : ""}`, "data-key": key },
@@ -11055,7 +11119,9 @@ function renderBuiltin() {
         custom ? h("span", { class: "tag", text: "ajouté" }) : null,
         missing ? h("span", { class: "tag missing", text: "image ou émoji manquant" }) : null,
         detail ? h("span", { class: "detail", text: detail }) : null,
+        type === "rebus" ? h("span", { class: "tag", text: item.niveau }) : null,
         vignettes),
+      morceaux,
       photo,
       custom && type === "quisuis" ? h("button", { type: "button", class: "icon", title: "Modifier ce personnage", "aria-label": "Modifier ce personnage", text: "✏️", onclick: () => modifierPersonnage(item) }) : null,
       custom ? h("button", {
@@ -11191,6 +11257,19 @@ function renderBuiltinForm() {
   const form = $("builtin-add");
   const field = (label, id, props = {}) => h("label", { class: props.wide ? "wide" : "" }, label, h(props.area ? "textarea" : "input", { id, maxlength: props.max ?? 60, rows: props.rows, placeholder: props.placeholder ?? "" }));
   const fields = type === "chante" ? [field("Nouveau mot", "bi-word", { max: 40, placeholder: "arc-en-ciel" })]
+    : type === "rebus" ? [
+      field("Mot à trouver", "bi-word", { max: 40, placeholder: "Pinceau" }),
+      field("Morceaux séparés par +", "bi-morceaux", { max: 120, placeholder: "pain + seau" }),
+      h("label", {}, "Difficulté", h("select", { id: "bi-niveau" }, ...NIVEAUX_REBUS.map((n) => h("option", { value: n, text: n[0].toUpperCase() + n.slice(1), selected: n === "moyen" })))),
+      // Un morceau sans photo dans la banque (ni lettre, ni chiffre) prend une photo à soi, dans l'ordre.
+      h("div", { class: "wide row" },
+        h("label", { class: "btn secondary file-btn" }, "📷 Photos des morceaux…",
+          h("input", {
+            id: "bi-photos", type: "file", accept: "image/*", multiple: true, hidden: true,
+            onchange: (e) => { const n = e.target.files?.length ?? 0; $("bi-photos-count").textContent = n ? `${plural(n, "photo choisie", "photos choisies")}, dans l'ordre des morceaux sans photo.` : ""; },
+          })),
+        h("span", { id: "bi-photos-count", class: "hint small", text: "Une lettre ou un chiffre (K, 6) s'écrit en néon ; « pain », « seau »… reprennent la photo de la banque." })),
+    ]
     : type === "pictionary" ? [
       field("Mot à dessiner", "bi-word", { max: 40, placeholder: "Toboggan" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🛝" }),
       // Série : une existante (liste) ou une nouvelle ; vide = « Mes mots ».
@@ -11224,7 +11303,7 @@ function renderBuiltinForm() {
           })),
         h("span", { id: "bi-photos-count", class: "hint small" })),
     ];
-  form.replaceChildren(h("p", { class: "label wide", text: `Ajouter ${type === "chante" || type === "pictionary" ? "un mot" : type === "quisuis" ? "un personnage" : "une famille d'objets"}` }),
+  form.replaceChildren(h("p", { class: "label wide", text: `Ajouter ${type === "rebus" ? "un rébus" : type === "chante" || type === "pictionary" ? "un mot" : type === "quisuis" ? "un personnage" : "une famille d'objets"}` }),
     ...fields, h("div", { class: "wide" }, h("button", { class: "btn", type: "submit", text: "Ajouter" })));
 }
 
@@ -11240,7 +11319,23 @@ $("builtin-add").onsubmit = async (e) => {
     status("builtin-status", `Photo ${photos.length + 1}…`, true);
     try { photos.push({ word: wordFromImage(f.name) || `Objet ${photos.length + 1}`, imageId: await storeChoiceImage(f) }); } catch (err) { console.error(err); }
   }
-  const raw = type === "chante" ? { word: val("bi-word") }
+  // Rébus : chaque morceau écrit trouve sa photo (banque, lettre en néon) ou prend la photo suivante choisie.
+  if (type === "rebus") {
+    const sons = val("bi-morceaux").split("+").map((x) => x.trim()).filter(Boolean);
+    const aMettre = [...($("bi-photos")?.files ?? [])];
+    const manquants = [];
+    for (const son of sons) {
+      const connu = morceauConnu(son);
+      if (connu) { photos.push(connu); continue; }
+      const f = aMettre.shift();
+      if (!f) { manquants.push(son); continue; }
+      status("builtin-status", `Photo de « ${son} »…`, true);
+      try { photos.push({ son, imageId: await storeChoiceImage(f) }); } catch (err) { console.error(err); manquants.push(son); }
+    }
+    if (manquants.length) return status("builtin-status", `Pas de photo pour ${manquants.map((x) => `« ${x} »`).join(", ")} : choisissez-la avec « 📷 Photos des morceaux… ».`);
+  }
+  const raw = type === "rebus" ? { mot: val("bi-word"), niveau: $("bi-niveau")?.value, morceaux: photos }
+    : type === "chante" ? { word: val("bi-word") }
     : type === "pictionary" ? { word: val("bi-word"), image: val("bi-emoji"), series: val("bi-series") }
     : type === "quisuis" ? { answer: val("bi-answer"), emoji: val("bi-emoji"), serie: val("bi-serie"), clues: [1, 2, 3, 4].map((n) => val(`bi-clue${n}`)).filter(Boolean) }
     : { theme: val("bi-theme"), objects: [...val("bi-objects").split("\n").map((line) => {
@@ -11249,7 +11344,8 @@ $("builtin-add").onsubmit = async (e) => {
     }).filter(Boolean), ...photos] };
   const item = game.clean(raw);
   if (!item) {
-    return status("builtin-status", type === "chante" || type === "pictionary" ? "Écrivez le mot à ajouter."
+    return status("builtin-status", type === "rebus" ? "Il faut le mot et 2 à 6 morceaux (« pain + seau »)."
+      : type === "chante" || type === "pictionary" ? "Écrivez le mot à ajouter."
       : type === "quisuis" ? "Il faut la réponse et au moins 2 indices."
       : "Il faut un nom et au moins 5 objets, chacun avec son émoji (« Poupée 🪆 ») ou sa photo.");
   }
@@ -11277,6 +11373,7 @@ const COLLECTION_SCREEN = {
   zoom: () => showQuizzes("images"), flou: () => showQuizzes("images"),
   mimes: () => show("mimes"), blind: () => show("music"), musical: () => show("music"), statues: () => openStatuesSongs(),
   chante: () => openBuiltin("chante"), quisuis: () => openBuiltin("quisuis"), disparu: () => openBuiltin("disparu"), pictionary: () => openBuiltin("pictionary"),
+  rebus: () => openBuiltin("rebus"),
 };
 
 /**
