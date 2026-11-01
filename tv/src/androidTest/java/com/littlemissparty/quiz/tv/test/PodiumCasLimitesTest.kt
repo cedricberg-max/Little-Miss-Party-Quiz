@@ -102,6 +102,8 @@ class PodiumCasLimitesTest : TestTv() {
         // Écran final : le gagnant seul (cedric, 26/10 : « 2 Sacha 250 » sous le gagnant, « je ne vois pas l'intérêt »).
         seulementLesGagnants("Dragons")
         ecran.capture("podium-gagnant-seul")
+        // La couronne néon se pose sur le coin droit du nom, juste après les lettres qui claquent (choix B, 1/11).
+        ecran.capture("podium-couronne", 4_000)
     }
 
     /**

@@ -585,3 +585,14 @@ body.look-gs:not(.regie-mode) #app .mimes-phrase { font-size: clamp(22px, min(5.
 @media (prefers-reduced-motion: reduce) { body.look-gs:not(.regie-mode) #app .mimes-titre { animation: none; } }
 /* Simon : encore un peu d'air entre les boules et le bord (cedric, 31/10), en plus des marges de tous les écrans. */
 body.look-gs:not(.regie-mode) #app .sm-boules { padding-inline: clamp(6px, 1.2vw, 12px); box-sizing: border-box; }
+
+/* Coffres en bois verni et or (cedric, 1/11, style B) : des coffres bien plus gros qu'avant (112-150 px).
+   Tablette debout : chaque rangée de la TV sur 2 lignes (--par-ligne, coffres.js), dans le même ordre que la TV. */
+body.look-gs:not(.regie-mode) .bc-grille { width: min(100%, 1100px); }
+body.look-gs:not(.regie-mode) .bc-rangee .bc-case { max-width: min(220px, 24vh); }
+@media (orientation: portrait) {
+  body.look-gs:not(.regie-mode) .bc-rangee { flex-wrap: wrap; row-gap: 12px; }
+  body.look-gs:not(.regie-mode) .bc-rangee .bc-case {
+    flex-basis: calc((100% - (var(--par-ligne, 3) - 1) * 10px) / var(--par-ligne, 3)); max-width: min(240px, 15vh);
+  }
+}

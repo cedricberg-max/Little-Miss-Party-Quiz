@@ -186,6 +186,44 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `nappe de la Super Finale dans tous les quiz a questions multipliees, Vrai ou Faux express compris`() {
+        // cedric, 1/11 : la même nappe (celle de l'exemple ×3) pour toutes les questions multipliées des jeux de quiz.
+        for (q in listOf(q2, q2.copy(express = true))) {
+            val d = DirecteurSonore()
+            d.observer(q.copy(gameShow = true))
+            assertEquals(Ambiance.DECISIVE, d.observer(q.copy(index = 8, gameShow = true, superFinale = true)).musique())
+        }
+        // Vrai ou Faux express : la nappe continue sous la réponse et jusqu'à la question multipliée suivante, sans
+        // repasser par la musique express entre deux questions.
+        val vf = DirecteurSonore()
+        vf.observer(q2.copy(gameShow = true, express = true))
+        vf.observer(q2.copy(index = 8, gameShow = true, express = true, superFinale = true))
+        assertTrue(vf.observer(q2.copy(index = 8, gameShow = true, express = true, superFinale = true, ecran = Ecran.REVELATION)).musique() in listOf(null, Ambiance.DECISIVE))
+        assertTrue(vf.observer(q2.copy(index = 9, gameShow = true, express = true, superFinale = true)).musique() in listOf(null, Ambiance.DECISIVE))
+        // Hors Super Finale, le Vrai ou Faux express garde sa musique nerveuse.
+        val d = DirecteurSonore()
+        assertEquals(Ambiance.EXPRESS, d.observer(q2.copy(gameShow = true, express = true)).musique())
+    }
+
+    @Test
+    fun `Game Show, annonce x N aussi quand la serie multipliee commence a la premiere question du jeu, juste apres sa presentation`() {
+        // cedric, 1/11 : « je n'ai pas eu la sensation de l'avoir entendu ». Le jingle d'ouverture du jeu prenait la place.
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        val presentation = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 4, equipes = 2, epreuve = "quiz|Super finale", gameShow = true, superFinale = true)
+        d.observer(presentation)
+        val o = d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 2, epreuve = "quiz|Super finale", gameShow = true, superFinale = true, annonceFacteur = true))
+        assertTrue(Ordre.Jouer(Son.ROULEMENT_LONG) in o && Ordre.Jouer(Son.MONTEE) in o)
+        assertEquals(Tempo.ANNONCE_FACTEUR_BOUM, o.filterIsInstance<Ordre.Jouer>().single { it.son == Son.IMPACT }.dansMs)
+        assertFalse(Son.MANCHE in o.sons())
+        // Sans annonce plein écran (jeu ordinaire), le jingle d'ouverture reste.
+        val d2 = DirecteurSonore()
+        d2.observer(salon.copy(gameShow = true, equipes = 2))
+        d2.observer(presentation.copy(superFinale = false))
+        assertTrue(Son.MANCHE in d2.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 2, epreuve = "quiz|Super finale", gameShow = true)).sons())
+    }
+
+    @Test
     fun `Game Show, annonce x N (choix C du 31-10), roulement qui monte puis le boum pile sur x N, la musique repart avec lui`() {
         // Le même pour ×2, ×3, ×4 et ×5 : le chiffre ne change pas les sons de l'annonce.
         val d = DirecteurSonore()

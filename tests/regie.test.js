@@ -1704,36 +1704,71 @@ describe("régie", () => {
   });
 
   /** Duel des robots : la box publie state.duel (contrat du 27/10) ; l'heure du PAN n'y est jamais. */
-  async function duelEnCours(duel, teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"]], query = `?g=${CODE}&emu=1&cockpit=1`) {
+  async function duelEnCours(duel, teams = [["rose", "Les Roses", "#FF2D8A"], ["bleu", "Les Bleus", "#2B86C5"], ["vert", "Les Verts", "#39FF14"]], query = `?g=${CODE}&emu=1&cockpit=1`, etatPartie = {}) {
     box = startBox();
     for (const [id, nom, couleur] of teams) await addTeam(id, nom, couleur);
     const plan = [{ id: "d1", kind: "duel", text: "Le Duel des robots", round: "Le Duel des robots", joueurs: 2, faceMin: 20, faceMax: 40, longs: true }];
     await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, coffres: true, gonfleur: true, patate: true, duel: true, simon: true, chrono: true, questions: plan });
-    const etat = { n: 1, total: 3, teams: ["rose", "bleu"], players: [1, 1], step: "ready", extra: false, key: "d1-1", result: null, played: {}, allPlayed: false, ...duel };
-    await box.set({ ...questionState(1), qid: "d1", kind: "duel", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, duel: etat });
+    // Nouveau déroulé (cedric, 1/11) : par défaut, les joueurs de chaque équipe sont déjà réglés (2 chacune).
+    const counts = Object.fromEntries(teams.map(([id]) => [id, 2]));
+    const etat = { n: 1, total: 3, plan: { counts }, joueurs: 2, teams: ["rose", "bleu"], players: [1, 1], step: "ready", extra: false, key: "d1-1", result: null, played: {}, allPlayed: false, ...duel };
+    await box.set({ ...questionState(1), qid: "d1", kind: "duel", text: plan[0].text, choices: null, total: 1, durationMs: null, deadline: null, duel: etat, ...etatPartie });
     const page = await openRegie(undefined, query);
     await pair(page);
     await inRegie(page);
     return { page, etat };
   }
 
+  test("duel des robots : pendant la présentation, les joueurs de chaque équipe (− / ＋), les duels prévus, « C'est bon » ou « Passer cette étape »", async () => {
+    const { page } = await duelEnCours({ n: null, total: 3, plan: null, teams: null, players: null, step: "none", key: null }, undefined, undefined, { phase: "intro" });
+    await page.locator("#duel-info", { hasText: "Combien de joueurs par équipe ?" }).waitFor();
+    assert.equal(await page.locator("#duel-lignes .duel-ligne").count(), 3);
+    // Départ : le nombre de la Régie PC (2 ici) pour chaque équipe.
+    assert.deepEqual(await page.locator("#duel-lignes .duel-n").allTextContents(), ["2", "2", "2"]);
+    await page.locator("#duel-total", { hasText: "= 3 duels prévus" }).waitFor();
+    assert.equal(await page.locator("#duel-face").isVisible(), false, "pas encore de face-à-face");
+    const rose = page.locator('.duel-ligne[data-team="rose"]');
+    await rose.getByRole("button", { name: /Un joueur de plus/ }).click();
+    await rose.getByRole("button", { name: /Un joueur de plus/ }).click();
+    await page.locator('.duel-ligne[data-team="bleu"]').getByRole("button", { name: /Un joueur de moins/ }).click();
+    assert.deepEqual(await page.locator("#duel-lignes .duel-n").allTextContents(), ["4", "1", "2"]);
+    // 7 joueurs : la moitié arrondie (4), et au moins les 4 joueurs des Roses.
+    await page.locator("#duel-total", { hasText: "= 4 duels prévus" }).waitFor();
+    // Jamais moins d'un joueur.
+    assert.equal(await page.locator('.duel-ligne[data-team="bleu"]').getByRole("button", { name: /Un joueur de moins/ }).isDisabled(), true);
+    await capture(page, "regie-duel-joueurs");
+    await page.click("#duel-ok");
+    await waitFor(async () => (await commandes("duel_plan")).some((c) => c.counts?.rose === 4 && c.counts?.bleu === 1 && c.counts?.vert === 2), "joueurs envoyés à la box");
+    await page.click("#duel-passer");
+    await waitFor(async () => (await commandes("duel_plan")).some((c) => c.skip === true), "étape passée");
+    // Pas de présentation (ou rien réglé) : l'écran revient avant le premier duel, le gros bouton attend.
+    await box.set({ phase: "question", duel: { n: 1, total: 3, plan: null, joueurs: 2, teams: ["rose", "bleu"], players: [1, 1], step: "ready", key: "d1-1", result: null, played: {}, allPlayed: false } });
+    await page.locator("#c-next", { hasText: "Joueurs par équipe" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    assert.equal(await page.locator("#duel-compte").isVisible(), true);
+    await page.context().close();
+  });
+
   test("duel des robots : lancer, face-à-face (arrêt en deux appuis), gagnante, trop tôt, personne, duel suivant, résultats", async () => {
     const { page, etat } = await duelEnCours({});
     await page.locator("#duel-info", { hasText: "Duel 1 sur 3 : appelez les deux joueurs." }).waitFor();
     await page.locator("#duel-face .duel-equipe", { hasText: "Les Roses" }).waitFor();
+    assert.equal(await page.locator("#duel-compte").isVisible(), false, "joueurs déjà réglés");
     // Jamais de « joueur n° » : l'équipe joue, la rotation se fait entre eux (cedric, 31/10 au soir).
     assert.equal(await page.locator("#duel-face").getByText(/joueur n°/i).count(), 0, "pas de joueur n° au duel");
     await page.locator("#duel-face .duel-equipe", { hasText: "Les Bleus" }).waitFor();
+    await page.locator("#duel-astuce", { hasText: "Touche une équipe pour la changer" }).waitFor();
     await page.locator("#duel-points", { hasText: "100 points par duel gagné" }).waitFor();
     assert.equal(await page.locator("#c-tuiles").isVisible(), false, "le milieu est au duel");
-    await page.locator("#c-next", { hasText: "🤠 Lancer le duel" }).click();
+    await page.locator("#c-next", { hasText: "▶ Lancer le duel" }).click();
     await waitFor(async () => (await commandes("duel_start")).some((c) => c.teams == null), "face-à-face lancé");
 
     await box.set({ duel: { ...etat, step: "standoff", key: "d1-1b" } });
     await page.locator("#duel-info", { hasText: "Face-à-face… mains sur les buzzers" }).waitFor();
     await page.locator("#c-next", { hasText: "Face-à-face… 🤠" }).waitFor();
     assert.equal(await page.locator("#c-next").isDisabled(), true, "rien à lancer pendant le face-à-face");
-    assert.equal(await page.locator("#duel-autres").isVisible(), false);
+    assert.equal(await page.locator("#duel-plus").isVisible(), false);
+    assert.equal(await page.locator("#duel-fin").isVisible(), false);
     await page.click("#duel-stop");
     await page.locator("#duel-stop", { hasText: "Touchez encore" }).waitFor();
     assert.equal((await commandes("duel_stop")).length, 0, "un seul appui n'arrête rien");
@@ -1742,6 +1777,7 @@ describe("régie", () => {
 
     await box.set({ duel: { ...etat, step: "result", result: { winner: "rose", loser: "bleu", early: null, ms: 312, points: 100 } } });
     await page.locator("#duel-resultat", { hasText: "🏆 Les Roses gagne le duel en 0,31 s !" }).waitFor();
+    await page.locator("#duel-info", { hasText: "Duel 1 sur 3 terminé." }).waitFor();
     await page.locator("#c-next", { hasText: "▶ Duel suivant" }).click();
     await waitFor(async () => (await commandes("duel_next")).length === 1, "duel suivant demandé");
     await box.set({ duel: { ...etat, step: "result", result: { winner: "rose", loser: "bleu", early: "bleu", ms: null, points: 100 } } });
@@ -1751,11 +1787,8 @@ describe("régie", () => {
 
     // Tous les joueurs passés : le gros bouton finit le jeu, un duel en plus reste possible.
     await box.set({ duel: { ...etat, n: 3, step: "result", allPlayed: true, result: { winner: "vert", loser: "rose", early: null, ms: 420, points: 100 } } });
-    await page.locator("#duel-autres", { hasText: "🤠 Duel en plus" }).waitFor();
-    // Duel en plus : comme la box, les 2 équipes qui ont le moins joué sont cochées d'avance (pas la paire d'avant).
-    await box.set({ duel: { ...etat, n: 3, step: "result", allPlayed: true, teams: ["vert", "rose"], played: { rose: 2, bleu: 1, vert: 1 }, result: { winner: "vert", loser: "rose", early: null, ms: 420, points: 100 } } });
-    await page.click("#duel-autres");
-    await page.locator("#c-next", { hasText: "🤠 Les Bleus contre Les Verts" }).waitFor();
+    await page.locator("#duel-plus", { hasText: "＋ Un duel en plus" }).click();
+    assert.equal(await page.locator("#duel-face .duel-slot").count(), 2, "duel en plus : les 2 cases vides");
     await page.click("#duel-retour");
     assert.equal(await page.locator("#duel-fin").isVisible(), false, "« Jeu suivant » est déjà le gros bouton");
     await page.locator("#c-next", { hasText: "Résultats finaux 🏆" }).click();
@@ -1763,30 +1796,51 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("duel des robots : duel à la volée entre 2 équipes choisies, « Jeu suivant » confirmé, pause, une seule équipe", async () => {
-    const { page, etat } = await duelEnCours({});
-    // Qui affronte qui (cedric, 27/10) : la paire proposée par la box est cochée d'avance, Sarah la change.
-    await page.click("#duel-autres");
-    await page.locator("#c-next", { hasText: "🤠 Les Roses contre Les Bleus" }).waitFor();
-    assert.equal(await page.locator("#duel-face").isVisible(), false);
-    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
-    await page.locator("#c-next", { hasText: "Touchez 2 équipes" }).waitFor();
+  test("duel des robots : toucher une équipe du duel proposé la change pour ce duel seulement", async () => {
+    const { page } = await duelEnCours({});
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Roses" }).click();
+    // La case des Roses se vide, la grille des équipes s'ouvre ; les Bleus restent (pas de duel contre soi-même).
+    await page.locator("#duel-info", { hasText: "touche l'équipe qui la remplace" }).waitFor();
+    assert.equal(await page.locator("#duel-face .duel-slot").count(), 1);
+    assert.equal(await page.locator("#duel-choix").isVisible(), true);
+    assert.equal(await page.locator('#duel-choix [data-team="bleu"]').isDisabled(), true);
     assert.equal(await page.locator("#c-next").isDisabled(), true);
+    await capture(page, "regie-duel-changer");
     await page.locator("#duel-choix .statues-tuile", { hasText: "Les Verts" }).click();
-    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
-    assert.deepEqual(await page.locator('#duel-choix [aria-pressed="true"]').allTextContents(), ["Les Roses", "Les Verts"], "2 équipes au plus : la plus ancienne part");
-    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
+    await waitFor(async () => (await commandes("duel_swap")).some((c) => JSON.stringify(c.teams) === JSON.stringify(["vert", "bleu"])), "équipe changée");
+    await page.locator("#duel-choix").waitFor({ state: "hidden" });
+    // Remettre la même équipe à sa place, ou « Retour » : rien n'est envoyé.
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Bleus" }).click();
     await page.locator("#duel-choix .statues-tuile", { hasText: "Les Bleus" }).click();
-    await page.locator("#c-next", { hasText: "🤠 Les Verts contre Les Bleus" }).click();
-    await waitFor(async () => (await commandes("duel_start")).some((c) => JSON.stringify(c.teams) === JSON.stringify(["vert", "bleu"])), "duel à la volée lancé");
-    await page.locator("#duel-face").waitFor();
-
-    // Retour sans rien lancer.
-    await page.click("#duel-autres");
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Bleus" }).click();
     await page.click("#duel-retour");
-    await page.locator("#c-next", { hasText: "🤠 Lancer le duel" }).waitFor();
+    await page.locator("#c-next", { hasText: "▶ Lancer le duel" }).waitFor();
+    assert.equal((await commandes("duel_swap")).length, 1, "un seul changement envoyé");
+    await page.context().close();
+  });
+
+  test("duel des robots : « ＋ Un duel en plus » entre 2 équipes choisies, « Jeu suivant » confirmé, pause", async () => {
+    const { page, etat } = await duelEnCours({});
+    await page.click("#duel-plus");
+    await page.locator("#duel-info", { hasText: "Duel en plus : qui affronte qui ?" }).waitFor();
+    assert.equal(await page.locator("#duel-face .duel-slot").count(), 2);
+    await page.locator("#c-next", { hasText: "Touche 2 équipes" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Verts" }).click();
+    assert.deepEqual(await page.locator('#duel-choix [aria-pressed="true"]').allTextContents(), ["Les Roses", "Les Verts"]);
+    await page.locator("#c-next", { hasText: "▶ Lancer le duel" }).waitFor();
+    // Une équipe choisie, touchée à nouveau, s'en va ; la suivante prend sa case.
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
+    await page.locator("#c-next", { hasText: "Touche 2 équipes" }).waitFor();
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Bleus" }).click();
+    await page.locator("#c-next", { hasText: "▶ Lancer le duel" }).click();
+    await waitFor(async () => (await commandes("duel_start")).some((c) => JSON.stringify(c.teams) === JSON.stringify(["bleu", "vert"])), "duel en plus lancé");
+    await box.set({ duel: { ...etat, n: 2, teams: ["bleu", "vert"], step: "standoff", extra: true, key: "d1-2" } });
+    await page.locator("#duel-choix").waitFor({ state: "hidden" });
 
     // « Jeu suivant » avant la fin des duels prévus : confirmé, on dit combien il en reste.
+    await box.set({ duel: { ...etat } });
     await page.click("#duel-fin");
     assert.match(await respond(page, false), /Arrêter les duels \? 3 duels prévus pas encore joués/);
     assert.equal((await commandes("next")).length, 0);
@@ -1795,7 +1849,34 @@ describe("régie", () => {
     await waitFor(async () => (await commandes("next")).length === 1, "jeu suivant après confirmation");
 
     await box.set({ paused: true, pauseReason: "regie", duel: { ...etat, step: "ready" }, seq: 9 });
-    await waitFor(async () => page.locator("#duel-autres").isDisabled(), "pause : rien ne part");
+    await waitFor(async () => page.locator("#duel-plus").isDisabled(), "pause : rien ne part");
+    await page.context().close();
+  });
+
+  test("duel des robots, étape passée : avant chaque duel, Sarah choisit qui affronte qui", async () => {
+    const { page, etat } = await duelEnCours({ n: null, total: 0, plan: { manual: true }, teams: null, players: null, step: "none", key: null });
+    await page.locator("#duel-info", { hasText: "Duel 1 : qui affronte qui ?" }).waitFor();
+    assert.equal(await page.locator("#duel-face .duel-slot").count(), 2);
+    assert.equal(await page.locator("#duel-plus").isVisible(), false, "chaque duel se choisit déjà");
+    assert.equal(await page.locator("#duel-retour").isVisible(), false);
+    assert.equal(await page.locator("#duel-fin").isVisible(), true, "« Jeu suivant » toujours là");
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Verts" }).click();
+    await page.locator("#duel-choix .statues-tuile", { hasText: "Les Roses" }).click();
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Verts" }).waitFor();
+    await capture(page, "regie-duel-manuel");
+    await page.locator("#c-next", { hasText: "▶ Lancer le duel" }).click();
+    await waitFor(async () => (await commandes("duel_start")).some((c) => JSON.stringify(c.teams) === JSON.stringify(["vert", "rose"])), "duel choisi lancé");
+    await box.set({ duel: { ...etat, n: 1, teams: ["vert", "rose"], step: "standoff", key: "d1-1" } });
+    await page.locator("#duel-info", { hasText: "Face-à-face" }).waitFor();
+    await box.set({ duel: { ...etat, n: 1, teams: ["vert", "rose"], step: "result", key: "d1-1", result: { winner: "rose", loser: "vert", early: null, ms: 280, points: 100 } } });
+    // Après le duel : le résultat, et les 2 cases vides pour le duel 2.
+    await page.locator("#duel-resultat", { hasText: "🏆 Les Roses gagne le duel" }).waitFor();
+    await page.locator("#duel-info", { hasText: "Duel 2 : qui affronte qui ?" }).waitFor();
+    assert.equal(await page.locator("#duel-face .duel-slot").count(), 2);
+    await page.click("#duel-fin");
+    await respond(page);
+    await waitFor(async () => (await commandes("next")).length === 1, "jeu suivant");
     await page.context().close();
   });
 
@@ -1807,17 +1888,27 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("duel des robots sur 8 équipes : sans joueur n°, choix de 2 équipes, gros bouton toujours visible", async () => {
+  test("duel des robots sur 8 équipes : joueurs de chaque équipe, sans joueur n°, choix de 2 équipes, gros bouton toujours visible", async () => {
     const huit = ["Orange", "Vert", "Rose", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"].map((n, i) => [`e${i}`, `Les ${n}s`, TEAM_COLORS_TEST[i % TEAM_COLORS_TEST.length]]);
-    const { page } = await duelEnCours({ teams: ["e0", "e7"], players: [3, 2] }, huit);
+    const { page, etat } = await duelEnCours({ teams: ["e0", "e7"], players: [3, 2] }, huit);
     await page.locator("#duel-face .duel-equipe", { hasText: "Les Turquoises" }).waitFor();
     assert.equal(await page.locator("#duel-face").getByText(/joueur n°/i).count(), 0, "pas de joueur n° sur 8 équipes");
     await capture(page, "regie-duel-pret");
-    await page.click("#duel-autres");
+    await page.click("#duel-plus");
     assert.equal(await page.locator("#duel-choix .statues-tuile").count(), 8);
     const bas = await page.locator("#c-next").boundingBox();
     assert.ok(bas && bas.y + bas.height <= page.viewportSize().height + 1, "le gros bouton reste visible");
     await capture(page, "regie-duel-choix");
+    // Les joueurs de 8 équipes : aucun nom coupé, « C'est bon » accessible.
+    await box.set({ phase: "intro", duel: { ...etat, plan: null, n: null, teams: null, players: null, step: "none" } });
+    await page.locator("#duel-info", { hasText: "Combien de joueurs par équipe ?" }).waitFor();
+    assert.equal(await page.locator("#duel-lignes .duel-ligne").count(), 8);
+    await page.locator("#duel-total", { hasText: "= 8 duels prévus" }).waitFor();
+    const coupe = await page.evaluate(() => [...document.querySelectorAll(".duel-ligne b")].some((b) => b.scrollWidth > b.clientWidth + 1));
+    assert.equal(coupe, false, "aucun nom coupé");
+    await page.locator("#duel-ok").scrollIntoViewIfNeeded();
+    assert.equal(await page.locator("#duel-ok").isVisible(), true);
+    await capture(page, "regie-duel-joueurs-8");
     await page.context().close();
   });
 
@@ -7721,28 +7812,28 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator(".dz-boite").waitFor({ state: "detached" });
     assert.equal((await zoomDe(mini))[0], "scale(6)");
     await mini.click();
-    await page.locator(".dz-forces button", { hasText: "Fort" }).click();
+    await page.locator(".dz-forces button", { hasText: /^Fort$/ }).click();
     const scene = await page.locator(".dz-scene").boundingBox();
     await page.mouse.move(scene.x + scene.width / 2, scene.y + scene.height / 2);
     await page.mouse.down();
     await page.mouse.move(scene.x + 2, scene.y + 2, { steps: 5 });
     await page.mouse.up();
-    assert.equal(await page.locator(".dz-apercu img").evaluate((el) => el.style.transform), "scale(9)", "l'aperçu en grand suit");
+    assert.equal(await page.locator(".dz-apercu img").evaluate((el) => el.style.transform), "scale(8)", "l'aperçu en grand suit");
     await page.locator(".dz-boite button", { hasText: "Valider le départ" }).click();
     await page.locator(".dz-boite").waitFor({ state: "detached" });
-    await page.waitForFunction(() => document.querySelector(".zoom-depart img")?.style.transform === "scale(9)");
-    assert.deepEqual(await zoomDe(mini), ["scale(9)", "0% 0%"]);
-    const { show, q } = await enregistrer("Nina", (y) => y.zoomDepart?.z === 9);
-    assert.deepEqual(q.zoomDepart, { x: 0, y: 0, z: 9 });
+    await page.waitForFunction(() => document.querySelector(".zoom-depart img")?.style.transform === "scale(8)");
+    assert.deepEqual(await zoomDe(mini), ["scale(8)", "0% 0%"]);
+    const { show, q } = await enregistrer("Nina", (y) => y.zoomDepart?.z === 8);
+    assert.deepEqual(q.zoomDepart, { x: 0, y: 0, z: 8 });
     assert.equal(q.imageId, LION, "la photo ne change pas");
-    await waitFor(async () => (await library(`departsZoom/${LION}`))?.z === 9, "départ gardé pour la photo");
+    await waitFor(async () => (await library(`departsZoom/${LION}`))?.z === 8, "départ gardé pour la photo");
     // La TV le reçoit dans la question du Zoom mystère.
     const { snapshot } = buildSnapshot("nina", show, {}, {}, () => 0.5);
-    assert.deepEqual(snapshot.quiz.questions.find((x) => x.kind === "zoom").zoomDepart, { x: 0, y: 0, z: 9 });
+    assert.deepEqual(snapshot.quiz.questions.find((x) => x.kind === "zoom").zoomDepart, { x: 0, y: 0, z: 8 });
     // Une autre prestation avec la même photo : le même départ, tout seul.
     mini = await nouvelle("Lou");
-    await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(9)");
-    assert.deepEqual((await enregistrer("Lou", (y) => y.zoomDepart)).q.zoomDepart, { x: 0, y: 0, z: 9 });
+    await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(8)");
+    assert.deepEqual((await enregistrer("Lou", (y) => y.zoomDepart)).q.zoomDepart, { x: 0, y: 0, z: 8 });
     // La petite molette sous la photo (cedric, 31/10) : zoomer plus loin sans ouvrir le réglage, le même centre gardé.
     const { zoomerDepart } = await import("../web/public/departzoom.js");
     const centre = (d) => { const f = fenetreDuDepart(d); return [f.gauche + f.taille / 2, f.haut + f.taille / 2]; };
@@ -7751,8 +7842,9 @@ describe("bibliothèque de quiz et prestations", () => {
     centre(plusFort).forEach((c, k) => assert.ok(Math.abs(c - centre({ x: 0.3, y: 0.6, z: 4 })[k]) < 0.002, "même centre"));
     const molette = page.locator("#show-rounds .quiz-complet-q .zoom-molette");
     await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-molette")?.disabled === false);
-    assert.equal(await molette.inputValue(), "9");
-    assert.equal(await page.locator("#show-rounds .zoom-molette-force").textContent(), "×9");
+    assert.equal(await molette.inputValue(), "8");
+    assert.equal(await molette.getAttribute("min"), "6", "seulement plus loin que le zoom normal de la TV");
+    assert.equal(await page.locator("#show-rounds .zoom-molette-force").textContent(), "×8");
     await molette.fill("10");
     await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(10)");
     assert.equal((await enregistrer("Lou", (y) => y.zoomDepart?.z === 10)).q.zoomDepart.z, 10);
@@ -7760,6 +7852,68 @@ describe("bibliothèque de quiz et prestations", () => {
     // La molette ne dépasse pas sous la photo.
     const [bloc, photo] = await Promise.all([page.locator("#show-rounds .zoom-depart-bloc").boundingBox(), page.locator("#show-rounds .zoom-depart").boundingBox()]);
     assert.ok(bloc.width <= photo.width + 1, `molette pas plus large que la photo (${bloc.width} > ${photo.width})`);
+    await page.context().close();
+  });
+
+  test("Régie PC (cedric, 01/11) : Image floue, par défaut le flou d'aujourd'hui ; une petite molette sous chaque photo la rend plus floue au départ ; enregistré dans la question (flouDepart, lu par la TV) et gardé pour la photo", async () => {
+    const { departFlou, buildSnapshot } = await import("../web/public/show.js");
+    assert.deepEqual(departFlou({ w: 3 }), { w: 3 });
+    assert.deepEqual(departFlou({ w: 9 }), { w: 5 });
+    assert.deepEqual(departFlou({ w: 0 }), { w: 2 });
+    assert.equal(departFlou({ w: "a" }), null);
+    assert.equal(departFlou(null), null);
+
+    const PNG = `data:image/png;base64,${pngHalves(400, 300, [220, 30, 30], [30, 60, 220]).toString("base64")}`;
+    const OURS = "c5c5c5c5c5c5c5c5";
+    await seedLibrary("images", { [OURS]: PNG });
+    await seedLibrary("medias", { [OURS]: { name: "Ours", cat: "Animaux", createdAt: 1, updatedAt: 1 } });
+    const page = await admin();
+    const nouvelle = async (prenom) => {
+      await page.click("#nav button[data-screen=home]");
+      await page.click("#home-new");
+      await page.fill("#show-child", prenom);
+      await ajouterJeu(page, "flou");
+      const round = page.locator("#show-rounds .round").nth(0);
+      await round.locator(".vos-images-cherche").fill("ours");
+      await round.locator(`.vos-images-tuile[data-image="${OURS}"]`).click();
+      return round;
+    };
+    // Comme pour le zoom : attendre la prestation telle qu'enregistrée, le message « Enregistrée » peut rester de
+    // l'enregistrement d'avant.
+    const enregistrer = async (prenom, pret = () => true) => {
+      await page.click("#show-save");
+      await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+      let lu = null;
+      await waitFor(async () => {
+        const show = Object.values((await library("shows")) ?? {}).find((x) => x.childName === prenom);
+        const q = show?.rounds?.[0]?.seriesQuiz?.flatMap((x) => x.questions ?? []).find((y) => y && !y.vide);
+        lu = { show, q };
+        return q && pret(q);
+      }, `prestation de ${prenom} enregistrée`);
+      return lu;
+    };
+    const largeur = () => page.locator("#show-rounds .flou-depart img").getAttribute("data-largeur");
+    // Sans réglage : le flou d'aujourd'hui (5 pixels), rien d'enregistré : la TV floute comme avant.
+    let round = await nouvelle("Zoé");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .flou-depart img")?.dataset.largeur === "5");
+    assert.equal(await round.locator(".flou-molette-force").textContent(), "normal");
+    assert.equal((await enregistrer("Zoé")).q.flouDepart, undefined);
+    // La molette à fond : le plus flou (2 pixels), la petite image suit.
+    await round.locator(".flou-molette").fill("3");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .flou-depart img")?.dataset.largeur === "2");
+    assert.equal(await round.locator(".flou-molette-force").textContent(), "max");
+    const { show, q } = await enregistrer("Zoé", (y) => y.flouDepart);
+    assert.deepEqual(q.flouDepart, { w: 2 });
+    assert.equal(q.imageId, OURS, "la photo ne change pas");
+    await waitFor(async () => (await library(`departsFlou/${OURS}`))?.w === 2, "flou gardé pour la photo");
+    // La TV le reçoit dans la question de l'Image floue.
+    const { snapshot } = buildSnapshot("zoe", show, {}, {}, () => 0.5);
+    assert.deepEqual(snapshot.quiz.questions.find((x) => x.kind === "flou").flouDepart, { w: 2 });
+    // Une autre prestation avec la même photo : le même flou, tout seul, et enregistré avec elle.
+    round = await nouvelle("Léo");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .flou-depart img")?.dataset.largeur === "2");
+    assert.equal(await largeur(), "2");
+    assert.deepEqual((await enregistrer("Léo", (y) => y.flouDepart)).q.flouDepart, { w: 2 });
     await page.context().close();
   });
 

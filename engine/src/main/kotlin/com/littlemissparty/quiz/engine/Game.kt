@@ -119,6 +119,8 @@ data class GameState(
     val statues: StatuesRound? = null,
     /** Le Duel des robots : le duel prêt ou en cours, et les duels déjà joués (null hors de ce jeu, ou pendant sa présentation). */
     val duel: DuelRound? = null,
+    /** Le Duel des robots : joueurs de chaque équipe donnés par Sarah, ou mode manuel (null : pas encore, ou hors de ce jeu). */
+    val duelPlan: DuelPlan? = null,
     /** Le Simon de Buzzy : le tour en cours et sa suite (null hors de ce jeu, ou pendant sa présentation). */
     val simon: SimonRound? = null,
     /** Le Chrono de Buzzy : le tour prêt, en cours ou jugé (null hors de ce jeu, ou pendant sa présentation). */
@@ -351,11 +353,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /**
      * Pendant la présentation d'un jeu, seuls comptent le lancement, la pause, les points de la régie, le saut
-     * vers un autre jeu, la fin de partie et les réglages (multiplicateur) : aucune réponse, aucun buzz.
+     * vers un autre jeu, la fin de partie et les réglages (multiplicateur, joueurs du Duel) : aucune réponse, aucun buzz.
      */
     private fun reduce(s: GameState, e: GameEvent): GameState? =
         if (s.intro && e !is GameLaunched && e !is Paused && e !is Resumed && e !is ScoreAdjusted && e !is Undone &&
-            e !is Jumped && e !is GameEnded && e !is FactorChosen && e !is ProgramReset && e !is MimeTurnStarted) null
+            e !is Jumped && e !is GameEnded && e !is FactorChosen && e !is ProgramReset && e !is MimeTurnStarted && e !is DuelPlanned) null
         else reduceEvent(s, e)
 
     /** Jeu qui commence à la question [index] : il s'ouvre sur son écran de présentation, sans chrono ni buzzer. */
@@ -366,7 +368,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     private fun reduceEvent(s: GameState, e: GameEvent): GameState? = when (e) {
         is GameLaunched -> {
             val q = quiz.questions.getOrNull(s.index)
-            if (!s.intro || s.phase != Phase.QUESTION || q == null || s.paused) null else open(s.copy(intro = false), s.index, q, e.at)
+            // Les joueurs du Duel donnés pendant la présentation restent (cedric, 1/11).
+            if (!s.intro || s.phase != Phase.QUESTION || q == null || s.paused) null
+            else open(s.copy(intro = false), s.index, q, e.at).copy(duelPlan = s.duelPlan.takeIf { q.isDuel })
         }
         is QuestionOpened -> {
             val q = quiz.questions.getOrNull(e.index)
@@ -749,7 +753,24 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             }
             if (s.phase != Phase.QUESTION || s.intro || s.paused || q == null || !q.isDuel || q.id != e.qid || e.n != n ||
                 e.teams.size != 2 || e.teams.distinct().size != 2 || e.teams.any { it.isBlank() } || e.players.size != 2 || e.players.any { it < 1 }) null
-            else s.copy(duel = DuelRound(e.n, e.teams, e.players, e.extra, played = d?.played.orEmpty(), lastDuel = d?.lastDuel.orEmpty()))
+            else s.copy(
+                duel = DuelRound(
+                    e.n, e.teams, e.players, e.extra, played = d?.played.orEmpty(), lastDuel = d?.lastDuel.orEmpty(),
+                    rencontres = d?.rencontres.orEmpty(), extras = d?.extras ?: 0,
+                ),
+            )
+        }
+        is DuelPlanned -> {
+            val q = quiz.questions.getOrNull(s.index)
+            val d = s.duel
+            // Pendant la présentation ou avant le lancement du premier duel ; le duel prêt d'avant le plan est oublié.
+            val avantPremier = d == null || (d.n == 1 && d.startAt == null && d.result == null)
+            if (s.phase != Phase.QUESTION || q == null || !q.isDuel || q.id != e.qid || !avantPremier ||
+                e.counts.keys.any { it.isBlank() } || (!e.manual && e.counts.size < 2)) null
+            else s.copy(
+                duelPlan = DuelPlan(if (e.manual) emptyMap() else e.counts.mapValues { it.value.coerceIn(1, DUEL_JOUEURS_MAX) }, e.manual),
+                duel = null,
+            )
         }
         is DuelStarted -> {
             val d = s.duel
@@ -907,7 +928,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * Question [q] ouverte : chrono lancé, ou manche de mimes sans chrono (il part au tour de chaque équipe).
      * Une manche de mimes rouverte (jeu rejoué) repart de zéro : ses mimes ne comptent jamais deux fois.
      */
-    private fun open(s0: GameState, index: Int, q: Question, at: Long): GameState = s0.copy(potato = null, leaveTo = null, statues = null, duel = null, simon = null, chrono = null).let { s ->
+    private fun open(s0: GameState, index: Int, q: Question, at: Long): GameState = s0.copy(potato = null, leaveTo = null, statues = null, duel = null, duelPlan = null, simon = null, chrono = null).let { s ->
         if (q.isTurns) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null,
             mimes = s.mimes - q.id, mime = MimeRound(deck = q.cards.indices.toList()), turnPoints = s.turnPoints + (q.id to q.foundPoints),
@@ -1484,6 +1505,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 result = result,
                 played = d.played + d.teams.associateWith { (d.played[it] ?: 0) + 1 },
                 lastDuel = d.lastDuel + d.teams.associateWith { d.n },
+                rencontres = clePaire(d.teams[0], d.teams[1]).let { k -> d.rencontres + (k to (d.rencontres[k] ?: 0) + 1) },
+                extras = d.extras + if (d.extra) 1 else 0,
             ),
             awards = if (awards.isEmpty()) s.awards else s.awards + (q.id to awards),
         )
@@ -1640,37 +1663,80 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /** Duel des robots : un duel est à préparer (jeu lancé, aucun duel encore) ; la box appelle alors [readyDuel]. */
     fun needsDuel(): Boolean =
-        question?.isDuel == true && state.phase == Phase.QUESTION && !state.intro && !state.paused && state.duel == null
+        question?.isDuel == true && state.phase == Phase.QUESTION && !state.intro && !state.paused && state.duel == null &&
+            state.duelPlan?.manual != true
+
+    /** Duel des robots : mode manuel (cedric, 1/11) : rien n'est prévu, Sarah choisit les 2 équipes avant chaque duel. */
+    val duelManuel: Boolean get() = state.duelPlan?.manual == true
+
+    /** Duel des robots : joueurs de chaque équipe de [teams] (donnés par Sarah, sinon le nombre réglé dans la Régie PC). */
+    fun duelJoueurs(teams: Collection<String>): Map<String, Int> {
+        val parDefaut = question?.joueurs ?: DUEL_JOUEURS
+        val plan = state.duelPlan?.counts.orEmpty()
+        return teams.distinct().associateWith { plan[it] ?: parDefaut }
+    }
 
     /** Duel des robots : duels prévus pour que tous les joueurs des [equipes] équipes passent. */
     fun duelsAPrevoir(equipes: Int): Int = duelsPrevus(equipes, question?.joueurs ?: DUEL_JOUEURS)
 
-    /** Duel des robots : chaque équipe de [teams] a fait jouer tous ses joueurs. */
+    /**
+     * Duel des robots : duels prévus pour que tous les joueurs de [teams] passent, plus les duels « en plus » déjà joués
+     * (0 en mode manuel : rien n'est prévu).
+     */
+    fun duelsAPrevoir(teams: Collection<String>): Int {
+        if (duelManuel) return 0
+        val prevus = if (state.duelPlan == null) duelsAPrevoir(teams.distinct().size) else duelsPrevus(duelJoueurs(teams))
+        return prevus + (state.duel?.extras ?: 0)
+    }
+
+    /** Duel des robots : chaque équipe de [teams] a fait jouer tous ses joueurs (jamais en mode manuel). */
     fun duelTousPasses(teams: Collection<String>): Boolean {
         val d = state.duel ?: return false
-        val joueurs = question?.joueurs ?: DUEL_JOUEURS
-        return teams.size >= 2 && teams.all { (d.played[it] ?: 0) >= joueurs }
+        if (duelManuel) return false
+        val joueurs = duelJoueurs(teams)
+        return teams.size >= 2 && teams.all { (d.played[it] ?: 0) >= joueurs.getValue(it) }
+    }
+
+    /**
+     * Duel des robots : Sarah donne les joueurs de chaque équipe ([counts]) ou passe l'étape ([counts] null : mode
+     * manuel), pendant la présentation ou avant de lancer le premier duel.
+     */
+    fun planDuel(counts: Map<String, Int>?, now: Long): GameEvent? {
+        val q = question?.takeIf { it.isDuel } ?: return null
+        return emit(DuelPlanned(nextSeq, now, q.id, counts.orEmpty(), manual = counts == null))
     }
 
     /**
      * Duel des robots : prépare le duel suivant, « la ronde » parmi [teams] ([prochainePaire]) ou à la volée entre les
      * 2 équipes [choisies]. Au début du jeu, après un duel jugé, ou à la place du duel prêt (seulement à la volée).
      */
-    fun readyDuel(teams: Collection<String>, now: Long, choisies: List<String>? = null, random: Random = Random.Default): GameEvent? {
+    fun readyDuel(
+        teams: Collection<String>,
+        now: Long,
+        choisies: List<String>? = null,
+        random: Random = Random.Default,
+        extra: Boolean = choisies != null && !duelManuel,
+    ): GameEvent? {
         val q = question?.takeIf { it.isDuel } ?: return null
         if (state.phase != Phase.QUESTION || state.intro || state.paused) return null
         val d = state.duel
         if (d?.enCours == true || (d != null && d.result == null && choisies == null)) return null
+        // Mode manuel : la box ne propose jamais de duel, Sarah choisit les 2 équipes.
+        if (choisies == null && duelManuel) return null
+        val joueurs = duelJoueurs(teams)
         val paire = choisies?.takeIf { it.size == 2 && it.distinct().size == 2 && teams.containsAll(it) }
             ?: if (choisies != null) return null
-            else prochainePaire(teams, d?.played.orEmpty(), d?.lastDuel.orEmpty(), d?.teams, random) ?: return null
+            else prochainePaire(
+                teams, d?.played.orEmpty(), d?.lastDuel.orEmpty(), d?.teams, random,
+                counts = joueurs.takeIf { state.duelPlan != null }, rencontres = d?.rencontres.orEmpty(),
+            ) ?: return null
         val n = when {
             d == null -> 1
             d.result != null -> d.n + 1
             else -> d.n
         }
-        val joueurs = paire.map { joueurAppele(d?.played?.get(it) ?: 0, q.joueurs) }
-        return emit(DuelReady(nextSeq, now, q.id, n, paire, joueurs, extra = choisies != null))
+        val appeles = paire.map { joueurAppele(d?.played?.get(it) ?: 0, joueurs[it] ?: q.joueurs) }
+        return emit(DuelReady(nextSeq, now, q.id, n, paire, appeles, extra = extra))
     }
 
     /** Duel des robots : « 🤠 Lancer le duel », le face-à-face commence ; la box tire l'heure du PAN, que personne ne voit. */

@@ -13,24 +13,37 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.viewinterop.AndroidView
 import com.littlemissparty.quiz.tv.habillage.Liberation
+import com.littlemissparty.quiz.tv.habillage.MoteurVideo
+import com.littlemissparty.quiz.tv.habillage.VideoExo
 
 /**
  * Le lancer du drap « à deux mains » (cedric, 31/10, version lente validée le matin) : le clip 3D du plateau entier,
  * 1920×1080. Buzzy part de sa pose du plateau, sort du cadre à droite, revient avec le drap tendu entre ses deux mains,
  * fait un geste vers le chrono : le drap part et se pose ; ses yeux et sa bouche n'apparaissent qu'une fois posé.
  * Ensuite [LANCER_BOUCLE] : Buzzy siffle l'air de rien et le drap respire, en boucle sans couture jusqu'au bilan.
+ *
+ * Buzzy n'est jamais figé (cedric, 1/11) : sur l'écran « Prêts ? », [ATTENTE_VIDEO] tourne en boucle (il respire, penche
+ * la tête, bouge un peu les bras, sans sauter) ; le clip du lancer commence par [LANCER_PREFIXE_MS] de cette même boucle,
+ * pour qu'il bouge aussi pendant le décompte et les premières secondes, jusqu'à ce qu'il parte chercher le drap.
  */
+internal const val ATTENTE_VIDEO = "gs_chrono_attente"
 internal const val LANCER_VIDEO = "gs_chrono_lancer"
 internal const val LANCER_BOUCLE = "gs_chrono_lancer_boucle"
 
+/** Les 3 boucles d'attente (4 s chacune) au début du clip : elles couvrent le décompte et le drap le plus tardif. */
+internal const val LANCER_PREFIXE_MS = 12_000L
+
 /** Instant du clip où le drap se pose sur le chrono : calé pile sur le moment du drap tiré par la box. */
-internal const val LANCER_POSE_MS = 5_620L
+internal const val LANCER_POSE_MS = LANCER_PREFIXE_MS + 5_620L
 
 /** Instant du clip où le drap couvre déjà le cadran : plus aucun chiffre n'est dessiné dessus. */
-internal const val LANCER_COUVRE_MS = 5_120L
+internal const val LANCER_COUVRE_MS = LANCER_PREFIXE_MS + 5_120L
 
-/** Durée du clip du lancer (170 images à 25 i/s) ; la boucle prend la suite. */
-internal const val LANCER_DUREE_MS = 6_800L
+/** Durée du clip du lancer (470 images à 25 i/s : 300 d'attente, 170 de lancer) ; la boucle prend la suite. */
+internal const val LANCER_DUREE_MS = LANCER_PREFIXE_MS + 6_800L
+
+/** Avance prise sur l'heure quand le clip doit sauter ce qui est passé : le temps que le lecteur se place. */
+private const val SAUT_AVANCE_MS = 350L
 
 /** Heure du clip, depuis le 0 du chrono (négatif : pendant le décompte), pour que le drap se pose à [cacheMs]. */
 internal fun departLancer(cacheMs: Long): Long = cacheMs - LANCER_POSE_MS
@@ -43,6 +56,28 @@ internal fun tempsLancer(ecoule: Long, cacheMs: Long): Long? = (ecoule - departL
 
 /** Les chiffres sont encore dessinés : le drap du clip n'a pas encore atteint le cadran. */
 internal fun chiffresVisibles(ecoule: Long, cacheMs: Long): Boolean = ecoule < departLancer(cacheMs) + LANCER_COUVRE_MS
+
+/** La boucle d'attente est dans l'appli (sinon le plateau reste en image fixe). */
+@Composable
+internal fun attenteDisponible(): Boolean {
+    val context = LocalContext.current
+    return remember { context.resources.getIdentifier(ATTENTE_VIDEO, "raw", context.packageName) != 0 }
+}
+
+/**
+ * L'écran « Prêts ? » : Buzzy bouge un tout petit peu, en boucle (sans son, sans couture). Illisible : [echec], le plateau
+ * fixe reste dessous.
+ */
+@Composable
+internal fun ClipAttente(echec: () -> Unit, modifier: Modifier) {
+    val context = LocalContext.current
+    val id = remember { context.resources.getIdentifier(ATTENTE_VIDEO, "raw", context.packageName) }
+    AndroidView(
+        factory = { LecteurLancer(it, id, id, echec).apply { programmer(Unit, Long.MIN_VALUE) { 0L } } },
+        onRelease = { it.liberer() },
+        modifier = modifier.clearAndSetSemantics {},
+    )
+}
 
 /** Le clip et sa boucle sont dans l'appli (sinon le drap dessiné d'avant reste). */
 @Composable
@@ -85,11 +120,14 @@ internal class LecteurLancer(
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     private var surface: Surface? = null
     private var lecteur: MediaPlayer? = null
+    /** Nouveau lecteur (point 46) : le clip puis sa boucle s'enchaînent sans trou, sur le même lecteur. */
+    private var exo: VideoExo? = null
     private var pret = false
     private var cle: Any? = null
     private var depart = 0L
     private var maintenant: () -> Long = { System.currentTimeMillis() }
     private var fini = false
+    private val dureeClip: Long = if (clip == boucle) Long.MAX_VALUE else LANCER_DUREE_MS
     private var generation = 0
     private val lancer = Runnable { demarrer() }
 
@@ -111,12 +149,33 @@ internal class LecteurLancer(
         val s = surface ?: return
         if (fini || cle == null) return
         removeCallbacks(lancer)
-        val jeton = ++generation
         pret = false
+        if (lecteur == null && !MoteurVideo.ancien) {
+            generation++
+            val e = exo ?: VideoExo(context, clip, android.os.Looper.getMainLooper(), boucle = false).also { e ->
+                exo = e
+                e.surPrete = {
+                    if (exo === e && !fini) {
+                        pret = true
+                        demarrer()
+                    }
+                }
+                e.surErreur = { quoi ->
+                    Log.w("Chrono", "Clip du lancer ignoré : nouveau lecteur $quoi")
+                    MoteurVideo.ancien = true
+                    echec()
+                }
+            }
+            // Boucle d'attente seule (« Prêts ? ») : en boucle ; sinon le clip du lancer puis sa boucle, enchaînés sans trou.
+            if (clip == boucle) e.charger(clip, boucle = true) else e.charger(clip, boucle = false, puisBoucle = boucle)
+            e.preparer(s)
+            return
+        }
+        val jeton = ++generation
         val ancien = lecteur
         lecteur = null
-        if (ancien == null) creer(s, clip, false, jeton) else Liberation.lecteur(ancien, stop = true) {
-            post { if (jeton == generation && !fini && surface === s) creer(s, clip, false, jeton) }
+        if (ancien == null) creer(s, clip, clip == boucle, jeton) else Liberation.lecteur(ancien, stop = true) {
+            post { if (jeton == generation && !fini && surface === s) creer(s, clip, clip == boucle, jeton) }
         }
     }
 
@@ -148,18 +207,60 @@ internal class LecteurLancer(
         }
     }
 
-    /** À l'heure : le clip part (en sautant ce qui est déjà passé) ; trop tôt : il attend ; tout passé : la boucle. */
+    /**
+     * À l'heure : le clip part ; trop tôt : il attend ; en retard (le cas normal depuis les boucles d'attente du début :
+     * le décompte commence au milieu du clip), il se place à l'image exacte un peu en avance, puis part pile quand l'heure
+     * le rattrape. Tout passé : la boucle.
+     */
     private fun demarrer() {
+        exo?.let { e ->
+            if (!pret || fini) return
+            removeCallbacks(lancer)
+            val avance = depart - maintenant()
+            when {
+                depart == Long.MIN_VALUE -> e.demarrer()
+                avance > 15 -> postDelayed(lancer, avance)
+                -avance >= dureeClip - 200 -> {
+                    e.allerALaBoucle()
+                    e.demarrer()
+                }
+                -avance <= 80 -> e.demarrer()
+                else -> {
+                    // En retard (le cas normal avec les boucles d'attente du début) : placé à l'image exacte un peu en
+                    // avance, puis parti pile quand l'heure le rattrape.
+                    val cible = -avance + SAUT_AVANCE_MS
+                    val jeton = generation
+                    e.caler(cible.toInt())
+                    val attente = depart + cible - maintenant()
+                    if (attente > 15) postDelayed({ if (exo === e && jeton == generation && !fini) e.demarrer() }, attente)
+                    else e.demarrer()
+                }
+            }
+            return
+        }
         val mp = lecteur ?: return
         if (!pret || fini) return
         removeCallbacks(lancer)
         val avance = depart - maintenant()
         when {
+            depart == Long.MIN_VALUE -> mp.start()
             avance > 15 -> postDelayed(lancer, avance)
-            -avance >= LANCER_DUREE_MS - 200 -> versBoucle()
+            -avance >= dureeClip - 200 -> versBoucle()
+            -avance <= 80 -> mp.start()
             else -> {
-                if (-avance > 80) mp.seekTo((-avance).toInt())
-                mp.start()
+                val cible = -avance + SAUT_AVANCE_MS
+                val jeton = generation
+                mp.setOnSeekCompleteListener { m ->
+                    m.setOnSeekCompleteListener(null)
+                    if (fini || lecteur !== m || jeton != generation) return@setOnSeekCompleteListener
+                    val attente = depart + cible - maintenant()
+                    when {
+                        attente > 15 -> postDelayed({ if (lecteur === m && jeton == generation && !fini) m.start() }, attente)
+                        attente > -120 -> m.start()
+                        else -> demarrer()   // le lecteur a mis trop longtemps : on recommence, encore plus en avance
+                    }
+                }
+                mp.seekTo(cible, MediaPlayer.SEEK_CLOSEST)
             }
         }
     }
@@ -199,8 +300,14 @@ internal class LecteurLancer(
     private fun arreter(apres: () -> Unit = {}) {
         removeCallbacks(lancer)
         generation++
+        val e = exo
+        exo = null
         val l = lecteur
         lecteur = null
-        if (l != null) Liberation.lecteur(l, stop = true, apres) else apres()
+        when {
+            e != null -> e.liberer(apres = apres)
+            l != null -> Liberation.lecteur(l, stop = true, apres)
+            else -> apres()
+        }
     }
 }

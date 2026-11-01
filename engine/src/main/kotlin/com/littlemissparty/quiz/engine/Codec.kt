@@ -71,6 +71,7 @@ object Codec {
             is DuelBuzzed -> mapOf("type" to "duel_buzz", "qid" to e.qid, "n" to e.n, "team" to e.team, "t" to e.t)
             is DuelSettled -> mapOf("type" to "duel_settle", "qid" to e.qid, "n" to e.n)
             is DuelStopped -> mapOf("type" to "duel_stop", "qid" to e.qid, "n" to e.n)
+            is DuelPlanned -> mapOf("type" to "duel_plan", "qid" to e.qid, "counts" to e.counts.ifEmpty { null }, "manual" to e.manual.takeIf { it })
             is DuelPanShown -> mapOf("type" to "duel_pan", "qid" to e.qid, "n" to e.n, "shownAt" to e.shownAt)
             is ChronoReady -> mapOf("type" to "chrono_ready", "qid" to e.qid, "tour" to e.tour, "cible" to e.cible)
             is ChronoTargetSet -> mapOf("type" to "chrono_cible", "qid" to e.qid, "tour" to e.tour, "cible" to e.cible)
@@ -167,6 +168,11 @@ object Codec {
             "duel_buzz" -> DuelBuzzed(seq, at, m["qid"] as String, m.num("n").toInt(), m["team"] as String, m.num("t"))
             "duel_settle" -> DuelSettled(seq, at, m["qid"] as String, m.num("n").toInt())
             "duel_stop" -> DuelStopped(seq, at, m["qid"] as String, m.num("n").toInt())
+            "duel_plan" -> DuelPlanned(
+                seq, at, m["qid"] as String,
+                (m["counts"] as? Map<*, *>).orEmpty().entries.mapNotNull { (k, v) -> (k as? String)?.let { it to ((v as? Number)?.toInt() ?: 0) } }.toMap(),
+                m["manual"] == true,
+            )
             "duel_pan" -> DuelPanShown(seq, at, m["qid"] as String, m.num("n").toInt(), m.num("shownAt"))
             "chrono_ready" -> ChronoReady(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("cible").toInt())
             "chrono_cible" -> ChronoTargetSet(seq, at, m["qid"] as String, m.num("tour").toInt(), m.num("cible").toInt())
@@ -284,6 +290,8 @@ object Codec {
         if (q != null && s.intro) {
             game.gameStep()?.let { out["game"] = mapOf("title" to it.title, "n" to it.n, "of" to it.of, "label" to it.label) }
             out += mapOf("index" to s.index, "qid" to q.id, "kind" to q.kind.code, "deadline" to null, "buzzOpen" to false)
+            // Duel des robots (cedric, 1/11) : pendant la présentation, la régie demande les joueurs de chaque équipe.
+            if (q.isDuel) out["duel"] = duelState(game, teams)
             return out
         }
         if (q != null && s.phase != Phase.ENDED) {
@@ -349,7 +357,9 @@ object Codec {
         val d = game.state.duel
         return mapOf(
             "n" to d?.n,
-            "total" to game.duelsAPrevoir(teams.size),
+            "total" to game.duelsAPrevoir(teams),
+            // Nouveau déroulé (cedric, 1/11) : joueurs par équipe donnés (plan), ou étape passée (manuel) ; null : pas encore.
+            "plan" to game.state.duelPlan?.let { p -> if (p.manual) mapOf("manual" to true) else mapOf("counts" to p.counts) },
             "teams" to d?.teams,
             "players" to d?.players,
             "step" to (d?.step ?: "none"),
@@ -358,6 +368,8 @@ object Codec {
             "result" to d?.result?.let { r -> mapOf("winner" to r.winner, "loser" to r.loser, "early" to r.early, "ms" to r.ms, "points" to r.points) },
             "played" to d?.played?.ifEmpty { null },
             "allPlayed" to game.duelTousPasses(teams),
+            // Joueurs par équipe réglés dans la Régie PC : le départ des − / ＋ de la régie.
+            "joueurs" to (game.question?.joueurs ?: DUEL_JOUEURS),
         )
     }
 

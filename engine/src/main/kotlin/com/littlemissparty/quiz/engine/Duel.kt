@@ -77,6 +77,10 @@ data class DuelRound(
     val result: DuelResult? = null,
     val played: Map<String, Int> = emptyMap(),
     val lastDuel: Map<String, Int> = emptyMap(),
+    /** Duels déjà joués par chaque paire (clé [clePaire]) : les adversaires varient le plus possible. */
+    val rencontres: Map<String, Int> = emptyMap(),
+    /** Duels « en plus » déjà joués (＋ Un duel en plus) : ils s'ajoutent aux duels prévus. */
+    val extras: Int = 0,
 ) {
     /** Le face-à-face est en cours : lancé, pas encore jugé. */
     val enCours: Boolean get() = startAt != null && result == null
@@ -118,8 +122,21 @@ data class DuelRound(
 }
 
 /**
+ * Le plan du Duel (cedric, 1/11) : [counts] = joueurs de chaque équipe donnés par Sarah pendant la présentation, ou
+ * [manual] = étape passée, Sarah compose chaque duel elle-même.
+ */
+data class DuelPlan(val counts: Map<String, Int>, val manual: Boolean = false)
+
+/** Clé d'une paire d'équipes, la même dans les deux sens. */
+fun clePaire(a: String, b: String): String = if (a < b) "$a|$b" else "$b|$a"
+
+/**
  * Les 2 équipes du duel suivant parmi [teams] : celles qui ont le moins joué, puis celles qui attendent depuis le plus
  * longtemps, au hasard à égalité ; jamais la paire [previous] deux fois de suite, sauf à 2 équipes. Null à moins de 2.
+ *
+ * Avec [counts] (joueurs de chaque équipe, cedric 1/11) : d'abord l'équipe à qui il reste le plus de joueurs à faire
+ * passer, puis, contre elle, une équipe qui a encore des joueurs à faire passer et qu'elle a le moins affrontée
+ * ([rencontres]) ; une équipe qui a déjà fait passer tout le monde rejoue seulement pour donner un adversaire.
  */
 fun prochainePaire(
     teams: Collection<String>,
@@ -127,8 +144,11 @@ fun prochainePaire(
     lastDuel: Map<String, Int>,
     previous: List<String>?,
     random: Random = Random.Default,
+    counts: Map<String, Int>? = null,
+    rencontres: Map<String, Int> = emptyMap(),
 ): List<String>? {
     if (teams.size < 2) return null
+    if (counts != null) return prochainePaireSelonJoueurs(teams.distinct(), played, lastDuel, previous, random, counts, rencontres)
     val rangees = teams.distinct().shuffled(random).sortedWith(compareBy({ played[it] ?: 0 }, { lastDuel[it] ?: 0 }))
     val avant = previous?.toSet()
     for (i in rangees.indices) for (j in i + 1 until rangees.size) {
@@ -151,6 +171,36 @@ fun Game.duelsGagnes(): Map<String, Int> {
 
 /** Joueur appelé dans une équipe qui a déjà joué [joues] duels, sur [joueurs] joueurs (n° à partir de 1). */
 fun joueurAppele(joues: Int, joueurs: Int): Int = joues % joueurs.coerceAtLeast(1) + 1
+
+private fun prochainePaireSelonJoueurs(
+    teams: List<String>,
+    played: Map<String, Int>,
+    lastDuel: Map<String, Int>,
+    previous: List<String>?,
+    random: Random,
+    counts: Map<String, Int>,
+    rencontres: Map<String, Int>,
+): List<String>? {
+    fun reste(t: String) = ((counts[t] ?: DUEL_JOUEURS) - (played[t] ?: 0)).coerceAtLeast(0)
+    val avant = previous?.toSet()
+    val ordre = teams.shuffled(random).sortedWith(compareBy({ -reste(it) }, { played[it] ?: 0 }, { lastDuel[it] ?: 0 }))
+    for (premiere in ordre) {
+        val adversaires = ordre.filter { it != premiere }.sortedWith(
+            compareBy({ if (reste(it) > 0) 0 else 1 }, { rencontres[clePaire(premiere, it)] ?: 0 }, { -reste(it) }, { played[it] ?: 0 }, { lastDuel[it] ?: 0 }),
+        )
+        val seconde = adversaires.firstOrNull { teams.size == 2 || avant == null || setOf(premiere, it) != avant } ?: continue
+        return listOf(premiere, seconde)
+    }
+    return null
+}
+
+/**
+ * Duels prévus avec les joueurs de chaque équipe ([counts]) : de quoi faire passer tout le monde au moins une fois,
+ * deux joueurs par duel (la moitié du total, arrondie au-dessus), et jamais moins que l'équipe la plus nombreuse (ses
+ * joueurs ne peuvent passer qu'un par duel).
+ */
+fun duelsPrevus(counts: Map<String, Int>): Int =
+    if (counts.size < 2) 0 else maxOf((counts.values.sum() + 1) / 2, counts.values.max())
 
 /** Duels prévus pour que chacun des [joueurs] joueurs de [equipes] équipes joue une fois (un joueur rejoue si besoin). */
 fun duelsPrevus(equipes: Int, joueurs: Int): Int = if (equipes < 2) 0 else (equipes * joueurs + 1) / 2

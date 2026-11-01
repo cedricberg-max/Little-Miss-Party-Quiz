@@ -247,7 +247,57 @@ internal fun NomNerveux(g: Classee, ligneDeBase: Dp, ms: () -> Float, modifier: 
                 gerbe(b, d / 0.4f, couleur, lettres.largeur, Offset(size.width / 2, base - 20.dp.toPx()))
             }
         }
+        // Couronne néon jaune sur le coin droit du nom (choix B de cedric, planche du 1/11, point 39) : elle se pose juste
+        // après les lettres qui claquent, puis se balance doucement.
+        Canvas(Modifier.fillMaxSize()) {
+            val (echelle, angle) = couronneDuGagnant(u(), ev.tMot) ?: return@Canvas
+            val derniere = lettres.liste.lastOrNull { !it.c.isWhitespace() } ?: return@Canvas
+            val hCap = 2 * cap
+            val w = COURONNE_SUR_CAP * hCap
+            val h = w * 0.75f
+            val gauche = (derniere.x + derniere.mise.size.width - 0.55f * hCap).coerceAtMost(size.width - w - 8.dp.toPx())
+            val dessus = base - hCap - 0.78f * hCap
+            withTransform({
+                rotate(angle, Offset(gauche + w / 2, dessus + h / 2))
+                scale(echelle, echelle, Offset(gauche + w / 2, dessus + h / 2))
+                translate(gauche, dessus)
+                scale(w / 120f, h / 90f, Offset.Zero)
+            }) { couronneNeon() }
+        }
     }
+}
+
+/** Largeur de la couronne du gagnant, en hauteur de capitales du nom (mesurée sur la planche du 1/11, choix B). */
+internal const val COURONNE_SUR_CAP = 1.13f
+/** La couronne se pose 0,35 s après le mot complet, en 0,35 s, puis se balance de 16° à 22° en 2,6 s (comme la planche). */
+internal const val COURONNE_RETARD = 0.35f
+internal const val COURONNE_POSE = 0.35f
+internal const val COURONNE_BALANCE = 2.6f
+
+/** Échelle (pose avec un petit rebond) et angle (degrés) de la couronne à [u] s du solo ; null : pas encore là. */
+internal fun couronneDuGagnant(u: Float, tMot: Float): Pair<Float, Float>? {
+    val d = u - tMot - COURONNE_RETARD
+    if (d <= 0f) return null
+    val k = (d / COURONNE_POSE).coerceAtMost(1f)
+    // Rebond : grandit jusqu'à 1,18 puis revient à 1.
+    val echelle = if (k < 0.6f) (1.18f * k / 0.6f).coerceAtLeast(0.01f) else 1.18f - 0.18f * (k - 0.6f) / 0.4f
+    val balance = 0.5f - 0.5f * cos(2 * Math.PI.toFloat() * d / COURONNE_BALANCE)
+    return echelle to 16f + 6f * balance
+}
+
+/** La couronne néon dans une boîte 120 × 90 : le contour lumineux jaune (sa lueur en traits de plus en plus larges et pâles, léger pour la Mi Box) et un fin trait clair au centre. */
+private fun DrawScope.couronneNeon() {
+    val contour = Path().apply {
+        moveTo(12f, 72f); lineTo(6f, 24f); lineTo(34f, 46f); lineTo(60f, 10f); lineTo(86f, 46f); lineTo(114f, 24f); lineTo(108f, 72f); close()
+    }
+    val socle = Path().apply { moveTo(14f, 82f); lineTo(106f, 82f) }
+    val jaune = Color(0xFFFFE600)
+    for ((largeur, a) in listOf(22f to 0.12f, 14f to 0.28f, 6f to 1f)) {
+        val trait = Stroke(largeur, join = StrokeJoin.Round, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawPath(contour, jaune.copy(alpha = a), style = trait)
+        drawPath(socle, jaune.copy(alpha = a), style = trait)
+    }
+    drawPath(contour, Color(0xFFFFFBD0), style = Stroke(2f, join = StrokeJoin.Round))
 }
 
 /** « 900 POINTS » sous le nom : défile de 0 au vrai score en 0,6 s, éclate (×1,35 → 1, flash), puis bat sur les temps. */

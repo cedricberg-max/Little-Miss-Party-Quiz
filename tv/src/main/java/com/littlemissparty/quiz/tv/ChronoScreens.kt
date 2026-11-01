@@ -38,6 +38,13 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +54,7 @@ import com.littlemissparty.quiz.engine.ChronoResult
 import com.littlemissparty.quiz.engine.ChronoBuzz
 import com.littlemissparty.quiz.engine.ChronoRound
 import com.littlemissparty.quiz.engine.centiemes
+import com.littlemissparty.quiz.tv.habillage.BouclePcm
 import com.littlemissparty.quiz.tv.habillage.EchelleSansCoupe
 import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.Ordre
@@ -61,7 +69,6 @@ import com.littlemissparty.quiz.tv.habillage.TexteNeon
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.ceil
-import kotlin.math.floor
 import kotlin.math.sin
 
 /*
@@ -76,11 +83,6 @@ import kotlin.math.sin
 internal const val DRAP_CHUTE_MS = 550L
 internal const val DRAP_COUVRE_MS = 520L
 
-/** Révélation : la règle se dessine, puis une pastille toutes les [PASTILLE_PAS_MS], la plus proche au ralenti. */
-internal const val REGLE_MS = 900L
-internal const val PASTILLE_PAS_MS = 900L
-internal const val PASTILLE_RALENTI_MS = 2_200L
-
 /** « 12,34 » : secondes et centièmes du chrono (jamais négatif). */
 internal fun texteChrono(ms: Long): String {
     val m = ms.coerceAtLeast(0)
@@ -92,17 +94,6 @@ internal fun texteEcart(ms: Long): String {
     val c = centiemes(ms)
     if (c == 0L) return "PILE !"
     return "${if (ms > 0) "+" else "−"}${c / 100},%02d s".format(c % 100)
-}
-
-/**
- * Bornes de la règle du temps (secondes) : la cible et toutes les équipes, une seconde de marge, au moins 6 s de part
- * et d'autre de la cible, jamais avant 0.
- */
-internal fun bornesRegle(cible: Int, ecarts: Collection<Long>): Pair<Int, Int> {
-    val temps = ecarts.map { cible + it / 1000.0 }
-    val bas = floor(minOf(cible - 6.0, (temps.minOrNull() ?: cible.toDouble()) - 1.0)).toInt().coerceAtLeast(0)
-    val haut = ceil(maxOf(cible + 6.0, (temps.maxOrNull() ?: cible.toDouble()) + 1.0)).toInt()
-    return bas to maxOf(haut, bas + 1)
 }
 
 /** Ordre de la révélation : la plus loin d'abord, la plus proche en dernier (suspense). */
@@ -146,12 +137,10 @@ fun ChronoScreen(state: UiState.Playing, actions: TvActions) {
     EchelleSansCoupe(SCENE_L, SCENE_H, Modifier.fillMaxSize()) {
         if (c?.result != null) {
             Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                TexteNeon("LE CHRONO DE BUZZY", GS.Cyan, 80f, police = PoliceGsTitre, largeurMax = 1500.dp)
-                // La cible est écrite sous le fanion : une fois la gagnante connue, sa ligne prend la place de celle-ci
-                // (plus rien sous le titre ne touche la tête de Buzzy ni le drapeau).
+                // Le titre jusqu'à la gagnante : son bandeau prend alors sa place (la cible est écrite près du drapeau).
                 if (depuisResultat < finRevelation(c.result!!)) {
-                    val tours = if (state.chronoTours > 1) "TOUR ${c.tour} / ${state.chronoTours} · " else ""
-                    TexteNeon("${tours}CIBLE : ${c.cible} SECONDES", GS.Jaune, 54f, police = PoliceGsTitre, largeurMax = 1500.dp, force = 0.7f)
+                    TexteNeon("LE CHRONO DE BUZZY", GS.Cyan, 80f, police = PoliceGsTitre, largeurMax = 1500.dp)
+                    if (state.chronoTours > 1) TexteNeon("TOUR ${c.tour} / ${state.chronoTours}", GS.CyanClair, 44f, police = PoliceGsTitre, largeurMax = 1500.dp, force = 0.5f)
                 }
             }
         }
@@ -190,21 +179,20 @@ internal data class SonChrono(val instant: Long, val son: Son, val vitesse: Floa
 internal const val CHRONO_SFX_VOLUME = 0.7f
 
 /**
- * Les sons de la révélation, calés sur ses images : la règle se dessine, le drapeau tombe et se plante (à 0,7 s), chaque
- * pastille fait « fiou-plop » en se posant, un peu plus aigu à chaque fois ; la plus proche a son ralenti (impact à
- * l'arrivée) ; puis gagné, « PILE ! » au centième, ou personne.
+ * Les sons de la révélation, calés sur ses images (la vidéo validée par cedric le 1/11) : la ligne repère se dessine, le
+ * drapeau tombe et se plante ; chaque ligne d'équipe arrive dans un petit souffle, sa pastille fait « fiou-plop » en se
+ * posant, un peu plus aigu à chaque fois ; la plus proche glisse au ralenti ; puis gagné, « PILE ! » au centième, ou personne.
  */
 internal fun sonsRevelation(ecarts: Map<String, Long>, winners: List<String>): List<SonChrono> {
-    val ordre = ordreRevelation(ecarts)
-    val sons = mutableListOf(SonChrono(0, Son.CHRONO_REGLE), SonChrono(200, Son.CHRONO_DRAPEAU))
-    ordre.forEachIndexed { i, _ ->
-        val debut = REGLE_MS + i * PASTILLE_PAS_MS
-        // « fiou-plop » : le plop tombe 0,42 s après son début, la pastille se pose 0,5 s après le sien.
-        sons += if (i == ordre.lastIndex) SonChrono(debut, Son.CHRONO_RALENTI) else SonChrono(debut + 80, Son.CHRONO_PASTILLE, 1f + 0.06f * i)
+    val n = ecarts.size
+    val sons = mutableListOf(SonChrono(REV_REGLE_MS, Son.CHRONO_REGLE), SonChrono(REV_DRAPEAU_MS, Son.CHRONO_DRAPEAU))
+    for (i in 0 until n) {
+        val a = arriveeLigne(i, n)
+        sons += SonChrono(a, Son.WHOOSH, volume = 0.35f)
+        sons += if (i == n - 1) SonChrono(a + 300, Son.CHRONO_RALENTI) else SonChrono(a + 300, Son.CHRONO_PASTILLE, 1f + 0.06f * i)
     }
-    val fin = REGLE_MS + (ordre.size - 1).coerceAtLeast(0) * PASTILLE_PAS_MS + PASTILLE_RALENTI_MS
     sons += SonChrono(
-        fin,
+        finRevelation(n),
         when {
             winners.isEmpty() -> Son.CHRONO_PERSONNE
             winners.any { centiemes(ecarts[it] ?: Long.MAX_VALUE) == 0L } -> Son.CHRONO_PILE
@@ -212,26 +200,27 @@ internal fun sonsRevelation(ecarts: Map<String, Long>, winners: List<String>): L
         },
         volume = 1f,
     )
-    return sons
+    return sons.sortedBy { it.instant }
 }
 
 /**
  * Le son du chrono, image par image : 3, 2, 1 (bips), le départ, puis le tic-tac une fois par seconde tant qu'on voit
- * le chrono (le tempo à garder en tête), plus rien quand le drap tombe (son lancer, le fantôme) ; à chaque buzz, le
- * mot Daft Punk de l'équipe, comme dans tous les jeux au buzzer (cedric, 31/10) ; à la révélation, [sonsRevelation]. Un son déjà passé de plus de 300 ms n'est jamais joué en retard.
+ * les chiffres (le tempo à garder en tête, cedric 1/11 : chaque tic pile quand la seconde change à l'écran), plus rien
+ * quand le drap tombe (son lancer, le fantôme) ; à chaque buzz, le mot Daft Punk de l'équipe, comme dans tous les jeux
+ * au buzzer (cedric, 31/10) ; à la révélation, [sonsRevelation]. Un son déjà passé de plus de 300 ms n'est jamais joué
+ * en retard.
  */
 @Composable
 private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long, equipes: List<String>) {
     val cache = c?.cacheMs
-    val seconde = if (ecoule == Long.MIN_VALUE || c?.enCours != true) null else Math.floorDiv(ecoule, 1_000L)
+    // Le son part en avance du temps que cette box met à le faire entendre (mesuré sur sa sortie son), moins l'image
+    // que l'écran met à s'afficher : le tic tombe avec le chiffre, pas après.
+    val avance = avanceTic(BouclePcm.latenceMs)
+    val seconde = if (ecoule == Long.MIN_VALUE || c?.enCours != true) null else secondeTic(ecoule, avance)
     LaunchedEffect(seconde) {
         val s = seconde ?: return@LaunchedEffect
-        if (ecoule - s * 1_000L > 300 || cache == null) return@LaunchedEffect
-        when {
-            s in -3L..-1L -> jouerChrono(Son.CHRONO_BIP)
-            s == 0L -> jouerChrono(Son.CHRONO_GO)
-            s >= 1 && s * 1_000L < cache -> jouerChrono(if (s % 2 == 1L) Son.CHRONO_TIC else Son.CHRONO_TAC)
-        }
+        if (ecoule + avance - s * 1_000L > 300 || cache == null) return@LaunchedEffect
+        sonSeconde(s, cache)?.let { jouerChrono(it) }
     }
     val drapTombe = seconde != null && cache != null && ecoule >= cache
     LaunchedEffect(drapTombe) { if (drapTombe && ecoule - cache!! < 400) jouerChrono(Son.CHRONO_DRAP) }
@@ -253,6 +242,23 @@ private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long, eq
     }
 }
 
+/** Avance du tic sur l'image : la latence de la sortie son de la box, moins une image et demie (25 ms), 0 à 200 ms. */
+internal fun avanceTic(latenceMs: Long): Long = (latenceMs - 25L).coerceIn(0L, 200L)
+
+/** La seconde dont le son doit partir maintenant : celle qui s'affichera dans [avance] ms. */
+internal fun secondeTic(ecoule: Long, avance: Long): Long = Math.floorDiv(ecoule + avance, 1_000L)
+
+/**
+ * Le son de la seconde [s] du chrono : bips à 3, 2, 1, le départ à 0, puis tic, tac tant que le chiffre de cette seconde
+ * est encore à l'écran (jamais un tic sous le drap) ; null sinon.
+ */
+internal fun sonSeconde(s: Long, cacheMs: Long): Son? = when {
+    s in -3L..-1L -> Son.CHRONO_BIP
+    s == 0L -> Son.CHRONO_GO
+    s >= 1 && s * 1_000L < cacheMs && chiffresVisibles(s * 1_000L, cacheMs) -> if (s % 2 == 1L) Son.CHRONO_TIC else Son.CHRONO_TAC
+    else -> null
+}
+
 /**
  * Les buzz arrivés depuis [vus] : le mot de chaque équipe (sa place dans la partie, le même que sur sa tablette et dans
  * les autres jeux au buzzer, cedric 31/10). Une équipe introuvable garde le petit « tok » du chrono.
@@ -263,10 +269,14 @@ internal fun sonsNouveauxBuzz(buzzes: List<ChronoBuzz>, vus: Int, equipes: List<
 private fun jouerChrono(son: Son, vitesse: Float = 1f, volume: Float = 1f) =
     Sons.executer(listOf(Ordre.Jouer(son, gauche = volume, droite = volume, vitesse = vitesse)))
 
-/** Le tour prêt : le chrono à zéro, la consigne. */
+/** Le tour prêt : le chrono à zéro, Buzzy qui bouge un tout petit peu à côté (cedric, 1/11), la consigne. */
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.ChronoPret(c: ChronoRound) {
-    Cadran(0L, c.cible, null, Modifier.fillMaxSize())
+    var enPanne by remember(c.tour) { mutableStateOf(false) }
+    val boucle = attenteDisponible() && !enPanne
+    Cadran(0L, c.cible, null, Modifier.fillMaxSize(), video = if (!boucle) null else {
+        { ClipAttente({ enPanne = true }, Modifier.fillMaxSize()) }
+    })
     Consigne("Prêts ? Comptez dans votre tête et buzzez à ${c.cible} secondes pile !", Modifier.align(Alignment.BottomCenter).padding(bottom = 60.dp), GS.Rose)
 }
 
@@ -488,122 +498,274 @@ private fun DrawScope.fanion(haut: Offset, l: Float, h: Float, t: Long) {
     drawPath(etoile, Color.White)
 }
 
-/** La tête de Buzzy (provisoire) : l'écran-visage cyan, deux yeux, l'antenne. */
-private fun DrawScope.teteBuzzy(bas: Offset, taille: Float) {
-    val l = taille * 1.3f
-    val h = taille
-    val coin = Offset(bas.x - l / 2, bas.y - h)
-    drawLine(GS.Cyan, Offset(bas.x, coin.y), Offset(bas.x, coin.y - h * 0.35f), strokeWidth = 6f)
-    drawCircle(GS.Rose, h * 0.1f, Offset(bas.x, coin.y - h * 0.38f))
-    drawRoundRect(Color(0xFF14102A), coin, Size(l, h), CornerRadius(h * 0.28f))
-    drawRoundRect(GS.Cyan, coin, Size(l, h), CornerRadius(h * 0.28f), style = Stroke(6f))
-    drawCircle(GS.Cyan, h * 0.12f, Offset(bas.x - l * 0.2f, coin.y + h * 0.45f))
-    drawCircle(GS.Cyan, h * 0.12f, Offset(bas.x + l * 0.2f, coin.y + h * 0.45f))
-}
+/*
+ * La révélation (cedric, 1/11 : sa version B, validée en vidéo avec le son). En haut, la ligne repère : la ligne du temps
+ * se dessine, le drapeau du pays des robots (tête de Buzzy dans l'étoile) tombe et se plante au milieu, « 30 SECONDES »
+ * (les secondes du tour) pope à côté, un mât pointillé descend. Puis une ligne par équipe, la plus proche en haut : elles
+ * arrivent une à une, la plus loin d'abord, avec le « fiou-plop » d'hier un peu plus aigu à chaque fois, la pastille
+ * pope là où l'équipe a buzzé. La gagnante glisse lentement depuis le bord jusqu'à sa place, puis fanfare, confettis, et
+ * son bandeau remplace le titre. Les lignes s'adaptent au nombre d'équipes (plus serrées à 8).
+ */
+internal const val REV_REGLE_MS = 250L
+internal const val REV_DRAPEAU_MS = 550L
+internal const val REV_MAT_MS = 1_000L
+internal const val REV_PREMIERE_MS = 1_600L
+internal const val REV_GLISSE_MS = 1_500L
+
+/** Écart entre deux lignes qui arrivent : plus rapide quand il y en a beaucoup. */
+internal fun pasRevelation(n: Int): Long = if (n > 4) 850L else 1_100L
+
+/** Arrivée de la [i]-ème ligne révélée (la plus loin d'abord) sur [n]. */
+internal fun arriveeLigne(i: Int, n: Int): Long = REV_PREMIERE_MS + i * pasRevelation(n)
 
 /** Le moment (depuis le résultat) où la plus proche est posée et où la gagnante s'affiche. */
-internal fun finRevelation(r: ChronoResult): Long =
-    REGLE_MS + (r.ecarts.size - 1).coerceAtLeast(0) * PASTILLE_PAS_MS + PASTILLE_RALENTI_MS
+internal fun finRevelation(r: ChronoResult): Long = finRevelation(r.ecarts.size)
+internal fun finRevelation(n: Int): Long = if (n <= 0) REV_PREMIERE_MS else arriveeLigne(n - 1, n) + REV_GLISSE_MS
 
-/**
- * La révélation sur la règle du temps : la règle se dessine, le drapeau à tête de Buzzy se plante sur la cible, puis
- * les pastilles des équipes tombent une à une (la plus loin d'abord) ; la plus proche au ralenti, puis la gagnante.
- */
+/** Les lignes à l'écran : la ligne repère, la première équipe, la hauteur d'une ligne, la taille des noms. */
+internal data class GeoResultats(val yRepere: Float, val y0: Float, val h: Float, val police: Float)
+
+internal fun geoResultats(n: Int): GeoResultats {
+    val yRepere = if (n <= 3) 420f else 340f
+    val y0 = yRepere + if (n <= 3) 150f else 85f
+    val h = minOf(130f, (1045f - y0) / n.coerceAtLeast(1))
+    return GeoResultats(yRepere, y0, h, minOf(44f, h * 0.5f))
+}
+
+/** Demi-largeur de la ligne du temps, en secondes : toutes les équipes dedans, au moins 2 s. */
+internal fun demiRegle(ecarts: Collection<Long>): Int =
+    maxOf(2, ceil((ecarts.maxOfOrNull { abs(it) } ?: 0L) / 1000.0 + 0.3).toInt())
+
+/** Un repère toutes les [pasGraduation] secondes (jamais plus de 6 de chaque côté). */
+internal fun pasGraduation(demi: Int): Int = maxOf(1, ceil(demi / 6.0).toInt())
+
+private const val REGLE_G = 700f
+private const val REGLE_D = 1480f
+private fun sortie(x: Float) = 1f - (1f - x.coerceIn(0f, 1f)).let { it * it * it }
+private fun rebond(x: Float): Float { val u = x.coerceIn(0f, 1f) - 1f; return 1f + 2.70158f * u * u * u + 1.70158f * u * u }
+private fun elastique(x: Float): Float {
+    val u = x.coerceIn(0f, 1f)
+    return if (u == 0f || u == 1f) u else (Math.pow(2.0, -10.0 * u) * sin((u * 10f - 0.75f) * 2f * Math.PI.toFloat() / 3f) + 1.0).toFloat()
+}
+private fun hasard(i: Int): Float { val x = sin(i * 12.9898f) * 43758.547f; return x - kotlin.math.floor(x) }
+
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.Revelation(state: UiState.Playing, c: ChronoRound, t: Long) {
     val r = c.result ?: return
     val ordre = ordreRevelation(r.ecarts)
-    val (bas, haut) = bornesRegle(c.cible, r.ecarts.values)
+    val n = ordre.size
+    val rang = ordre.reversed()                       // rang 0 = la plus proche, en haut
+    val g = geoResultats(n)
+    val demi = demiRegle(r.ecarts.values)
+    val xDe = { ecartMs: Long -> (REGLE_G + REGLE_D) / 2 + (ecartMs / 1000f) / demi * (REGLE_D - REGLE_G) / 2 }
     val couleur = { uid: String -> state.teams.find { it.uid == uid }?.color?.toColor() ?: Color.White }
     val nom = { uid: String -> state.teams.find { it.uid == uid }?.name ?: "Une équipe" }
-    // Heure d'arrivée de chaque pastille (la dernière, la plus proche, au ralenti).
-    val arrivee = ordre.indices.map { i -> REGLE_MS + i * PASTILLE_PAS_MS }
-    val fin = finRevelation(r)
-    val largeur = 1640f
-    val gauche = (1920f - largeur) / 2
-    val yRegle = 600f
-    val xDe = { s: Double -> gauche + ((s - bas) / (haut - bas)).toFloat() * largeur }
-    val teteDrapeau = com.littlemissparty.quiz.tv.habillage.imageAppli(if (r.winners.isEmpty()) "gs_chrono_tete_surprise" else "gs_chrono_tete_rire")
+    val fin = finRevelation(n)
+    val yLigne = { uid: String -> g.y0 + rang.indexOf(uid) * g.h }
+    val drapeau = com.littlemissparty.quiz.tv.habillage.imageAppli("gs_chrono_drapeau_buzzy")
+    val xc = xDe(0)
+    val chute = ((t - REV_DRAPEAU_MS) / 450f)
+    val dyDrapeau = if (t < REV_DRAPEAU_MS) -2_000f else (1f - rebond(chute)) * -500f
+
     Canvas(Modifier.fillMaxSize()) {
         val k = size.width / 1920f
-        val dessin = (t.toFloat() / REGLE_MS).coerceIn(0f, 1f)
-        // La règle : un tube néon, un trait par seconde, plus grand toutes les 5 s.
-        drawLine(GS.Cyan.copy(alpha = 0.25f), Offset(gauche * k, yRegle * k), Offset((gauche + largeur * dessin) * k, yRegle * k), strokeWidth = 26f * k)
-        drawLine(GS.Cyan, Offset(gauche * k, yRegle * k), Offset((gauche + largeur * dessin) * k, yRegle * k), strokeWidth = 6f * k)
-        for (s in bas..haut) {
-            val x = xDe(s.toDouble())
-            if (x > gauche + largeur * dessin) break
-            val grand = s % 5 == 0
-            drawLine(GS.Cyan.copy(alpha = if (grand) 1f else 0.6f), Offset(x * k, (yRegle - if (grand) 26f else 14f) * k), Offset(x * k, (yRegle + if (grand) 26f else 14f) * k), strokeWidth = (if (grand) 4f else 2f) * k)
+        // La ligne repère : un tube doré qui se dessine, un repère par seconde.
+        val d = sortie((t - REV_REGLE_MS) / 500f)
+        val xa = REGLE_G - 40f
+        val xb = xa + (REGLE_D + 40f - xa) * d
+        if (t >= REV_REGLE_MS) {
+            drawLine(GS.Jaune.copy(alpha = 0.25f), Offset(xa * k, g.yRepere * k), Offset(xb * k, g.yRepere * k), strokeWidth = 22f * k)
+            drawLine(Color(0xFFFFE27A), Offset(xa * k, g.yRepere * k), Offset(xb * k, g.yRepere * k), strokeWidth = 6f * k)
+            val pas = pasGraduation(demi)
+            var s = -demi
+            while (s <= demi) {
+                val x = xDe(s * 1000L)
+                if (s != 0 && x <= xb) drawLine(Color(0xFFFFE27A), Offset(x * k, (g.yRepere - 14f) * k), Offset(x * k, (g.yRepere + 14f) * k), strokeWidth = 3f * k)
+                s += pas
+            }
         }
-        // Le drapeau à tête de Buzzy : il tombe d'en haut et se plante sur la cible.
-        val tombe = ((t - 200).toFloat() / 500f).coerceIn(0f, 1f)
-        val xc = xDe(c.cible.toDouble()) * k
-        val pied = yRegle * k
-        val mat = 250f * k
-        val dy = (1f - tombe * tombe) * -700f * k
-        drawLine(GS.Jaune, Offset(xc, pied + dy), Offset(xc, pied - mat + dy), strokeWidth = 8f * k)
-        val lt = 170f * k
-        val ht = lt * 423f / 484f
-        if (teteDrapeau != null) drawImage(teteDrapeau, dstOffset = IntOffset((xc - lt / 2).toInt(), (pied - mat + dy - ht * 0.9f).toInt()), dstSize = IntSize(lt.toInt(), ht.toInt()))
-        else teteBuzzy(Offset(xc, pied - mat + dy), 70f * k)
-        // Le fanion doré à étoile blanche (choix B de cedric, 30/10), qui flotte au vent sous la tête de Buzzy.
-        fanion(Offset(xc + 4f * k, pied - mat + dy + 30f * k), 120f * k, 78f * k, t)
-        // Les pastilles des équipes, la plus loin d'abord.
+        // Le mât pointillé qui descend du drapeau à travers les lignes.
+        if (t >= REV_MAT_MS && n > 0) {
+            val bas = g.y0 + (n - 1) * g.h + g.h * 0.45f
+            val y2 = g.yRepere + (bas - g.yRepere) * sortie((t - REV_MAT_MS) / 600f)
+            drawLine(GS.Jaune.copy(alpha = 0.22f), Offset(xc * k, g.yRepere * k), Offset(xc * k, y2 * k), strokeWidth = 18f * k)
+            drawLine(
+                GS.Jaune, Offset(xc * k, g.yRepere * k), Offset(xc * k, y2 * k), strokeWidth = 5f * k,
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(14f * k, 10f * k), -t / 25f * k),
+            )
+        }
+        // Les lignes des équipes, qui glissent depuis la gauche.
         ordre.forEachIndexed { i, uid ->
-            val debut = arrivee[i]
-            val duree = if (i == ordre.lastIndex) PASTILLE_RALENTI_MS else 500L
-            val p = ((t - debut).toFloat() / duree).coerceIn(0f, 1f)
-            if (p <= 0f) return@forEachIndexed
-            val e = 1f - (1f - p) * (1f - p)
-            val x = xDe(c.cible + r.ecarts.getValue(uid) / 1000.0) * k
-            val y = (yRegle - 380f + 380f * e) * k
+            val a = arriveeLigne(i, n)
+            if (t < a) return@forEachIndexed
+            val sl = sortie((t - a) / 350f)
+            val y = yLigne(uid) * k
+            val off = (1f - sl) * -300f * k
+            drawLine(couleur(uid).copy(alpha = 0.55f * sl), Offset(REGLE_G * k + off, y), Offset(REGLE_D * k + off, y), strokeWidth = maxOf(3f, g.h * 0.05f) * k)
+        }
+        // La ligne gagnante qui pulse.
+        if (t >= fin && r.winners.isNotEmpty()) {
+            val tc = (t - fin) / 1000f
+            r.winners.forEach { w ->
+                val y = yLigne(w) * k
+                drawLine(couleur(w).copy(alpha = 0.35f + 0.2f * sin(tc * 8f)), Offset(REGLE_G * k, y), Offset(REGLE_D * k, y), strokeWidth = (10f + 6f * sin(tc * 8f)) * k)
+            }
+        }
+        // Les pastilles : elles popent à leur place ; la dernière (la plus proche) glisse lentement depuis le bord.
+        ordre.forEachIndexed { i, uid ->
+            val tp = arriveeLigne(i, n) + 300
+            if (t < tp) return@forEachIndexed
+            val e = r.ecarts.getValue(uid)
+            val derniere = i == n - 1
+            val cible = xDe(e)
+            val x: Float
+            val echelle: Float
+            if (derniere) {
+                val bord = xDe(if (e >= 0) demi * 1000L else -demi * 1000L)
+                val q = ((t - tp) / (REV_GLISSE_MS - 300f)).coerceIn(0f, 1f)
+                x = bord + (cible - bord) * (1f - (1f - q) * (1f - q) * (1f - q) * (1f - q))
+                echelle = 1f
+            } else {
+                x = cible
+                echelle = elastique((t - tp) / 600f)
+            }
+            val y = yLigne(uid)
+            val rr = maxOf(14f, g.h * 0.22f) * echelle
             val coul = couleur(uid)
-            drawCircle(coul.copy(alpha = 0.3f), 46f * k, Offset(x, y))
-            drawCircle(coul, 30f * k, Offset(x, y))
-            drawCircle(Color.White, 30f * k, Offset(x, y), style = Stroke(4f * k))
+            drawCircle(coul.copy(alpha = 0.3f), rr * 1.7f * k, Offset(x * k, y * k))
+            drawCircle(coul, rr * k, Offset(x * k, y * k))
+            drawCircle(Color.White, rr * k, Offset(x * k, y * k), style = Stroke(4f * k))
+            // Étincelles du pop (la gagnante : quand elle se pose).
+            val b = (t - (if (derniere) fin else tp)) / 600f
+            if (b in 0f..1f) for (j in 0 until 12) {
+                val ang = j / 12f * 2f * Math.PI.toFloat() + hasard(j + i) * 0.4f
+                val dd = (30f + g.h * 0.6f) * sortie(b)
+                drawCircle(if (j % 2 == 1) Color.White else coul, 5f * (1f - b) * k, Offset((cible + kotlin.math.cos(ang) * dd) * k, (y + sin(ang) * dd) * k))
+            }
+        }
+        // Le drapeau : son mât blanc planté sur la ligne repère, le tissu qui se balance un peu.
+        if (t >= REV_DRAPEAU_MS) {
+            val pied = (g.yRepere + dyDrapeau) * k
+            val haut = pied - 200f * k
+            drawLine(Color(0xFFFFF3C4), Offset(xc * k, pied), Offset(xc * k, haut), strokeWidth = 7f * k)
+            drawCircle(GS.Jaune, 9f * k, Offset(xc * k, haut - 4f * k))
+            if (drapeau != null) {
+                val l = 190f * k
+                val h = l * drapeau.height / drapeau.width
+                val angle = sin(t / 1000f * 5f) * 2.5f
+                withTransform({ rotate(angle, Offset(xc * k, haut)) }) {
+                    // Le bord gauche du tissu (2 % de l'image) contre le mât.
+                    drawImage(drapeau, dstOffset = IntOffset((xc * k - l * 0.02f).toInt(), (haut - h * 0.09f).toInt()), dstSize = IntSize(l.toInt(), h.toInt()))
+                }
+            } else fanion(Offset(xc * k + 4f * k, haut), 150f * k, 98f * k, t)
+        }
+        // Confettis quand la gagnante est posée.
+        if (t >= fin && r.winners.isNotEmpty()) {
+            val tc = (t - fin) / 1000f
+            val couleurs = listOf(GS.Jaune, GS.Rose, GS.Cyan, Color(0xFF3DDC6B), Color(0xFFA46BFF), Color.White)
+            val xg = xDe(r.ecarts.getValue(r.winners.first()))
+            val yg = yLigne(r.winners.first())
+            for (j in 0 until 140) {
+                val ang = hasard(j) * 2f * Math.PI.toFloat()
+                val v = 500f + hasard(j + 7) * 900f
+                val x0 = if (j % 2 == 1) xg else 960f
+                val y0 = if (j % 2 == 1) yg else 105f
+                val x = x0 + kotlin.math.cos(ang) * v * tc * 0.6f
+                val y = y0 + sin(ang) * v * tc * 0.5f + 380f * tc * tc
+                val alpha = (3.5f - tc).coerceIn(0f, 1f)
+                if (y > 1100f || alpha <= 0f) continue
+                withTransform({ rotate(tc * 400f * (hasard(j + 3) - 0.5f), Offset(x * k, y * k)) }) {
+                    drawRect(couleurs[j % 6].copy(alpha = alpha), Offset(x * k, y * k), Size(14f * k, 8f * k))
+                }
+            }
         }
     }
-    // La cible sous le fanion, qui tombe avec lui.
-    run {
-        val tombe = ((t - 200).toFloat() / 500f).coerceIn(0f, 1f)
-        val dy = (1f - tombe * tombe) * -700f
-        Text(
-            "${c.cible}", style = chiffreStyle(56f, GS.Jaune, Color(0xFFFF9F1C)), maxLines = 1,
-            modifier = Modifier.offset((xDe(c.cible.toDouble()) + 6f).dp, (yRegle - 250f + 112f + dy).dp).width(140.dp),
-        )
+
+    // Repères « −1 s / +1 s », « TROP TÔT », « TROP TARD » : petits textes posés sur le décor avec un halo doux.
+    if (t >= REV_REGLE_MS + 200) {
+        val a = ((t - REV_REGLE_MS - 200) / 330f).coerceIn(0f, 1f)
+        val pas = pasGraduation(demi)
+        var s = -demi
+        while (s <= demi) {
+            if (s != 0) TexteDecor("${if (s > 0) "+" else "−"}${abs(s)} s", Color(0xFFFFE9A8), 26f, xDe(s * 1000L), g.yRepere + 42f, Alignment.Center, 120f, a, PoliceGsTexte)
+            s += pas
+        }
+        TexteDecor("TROP TÔT", Color(0xFFDFE6FF), 30f, REGLE_G - 60f, g.yRepere, Alignment.CenterEnd, 300f, a)
+        TexteDecor("TROP TARD", Color(0xFFDFE6FF), 30f, REGLE_D + 60f, g.yRepere, Alignment.CenterStart, 300f, a)
     }
-    // Les noms et écarts sous la règle, sur 4 rangées pour ne jamais se chevaucher à 8 équipes.
-    val parPosition = ordre.sortedBy { r.ecarts.getValue(it) }
-    val places = placesEtiquettes(
-        parPosition.map { xDe(c.cible + r.ecarts.getValue(it) / 1000.0) },
-        parPosition.map { largeurEtiquette(nom(it), texteEcart(r.ecarts.getValue(it)) + (r.gains[it]?.let { g -> " · +$g" }.orEmpty())) },
-    )
-    parPosition.forEachIndexed { rang, uid ->
-        val i = ordre.indexOf(uid)
-        if (t < arrivee[i] + (if (i == ordre.lastIndex) PASTILLE_RALENTI_MS else 500L)) return@forEachIndexed
-        val (rangee, x) = places[rang]
-        Column(
-            Modifier.offset((x - ETIQUETTE_L / 2).dp, (yRegle + 46f + rangee * 104f).dp).width(ETIQUETTE_L.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            TexteNeon(nom(uid), couleur(uid), 42f, police = PoliceGsTitre, largeurMax = 400.dp, force = 0.6f, tailleMin = 26f)
-            val gain = r.gains[uid]?.let { " · +$it" }.orEmpty()
-            TexteNeon(texteEcart(r.ecarts.getValue(uid)) + gain, Color.White, 36f, police = PoliceGsChiffres, largeurMax = 400.dp, force = 0.4f, tailleMin = 24f)
+    // « 30 SECONDES » : les secondes du tour, en grand à gauche du drapeau.
+    if (t >= REV_DRAPEAU_MS + 400) {
+        val p = rebond((t - REV_DRAPEAU_MS - 400) / 400f)
+        Box(
+            Modifier.offset((xc - 28f - 700f).dp, (g.yRepere - 70f - 50f).dp).size(700.dp, 100.dp).graphicsLayer { scaleX = p; scaleY = p; transformOrigin = TransformOrigin(1f, 0.5f) },
+            contentAlignment = Alignment.CenterEnd,
+        ) { TexteNeon("${c.cible} SECONDES", GS.Jaune, 66f, police = PoliceGsTitre, largeurMax = 680.dp) }
+    }
+    // Les noms (à gauche de leur ligne), puis le temps de chaque équipe et ses points (à droite).
+    ordre.forEachIndexed { i, uid ->
+        val a = arriveeLigne(i, n)
+        if (t < a) return@forEachIndexed
+        val sl = sortie((t - a) / 350f)
+        val y = yLigne(uid)
+        val gagnante = t >= fin && uid in r.winners
+        TexteDecor(nom(uid).uppercase(), couleur(uid), g.police, REGLE_G - 30f - (1f - sl) * 300f, y, Alignment.CenterEnd, 620f, sl, lueur = gagnante)
+        val derniere = i == n - 1
+        val tt = if (derniere) fin else a + 450
+        if (t >= tt) {
+            val p = rebond((t - tt) / 350f)
+            val e = r.ecarts.getValue(uid)
+            val cs = centiemes((c.cible * 1000L + e).coerceAtLeast(0))
+            val temps = "%d,%02d s".format(cs / 100, cs % 100)
+            Row(
+                Modifier.offset((REGLE_D + 40f).dp, (y - g.h / 2).dp).size(440.dp, g.h.dp).graphicsLayer { scaleX = p; scaleY = p; transformOrigin = TransformOrigin(0f, 0.5f) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(temps, maxLines = 1, style = styleDecor(g.police, Color.White, PoliceGsChiffres))
+                r.gains[uid]?.takeIf { it > 0 }?.let { Text("   +$it", maxLines = 1, style = styleDecor(g.police, GS.Jaune, PoliceGsChiffres)) }
+            }
         }
     }
-    // Les gagnantes, une fois la plus proche posée.
+    // Le bandeau de la gagnante, à la place du titre.
     if (t >= fin) {
+        val p = rebond((t - fin) / 450f)
         val texte = when {
             r.winners.isEmpty() -> "PERSONNE N'A BUZZÉ !"
             r.winners.size == 1 -> phraseGagnant(nom(r.winners[0]))
             else -> "ÉGALITÉ ! ${r.winners.joinToString(" ET ") { nom(it).uppercase() }}"
         }
-        // Sur une seule ligne, juste sous le titre, à la place de la cible : la tête de Buzzy et le fanion restent dégagés.
-        Row(Modifier.align(Alignment.TopCenter).padding(top = 136.dp), verticalAlignment = Alignment.CenterVertically) {
-            TexteNeon(texte, r.winners.firstOrNull()?.let(couleur) ?: GS.Cyan, 64f, police = PoliceGsTitre, largeurMax = if (r.points > 0) 1300.dp else 1700.dp)
-            if (r.points > 0) TexteNeon("  +${r.points} POINTS", GS.Jaune, 56f, police = PoliceGsChiffres, largeurMax = 420.dp, force = 0.8f)
+        Row(
+            Modifier.align(Alignment.TopCenter).padding(top = 48.dp).graphicsLayer { scaleX = p; scaleY = p },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TexteNeon(texte, r.winners.firstOrNull()?.let(couleur) ?: GS.Cyan, 64f, police = PoliceGsTitre, largeurMax = if (r.points > 0) 1350.dp else 1750.dp)
+            if (r.points > 0) TexteNeon("  +${r.points}", GS.Jaune, 60f, police = PoliceGsChiffres, largeurMax = 300.dp, force = 0.8f)
         }
+    }
+}
+
+/** Style d'un petit texte posé sur le décor : gras, halo noir doux autour des lettres (jamais de cadre). */
+private fun styleDecor(taille: Float, couleur: Color, police: androidx.compose.ui.text.font.FontFamily = PoliceGsTitre, lueur: Boolean = false) = TextStyle(
+    fontFamily = police, fontWeight = FontWeight.Bold, fontSize = taille.sp, color = couleur,
+    shadow = if (lueur) Shadow(couleur, Offset.Zero, 28f) else Shadow(Color.Black, Offset.Zero, 22f),
+)
+
+/** Un petit texte du décor, calé sur ([x], [y]) selon [ancre] dans une boîte de [largeur] ; réduit s'il est trop long. */
+@Composable
+private fun TexteDecor(
+    texte: String, couleur: Color, taille: Float, x: Float, y: Float, ancre: Alignment, largeur: Float, alpha: Float,
+    police: androidx.compose.ui.text.font.FontFamily = PoliceGsTitre, lueur: Boolean = false,
+) {
+    val gauche = when (ancre) { Alignment.CenterEnd -> x - largeur; Alignment.CenterStart -> x; else -> x - largeur / 2 }
+    // Trop long : la taille baisse jusqu'à tenir dans la boîte (jamais sous 55 %), le texte n'est jamais coupé.
+    val mesure = rememberTextMeasurer()
+    val densite = LocalDensity.current
+    val ajustee = remember(texte, taille, largeur, police, densite) {
+        val dispo = with(densite) { largeur.dp.toPx() }
+        val l = mesure.measure(texte, styleDecor(taille, couleur, police), maxLines = 1, softWrap = false, constraints = Constraints()).size.width
+        if (l <= dispo || l == 0) taille else maxOf(taille * 0.55f, taille * dispo / l * 0.97f)
+    }
+    Box(Modifier.offset(gauche.dp, (y - taille).dp).size(largeur.dp, (taille * 2).dp).alpha(alpha), contentAlignment = ancre) {
+        Text(texte, maxLines = 1, softWrap = false, style = styleDecor(ajustee, couleur, police, lueur))
     }
 }
 
@@ -612,32 +774,3 @@ internal fun phraseGagnant(nom: String): String {
     val pluriel = nom.trim().let { it.startsWith("les ", ignoreCase = true) || it.startsWith("des ", ignoreCase = true) }
     return "${nom.uppercase()} ${if (pluriel) "GAGNENT" else "GAGNE"} LE TOUR !"
 }
-
-/** Largeur d'une étiquette (nom + écart) sous la règle, en px de la scène. */
-internal const val ETIQUETTE_L = 400f
-
-/** Largeur estimée d'une étiquette (nom en 42 sp : ~27 px par lettre dans la police titre, mesuré sur capture ; écart en 36 sp : ~19 px), plafonnée à [ETIQUETTE_L] (le texte se réduit au-delà). */
-internal fun largeurEtiquette(nom: String, ecart: String): Float =
-    (maxOf(nom.length * 27f, ecart.length * 19f) + 16f).coerceAtMost(ETIQUETTE_L)
-
-/**
- * Où poser chaque étiquette sous la règle, les [x] (centres des pastilles) triés de gauche à droite, [largeurs] estimées :
- * (rangée 0 à 3, centre x). Chacune va dans la première rangée où elle ne touche pas la précédente ; si aucune n'est libre
- * (équipes très serrées), dans celle où il y a le plus de place, décalée vers la droite juste ce qu'il faut. Jamais hors de
- * l'écran (1920 px).
- */
-internal fun placesEtiquettes(x: List<Float>, largeurs: List<Float>, rangeesMax: Int = 4, marge: Float = 14f): List<Pair<Int, Float>> {
-    val bordDroit = FloatArray(rangeesMax) { Float.NEGATIVE_INFINITY }
-    return x.indices.map { i ->
-        val demi = largeurs[i] / 2
-        val libre = (0 until rangeesMax).firstOrNull { x[i] - demi >= bordDroit[it] + marge }
-        val r = libre ?: (0 until rangeesMax).minBy { bordDroit[it] }
-        val cx = maxOf(x[i], bordDroit[r] + marge + demi).coerceIn(demi + 20f, 1900f - demi)
-        bordDroit[r] = cx + demi
-        r to cx
-    }
-}
-
-/** Les rangées seules, étiquettes toutes de largeur [ETIQUETTE_L] (pour les tests et les cas simples). */
-internal fun rangeesEtiquettes(x: List<Float>, rangeesMax: Int = 4): List<Int> =
-    placesEtiquettes(x, x.map { ETIQUETTE_L }, rangeesMax).map { it.first }

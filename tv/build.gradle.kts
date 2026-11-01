@@ -99,6 +99,9 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
+    // Nouveau lecteur vidéo (point 46, 1/11) : les boucles s'enchaînent sans le petit trou de l'ancien lecteur du système.
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
+
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.littlemissparty.quiz:engine")
 

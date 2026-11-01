@@ -262,11 +262,19 @@
       <!-- Le Duel des robots (cedric, 27/10) : deux équipes face à face, la première qui buzze après le PAN gagne. -->
       <section id="duel" class="flou" hidden aria-label="Le Duel des robots">
         <p id="duel-info" class="mime-info"></p>
+        <!-- Nouveau déroulé (cedric, 1/11) : les joueurs de chaque équipe, pendant la présentation du jeu. -->
+        <div id="duel-compte" class="duel-compte" hidden>
+          <div id="duel-lignes" class="duel-lignes"></div>
+          <p id="duel-total" class="duel-total"></p>
+          <button id="duel-ok" class="btn duel-ok" type="button">C'est bon</button>
+          <button id="duel-passer" class="duel-passer" type="button">Passer cette étape</button>
+        </div>
         <div id="duel-face" class="duel-face"></div>
+        <p id="duel-astuce" class="hint duel-astuce" hidden>Touche une équipe pour la changer</p>
         <p id="duel-resultat" class="duel-resultat" hidden></p>
         <div id="duel-choix" class="statues-teams" hidden></div>
         <button id="duel-stop" class="btn secondary" type="button" hidden>✋ Arrêter le face-à-face</button>
-        <button id="duel-autres" class="btn secondary" type="button" hidden>🎯 Choisir 2 équipes</button>
+        <button id="duel-plus" class="btn secondary duel-plus" type="button" hidden>＋ Un duel en plus</button>
         <button id="duel-retour" class="btn secondary statues-retour" type="button" hidden>← Retour</button>
         <button id="duel-fin" class="btn secondary" type="button" hidden>⏭ Jeu suivant</button>
         <p id="duel-points" class="hint"></p>

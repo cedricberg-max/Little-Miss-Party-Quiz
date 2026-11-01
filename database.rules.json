@@ -277,7 +277,7 @@
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$cmd": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_skip|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win|statues_stop|statues_play|statues_song|blind_play|blind_unblock|blind_reveal|blind_skip|blind_cut|picto_show|picto_draw|factor|chest_random|potato_random|potato_stop|duel_start|duel_next|duel_stop|simon_go|simon_stop|chrono_go|chrono_cible|chrono_reveal|chrono_stop|newgame)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_skip|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win|statues_stop|statues_play|statues_song|blind_play|blind_unblock|blind_reveal|blind_skip|blind_cut|picto_show|picto_draw|factor|chest_random|potato_random|potato_stop|duel_start|duel_next|duel_stop|duel_plan|duel_swap|simon_go|simon_stop|chrono_go|chrono_cible|chrono_reveal|chrono_stop|newgame)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
             "team": {
               ".validate": "newData.isString() && newData.val().length <= 128"
             },
@@ -311,6 +311,14 @@
               }
             },
             "personne": {
+              ".validate": "newData.val() === true"
+            },
+            "counts": {
+              "$team": {
+                ".validate": "$team.length <= 128 && newData.isNumber() && newData.val() >= 1 && newData.val() <= 12"
+              }
+            },
+            "skip": {
               ".validate": "newData.val() === true"
             },
             "cible": {
@@ -508,6 +516,15 @@
           ".validate": "!newData.exists() || ($cle.matches(/^[-\\w]{2,80}$/) && newData.child('x').isNumber() && newData.child('x').val() >= 0 && newData.child('x').val() <= 1 && newData.child('y').isNumber() && newData.child('y').val() >= 0 && newData.child('y').val() <= 1 && newData.child('z').isNumber() && newData.child('z').val() >= 2 && newData.child('z').val() <= 10 && newData.child('at').val() === now)",
           "$other": {
             ".validate": "$other === 'x' || $other === 'y' || $other === 'z' || $other === 'at'"
+          }
+        }
+      },
+      "departsFlou": {
+        "$cle": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || ($cle.matches(/^[-\\w]{2,80}$/) && newData.child('w').isNumber() && newData.child('w').val() >= 2 && newData.child('w').val() <= 5 && newData.child('at').val() === now)",
+          "$other": {
+            ".validate": "$other === 'w' || $other === 'at'"
           }
         }
       },
