@@ -339,12 +339,19 @@ fun BlindRevelation(
             Spacer(Modifier.width(56.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                 Text("C'était…", color = Neon.Blanc.copy(alpha = 0.75f), fontSize = 34.sp, fontWeight = FontWeight.Bold, modifier = Modifier.apparition(300, cle))
-                Text(
+                // Game Show : titre et artiste détachés du plateau par un halo de nuit (cedric, 1/11 au soir).
+                if (Look.gs) TexteDetache(
+                    titre, TextStyle(color = Neon.Or, fontSize = 72.sp, lineHeight = 78.sp, fontWeight = FontWeight.Black),
+                    Modifier.apparition(600, cle), maxLines = 3, overflow = TextOverflow.Ellipsis,
+                ) else Text(
                     titre, color = Neon.Or, fontSize = 72.sp, lineHeight = 78.sp, fontWeight = FontWeight.Black, maxLines = 3, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.apparition(600, cle),
                 )
                 if (!artiste.isNullOrBlank()) {
-                    Text(
+                    if (Look.gs) TexteDetache(
+                        artiste, TextStyle(color = Neon.Blanc, fontSize = 44.sp, lineHeight = 50.sp, fontWeight = FontWeight.Bold),
+                        Modifier.apparition(1000, cle), maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    ) else Text(
                         artiste, color = Neon.Blanc, fontSize = 44.sp, lineHeight = 50.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.apparition(1000, cle),
                     )
@@ -367,7 +374,12 @@ fun BlindRevelation(
                         }
                         Spacer(Modifier.width(28.dp))
                         Column {
-                            Text(
+                            // Game Show : détaché du plateau par un halo de nuit, quelle que soit la couleur (cedric, 1/11 au soir).
+                            if (Look.gs) TexteDetache(
+                                "Bonne réponse ! Bravo ${gagnant.first}",
+                                TextStyle(color = gagnant.second, fontSize = 46.sp, lineHeight = 52.sp, fontWeight = FontWeight.Black),
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            ) else Text(
                                 "Bonne réponse ! Bravo ${gagnant.first}", color = gagnant.second, fontSize = 46.sp, lineHeight = 52.sp, fontWeight = FontWeight.Black,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis,
                             )

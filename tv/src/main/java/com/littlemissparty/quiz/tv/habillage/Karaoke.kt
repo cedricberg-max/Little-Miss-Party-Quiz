@@ -212,12 +212,20 @@ internal fun SceneParoles(
                 titre.length <= 34 -> 34.sp
                 else -> 28.sp
             }
-            Text(
+            // Game Show : titre et artiste détachés du plateau par un halo de nuit bien plus fort (cedric, 1/11 au soir : « La
+            // pluie » et « Louane » se fondaient dans le décor), l'artiste en blanc plein.
+            if (Look.gs) TexteDetache(
+                titre, TextStyle(color = Neon.Or, fontSize = tailleTitre, lineHeight = tailleTitre * 1.12f, fontWeight = FontWeight.Black, textAlign = TextAlign.Center),
+                Modifier.fillMaxWidth().apparition(400, cle), maxLines = 2, overflow = TextOverflow.Ellipsis,
+            ) else Text(
                 titre, color = Neon.Or, fontSize = tailleTitre, lineHeight = tailleTitre * 1.12f, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().apparition(400, cle),
             )
             if (!artiste.isNullOrBlank()) {
-                Text(
+                if (Look.gs) TexteDetache(
+                    artiste, TextStyle(color = Neon.Blanc, fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                    Modifier.fillMaxWidth().apparition(700, cle), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                ) else Text(
                     artiste, color = Neon.Blanc.copy(alpha = 0.85f), fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().apparition(700, cle),
                 )
@@ -292,11 +300,18 @@ private fun Gagnant(cle: Any?, gagnant: Pair<String, Color>?, points: Int, doubl
             }
             Spacer(Modifier.width(20.dp))
             Column {
-                Text(
-                    if (Look.gs) "BRAVO ${gagnant.first.uppercase()} !" else "Bravo ${gagnant.first} !", color = gagnant.second,
+                // Game Show : halo de nuit sous le nom, puis sa lueur de couleur : détaché quelle que soit la couleur de
+                // l'équipe (cedric, 1/11 au soir : « Sacha » bleu nuit se fondait dans le plateau).
+                if (Look.gs) TexteDetache(
+                    "BRAVO ${gagnant.first.uppercase()} !",
+                    TextStyle(
+                        color = gagnant.second, fontSize = 38.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black, fontFamily = PoliceGsTitre,
+                        shadow = Shadow(gagnant.second.copy(alpha = 0.85f), Offset.Zero, 24f),
+                    ),
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                ) else Text(
+                    "Bravo ${gagnant.first} !", color = gagnant.second,
                     fontSize = 38.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black,
-                    fontFamily = if (Look.gs) PoliceGsTitre else null,
-                    style = if (Look.gs) TextStyle(shadow = Shadow(gagnant.second.copy(alpha = 0.85f), Offset.Zero, 24f)) else LocalTextStyle.current,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 Text(
@@ -328,7 +343,11 @@ internal fun BravoEquipes(equipes: List<Pair<String, Color>>, taille: TextUnit, 
         }
         append(" !")
     }
-    Text(
+    // Game Show : chaque nom, quelle que soit sa couleur, est détaché du plateau par un halo de nuit (cedric, 1/11 au soir).
+    if (Look.gs) TexteDetache(
+        texte, TextStyle(color = Neon.Blanc, fontSize = taille, lineHeight = taille * 1.12f, fontWeight = FontWeight.Black),
+        modifier, maxLines = 2, overflow = TextOverflow.Ellipsis,
+    ) else Text(
         texte, color = Neon.Blanc, fontSize = taille, lineHeight = taille * 1.12f, fontWeight = FontWeight.Black,
         maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = modifier,
     )
