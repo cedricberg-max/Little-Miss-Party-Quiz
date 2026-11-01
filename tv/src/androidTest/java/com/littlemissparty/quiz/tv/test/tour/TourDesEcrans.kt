@@ -324,6 +324,9 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
      * chevauchements et plus petit texte, une ligne « TOUR| » dans le journal.
      */
     private fun verifier(moment: String, attente: Long = 900) {
+        // Le rideau entre deux jeux (« C'EST PARTI ! », « NOUVELLE ÉPREUVE », « JEU SUIVANT ») couvre tout l'écran : on
+        // vérifie l'écran du jeu, pas le rideau (1/11 : la 1re question du quiz, sans boutons, était capturée sous le rideau).
+        listOf("C'EST PARTI", "NOUVELLE ÉPREUVE", "JEU SUIVANT").forEach { runCatching { ecran.neVoitPas(it, 12_000) } }
         RobotEcran.oublier()
         mode(false)
         verifierMode(moment, "sans", attente)
