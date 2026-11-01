@@ -41,7 +41,7 @@ before(async () => {
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
-  browser = await chromium.launch();
+  browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
 });
 
 after(async () => {
@@ -329,6 +329,14 @@ describe("pupitre", () => {
     // Plus de bouton « Ouvrir » (cedric, 27/10 au soir) : toucher le coffre 3 l'ouvre tout de suite.
     assert.equal(await roses.locator(".bc-ouvrir").count(), 0);
     await roses.locator(".bc-texte", { hasText: "Touchez un coffre pour l'ouvrir !" }).waitFor();
+    if (process.env.CAPTURES) {
+      await roses.setViewportSize({ width: 800, height: 1280 });
+      await roses.waitForTimeout(700);
+      await roses.screenshot({ path: `${process.env.CAPTURES}/coffres-portrait.png` });
+      await roses.setViewportSize({ width: 1280, height: 800 });
+      await roses.waitForTimeout(700);
+      await roses.screenshot({ path: `${process.env.CAPTURES}/coffres-paysage.png` });
+    }
     // Double toucher (deux coffres très vite) : un seul coffre part, le premier.
     await roses.evaluate(() => { const c = document.querySelectorAll(".bc-case"); c[2].click(); c[4].click(); });
     await waitFor(async () => (await read("chestChoice/bc-1-0"))?.i === 2, "coffre 3 envoyé à la box");
@@ -345,6 +353,11 @@ describe("pupitre", () => {
     assert.equal(await bleus.locator(".bc-case").nth(2).locator(".bc-contenu").textContent(), "?", "suspense pendant l'animation de la TV");
     await bleus.locator(".bc-titre", { hasText: "Le coffre s'ouvre…" }).waitFor();
     await bleus.locator(".bc-case.bc-plus .bc-contenu", { hasText: "+150" }).waitFor({ timeout: 5000 });
+    if (process.env.CAPTURES) {
+      await bleus.setViewportSize({ width: 800, height: 1280 });
+      await bleus.waitForTimeout(900);
+      await bleus.screenshot({ path: `${process.env.CAPTURES}/coffres-ouvert-portrait.png` });
+    }
     // Au tour des Bleus : le bouton attend la fin de l'animation sur la TV.
     await bleus.locator(".bc-titre", { hasText: "À vous, Les Bleus !" }).waitFor();
     await roses.locator(".bc-texte", { hasText: "la bombe peut être dans n'importe quel coffre… et le coffre en or (+500) aussi !" }).waitFor();
