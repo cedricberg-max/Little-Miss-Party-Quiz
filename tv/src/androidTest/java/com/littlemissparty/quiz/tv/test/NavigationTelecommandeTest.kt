@@ -158,6 +158,14 @@ class NavigationTelecommandeTest : TestTv() {
         attendreQuestion(licornes, code, 0)
 
         ecran.device.pressBack()
+        // Dernier bouton de la fenêtre, sous le bas de l'écran : on y descend à la flèche, comme à la télécommande.
+        ecran.voit("Continuer la partie")
+        val avant = listOf(
+            "Donner des points", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour",
+            "Vider le cache des médias", "🎨 Design : ${Look.design.nom}", "Quitter l'application", "Terminer et lancer une nouvelle partie",
+        )
+        avant.forEach { bouton -> ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN); ecran.focusSur(bouton) }
+        ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
         ecran.ok("Terminer la partie et quitter")
         attendreQue("partie terminée", 30_000) { licornes.etat(code).child("phase").value?.takeIf { it == "ended" } }
         assertEquals("rien à reprendre au prochain démarrage", null, Boite.codeActif())
