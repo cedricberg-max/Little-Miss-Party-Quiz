@@ -150,7 +150,12 @@ class DirecteurSonore {
             Ecran.QUESTION -> {
                 // Le Vrai ou Faux express garde sa musique nerveuse d'un bout à l'autre de la série.
                 val musique = ambiance(i)
-                if (p.ecran == Ecran.PRESENTATION && !i.musical) {
+                // Annonce « × N » plein écran (Game Show) : aussi quand la série multipliée commence à la 1re question
+                // du jeu, juste après sa présentation (cedric, 1/11 : le son de l'annonce ne s'entendait pas).
+                val annonceC = i.gameShow && i.annonceFacteur && i.superFinale && (!p.superFinale || p.ecran == Ecran.PRESENTATION)
+                if (p.ecran == Ecran.PRESENTATION && !i.musical && annonceC) {
+                    annonceFacteurC(o, musique)
+                } else if (p.ecran == Ecran.PRESENTATION && !i.musical) {
                     // Sarah lance le jeu présenté : le jingle d'ouverture de manche, puis la musique du jeu.
                     o += Ordre.Jouer(Son.MANCHE)
                     o += Ordre.Jouer(Son.IMPACT)
@@ -160,7 +165,7 @@ class DirecteurSonore {
                     // La chanson part dès l'ouverture : aucun jingle par-dessus (le rideau, lui, passe quand même).
                     o += Ordre.Musique(Ambiance.SILENCE)
                     // Super Finale du quiz musical : l'annonce « × N » a sa montée et son boum, la chanson part ensuite.
-                    if (i.gameShow && i.annonceFacteur && i.superFinale && !p.superFinale) annonceFacteurC(o, musique = null)
+                    if (annonceC) annonceFacteurC(o, musique = null)
                     // Blind test : son générique court à la présentation, un éclat de cuivres au passage en points doublés.
                     if (i.blindPresentation) o += Ordre.Jouer(Son.BT_GENERIQUE)
                     // Game Show : la musique d'attente sous « Lancer le morceau », après le générique s'il passe.
@@ -195,7 +200,7 @@ class DirecteurSonore {
                     o += Ordre.Musique(musique)
                 }
                 // Annonce « × N » plein écran : le chrono, la photo et la chanson ne partent qu'après elle.
-                val annonce = i.gameShow && i.annonceFacteur && i.superFinale && !p.superFinale
+                val annonce = annonceC
                 val apresAnnonce = if (annonce) ANNONCE_MULTIPLICATEUR_MS else 0L
                 // Zoom mystère : moteur d'objectif et déclic quand la photo apparaît.
                 if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT + apresAnnonce)

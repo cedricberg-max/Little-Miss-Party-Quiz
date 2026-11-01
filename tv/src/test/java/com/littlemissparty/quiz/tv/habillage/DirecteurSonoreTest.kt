@@ -186,6 +186,24 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show, annonce x N aussi quand la serie multipliee commence a la premiere question du jeu, juste apres sa presentation`() {
+        // cedric, 1/11 : « je n'ai pas eu la sensation de l'avoir entendu ». Le jingle d'ouverture du jeu prenait la place.
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        val presentation = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 4, equipes = 2, epreuve = "quiz|Super finale", gameShow = true, superFinale = true)
+        d.observer(presentation)
+        val o = d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 2, epreuve = "quiz|Super finale", gameShow = true, superFinale = true, annonceFacteur = true))
+        assertTrue(Ordre.Jouer(Son.ROULEMENT_LONG) in o && Ordre.Jouer(Son.MONTEE) in o)
+        assertEquals(Tempo.ANNONCE_FACTEUR_BOUM, o.filterIsInstance<Ordre.Jouer>().single { it.son == Son.IMPACT }.dansMs)
+        assertFalse(Son.MANCHE in o.sons())
+        // Sans annonce plein écran (jeu ordinaire), le jingle d'ouverture reste.
+        val d2 = DirecteurSonore()
+        d2.observer(salon.copy(gameShow = true, equipes = 2))
+        d2.observer(presentation.copy(superFinale = false))
+        assertTrue(Son.MANCHE in d2.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 2, epreuve = "quiz|Super finale", gameShow = true)).sons())
+    }
+
+    @Test
     fun `Game Show, annonce x N (choix C du 31-10), roulement qui monte puis le boum pile sur x N, la musique repart avec lui`() {
         // Le même pour ×2, ×3, ×4 et ×5 : le chiffre ne change pas les sons de l'annonce.
         val d = DirecteurSonore()
