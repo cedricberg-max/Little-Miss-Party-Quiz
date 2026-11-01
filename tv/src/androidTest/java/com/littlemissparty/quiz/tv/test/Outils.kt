@@ -308,11 +308,13 @@ class Ecran(private val nomTest: () -> String) {
             val (ta, a) = zones[i]
             val (tb, b) = zones[j]
             if (ta == tb || ta.contains(tb) || tb.contains(ta)) continue
+            // Lettres animées une à une (DANSEZ ! des statues) : chacune est un texte, elles se touchent exprès.
+            if (ta.length <= 1 || tb.length <= 1) continue
             if (a.contains(b) || b.contains(a)) continue
             val c = android.graphics.RectF()
             if (!c.setIntersect(a, b)) continue
             val petit = minOf(a.width() * a.height(), b.width() * b.height())
-            if (petit > 0 && c.width() * c.height() > part * petit) defauts += "« $ta » et « $tb » se chevauchent"
+            if (petit > 0 && c.width() * c.height() > part * petit) defauts += "« $ta » et « $tb » se chevauchent [${a.toShortString()} / ${b.toShortString()}]"
         }
         return defauts.distinct()
     }

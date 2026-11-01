@@ -140,7 +140,6 @@ fun ChronoScreen(state: UiState.Playing, actions: TvActions) {
                 // Le titre jusqu'à la gagnante : son bandeau prend alors sa place (la cible est écrite près du drapeau).
                 if (depuisResultat < finRevelation(c.result!!)) {
                     TexteNeon("LE CHRONO DE BUZZY", GS.Cyan, 80f, police = PoliceGsTitre, largeurMax = 1500.dp)
-                    if (state.chronoTours > 1) TexteNeon("TOUR ${c.tour} / ${state.chronoTours}", GS.CyanClair, 44f, police = PoliceGsTitre, largeurMax = 1500.dp, force = 0.5f)
                 }
             }
         }
@@ -160,7 +159,7 @@ fun ChronoScreen(state: UiState.Playing, actions: TvActions) {
 @Composable
 private fun Objectif(c: ChronoRound, tours: Int, modifier: Modifier) {
     Column(modifier.width(640.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (tours > 1) TexteNeon("TOUR ${c.tour} / $tours", GS.CyanClair, 40f, police = PoliceGsTitre, largeurMax = 640.dp, force = 0.5f)
+        // Plus de « TOUR 1 / 3 » à l'écran : le compte reste sur la régie (cedric, 1/11 au soir).
         TexteNeon("OBJECTIF", Color.White, 52f, police = PoliceGsTitre, largeurMax = 640.dp, force = 0.6f)
         Row(verticalAlignment = Alignment.Bottom) {
             Text("${c.cible}", style = chiffreStyle(150f, GS.Jaune, Color(0xFFFF9F1C)), maxLines = 1)

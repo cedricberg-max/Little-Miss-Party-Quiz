@@ -734,7 +734,7 @@ class RegieTest : TestTv() {
 
         // « Titre suivant » : le dernier morceau, à double valeur, attend à son tour d'être lancé.
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Morceau 2 / 2")
+        // Plus de « Morceau 2 / 2 » pendant le jeu : le compte est sur la régie (cedric, 1/11 au soir).
         ecran.voit("POINTS DOUBLÉS · 200 points")
         assertEquals("applied", regie.commande(code, "blind_reveal"))
         ecran.voit("Au clair de la lune")
@@ -836,10 +836,10 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(statues) + avant))
 
         assertEquals("applied", regie.commande(code, "next"))
-        // Game Show : le nom du jeu est dans le bandeau du haut de l'écran.
-        ecran.voit(if (Look.gs) "Statues musicales" else "STATUES MUSICALES")
+        // Game Show : plus de nom du jeu en haut à gauche, ni de « Chanson 1 / 2 » (sur la régie, cedric, 1/11 au soir).
+        if (!Look.gs) ecran.voit("STATUES MUSICALES")
         ecran.voit("DANSEZ !")
-        ecran.voit("Chanson 1 / 2")
+        ecran.neVoitPas("Chanson 1 / 2")
         // Plus d'arrêt automatique : c'est Sarah qui coupe la musique, et la relance.
         ecran.neVoitPas("STATUE !", 3_000)
         assertEquals("applied", regie.commande(code, "statues_stop"))
@@ -865,7 +865,7 @@ class RegieTest : TestTv() {
             ecran.capture("statues-musicales-recap", attente = 5_000)
         } else {
             // Le récap des points de la chanson, puis la chanson suivante.
-            ecran.voit("Chanson 1 / 2", 8_000)
+            ecran.voit("Les points de la chanson", 8_000)
             ecran.voit("+300")
             ecran.capture("statues-musicales-recap")
         }
@@ -1256,7 +1256,7 @@ class RegieTest : TestTv() {
         attendreQue("première explosion", 70_000) { licornes.etat(code).takeIf { it.child("potato/booms").childrenCount >= 1 } }
         ecran.capture("patate-boum")
         attendreQue("bombe 2 allumée", 20_000) { licornes.etat(code).takeIf { (it.child("potato/bomb").value as? Number)?.toInt() == 2 } }
-        ecran.voit("Bombe 2 sur 3", 15_000)
+        ecran.neVoitPas("Bombe 2 sur 3")
         ecran.capture("patate-bombe-2")
         attendreQue("explosion de la dernière bombe", 170_000) { licornes.etat(code).takeIf { it.child("phase").value == "reveal" } }
         ecran.voit("BOUM !", 15_000)
@@ -1307,7 +1307,8 @@ class RegieTest : TestTv() {
         assertEquals("2 équipes × 2 joueurs : 2 duels", 2L, (e.child("duel/total").value as Number).toLong())
         assertEquals(listOf(1L, 1L), e.child("duel/players").children.map { (it.value as Number).toLong() })
         ecran.voit(if (Look.gs) "LA MAIN AU-DESSUS DU BUZZER !" else "Les deux joueurs, la main au-dessus du buzzer !")
-        ecran.voit(if (Look.gs) "LE DUEL DES ROBOTS 1 / 2" else "Duel 1 sur 2")
+        // Ni nom du jeu ni compte des duels sur la TV (cedric, 1/11 au soir) : ils sont sur la régie.
+        ecran.neVoitPas(if (Look.gs) "LE DUEL DES ROBOTS" else "Duel 1 sur 2")
         ecran.capture("duel-pret")
         assertEquals("pas de buzz avant le face-à-face", false, dragons.buzzerDuel(code, 0))
 
@@ -1389,7 +1390,7 @@ class RegieTest : TestTv() {
         }
         assertEquals(1L, (licornes.etat(code).child("simon/suite").value as Number).toLong())
         ecran.voit("PRÊTS ?")
-        ecran.voit("LE SIMON DE BUZZY · TOUR 1")
+        ecran.neVoitPas("LE SIMON DE BUZZY")
         ecran.capture("simon-pret")
         assertEquals("rien à taper avant la suite", false, licornes.repondreSimon(code, listOf("rouge")))
 

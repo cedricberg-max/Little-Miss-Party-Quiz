@@ -169,10 +169,7 @@ private fun BlindPanelGs(state: UiState.Playing, modifier: Modifier = Modifier) 
     val passees = state.teams.filter { it.uid in state.buzzBlocked }
     CalquePlanche(modifier) {
         if (b != null) {
-            TexteJauge(
-                "Morceau ${b.numero} / ${b.total}", color = Palette.Ink, fontSize = pxSp(26f), fontWeight = FontWeight.Bold,
-                maxLines = 1, softWrap = false, modifier = Modifier.planche(950f, 226f),
-            )
+            // Plus de « Morceau 2 / 5 » pendant le morceau : le compte reste sur la régie (cedric, 1/11 au soir).
             // Points doublés : la pastille dorée reste telle quelle, sans contour.
             TexteJauge(
                 if (b.doubled) "POINTS DOUBLÉS · ${b.points} points" else "${b.points} points",
@@ -228,10 +225,6 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
             // À la révélation, le panneau garde sa hauteur pour le titre et le gagnant (960 × 540 dp sur la box) :
             // la valeur du morceau est dans le « +N ».
             if (b != null && !revele) {
-                TexteJauge(
-                    "Morceau ${b.numero} / ${b.total}", color = Palette.InkSoft,
-                    fontSize = 24.sp, fontWeight = FontWeight.Bold,
-                )
                 // Points doublés : la pastille dorée reste telle quelle, sans contour.
                 TexteJauge(
                     if (b.doubled) "POINTS DOUBLÉS · ${b.points} points" else "${b.points} points",

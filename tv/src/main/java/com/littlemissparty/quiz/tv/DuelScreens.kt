@@ -161,11 +161,9 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
         // Mode manuel (cedric, 1/11) : rien de prévu (total 0), juste le numéro du duel.
         val enPlus = d != null && state.duelTotal > 0 && (d.extra || d.n > state.duelTotal)
         val textes = TextesDuel(
-            pastille = "🤠 LE DUEL DES ROBOTS " + when {
-                enPlus -> "EN PLUS"
-                state.duelTotal == 0 -> "N° ${d?.n ?: 1}"
-                else -> "${d?.n} / ${state.duelTotal}"
-            },
+            // Plus de pastille « 🤠 LE DUEL DES ROBOTS 2 / 8 » en haut à gauche : ni nom du jeu ni compte sur la TV, le
+            // compte reste sur la régie (cedric, 1/11 au soir, pour tous les jeux).
+            pastille = "",
             annonce = if (enPlus) "DUEL EN PLUS" else "DUEL N° ${d?.n}",
             consigne = when (etape) {
                 EtapeDuel.PRET -> "Les deux joueurs, la main au-dessus du buzzer !"
@@ -283,20 +281,7 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
                 }
             }
         }
-        // Quel duel : petit compteur en haut à gauche.
-        if (d != null && etape != EtapeDuel.ATTENTE) {
-            Text(
-                when {
-                    state.duelTotal == 0 -> "🤠 Duel ${d.n}"
-                    d.extra || d.n > state.duelTotal -> "🤠 Duel en plus"
-                    else -> "🤠 Duel ${d.n} sur ${state.duelTotal}"
-                }, maxLines = 1,
-                style = styleCentre(20.sp, Neon.OrClair),
-                modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 16.dp)
-                    .background(Neon.Plaque, RoundedCornerShape(50)).border(2.dp, Neon.Or, RoundedCornerShape(50))
-                    .padding(horizontal = 14.dp, vertical = 4.dp),
-            )
-        }
+        // Plus de « 🤠 Duel 2 sur 8 » en haut à gauche : ni nom du jeu ni compte sur la TV, il reste sur la régie (cedric, 1/11 au soir).
     }
 }
 

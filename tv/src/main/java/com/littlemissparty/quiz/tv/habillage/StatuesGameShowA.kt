@@ -82,19 +82,6 @@ private fun borneS(x: Float) = x.coerceIn(0f, 1f)
 private fun lisseS(x: Float) = borneS(x).let { it * it * (3 - 2 * it) }
 private fun ressortS(x: Float) = rebondA(x)
 
-/** Le voile des deux écrans : sombre au centre (ellipse 62 % × 52 % de l'écran), le plateau reste visible autour. */
-private fun DrawScope.voileStatues() {
-    val rx = size.width * 0.62f
-    val ry = size.height * 0.52f
-    val c = Offset(size.width / 2f, size.height / 2f)
-    scale(1f, ry / rx, c) {
-        drawRect(
-            Brush.radialGradient(0f to NuitS.copy(alpha = 0.78f), 0.7f to NuitS.copy(alpha = 0.45f), 1f to NuitS.copy(alpha = 0.30f), center = c, radius = rx),
-            topLeft = Offset(0f, c.y - (size.height / 2f) * rx / ry), size = Size(size.width, size.height * rx / ry),
-        )
-    }
-}
-
 /** Durée de l'animation BRAVO (s) ; ensuite tout reste affiché jusqu'au bouton de Sarah. */
 internal const val BRAVO_STATUES_S = 5.6f
 
@@ -103,7 +90,7 @@ internal const val BRAVO_STATUES_S = 5.6f
 internal fun StatuePierre(modifier: Modifier = Modifier) {
     val ms = horloge("statue-pierre")
     Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().clearAndSetSemantics {}.drawBehind { voileStatues() })
+        // Plus de voile sombre (cedric, 1/11 au soir : « un grand carré filigrane ») : le mot seul sur le décor.
         // Le halo cyan derrière le mot, dès 0,2 s.
         Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
             val a = borneS((ms() / 1000f - 0.2f) / 0.25f)
@@ -138,6 +125,8 @@ internal fun StatuePierre(modifier: Modifier = Modifier) {
                 translationY = (1f - p) * 15f * density
             },
         ) {
+            // Halo noir doux sous la consigne, qui la détache du décor sans cadre (règle « texte sur le décor »).
+            Text("PLUS PERSONNE NE BOUGE", maxLines = 1, softWrap = false, style = consigne.copy(color = NuitS.copy(alpha = 0.9f), shadow = Shadow(NuitS, Offset.Zero, 28f)))
             Text("PLUS PERSONNE NE BOUGE", maxLines = 1, softWrap = false, style = consigne.copy(color = NuitS, drawStyle = Stroke(7f, join = androidx.compose.ui.graphics.StrokeJoin.Round)))
             Text("PLUS PERSONNE NE BOUGE", maxLines = 1, softWrap = false, style = consigne.copy(color = JauneS, shadow = Shadow(JauneS, Offset.Zero, 18f)))
         }
@@ -197,13 +186,14 @@ internal fun BravoStatues(gagnantes: List<EquipeBravo>, autres: List<EquipeBravo
     Echelle(960.dp, 540.dp, modifier.fillMaxSize().semantics {
         contentDescription = descriptionBravo(gagnantes, autres)
     }) {
-        Box(Modifier.fillMaxSize().clearAndSetSemantics {}.drawBehind { voileStatues() })
+        // Plus de voile sombre derrière (cedric, 1/11 au soir) : les textes sur le décor, chacun son halo noir doux.
         // BRAVO, en ressort.
         val bravo = TextStyle(fontFamily = PoliceGsTitre, fontSize = 75.sp, textAlign = TextAlign.Center)
         Box(
             Modifier.align(Alignment.TopCenter).offset(y = 46.dp).clearAndSetSemantics {}
                 .graphicsLayer { val k = ressortS((s() - 0.1f) / 0.55f); scaleX = k; scaleY = k },
         ) {
+            Text("BRAVO", maxLines = 1, softWrap = false, style = bravo.copy(color = NuitS.copy(alpha = 0.9f), shadow = Shadow(NuitS, Offset.Zero, 34f)))
             Text("BRAVO", maxLines = 1, softWrap = false, style = bravo.copy(color = NuitS, drawStyle = Stroke(9f, join = androidx.compose.ui.graphics.StrokeJoin.Round)))
             Text("BRAVO", maxLines = 1, softWrap = false, style = bravo.copy(color = OrS, shadow = Shadow(OrS, Offset.Zero, 26f)))
         }
@@ -245,6 +235,7 @@ internal fun BravoStatues(gagnantes: List<EquipeBravo>, autres: List<EquipeBravo
                 Modifier.align(Alignment.TopCenter).offset(y = p.autres.dp).clearAndSetSemantics {}
                     .graphicsLayer { val k = ressortS((s() - 2.6f) / 0.5f); scaleX = k; scaleY = k; alpha = borneS((s() - 2.6f) * 8f) },
             ) {
+                Text("BRAVO AUSSI AUX AUTRES !", maxLines = 1, softWrap = false, style = phrase.copy(color = NuitS.copy(alpha = 0.9f), shadow = Shadow(NuitS, Offset.Zero, 28f)))
                 Text("BRAVO AUSSI AUX AUTRES !", maxLines = 1, softWrap = false, style = phrase.copy(color = NuitS, drawStyle = Stroke(6f, join = androidx.compose.ui.graphics.StrokeJoin.Round)))
                 Text("BRAVO AUSSI AUX AUTRES !", maxLines = 1, softWrap = false, style = phrase.copy(color = Color.White, shadow = Shadow(VertS, Offset.Zero, 24f)))
             }
@@ -291,6 +282,8 @@ private fun NomCouronne(e: EquipeBravo, ligne: Float, largeurMax: Float) {
         CouronneS(Modifier.size(couronne.dp, (couronne * 0.75f).dp))
         Box(Modifier.width(10.dp))
         Box {
+            // Halo noir sous le nom : il se détache du décor sans voile ni cadre, quelle que soit la couleur de l'équipe.
+            Text(e.nom, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = taille.sp, color = NuitS.copy(alpha = 0.9f), shadow = Shadow(NuitS, Offset.Zero, 26f)))
             Text(e.nom, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = taille.sp, color = Color.Transparent, shadow = Shadow(e.couleur, Offset.Zero, 60f)))
             Text(e.nom, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = taille.sp, color = Color.White, shadow = Shadow(e.couleur, Offset.Zero, 20f)))
         }

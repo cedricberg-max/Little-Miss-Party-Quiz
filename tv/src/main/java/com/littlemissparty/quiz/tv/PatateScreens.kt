@@ -119,16 +119,7 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                 }
             }
         }
-        // Quelle bombe joue : petit compteur en haut à gauche, au-dessus de la mèche.
-        if (p != null && !revele && p.total > 1) {
-            Text(
-                "💣 Bombe ${p.bomb} sur ${p.total}", maxLines = 1,
-                style = styleCentre(20.sp, Neon.OrClair),
-                modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 16.dp)
-                    .background(Neon.Plaque, RoundedCornerShape(50)).border(2.dp, Neon.Or, RoundedCornerShape(50))
-                    .padding(horizontal = 14.dp, vertical = 4.dp),
-            )
-        }
+        // Plus de « 💣 Bombe 2 sur 3 » en haut à gauche : aucun compte sur la TV, il reste sur la régie (cedric, 1/11 au soir).
         if (annonce) key(p?.bomb) { AnnonceBombe(p!!.bomb, p.total, Modifier.fillMaxSize()) }
     }
 }

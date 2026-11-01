@@ -261,7 +261,7 @@ private fun RecapStatues(state: UiState.Playing, f: Float) {
     val r = state.statues?.result ?: return
     val tours = state.question?.statuesTours ?: 1
     Text(
-        if (tours > 1) "Chanson ${r.song + 1} / $tours" else "Les points de la chanson",
+        "Les points de la chanson",
         color = Palette.Gold, fontSize = (34 * f).sp, lineHeight = (40 * f).sp, fontWeight = FontWeight.Black, maxLines = 1,
     )
     Spacer(Modifier.height(8.dp * f))

@@ -204,11 +204,8 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
     }
 
     EchelleSansCoupe(SCENE_L, SCENE_H, Modifier.fillMaxSize()) {
-        if (r != null) {
-            TubeSimon("LE SIMON DE BUZZY · TOUR ${r.tour}", GS.Cyan, Modifier.align(Alignment.TopStart).padding(start = 72.dp, top = 34.dp))
-            val n = if (r.enCours || v == null) r.suite else v.suite
-            TubeSimon("SUITE N° $n", GS.Orange, Modifier.align(Alignment.TopEnd).padding(end = 72.dp, top = 34.dp))
-        }
+        // Plus de « LE SIMON DE BUZZY · TOUR 2 » ni de « SUITE N° 5 » en haut : ni nom du jeu ni compte sur la TV, ils
+        // restent sur la régie (cedric, 1/11 au soir, pour tous les jeux).
         val lignes = vue.etape in setOf(EtapeSimon.JOUE, EtapeSimon.TEMPS, EtapeSimon.VERIF)
         // Le robot prof à gauche, le tableau à sa droite ; un tableau plus large pour les lignes des équipes.
         val gauche = if (lignes) 470f else 620f
@@ -305,21 +302,6 @@ private fun DrawScope.halo(couleur: Color, rayon: Float, n: Int) {
         drawRoundRect(
             couleur.copy(alpha = 0.28f / i), topLeft = Offset(-e / 2, -e / 2), size = size.copy(width = size.width + e, height = size.height + e),
             cornerRadius = CornerRadius(rayon + e / 2), style = Stroke(e),
-        )
-    }
-}
-
-/** « LE SIMON DE BUZZY · TOUR 3 », « SUITE N° 4 » : tubes néon en haut de l'écran. */
-@Composable
-private fun TubeSimon(texte: String, couleur: Color, modifier: Modifier) {
-    val forme = RoundedCornerShape(50.dp)
-    Box(
-        modifier.drawBehind { halo(couleur, 50.dp.toPx(), 3) }.background(GS.Plaque, forme)
-            .border(4.dp, Color.White, forme).padding(4.dp).border(4.dp, couleur, forme).padding(horizontal = 30.dp, vertical = 8.dp),
-    ) {
-        Text(
-            texte, maxLines = 1, softWrap = false,
-            style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = 30.sp, letterSpacing = 0.14.em, color = GS.PlaqueTexte, shadow = Shadow(couleur, Offset.Zero, 14f)),
         )
     }
 }

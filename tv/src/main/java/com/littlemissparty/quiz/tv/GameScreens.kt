@@ -100,11 +100,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             // Chrono, « Temps écoulé ! » ou la chanson des statues : en haut à droite.
             val statut: @Composable () -> Unit = {
                 when (state.phase) {
-                    // Statues : pas de chrono, la chanson en cours (« Chanson 2 / 5 »).
+                    // Statues : pas de chrono ; « Chanson 1 / 2 » n'est plus à l'écran, il reste sur la régie (cedric, 1/11 au soir).
                     Phase.QUESTION -> if (!q.isStatues) Countdown(state)
-                    else if (q.statuesTours > 1 && state.statues != null) {
-                        Text("Chanson ${state.statues.song + 1} / ${q.statuesTours}", color = Palette.Gold, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1)
-                    }
                     Phase.CLOSED -> Text(
                         if (state.answered.size >= state.teams.size && state.teams.isNotEmpty()) "Toutes les équipes ont répondu !" else "Temps écoulé !",
                         color = Palette.Gold, fontSize = 26.sp, fontWeight = FontWeight.Black,
