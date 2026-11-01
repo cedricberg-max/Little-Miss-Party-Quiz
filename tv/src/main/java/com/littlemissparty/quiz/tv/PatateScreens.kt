@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,13 +20,14 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.POTATO_BOOM_MS
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.AnnonceBombe
 import com.littlemissparty.quiz.tv.habillage.GenrePlaque
+import com.littlemissparty.quiz.tv.habillage.HALO_DECOR
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.PlaqueAppel
 import com.littlemissparty.quiz.tv.habillage.MusiquePatate
@@ -100,20 +102,15 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
             Row(Modifier.fillMaxWidth().height(if (appel != null) 84.dp else 64.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (appel != null) Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                     PlaqueAppel(GenrePlaque.BOMBE, appel.first, appel.second)
-                } else Text(
-                    when {
-                        p == null -> ""
-                        explosion && boom?.held == true -> "Gardée plus de 2 secondes ! Toutes les autres équipes gagnent ${boom?.gain ?: 0} points !"
-                        explosion -> "Toutes les autres équipes gagnent ${boom?.gain ?: 0} points !"
-                        annonce -> "Attention, une nouvelle bombe arrive !"
-                        secondes != null -> "Vite, envoyez la bombe ! Elle explose dans $secondes…"
-                        else -> "Vite, envoyez la bombe à une autre équipe sur votre tablette !"
-                    },
-                    style = styleCentre(26.sp, Neon.OrClair),
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                } else ProvideTextStyle(styleCentre(26.sp, Neon.OrClair).copy(shadow = HALO_DECOR)) {
+                    // Jamais coupé (cedric, 31/10 : « …toutes les autres équipes gag… » sous « Voir les scores ») : deux
+                    // lignes, puis un peu plus petit ; le halo noir doux du Chrono le détache du décor, sans cadre.
+                    TexteAjuste(
+                        texteBasPatate(p != null, explosion, boom?.held == true, boom?.gain ?: 0, annonce, secondes),
+                        color = Neon.OrClair, max = 26.sp, min = 16.sp, lignes = 2, fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                    )
+                }
                 if (!state.paused) when {
                     revele -> NextButton(versClassement(state, "Voir les scores"), actions.next, key = "patate-bilan-${state.index}")
                     explosion || annonce -> {}
@@ -128,12 +125,22 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                 "💣 Bombe ${p.bomb} sur ${p.total}", maxLines = 1,
                 style = styleCentre(20.sp, Neon.OrClair),
                 modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 16.dp)
-                    .background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.dp, Neon.Or, RoundedCornerShape(50))
+                    .background(Neon.Plaque, RoundedCornerShape(50)).border(2.dp, Neon.Or, RoundedCornerShape(50))
                     .padding(horizontal = 14.dp, vertical = 4.dp),
             )
         }
         if (annonce) key(p?.bomb) { AnnonceBombe(p!!.bomb, p.total, Modifier.fillMaxSize()) }
     }
+}
+
+/** La phrase du bas de « Ça va exploser ! » (hors onglet d'appel du Game Show). */
+internal fun texteBasPatate(enJeu: Boolean, explosion: Boolean, gardee: Boolean, gain: Int, annonce: Boolean, secondes: Long?): String = when {
+    !enJeu -> ""
+    explosion && gardee -> "Gardée plus de 2 secondes ! Toutes les autres équipes gagnent $gain points !"
+    explosion -> "Toutes les autres équipes gagnent $gain points !"
+    annonce -> "Attention, une nouvelle bombe arrive !"
+    secondes != null -> "Vite, envoyez la bombe ! Elle explose dans $secondes…"
+    else -> "Vite, envoyez la bombe à une autre équipe sur votre tablette !"
 }
 
 /** Game Show : le mot et la petite ligne de l'onglet de la bombe (nouvelle bombe, compte à rebours, sinon l'appel). */

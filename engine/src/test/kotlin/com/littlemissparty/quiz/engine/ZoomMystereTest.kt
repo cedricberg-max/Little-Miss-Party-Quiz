@@ -36,4 +36,22 @@ class ZoomMystereTest {
         assertEquals(photo, quiz.questions[0].imageId)
         assertEquals(QuestionKind.CLASSIC, quiz.questions[1].kind)
     }
+
+    @Test
+    fun `depart du zoom regle dans la Regie PC, lu par la TV et ramene dans ses limites`() {
+        // Cedric, 31/10 : la tête de Mickey visible dès la première image ; format partagé avec departZoom de show.js.
+        val quiz = QuizJson.parse(
+            """{"id":"p","questions":[
+               {"id":"a","text":"?","choices":["A","B"],"correct":0,"kind":"zoom","imageId":"$photo","zoomDepart":{"x":0.25,"y":0.4,"z":9}},
+               {"id":"b","text":"?","choices":["A","B"],"correct":0,"kind":"zoom","imageId":"$photo","zoomDepart":{"x":-1,"y":3,"z":40}},
+               {"id":"c","text":"?","choices":["A","B"],"correct":0,"kind":"zoom","imageId":"$photo","zoomDepart":{"x":0.5}},
+               {"id":"d","text":"?","choices":["A","B"],"correct":0,"kind":"zoom","imageId":"$photo"},
+               {"id":"e","text":"?","choices":["A","B"],"correct":0,"zoomDepart":{"x":0.5,"y":0.5,"z":6}}]}""",
+        )
+        assertEquals(ZoomDepart(0.25f, 0.4f, 9f), quiz.questions[0].zoomDepart)
+        assertEquals(ZoomDepart(0f, 1f, 10f), quiz.questions[1].zoomDepart)
+        assertNull(quiz.questions[2].zoomDepart, "incomplet : la TV choisit seule")
+        assertNull(quiz.questions[3].zoomDepart)
+        assertNull(quiz.questions[4].zoomDepart, "seulement au Zoom mystère")
+    }
 }

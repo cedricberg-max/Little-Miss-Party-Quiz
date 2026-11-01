@@ -176,7 +176,10 @@ private fun Pastille(texte: String, modifier: Modifier) {
     }
 }
 
-/** « DUEL N° 2 », puis les deux équipes en grand, « contre » entre les deux, et le joueur appelé sous chaque nom. */
+/**
+ * « DUEL N° 2 », puis les deux équipes en grand, « contre » entre les deux. Jamais de « joueur n° » : l'équipe joue, la
+ * rotation des enfants se fait entre eux (cedric, 31/10 au soir).
+ */
 @Composable
 private fun BoxScope.Annonce(equipes: List<EquipeDuel>, annonce: String, cle: Any?) {
     Column(
@@ -191,16 +194,12 @@ private fun BoxScope.Annonce(equipes: List<EquipeDuel>, annonce: String, cle: An
             if (i == 1) TexteNeon("contre", GS.Orange, 62f, largeurMax = 600.dp, force = 0.5f, modifier = Modifier.padding(vertical = 6.dp).apparition(350, cle))
             Column(Modifier.apparition(if (i == 0) 150L else 550L, cle), horizontalAlignment = Alignment.CenterHorizontally) {
                 TexteNeon(e.nom.ifBlank { "Équipe" }, e.couleur, 150f, largeurMax = 1640.dp)
-                Text(
-                    "JOUEUR N° ${e.joueur}", maxLines = 1, softWrap = false,
-                    style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 36.sp, letterSpacing = 0.12.em, color = Color.White, shadow = Shadow(e.couleur, Offset.Zero, 18f)),
-                )
             }
         }
     }
 }
 
-/** Le nom de l'équipe et le joueur appelé, dans un coin, en néon à sa couleur. */
+/** Le nom de l'équipe, dans un coin, en néon à sa couleur (plus de « joueur n° », cedric 31/10). */
 @Composable
 private fun PlaqueWestern(e: EquipeDuel, gagne: Boolean, modifier: Modifier) {
     Column(
@@ -212,7 +211,6 @@ private fun PlaqueWestern(e: EquipeDuel, gagne: Boolean, modifier: Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         TexteNeon(e.nom.ifBlank { "Équipe" }, e.couleur, 44f, PoliceGsTexte, largeurMax = 520.dp, force = 0.6f, graisse = FontWeight.Bold)
-        Text("JOUEUR N° ${e.joueur}", maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 26.sp, letterSpacing = 0.1.em, color = Creme))
     }
 }
 

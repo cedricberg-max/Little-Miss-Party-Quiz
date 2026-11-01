@@ -142,11 +142,11 @@ sealed interface UiState {
         val intro: Boolean = false,
         /** Nom du jeu en cours (« Image floue », « Mimes »…), pour sa présentation. */
         val gameTitle: String? = null,
-        /** Points multipliés de la question en cours (dernières questions du quiz : ×2, ×3 ou ×5), 1 sinon. */
+        /** Points multipliés de la question en cours (dernières questions du quiz : ×2, ×3, ×4 ou ×5), 1 sinon. */
         val factor: Int = 1,
         /** Annonce « × N » avant la première question multipliée : heure (serveur) où le chrono part ; null sinon. */
         val introUntil: Long? = null,
-        /** Heure du serveur où la question s'est ouverte (Portes mystères : présentation des premières secondes). */
+        /** Heure du serveur où la question s'est ouverte. */
         val openedAt: Long? = null,
         /** Questions multipliées restantes, celle-ci comprise (pour l'annonce). */
         val multipliedLeft: Int = 0,
@@ -183,8 +183,6 @@ sealed interface UiState {
         val sounds: Map<String, String> = emptyMap(),
         /** Blind test en cours (ou qui vient de finir, au bilan), sinon null. */
         val blind: BlindUi? = null,
-        /** Portes mystères : ordre d'ouverture, portes déjà ouvertes et valeurs (null hors de ce jeu). */
-        val portes: PortesUi? = null,
         /** Les coffres mystères : les coffres du jeu en cours (null hors de ce jeu, ou avant leur installation). */
         val coffres: ChestRound? = null,
         /** Gonfleur fou : tapes reçues de chaque équipe pour la course en cours (vide hors de ce jeu). */
@@ -255,12 +253,6 @@ data class BlindUi(
 ) {
     /** Morceaux à double valeur restant à jouer, celui-ci compris. */
     val doubledLeft: Int get() = tracks.count { it.points > (tracks.minOfOrNull { t -> t.points } ?: 0) && (it.status == BlindStatus.TODO || it.status == BlindStatus.PLAYING) }
-}
-
-/** Portes mystères : [order] ordre d'ouverture des portes, [opened] combien sont ouvertes, [doors] leurs valeurs. */
-data class PortesUi(val order: List<Int>, val opened: Int, val doors: List<Int>) {
-    /** Toutes les portes sont ouvertes : place au classement final. */
-    val allOpen: Boolean get() = opened >= doors.size
 }
 
 /**
@@ -444,21 +436,33 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val db = connect()
                 val uid = FirebaseAuth.getInstance().currentUser!!.uid
                 val saved = activeCode
+                repriseADecider = false
                 if (saved != null) {
                     when (val found = resumableGame(db, uid, saved)) {
-                        is UiState.ResumeOffer -> {
+                        is Reprise.Proposer -> {
                             announceBox(db, uid)
-                            offerResume(found)
+                            offerResume(found.offre)
+                            return@launch
+                        }
+                        // Salon pas encore commencé : la box y revient d'elle-même, sans rien proposer (les tablettes
+                        // déjà là le retrouvent seules).
+                        is Reprise.Rouvrir -> {
+                            announceBox(db, uid)
+                            open(db, saved)
                             return@launch
                         }
                         // Partie confiée à une autre box pendant que celle-ci était éteinte : on le dit, rien ne se relance.
-                        is UiState.Moved -> {
+                        is Reprise.Deplacee -> {
                             showMoved(saved)
                             return@launch
                         }
-                        else -> {
-                            activeCode = null
+                        // Pas d'Internet au démarrage : on ne propose rien à l'aveugle ; « Réessayer » refait ce choix.
+                        is Reprise.SansReseau -> {
+                            repriseADecider = true
+                            _state.value = UiState.Error(SANS_RESEAU_AU_DEMARRAGE)
+                            return@launch
                         }
+                        Reprise.Rien -> activeCode = null
                     }
                 }
                 if (!boxMayPlay(db, uid)) return@launch
@@ -487,7 +491,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** « Réessayer » ne crée jamais de nouvelle partie si une partie est active. */
-    fun retry() = if (activeCode != null) resume() else start()
+    fun retry() = if (activeCode != null && !repriseADecider) resume() else start()
+
+    /** Démarrage sans Internet : la partie d'avant n'a pas encore été examinée, « Réessayer » repasse par [start]. */
+    private var repriseADecider = false
 
     /**
      * Termine la partie active (elle reste archivée dans Firebase) et en crée une nouvelle. La partie quittée est marquée
@@ -521,11 +528,34 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * « Terminer la partie et quitter » (cedric, 31/10 au soir) : la partie active est marquée terminée et quittée, sans
+     * en créer de nouvelle, la box l'oublie (rien ne sera proposé au prochain démarrage), puis [ensuite] ferme l'appli.
+     * Hors ligne, l'écriture part au retour du réseau ; l'appli se ferme quand même au bout de [FIN_ET_QUITTER_MAX_MS].
+     */
+    fun terminerEtQuitter(ensuite: () -> Unit) {
+        countdown?.cancel()
+        timer?.cancel()
+        expressTimer?.cancel()
+        armTimer?.cancel()
+        val code = (_state.value as? UiState.ResumeOffer)?.code ?: activeCode
+        activeCode = null
+        viewModelScope.launch {
+            try {
+                if (code != null) withTimeoutOrNull(FIN_ET_QUITTER_MAX_MS) { quitter(connect(), code, null).await() }
+            } catch (e: Exception) {
+                Log.w(TAG, "partie non marquée terminée avant de quitter", e)
+            } finally {
+                ensuite()
+            }
+        }
+    }
+
+    /**
      * Marque [ancien] terminée et quittée. Avec une [suite] : les téléphones reliés à la régie de l'ancienne partie le
      * sont d'abord à la nouvelle (la box est hôte des deux), puis `state/suite` est écrit, pour que la régie qui bascule
      * soit déjà reliée.
      */
-    private suspend fun quitter(db: FirebaseDatabase, ancien: String, suite: String?) {
+    private suspend fun quitter(db: FirebaseDatabase, ancien: String, suite: String?): com.google.android.gms.tasks.Task<Void> {
         val fin = mutableMapOf<String, Any>("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP, "leftAt" to ServerValue.TIMESTAMP)
         if (suite != null) {
             try {
@@ -544,7 +574,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             fin["suite"] = suite
         }
         // Sans attendre : hors ligne, l'écriture part au retour du réseau.
-        db.getReference("games/$ancien/state").updateChildren(fin)
+        return db.getReference("games/$ancien/state").updateChildren(fin)
     }
 
     // ---------- Activation de la box ----------
@@ -676,22 +706,34 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = UiState.Error(e.message ?: e.javaClass.simpleName)
     }
 
-    /** Partie [code] à reprendre ([UiState.ResumeOffer]), confiée à une autre box ([UiState.Moved]), ou rien. */
-    private suspend fun resumableGame(db: FirebaseDatabase, uid: String, code: String): UiState? {
-        // Juste ce qu'il faut pour proposer la reprise : jamais les médias de la partie (voir [CLES_REPRISE]).
-        val read = runCatching { db.getReference("games/$code").lirePartie(listOf("hostUid", "state", "teams"), essais = 1) }
+    /**
+     * Que faire au démarrage de la partie [code] mémorisée (voir [decisionReprise]) : la proposer, y revenir sans rien
+     * demander, dire qu'elle est partie sur une autre box, attendre Internet, ou l'oublier.
+     */
+    private suspend fun resumableGame(db: FirebaseDatabase, uid: String, code: String): Reprise {
+        // Juste ce qu'il faut pour décider : jamais les médias de la partie (voir [CLES_REPRISE]). Box qui vient de
+        // démarrer, Wi-Fi pas encore là : on patiente (3 lectures, près d'une minute) avant de décider.
+        val read = runCatching { db.getReference("games/$code").lirePartie(listOf("hostUid", "state", "teams", "createdAt", "hostOnline"), essais = 3) }
         // Lecture refusée : cette box n'est plus l'hôte de la partie (confiée à une autre box, données effacées, autre compte).
         if (read.exceptionOrNull()?.message?.contains("ermission") == true) return movedTo(db, uid, code)
-        // Sans réseau ni copie locale (ou base muette), on fait confiance au code mémorisé.
-        val partie = read.getOrNull() ?: return UiState.ResumeOffer(code, emptyList(), AUTO_RESUME_SECONDS)
+        // Sans réseau ni copie locale : rien n'est proposé à l'aveugle (cedric, 31/10 : la box démarrée sans Wi-Fi
+        // proposait de reprendre une partie vide qu'il avait quittée).
+        val partie = read.getOrNull() ?: return Reprise.SansReseau
         if (partie.child("hostUid").getValue(String::class.java) != uid) return movedTo(db, uid, code)
-        if (partie.child("state/phase").getValue(String::class.java) == Phase.ENDED.code) return null
-        val names = partie.child("teams").children.mapNotNull { it.child("name").getValue(String::class.java) }
-        return UiState.ResumeOffer(code, names, AUTO_RESUME_SECONDS)
+        val vueA = listOfNotNull(
+            partie.child("hostOnline/at").getValue(Long::class.java), partie.child("createdAt").getValue(Long::class.java),
+        ).maxOrNull()
+        return when (decisionReprise(partie.child("state/phase").getValue(String::class.java), vueA, System.currentTimeMillis() + serverOffset)) {
+            Reprise.Rien -> Reprise.Rien
+            Reprise.Rouvrir -> Reprise.Rouvrir
+            else -> Reprise.Proposer(
+                UiState.ResumeOffer(code, partie.child("teams").children.mapNotNull { it.child("name").getValue(String::class.java) }, AUTO_RESUME_SECONDS),
+            )
+        }
     }
 
-    private suspend fun movedTo(db: FirebaseDatabase, uid: String, code: String): UiState.Moved? =
-        if (movedAway(db, uid, code)) UiState.Moved(code) else null
+    private suspend fun movedTo(db: FirebaseDatabase, uid: String, code: String): Reprise =
+        if (movedAway(db, uid, code)) Reprise.Deplacee else Reprise.Rien
 
     /**
      * La partie [code] a été confiée par la régie à une autre box, et c'est bien cette box-ci qui a été remplacée.
@@ -897,11 +939,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun recover() {
         val g = game ?: return
-        // Portes mystères et coffres mystères : pas de chrono, rien ne se ferme seul.
+        // Coffres mystères : pas de chrono, rien ne se ferme seul.
         // Entre deux tours de mimes, rien ne se ferme seul, sauf le bilan d'une couleur quand son heure est passée.
         val entreDeuxTours = g.state.mime != null && g.state.mime?.team == null && !g.mimeBilanDue(serverNow())
         // Duel des robots : pas de chrono ; le jugement d'un face-à-face attend son heure ([schedule]).
-        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.question?.isCoffres != true &&
+        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isCoffres != true &&
             g.question?.isDuel != true && g.question?.isSimon != true && g.question?.isChrono != true && !entreDeuxTours && g.timeOver(serverNow())
         ) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
@@ -1200,9 +1242,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val replayed = (event as? Jumped)?.clear.orEmpty().associate { "answers/$it" to null } +
             // Question ouverte : ses anciennes réponses (jeu déjà joué puis repris plus tôt dans le programme)
             // sont effacées, sinon les règles refuseraient les nouvelles et la question ne rapporterait rien.
-            ((event as? QuestionOpened)?.let { mapOf("answers/${it.qid}" to null) } ?: emptyMap()) +
-            // Portes mystères : valeurs en vigueur derrière les portes (l'animatrice peut les changer), pour la régie seule.
-            (g.question?.takeIf { it.isPortes }?.let { mapOf("conducteur/doorValues/${it.id}" to g.doorsOf(it)) } ?: emptyMap())
+            ((event as? QuestionOpened)?.let { mapOf("answers/${it.qid}" to null) } ?: emptyMap())
         // Sans réseau, Firebase garde l'écriture en file d'attente et l'envoie au retour de la connexion.
         ref.updateChildren(
             mapOf(
@@ -1352,7 +1392,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 buzzTeam = s.buzz?.team,
                 buzzBlocked = s.buzz?.blocked.orEmpty(),
                 blind = q?.takeIf { it.isBlind && s.phase != Phase.LOBBY }?.let { blindUi(g) },
-                portes = q?.takeIf { it.isPortes && s.phase != Phase.LOBBY }?.let { PortesUi(g.doorOrder(), s.doorsOpened, g.doorsOf(it)) },
                 coffres = g.chestRound.takeIf { s.phase != Phase.LOBBY },
                 lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion && g.leaveTarget == null,
@@ -1483,7 +1522,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** État de chaque extrait déjà publié pour la régie dans cette partie (prêt, en chargement, manquant). */
     private val soundMarks = mutableMapOf<String, String>()
 
-    /** La régie voit, morceau par morceau, si la box a bien l'extrait avant de le lancer. */
+    /**
+     * La régie voit, média par média, si la box l'a bien avant de le lancer : extraits et chansons, et depuis le 1/11
+     * les photos du programme (voyants du conducteur, cedric 31/10 : ils ne suivaient que les musiques).
+     */
     private fun markSound(id: String, status: String) {
         if (soundMarks[id] == status) return
         val ref = gameRef ?: return
@@ -1623,6 +1665,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val bytes = photoOnBox(id) ?: downloadPhoto(ref, dir, id)
             imagesLoading -= id
+            markSound(id, if (bytes != null) "ok" else "missing")
             if (bytes == null) return@launch
             Photos.prechauffer(bytes, cible)
             imageBytes[id] = bytes
@@ -1673,7 +1716,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val there = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     java.io.File(photoDir, id).takeIf { it.isFile && it.length() > 0 }?.also { medias.toucher(it) } != null
                 }
-                if (!there && id !in imagesLoading) downloadPhoto(ref, dir, id)
+                when {
+                    there -> markSound(id, "ok")
+                    // Déjà en route pour l'écran : elle sera marquée à son arrivée.
+                    id in imagesLoading -> {}
+                    else -> {
+                        markSound(id, "loading")
+                        markSound(id, if (downloadPhoto(ref, dir, id) != null) "ok" else "missing")
+                    }
+                }
             }
         }
     }
@@ -2242,6 +2293,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         observe(ref.child("pairing")) { snap -> snap.children.forEach(::judgePairing) }
         observe(ref.child("show"), ::judgeShow)
+        // Défis de la pause en plus de cette fête (régie) : ceux de la partie précédente ne suivent jamais.
+        DefisPause.lire(null)
+        observe(ref.child("defisFete"), DefisPause::lire)
         observe(ref.child("joinRequests")) { snap ->
             val list = snap.children.mapNotNull { r ->
                 val device = r.key ?: return@mapNotNull null
@@ -2257,7 +2311,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Le téléphone de la régie signale sa présence : ses coupures vont dans les rapports, comme celles des tablettes.
         observe(ref.child("regiePresence")) { snap ->
             val maintenant = System.currentTimeMillis()
-            snap.children.forEach { c -> c.key?.let { coupures.vu(REGIE_COUPURE + it, c.child("online").getValue(Boolean::class.java) == true, maintenant) } }
+            snap.children.forEach { c ->
+                c.key?.let {
+                    coupures.vu(
+                        REGIE_COUPURE + it, c.child("online").getValue(Boolean::class.java) == true, maintenant,
+                        cachee = c.child("cachee").getValue(Boolean::class.java) ?: false,
+                    )
+                }
+            }
         }
         observe(ref.child("regie")) { snap ->
             val uids = snap.children.mapNotNull { it.key }.toSet()
@@ -2766,6 +2827,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
         /** Deux appuis sur OK plus rapprochés que cela ne font avancer que d'une étape. */
         private const val NEXT_GUARD_MS = 500L
+        /** « Terminer la partie et quitter » : attente maximale de l'écriture de fin avant de fermer l'appli. */
+        internal const val FIN_ET_QUITTER_MAX_MS = 3_000L
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         /** Demande effacée sans autorisation au bout de ce délai : la Régie PC l'a refusée. */
         private const val BOX_REFUSAL_CHECK_MS = 2_000L
@@ -2804,10 +2867,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             // Blind test morceau par morceau : « Lancer le morceau », relance, révéler sans points, passer, bilan.
             "blindPlay" to true,
             "statues" to true,
-            // Portes mystères (jeu final) : choix d'une porte sur les tablettes, ouverture une à une.
-            "portes" to true,
-            // Portes mystères : l'animatrice peut changer les valeurs derrière les portes (commande portes_set).
-            "portesSet" to true,
             // Les coffres mystères : coffres ouverts depuis les tablettes, coffre au hasard en secours (commande chest_random).
             "coffres" to true,
             // Gonfleur fou : tapes des tablettes dans pumps/, fin de la course par la box.
@@ -2834,7 +2893,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image, "imageId" to c.imageId)) },
                     "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
                     "refrainId" to it.refrainId, "lyrics" to it.lyrics, "audioIds" to it.audioIds.ifEmpty { null },
-                    "doors" to it.doors.ifEmpty { null },
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },
                     // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.
                     "points" to it.points?.takeIf { _ -> it.isBlind }, "reveal" to it.revealSec.takeIf { _ -> it.isBlind },
@@ -2931,6 +2989,39 @@ private suspend fun DatabaseReference.readHandedOver(lobby: String, uid: String,
     return lirePartie()?.takeIf { it.child("takeover/to").getValue(String::class.java) == lobby }
 }
 
+/** Ce que la box fait au démarrage de la partie qu'elle avait mémorisée (voir [decisionReprise]). */
+internal sealed interface Reprise {
+    /** Une prestation commencée, de moins de 24 h : l'écran « Reprendre » (reprise d'elle-même au bout du décompte). */
+    data class Proposer(val offre: UiState.ResumeOffer) : Reprise
+    /** Un salon pas encore commencé, de moins de 24 h : la box y revient seule, sans rien proposer. */
+    data object Rouvrir : Reprise
+    /** La régie a confié la partie à une autre box. */
+    data object Deplacee : Reprise
+    /** Pas d'Internet ni de copie sur la box : rien n'est décidé à l'aveugle. */
+    data object SansReseau : Reprise
+    /** Partie finie, vieille de plus de 24 h ou illisible : oubliée, une nouvelle partie est créée. */
+    data object Rien : Reprise
+}
+
+/** Au-delà, une partie mémorisée n'est plus jamais reprise : c'était une autre fête (décision du 30/10). */
+internal const val REPRISE_MAX_MS = 24L * 60 * 60 * 1000
+
+/**
+ * Décision de reprise d'après la phase de la partie mémorisée et l'heure où sa box a été vue pour la dernière fois
+ * ([vueA], heure du serveur ; null si inconnue) : finie ou vieille de plus de 24 h, oubliée ; salon pas commencé,
+ * rouvert sans question ; prestation commencée, proposée (le [Reprise.Proposer] rendu ici n'est qu'un marqueur).
+ */
+internal fun decisionReprise(phase: String?, vueA: Long?, maintenant: Long): Reprise = when {
+    phase == null || phase == Phase.ENDED.code -> Reprise.Rien
+    vueA != null && maintenant - vueA > REPRISE_MAX_MS -> Reprise.Rien
+    phase == Phase.LOBBY.code -> Reprise.Rouvrir
+    else -> Reprise.Proposer(UiState.ResumeOffer("", emptyList(), 0))
+}
+
+/** Écran d'erreur d'une box démarrée sans Internet, avant de savoir s'il faut reprendre la partie d'avant. */
+internal const val SANS_RESEAU_AU_DEMARRAGE =
+    "La box n'a pas Internet. Vérifiez le Wi-Fi, puis Réessayer : la partie d'avant sera proposée seulement si elle était commencée."
+
 /**
  * Ce qu'une reprise relit d'une partie : tout sauf ses médias. Les chansons et photos que la régie copie dans la partie
  * (`sounds`, `images`, `choiceImages` : des dizaines de Mo) empêchaient toute reprise (25/10 au soir : « La base
@@ -2939,6 +3030,8 @@ private suspend fun DatabaseReference.readHandedOver(lobby: String, uid: String,
 internal val CLES_REPRISE = listOf(
     "hostUid", "quizId", "conducteur", "show", "showStatus", "public", "log", "state", "teams",
     "commands", "commandStatus", "takeover", "regie", "pairingLock",
+    // Quand la partie a été vue pour la dernière fois (proposition de reprise : jamais une partie de plus de 24 h).
+    "createdAt", "hostOnline",
 )
 
 /** Une partie relue par morceaux ([CLES_REPRISE]) : se lit comme la partie entière. */

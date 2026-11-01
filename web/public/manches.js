@@ -14,6 +14,7 @@ import {
   estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES,
   chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND, JEUX_DE_CHANSONS, leurresDeLaManche, chansonsStatues,
   estJeuDeMots, seriesMots, motsDuJeu, MAX_MOTS, pictoToursBruts, pictoTours, pictoPropositions, pictoPassages, bombesDe, reglagesDuel, reglagesSimon, reglagesChrono,
+  departZoom,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
 import { FAMILLES_PETITS } from "./banque-petits.js";
@@ -393,6 +394,8 @@ function questionNettoyee(q, brouillon) {
     // Toutes les réponses ont leur image (une case vide ne se garderait pas dans la base) : sinon, rien.
     ...(banques.length === choices.length && banques.every(Boolean) ? { choiceBanque: banques } : {}),
     ...(images.some(Boolean) ? { choiceImages: images } : {}),
+    // Zoom mystère : le départ du zoom réglé dans la Régie PC (cedric, 31/10).
+    ...(departZoom(q.zoomDepart) ? { zoomDepart: departZoom(q.zoomDepart) } : {}),
   };
 }
 
@@ -684,7 +687,7 @@ export function blocsDeJeu(rounds) {
 
 /** Nom proposé pour une nouvelle manche : « Mimes du 20 octobre ». */
 export function defaultMancheTitle(type, date = new Date()) {
-  return `${ROUND_TYPES[type] ?? "Manche"} du ${date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`;
+  return `${ROUND_TYPES[type] ?? "Jeu"} du ${date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`;
 }
 
 /** Cartes à prévoir pour une manche de mimes dans une prestation : par équipe × équipes prévues. */
@@ -700,7 +703,7 @@ export function usedElsewhere(rounds, index, lib = {}) {
   const others = new Map();
   (rounds ?? []).forEach((r, j) => {
     if (j === index || !r) return;
-    fixedConcepts(r, lib.quizzes, lib.mimes, lib.contents).forEach((k) => { if (!others.has(k)) others.set(k, ROUND_TYPES[r.type ?? "quiz"] ?? "une autre manche"); });
+    fixedConcepts(r, lib.quizzes, lib.mimes, lib.contents).forEach((k) => { if (!others.has(k)) others.set(k, ROUND_TYPES[r.type ?? "quiz"] ?? "un autre jeu"); });
   });
   return others;
 }

@@ -361,8 +361,8 @@ describe("tableau de bord des prestations", () => {
     assert.equal(isoDay(new Date(2026, 0, 5)), "2026-01-05");
   });
 
-  test("dupliquer : mêmes manches en brouillon, prénom et date à saisir, original intact", () => {
-    const original = { childName: "Léa", age: 7, date: "2026-12-02", title: "Léa 7 ans", status: "publiee", profile: "PETITS", themes: "Licornes", rounds: [{ type: "quiz", quizId: "animaux" }], createdAt: 1, updatedAt: 2 };
+  test("dupliquer : mêmes manches en brouillon, prénom, date et défis en plus à saisir, original intact", () => {
+    const original = { childName: "Léa", age: 7, date: "2026-12-02", title: "Léa 7 ans", status: "publiee", profile: "PETITS", themes: "Licornes", rounds: [{ type: "quiz", quizId: "animaux" }], createdAt: 1, updatedAt: 2, defis: ["Bravo à Mamie !"] };
     const copy = duplicateShow(original);
     assert.deepEqual(copy, { profile: "PETITS", themes: "Licornes", status: "brouillon", rounds: [{ type: "quiz", quizId: "animaux" }] });
     copy.rounds[0].quizId = "autre";
@@ -3320,7 +3320,7 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
   test("la TV : une manche par équipe, dans l'ordre des couleurs de la prestation, sous un seul jeu « Mimes » (une seule présentation)", () => {
     const { snapshot, problems } = S.buildSnapshot("zoe", show, {}, {}, () => 0.5);
     // La case retirée de l'équipe Rose ne se joue pas ; « Reste à faire » la signale (cedric, 24/10).
-    assert.deepEqual(problems, ["Manche 1 (Mimes) : il manque 1 image (case 🎲 vide) : Équipe Rose."]);
+    assert.deepEqual(problems, ["Jeu n° 1 (Mimes) : il manque 1 image (case 🎲 vide) : Équipe Rose."]);
     const qs = snapshot.quiz.questions;
     assert.deepEqual(qs.map((q) => q.text), ["Équipe Rose", "Équipe Vert", "Équipe Orange"]);
     assert.deepEqual(qs.map((q) => q.id), ["r1m1", "r1m2", "r1m3"]);
@@ -3408,10 +3408,10 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
     const show = { childName: "Zoé", age: 8, date: "2099-01-01", status: "publiee", teams: 2, rounds: [{ ...blind, chansons: ["a", "", "b"] }] };
     const { snapshot, problems } = buildSnapshot("x", show, {}, {}, Math.random, {}, {}, {}, songs);
     assert.equal(snapshot.quiz.questions.length, 2, "le blind test se joue avec 2 chansons, sans trou");
-    assert.deepEqual(problems, ["Manche 1 (Blind test) : il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3."]);
+    assert.deepEqual(problems, ["Jeu n° 1 (Blind test) : il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3."]);
     const r = readiness(show, {}, {}, {}, {}, "2026-10-24", songs);
     assert.equal(r.level, "a-completer");
-    assert.deepEqual(r.todo, ["Manche 1 (Blind test) : il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3."]);
+    assert.deepEqual(r.todo, ["Jeu n° 1 (Blind test) : il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3."]);
     assert.equal(readiness({ ...show, rounds: [{ ...blind, chansons: ["a", "b"] }] }, {}, {}, {}, {}, "2026-10-24", songs).level, "prete");
     // Quiz (et les jeux en séries) : les questions retirées par ✕ en attente de leur 🎲.
     const q = (text) => ({ id: text, text, choices: ["Un", "Deux", "Trois", "Quatre"], correct: 0 });

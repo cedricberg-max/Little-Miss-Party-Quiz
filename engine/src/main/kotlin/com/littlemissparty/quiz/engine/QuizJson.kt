@@ -9,11 +9,14 @@ import org.json.JSONObject
  * plus `"cards": [{"word", "image"}]` pour une manche de mimes ou de Pictionary (`"kind": "mime"` ou
  * `"pictionary"`, sans propositions ; `"points"` : valeur d'un dessin trouvé ; `"couleur"` : équipe seule d'une manche de mimes),
  * l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo), des réponses en images
- * (`"choiceImages"`, une photo par proposition), les valeurs des Portes mystères (`"doors"`), et pour la
+ * (`"choiceImages"`, une photo par proposition), et pour la
  * musique `"audioId"` (extrait), `"artist"`, `"refrainId"` et `"lyrics"` (blind test et quiz musical).
  * Toute erreur est signalée avec la question concernée, pour pouvoir la corriger.
  */
 object QuizJson {
+    /** Ancien jeu supprimé le 31/10 (cedric) : ses questions sont ignorées à la lecture. */
+    const val ANCIEN_JEU_PORTES = "portes"
+
     /** Identifiant d'une photo d'illustration : empreinte de son contenu, 16 caractères hexadécimaux. */
     val IMAGE_ID = Regex("[0-9a-f]{16}")
 
@@ -58,7 +61,10 @@ object QuizJson {
         return Quiz(
             id = o.getString("id"),
             title = o.optString("title", o.getString("id")),
-            questions = (0 until questions.length()).map { i -> question(questions.getJSONObject(i), i) },
+            // Ancien jeu « Portes mystères » (supprimé le 31/10, cedric) : ses questions, s'il en reste dans un vieux pack,
+            // sont laissées de côté (le pack se joue sans elles, rien n'est effacé).
+            questions = (0 until questions.length()).map { questions.getJSONObject(it) }
+                .withIndex().filter { it.value.optString("kind") != ANCIEN_JEU_PORTES }.map { (i, q) -> question(q, i) },
             intros = o.optBoolean("intros", false),
         )
     }
@@ -76,6 +82,14 @@ object QuizJson {
         return if (ids.any { it != null }) ids else emptyList()
     }
 
+    /** Départ du Zoom mystère : ramené dans ses limites ; incomplet ou illisible, null (la TV choisit seule). */
+    internal fun zoomDepart(o: JSONObject?): ZoomDepart? {
+        if (o == null) return null
+        val (x, y, z) = listOf("x", "y", "z").map { o.optDouble(it, Double.NaN) }
+        if (listOf(x, y, z).any { it.isNaN() || it.isInfinite() }) return null
+        return ZoomDepart(x.coerceIn(0.0, 1.0).toFloat(), y.coerceIn(0.0, 1.0).toFloat(), z.coerceIn(2.0, 10.0).toFloat())
+    }
+
     private fun question(q: JSONObject, i: Int): Question {
         val imageId = q.optString("imageId").takeIf { it.matches(IMAGE_ID) }
         // Zoom mystère ou image floue sans photo valable : la question se joue comme une question classique.
@@ -84,7 +98,6 @@ object QuizJson {
         val choices: JSONArray = q.optJSONArray("choices") ?: JSONArray()
         val cards: JSONArray = q.optJSONArray("cards") ?: JSONArray()
         val turns = kind == QuestionKind.MIME || kind == QuestionKind.PICTIONARY
-        val doors: JSONArray = q.optJSONArray("doors") ?: JSONArray()
         // Blind test, ou Quiz musical (question à propositions avec un extrait) : l'artiste, le refrain et ses paroles
         // de la révélation (cedric, 24/10 : la révélation du Quiz musical reprend celle du blind test, en plus court).
         val chanson = kind == QuestionKind.BLIND || (kind == QuestionKind.CLASSIC && q.optString("audioId").matches(IMAGE_ID))
@@ -92,7 +105,7 @@ object QuizJson {
             id = q.optString("id", "q${i + 1}"),
             text = q.getString("text").let { if (kind == QuestionKind.SIMON) nouveauNomSimon(it) else it },
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
-            correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.PORTES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE || kind == QuestionKind.DUEL || kind == QuestionKind.SIMON || kind == QuestionKind.CHRONO) q.optInt("correct", -1) else q.getInt("correct"),
+            correct = if (turns || kind == QuestionKind.STATUES || kind == QuestionKind.COFFRES || kind == QuestionKind.GONFLEUR || kind == QuestionKind.PATATE || kind == QuestionKind.DUEL || kind == QuestionKind.SIMON || kind == QuestionKind.CHRONO) q.optInt("correct", -1) else q.getInt("correct"),
             durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else if (kind == QuestionKind.GONFLEUR) 45 else if (kind == QuestionKind.STATUES) 90 else 20),
             kind = kind,
             double = q.optBoolean("double", false),
@@ -105,8 +118,8 @@ object QuizJson {
             // Une illustration mal formée est ignorée : elle ne doit jamais empêcher de jouer.
             emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && !turns },
             imageId = imageId?.takeIf { !turns },
+            zoomDepart = if (kind == QuestionKind.ZOOM) zoomDepart(q.optJSONObject("zoomDepart")) else null,
             choiceImages = choiceImages(q.optJSONArray("choiceImages"), choices.length(), kind),
-            doors = if (kind == QuestionKind.PORTES) (0 until doors.length()).map { doors.getInt(it) } else emptyList(),
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && chanson }?.take(MAX_ARTIST),
             audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && !turns },
             refrainId = q.optString("refrainId").takeIf { it.matches(IMAGE_ID) && chanson },

@@ -45,7 +45,8 @@ sealed interface UpdateUi {
     data object Checking : UpdateUi
     data object UpToDate : UpdateUi
     data class Available(val release: Release) : UpdateUi
-    data class Downloading(val release: Release, val done: Long) : UpdateUi
+    /** [essai] : nouvel essai après une coupure (0 au premier), [raison] : ce qui a coupé, en clair. */
+    data class Downloading(val release: Release, val done: Long, val essai: Int = 0, val raison: String? = null) : UpdateUi
     data class Verifying(val release: Release) : UpdateUi
     data class Ready(val release: Release) : UpdateUi
     /** Android doit d'abord autoriser l'appli à installer des mises à jour (une seule fois). */
@@ -210,7 +211,7 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
                     )
                     return@launch
                 }
-                fetchApk(r)
+                telechargerAvecPatience(r)
                 _ui.value = UpdateUi.Verifying(r)
                 val problem = verified(r)
                 _ui.value = if (problem == null) {
@@ -224,7 +225,11 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Téléchargement de la mise à jour", e)
-                _ui.value = UpdateUi.Failed("Le téléchargement a échoué. Vérifiez la connexion puis réessayez : il reprendra là où il s'est arrêté.", r)
+                _ui.value = UpdateUi.Failed(
+                    "Le téléchargement n'a pas abouti après $ESSAIS_TELECHARGEMENT essais (${raisonEnClair(e)}). " +
+                        "${mo(alreadyDownloaded(r))} Mo sur ${mo(r.size)} sont déjà reçus : « Réessayer » reprend là où il s'est arrêté.",
+                    r,
+                )
             }
         }
     }
@@ -336,14 +341,40 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
     private fun alreadyDownloaded(r: Release): Long =
         apkFile(r).takeIf { it.exists() }?.length() ?: File(dir, "${apkFile(r).name}.part").length()
 
-    /** Télécharge l'APK en reprenant un fichier partiel, avec la progression à l'écran. */
-    private suspend fun fetchApk(r: Release) = withContext(Dispatchers.IO) {
+    /**
+     * Wi-Fi faible (cedric, 31/10 : bloqué à 0 %) : le téléchargement ne renonce pas à la première coupure. Il reprend là
+     * où il s'est arrêté, jusqu'à [ESSAIS_TELECHARGEMENT] fois, en patientant un peu plus à chaque fois, et passe d'une
+     * source à l'autre (hébergement Firebase, puis la même version publiée sur GitHub). L'écran dit ce qui se passe.
+     */
+    private suspend fun telechargerAvecPatience(r: Release) {
+        var essai = 0
+        while (true) {
+            try {
+                fetchApk(r, sourcesApk(r)[essai % sourcesApk(r).size])
+                return
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                essai++
+                Log.w(TAG, "Téléchargement, essai $essai/$ESSAIS_TELECHARGEMENT", e)
+                if (essai >= ESSAIS_TELECHARGEMENT) throw e
+                _ui.value = UpdateUi.Downloading(r, withContext(Dispatchers.IO) { alreadyDownloaded(r) }, essai, raisonEnClair(e))
+                delay(pauseAvantEssai(essai))
+            }
+        }
+    }
+
+    /** Les adresses de l'APK, dans l'ordre : l'hébergement Firebase, puis la release GitHub de la même version. */
+    private fun sourcesApk(r: Release): List<URL> = listOfNotNull(apkUrl(r), runCatching { URL(urlGithub(r.versionName)) }.getOrNull())
+
+    /** Télécharge l'APK depuis [source] en reprenant un fichier partiel, avec la progression à l'écran. */
+    private suspend fun fetchApk(r: Release, source: URL = apkUrl(r)) = withContext(Dispatchers.IO) {
         val target = apkFile(r)
         if (target.exists() && target.length() == r.size) return@withContext
         target.delete()
         val part = File(dir, "${target.name}.part")
         var have = if (part.exists() && part.length() < r.size) part.length() else 0L.also { part.delete() }
-        val conn = connect(apkUrl(r)).apply { if (have > 0) setRequestProperty("Range", "bytes=$have-") }
+        val conn = connect(source).apply { if (have > 0) setRequestProperty("Range", "bytes=$have-") }
         try {
             when (conn.responseCode) {
                 206 -> Unit
@@ -361,7 +392,8 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
                         out.write(buf, 0, n)
                         have += n
                         check(have <= r.size) { "Fichier plus gros qu'annoncé" }
-                        if (have - lastShown >= 256 * 1024 || have == r.size) {
+                        // Wi-Fi faible : la progression bouge dès 64 Ko, jamais figée à 0 % tant que ça avance.
+                        if (have - lastShown >= 64 * 1024 || have == r.size) {
                             lastShown = have
                             _ui.update { s -> if (s is UpdateUi.Downloading && s.release == r) UpdateUi.Downloading(r, have) else s }
                         }
@@ -415,6 +447,25 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
         private const val AUTO_CHECK_DELAY_MS = 20_000L
         /** Box allumée toute la journée : nouvelle recherche toutes les 30 minutes (un petit fichier). */
         private const val RECHECK_MS = 30L * 60 * 1000
+        /** Essais du téléchargement avant de renoncer (chacun reprend là où le précédent s'est arrêté). */
+        const val ESSAIS_TELECHARGEMENT = 8
+
+        /** Pause avant le nouvel essai n° [essai] : 3 s, 6 s, 9 s… jusqu'à 20 s. */
+        fun pauseAvantEssai(essai: Int): Long = (3_000L * essai).coerceAtMost(20_000L)
+
+        /** La même version publiée sur GitHub (release « tv-v0.1.N »), secours quand l'hébergement Firebase coince. */
+        fun urlGithub(versionName: String) =
+            "https://github.com/cedricberg-max/Little-Miss-Party-Quiz/releases/download/tv-v$versionName/little-miss-party-quiz-tv.apk"
+
+        /** Ce qui a coupé le téléchargement, en mots simples, pour l'écran. */
+        fun raisonEnClair(e: Throwable): String = when (e) {
+            is java.net.SocketTimeoutException -> "le Wi-Fi ne répond plus, délai dépassé"
+            is java.net.UnknownHostException -> "pas d'accès à Internet"
+            is java.net.ConnectException -> "connexion impossible"
+            is javax.net.ssl.SSLException -> "connexion sécurisée coupée"
+            is java.io.IOException -> "connexion coupée" + (e.message?.takeIf { it.isNotBlank() }?.let { " : ${it.take(60)}" } ?: "")
+            else -> e.message?.takeIf { it.isNotBlank() }?.take(80) ?: "erreur ${e.javaClass.simpleName}"
+        }
         private fun mo(bytes: Long) = (bytes + 999_999) / 1_000_000
 
         fun problemMessage(p: ApkProblem) = when (p) {

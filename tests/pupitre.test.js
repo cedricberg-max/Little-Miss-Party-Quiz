@@ -305,39 +305,6 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
-  test("Portes mystères : choix secret d'une porte, résultat caché jusqu'à l'ouverture de sa porte sur la TV", async () => {
-    const page = await openPupitre();
-    await joinTeam(page, "Les Roses");
-    const uid = Object.keys(await read("teams"))[0];
-    const portes = { qid: "pm", kind: "portes", text: "Portes mystères", choices: ["Porte 1", "Porte 2", "Porte 3"], correct: null };
-    await hostState(question({ ...portes, portes: { count: 3 } }));
-    await page.locator("#q-number", { hasText: "Portes mystères !" }).waitFor();
-    assert.equal(await page.locator("#portes-host .pm-mini").count(), 3);
-    assert.equal(await page.locator("#choices").isVisible(), false);
-    await page.locator("#portes-host .pm-mini").nth(1).click();
-    await page.click("#portes-host .pm-choisir");
-    await waitFor(async () => (await read(`answers/pm/${uid}`))?.choice === 1, "porte 2 enregistrée");
-    await page.locator("#portes-host .pm-titre", { hasText: "Porte 2 choisie" }).waitFor();
-    // Porte 1 ouverte, pas encore la sienne : rien n'est dit.
-    const award = { [uid]: { choice: 1, correct: false, points: -150, bonus: 0 } };
-    const reveal = (opened, values) => hostState(question({ ...portes, phase: "reveal", awards: award, scores: { [uid]: 50 }, portes: { count: 3, order: [0, 1, 2], opened, values } }));
-    await reveal(1, { 0: 300 });
-    await page.locator("#r-title", { hasText: "Porte 2… suspense !" }).waitFor();
-    await page.locator("#r-total", { hasText: "Classement à la fin des portes" }).waitFor();
-    // Sa porte s'ouvre : la tuile, points exacts ; le total arrive quand toutes les portes sont ouvertes.
-    await reveal(2, { 0: 300, 1: -150 });
-    await page.locator("#r-portes .pm-titre", { hasText: "Aïe, la tuile !" }).waitFor();
-    await page.locator("#r-portes .pm-points", { hasText: "−150 POINTS" }).waitFor();
-    assert.equal(await page.locator("#r-title").isVisible(), false);
-    await reveal(3, { 0: 300, 1: -150, 2: 150 });
-    await page.locator("#r-total", { hasText: "50 points · 1re place" }).waitFor();
-    // Question suivante ordinaire : les boutons habituels reviennent.
-    await hostState(question({ qid: "q9", text: "Couleur du ciel ?" }));
-    await page.locator(".choice .text", { hasText: "Bleu" }).waitFor();
-    assert.equal(await page.locator("#portes-host").isVisible(), false);
-    await page.context().close();
-  });
-
   test("Les coffres mystères : l'équipe qui joue ouvre un coffre, les autres regardent, le contenu attend la TV, puis le bilan", async () => {
     const roses = await openPupitre();
     await joinTeam(roses, "Les Roses");
@@ -425,8 +392,9 @@ describe("pupitre", () => {
     // Dix tapes : envoyées à la base peu après, sans attendre chaque tape.
     for (let i = 0; i < 10; i++) await page.locator(".gf-pompe").click();
     await waitFor(async () => (await read(`pumps/gf-1/${uid}`))?.n === 10, "10 tapes reçues");
-    // Le ballon éclate à 12 : au-delà, plus rien ne compte et le bouton disparaît.
-    for (let i = 0; i < 2; i++) await page.locator(".gf-pompe").click();
+    // Le ballon éclate à 12 : au-delà, plus rien ne compte et le bouton disparaît. Les 2 dernières tapes viennent du gros
+    // buzzer USB (une touche Entrée), qui gonfle comme le doigt (cedric, 31/10).
+    for (let i = 0; i < 2; i++) await page.keyboard.press("Enter");
     await waitFor(async () => (await read(`pumps/gf-1/${uid}`))?.n === 12, "ballon éclaté envoyé tout de suite");
     await page.locator(".gf-titre", { hasText: "BOUM !" }).waitFor();
     assert.equal(await page.locator(".gf-pompe").isVisible(), false);
@@ -625,10 +593,10 @@ describe("pupitre", () => {
     const uid = Object.keys(await read("teams"))[0];
     const statues = (s) => question({ qid: "s1", kind: "statues", choices: null, text: "Statues musicales", statues: { songs: 3, annonceMs: 8000, song: 0, dancing: true, playedMs: 0, ended: false, ...s } });
     await hostState(statues({ since: Date.now() }));
-    await page.locator("#play-status", { hasText: "DANSEZ !" }).waitFor();
+    await page.locator("#play-status .statues-mot", { hasText: "DANSE !" }).waitFor();
     assert.equal(await page.locator("#buzz").isVisible(), false, "rien à toucher");
     await hostState(statues({ dancing: false, playedMs: 12000 }));
-    await page.locator("#play-status", { hasText: "STATUE !" }).waitFor();
+    await page.locator("#play-status .statues-mot", { hasText: "STATUE !" }).waitFor();
     await hostState(statues({ dancing: false, ended: true }));
     await page.locator("#play-status", { hasText: "Fin de la chanson !" }).waitFor();
     // Gagnantes désignées : la TV fait le suspense (la tablette ne dit rien), puis la tablette montre ses points.
@@ -653,8 +621,8 @@ describe("pupitre", () => {
     const duel = (d) => question({ qid: "d1", kind: "duel", text: "Le Duel des robots", choices: null, deadline: null, durationMs: null,
       duel: { n: 3, total: 6, teams: [r, b], players: [2, 1], step: "ready", key: null, ...d } });
     await hostState(duel({}));
-    await roses.locator("#play-status", { hasText: "Duel n° 3 : à toi, joueur n° 2 !" }).waitFor();
-    await bleus.locator("#play-status", { hasText: "à toi, joueur n° 1 !" }).waitFor();
+    await roses.locator("#play-status", { hasText: "Duel n° 3 : à toi ! Viens te placer" }).waitFor();
+    await bleus.locator("#play-status", { hasText: "Duel n° 3 : à toi ! Viens te placer" }).waitFor();
     await verts.locator("#play-status", { hasText: "Duel n° 3 : Les Roses contre Les Bleus. Regardez la TV !" }).waitFor();
     assert.equal(await verts.locator("#buzz").isVisible(), false, "les autres équipes regardent");
     assert.equal(await roses.locator("#buzz").isDisabled(), true, "pas avant le lancement du duel");
@@ -1035,7 +1003,9 @@ describe("pupitre", () => {
     const uid = Object.keys(await read("teams"))[0];
     const jeu = (extra) => question({ choices: null, buzzOpen: true, buzz: { blocked: [] }, ...extra });
     await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", round: "c1-1000-0" }));
-    await page.locator("#play-status", { hasText: "chantez une chanson avec le mot de la TV" }).waitFor();
+    await page.locator("#play-status", { hasText: "chantez une chanson avec ce mot" }).waitFor();
+    // Le mot à chanter est aussi sur la tablette (cedric, 31/10).
+    await page.locator("#chante-mot:not([hidden])", { hasText: "soleil" }).waitFor();
     await page.click("#buzz");
     await waitFor(async () => (await read("buzz/c1-1000-0"))?.team === uid, "buzz enregistré");
     await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", round: "c1-1000-0", buzzOpen: false, buzz: { team: uid, blocked: [] } }));
@@ -1044,6 +1014,7 @@ describe("pupitre", () => {
     await page.locator("#r-detail", { hasText: "Le mot : soleil" }).waitFor();
     await hostState(jeu({ qid: "p1", kind: "quisuis", text: "Qui suis-je ?", round: "p1-1000-0" }));
     await page.locator("#play-status", { hasText: "Écoutez les indices de la TV" }).waitFor();
+    assert.equal(await page.locator("#chante-mot").isVisible(), false, "plus de mot hors de Chante le mot");
     assert.equal(await page.locator("#buzz").isDisabled(), false);
     // Qui a disparu ? : pas de buzz pendant qu'on mémorise, puis le buzzer s'ouvre quand l'objet a disparu.
     await hostState(jeu({ qid: "d1", kind: "disparu", text: "Qui a disparu ?", round: "d1-1000-0", buzzOpen: false }));

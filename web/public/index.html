@@ -15,12 +15,12 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="ardoise.css">
   <link rel="stylesheet" href="spectateurs.css">
-  <link rel="stylesheet" href="portes.css">
   <link rel="stylesheet" href="coffres.css">
   <link rel="stylesheet" href="gonfleur.css">
   <link rel="stylesheet" href="patate.css">
   <link rel="stylesheet" href="simon.css">
   <link rel="stylesheet" href="regie.css">
+  <link rel="stylesheet" href="regie-gs.css">
   <link rel="stylesheet" href="gameshow.css">
   <link rel="stylesheet" href="tablette-gs.css">
 </head>
@@ -70,6 +70,8 @@
       <div class="team-banner"><span class="dot"></span><span class="team-label"></span></div>
       <div id="play-intro" class="intro-jeu" hidden><span class="intro-jeu-label">Prochain jeu</span><span id="play-intro-title" class="intro-jeu-titre"></span></div>
       <h2 id="duel-titre" class="duel-titre" hidden></h2>
+      <!-- Chante le mot ! : le mot à chanter, aussi sur la tablette (cedric, 31/10). -->
+      <p id="chante-mot" class="chante-mot" hidden></p>
       <button id="buzz" class="buzz">BUZZ</button>
       <p id="play-status" class="hint">Regardez la TV !</p>
     </section>
@@ -101,7 +103,6 @@
         <span id="q-timer" class="timer"></span>
       </div>
       <div id="choices" class="choices"></div>
-      <div id="portes-host" hidden></div>
       <p id="q-status" class="hint">Regardez la question sur la TV !</p>
     </section>
 
@@ -131,7 +132,6 @@
       <p id="r-title" class="result-title"></p>
       <p id="r-detail" class="hint"></p>
       <p id="r-image" class="result-image" hidden></p>
-      <div id="r-portes" hidden></div>
       <p id="r-total" class="total"></p>
     </section>
 
@@ -190,21 +190,15 @@
           <div class="factor-row">
             <button class="btn secondary" data-factor="2">×2</button>
             <button class="btn secondary" data-factor="3">×3</button>
+            <button class="btn secondary" data-factor="4">×4</button>
             <button class="btn secondary" data-factor="5">×5</button>
           </div>
         </div>
-        <!-- Portes mystères : l'animatrice peut changer ce qu'il y a derrière chaque porte, avant leur ouverture. -->
-        <details id="c-doors" class="notes doors" hidden>
-          <summary>✏️ Changer ce qu'il y a derrière les portes</summary>
-          <div id="c-doors-list" class="doors-list"></div>
-        </details>
         <div class="games-row">
           <p id="c-games" class="games"></p>
           <button id="c-add" class="btn secondary rescue-open" aria-label="Ajouter un jeu" hidden>＋ Jeu</button>
-          <button id="c-replay" class="btn secondary rescue-open" hidden>🔁 Rejouer</button>
           <button id="c-points" class="btn secondary rescue-open">± Points</button>
           <button id="c-equipe" class="btn secondary rescue-open">＋ Ajouter une équipe</button>
-          <button id="c-rescue" class="btn secondary rescue-open" hidden>⏭ Changer de jeu</button>
           <button id="c-recommencer" class="btn secondary rescue-open" hidden>↺ Relancer ce jeu</button>
           <button id="c-box" class="btn secondary rescue-open">📺 Changer de box</button>
         </div>
@@ -353,10 +347,10 @@
           <button id="c-pause" class="btn secondary">Pause</button>
           <button id="c-tablette" class="btn secondary" aria-label="Reconnecter une tablette" title="Reconnecter une tablette"><span class="icone" aria-hidden="true">📱</span>Tablette</button>
           <!-- « Terminer » (cedric, 29/10) : appui court = jeu suivant (ou podium au dernier jeu) ; appui long = podium final. -->
-          <button id="c-end" class="btn danger hold" title="Appui court : jeu suivant · appui long : podium ou fin complète"><span class="fill"></span><span class="label">Terminer</span></button>
+          <button id="c-end" class="btn danger" title="Terminer le jeu en cours"><span class="label">Terminer</span></button>
         </div>
-        <!-- « Arrêter la partie » (cedric, 29/10) : tout s'arrête, sans podium ; appui long obligatoire. Rangé dans ☰ Plus. -->
-        <button id="c-arret" class="btn danger hold arret" type="button" hidden title="Appui long : arrêter la partie, sans podium"><span class="fill"></span><span class="label">⛔ Arrêter la partie</span></button>
+        <!-- « Terminer la partie » (cedric, 29/10 et 31/10) : appui long seulement, puis podium ou fin définitive. Rangé dans ☰ Plus. -->
+        <button id="c-arret" class="btn danger hold arret" type="button" hidden title="Appui long : aller au podium, ou terminer définitivement la partie"><span class="fill"></span><span class="label">⛔ Terminer la partie</span></button>
         <button id="c-next" class="btn main"></button>
         <!-- « ▶ Lancer la fin » (cedric, 29/10) : sur le podium, Sarah parle aux enfants, puis lance la fusée et l'écran Merci. -->
         <button id="c-lancer-fin" class="btn main fin-fete" type="button" hidden>▶ Lancer la fin</button>
@@ -376,19 +370,13 @@
       <div id="plus-onglets" class="plus-onglets"></div>
     </section>
 
-    <!-- Secours : voir le jeu en cours et le suivant, passer au suivant, aller à un autre jeu ou le rejouer. -->
-    <section id="rescue" class="lib" hidden aria-label="Jeux de la prestation">
+    <!-- « 📋 Conducteur » (cedric, 30/10) : ouvert depuis « ☰ Plus », en plein écran ; « ← Retour » revient à la régie. -->
+    <section id="conducteur" class="lib conducteur" hidden aria-label="Conducteur">
       <header class="lib-top">
-        <b>Jeux de la prestation</b>
-        <button id="rescue-close" class="btn secondary">Fermer</button>
+        <b>📋 Conducteur</b>
+        <button id="conducteur-retour" class="btn secondary" type="button">← Retour</button>
       </header>
-      <div class="lib-body">
-        <p class="hint">Les équipes et leurs points sont toujours gardés. Un jeu rejoué repart de zéro : ses anciens points sont retirés, jamais comptés deux fois.</p>
-        <button id="rescue-next" class="btn main"></button>
-        <div id="rescue-list" class="rescue-list"></div>
-        <!-- Mauvaise prestation lancée : remplaçable tant qu'aucun point n'a été donné. -->
-        <button id="rescue-wrong" class="link" type="button" hidden>Mauvaise prestation ?</button>
-      </div>
+      <div id="conducteur-corps" class="lib-body conducteur-corps"></div>
     </section>
 
     <!-- « Ajouter un jeu » : bibliothèque ouverte par-dessus la régie, sans quitter la partie. -->
@@ -406,10 +394,23 @@
         <p id="lib-problems" class="hold-info" hidden></p>
         <div class="lib-actions">
           <button id="lib-now" class="btn main" hidden>▶ Rejouer maintenant</button>
-          <button id="lib-after" class="btn main">Ajouter après la manche actuelle</button>
+          <button id="lib-after" class="btn main">Ajouter après le jeu en cours</button>
           <button id="lib-end" class="btn secondary">Ajouter à la fin</button>
           <button id="lib-back" class="link">Choisir un autre jeu</button>
         </div>
+      </div>
+    </section>
+    <!-- « ＋ Jeu » (cedric, 30/10) : la carte de réglage d'un jeu, la même que dans une prestation de la Régie PC,
+         en plein écran ; « ← Retour » ne valide rien, « ✓ Envoyer au conducteur » place le jeu après le jeu en cours. -->
+    <section id="carte" class="lib carte" hidden aria-label="Régler un jeu">
+      <header class="lib-top">
+        <b id="carte-titre">Jeu</b>
+      </header>
+      <iframe id="carte-cadre" class="carte-cadre" title="Réglages du jeu"></iframe>
+      <p id="carte-info" class="hold-info" role="alert" hidden></p>
+      <div class="carte-actions">
+        <button id="carte-retour" class="btn secondary" type="button">← Retour</button>
+        <button id="carte-envoyer" class="btn main" type="button" disabled>✓ Envoyer au conducteur</button>
       </div>
     </section>
     <!-- « Reconnecter une tablette » (cedric, 21/10) : le QR code du menu Retour de la TV, ici sur le téléphone de
@@ -441,43 +442,34 @@
         <button id="box-go" class="btn main" type="submit">Continuer sur cette box</button>
       </form>
     </section>
-    <!-- Points d'une équipe en deux temps : l'animatrice prépare le montant (rien ne bouge), puis valide une fois. -->
+    <!-- ± Points (cedric, 30/10) : l'équipe, puis un seul appui sur un des trois bonus ou des trois malus. -->
     <div id="pts" class="modal ask" hidden>
       <div class="modal-box ask-box pts-box" role="dialog" aria-modal="true" aria-labelledby="pts-title">
         <p id="pts-title" class="modal-title"></p>
         <div id="pts-teams" class="pts-teams" role="group" aria-label="Équipe"></div>
-        <div class="pts-sign" role="group" aria-label="Bonus ou malus">
-          <button type="button" id="pts-bonus" class="on">Bonus</button>
-          <button type="button" id="pts-malus">Malus</button>
+        <div id="pts-montants" class="pts-montants" hidden>
+          <p id="pts-score" class="pts-preview"></p>
+          <div class="pts-bloc bonus" role="group" aria-label="Bonus">
+            <p>Bonus</p>
+            <button type="button" data-delta="50">+50</button>
+            <button type="button" data-delta="100">+100</button>
+            <button type="button" data-delta="200">+200</button>
+          </div>
+          <div class="pts-bloc malus" role="group" aria-label="Malus">
+            <p>Malus</p>
+            <button type="button" data-delta="-50">−50</button>
+            <button type="button" data-delta="-100">−100</button>
+            <button type="button" data-delta="-200">−200</button>
+          </div>
+          <button id="pts-autre" class="btn secondary" type="button">← Autre équipe</button>
         </div>
-        <p id="pts-value" class="pts-value">+0</p>
-        <p id="pts-preview" class="pts-preview"></p>
-        <div class="pts-grid" id="pts-presets">
-          <button type="button" data-set="10">10</button>
-          <button type="button" data-set="20">20</button>
-          <button type="button" data-set="50">50<small>mime</small></button>
-          <button type="button" data-set="100">100<small>quiz</small></button>
-          <button type="button" data-set="150">150<small>buzzer</small></button>
-          <button type="button" data-set="200">200<small>finale</small></button>
-          <button type="button" data-set="300">300<small>mini-jeu</small></button>
-          <button type="button" data-set="500">500<small>max</small></button>
-        </div>
-        <div class="pts-fine">
-          <button type="button" data-step="-10">−10</button>
-          <button type="button" data-step="-1">−1</button>
-          <input id="pts-input" type="number" inputmode="numeric" min="0" max="500" step="1" aria-label="Montant exact">
-          <button type="button" data-step="1">+1</button>
-          <button type="button" data-step="10">+10</button>
-        </div>
-        <input id="pts-range" class="pts-range" type="range" min="0" max="500" step="10" aria-label="Montant">
-        <button id="pts-ok" class="btn main" type="button" disabled></button>
-        <button id="pts-cancel" class="btn secondary" type="button">Annuler</button>
+        <button id="pts-cancel" class="btn secondary" type="button">Fermer</button>
       </div>
     </div>
     <!-- Confirmation aux couleurs de la régie (remplace la boîte grise du navigateur). -->
     <div id="ask" class="modal ask" hidden>
       <div class="modal-box ask-box" role="dialog" aria-modal="true" aria-labelledby="ask-title">
-        <!-- Gros encadré rouge « ATTENTION » : seulement pour « Arrêter la partie » (cedric, 29/10). Jamais sur la TV. -->
+        <!-- Gros encadré rouge « ATTENTION » : seulement pour « Terminer la partie » (cedric, 29/10). Jamais sur la TV. -->
         <div id="ask-attention" class="ask-attention" hidden><strong>⚠️ ATTENTION</strong><span></span></div>
         <p id="ask-title" class="modal-title"></p>
         <p id="ask-line" class="ask-line" hidden></p>
@@ -492,15 +484,15 @@
         <button id="ask-cancel" class="btn secondary" type="button">Annuler</button>
       </div>
     </div>
-    <!-- Appui long sur « ⏭ Terminer » (cedric, 30/10) : podium à gauche, fin complète à droite, puis « Êtes-vous sûr ? ». -->
+    <!-- Appui long sur « ⛔ Terminer la partie » (cedric, 31/10) : podium à gauche, fin définitive à droite, puis « Êtes-vous sûr ? ». -->
     <div id="fin-choix" class="modal ask" hidden>
       <div class="modal-box ask-box" role="dialog" aria-modal="true" aria-labelledby="fin-choix-titre">
         <p id="fin-choix-titre" class="modal-title">Que voulez-vous faire ?</p>
         <div class="fin-choix-boutons">
           <button id="fin-podium" class="btn main" type="button">🏆 Aller au podium</button>
-          <button id="fin-arret" class="btn danger" type="button">⛔ Terminer complètement</button>
+          <button id="fin-arret" class="btn danger" type="button">⛔ Terminer définitivement la partie</button>
         </div>
-        <p class="ask-text">Podium : les scores et le gagnant sur la TV. Terminer complètement : pas de podium, la TV revient à l'accueil.</p>
+        <p class="ask-text">Podium : les scores et le gagnant sur la TV. Terminer définitivement : pas de podium, la TV revient à l'accueil.</p>
         <button id="fin-annuler" class="btn secondary" type="button">Annuler</button>
       </div>
     </div>

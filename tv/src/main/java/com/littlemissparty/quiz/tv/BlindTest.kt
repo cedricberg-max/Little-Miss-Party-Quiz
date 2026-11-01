@@ -34,7 +34,8 @@ object Extraits {
 /**
  * Lecteur de l'extrait de la question : la musique suit le chrono. Elle joue pendant la question, se fige
  * quand une équipe buzze ou pendant une pause, et reprend exactement là où elle s'était arrêtée ; à la
- * révélation, l'extrait repart du début pendant que la TV montre la réponse. Rien ne bloque jamais la partie :
+ * révélation du blind test, l'extrait repart du début pendant que la TV montre la réponse (quiz musical : voir
+ * [lectureMusicale]). Rien ne bloque jamais la partie :
  * un fichier absent ou illisible laisse simplement la question sans musique.
  */
 @Composable
@@ -78,13 +79,32 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
     // Blind test : la révélation fait réentendre l'extrait quelques secondes, ou s'arrête si l'animatrice raccourcit.
     val coupe = q.isBlind && state.blind?.cut == true
     // Refrain préparé dans la Régie PC : c'est lui qui joue à la révélation, en boucle, à la place de l'extrait.
-    // Quiz musical : seulement quelques secondes, puis il s'éteint en fondu (cedric, 24/10 : « un peu plus vite »).
     val refrain = q.refrainId?.takeIf { q.isBlind || q.isMusical }?.let { state.sounds[it] }
-    if (revealed && refrain != null && !coupe && !state.paused) RefrainEnBoucle(q.id, refrain, dureeMs = MUSICAL_REVELATION_MS.takeIf { q.isMusical })
+    // Quiz musical (cedric, 31/10) : la chanson ne s'arrête plus à la fermeture ; un peu moins fort, elle continue
+    // sous le verrou et la révélation (le refrain prend le relais en fondu s'il est préparé, ses paroles à l'écran),
+    // jusqu'au classement. Les bruitages du quiz passent par-dessus ; jamais une seconde musique.
+    val musical = if (q.isMusical) lectureMusicale(state.phase, state.paused, refrain != null) else null
+    if (revealed && refrain != null && !coupe && !state.paused) {
+        if (musical != null) RefrainEnBoucle(q.id, refrain, volume = VOLUME_MUSICAL_FOND, fonduEntree = true)
+        else RefrainEnBoucle(q.id, refrain)
+    }
     val enCours = state.phase == Phase.QUESTION && state.deadline != null && !state.paused
-    LaunchedEffect(player, enCours, revealed, coupe, state.deadline, state.resumeAt) {
+    // Volume donné au lecteur de l'extrait (MediaPlayer ne le dit pas) : les fondus partent de là.
+    val volume = remember(player) { floatArrayOf(1f) }
+    LaunchedEffect(player, enCours, revealed, coupe, musical, state.deadline, state.resumeAt) {
         runCatching {
             when {
+                musical == LectureMusicale.FOND -> {
+                    // Chanson finie avant la fermeture (extrait plus court que le chrono) : elle repart, jamais de blanc.
+                    player.isLooping = true
+                    if (!player.isPlaying) player.start()
+                    glisserVolume(player, volume, VOLUME_MUSICAL_FOND)
+                }
+                musical == LectureMusicale.VERS_REFRAIN -> {
+                    glisserVolume(player, volume, 0f, FONDU_REFRAIN_MS)
+                    if (player.isPlaying) player.pause()
+                }
+                musical == LectureMusicale.PAUSE -> if (player.isPlaying) player.pause()
                 revealed && (coupe || refrain != null) -> if (player.isPlaying) player.pause()
                 revealed -> {
                     player.seekTo(0); player.start()
@@ -94,13 +114,9 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
                         delay(q.revealSec * 1000L)
                         if (player.isPlaying) player.pause()
                     }
-                    // Quiz musical sans refrain préparé : l'extrait repart pour quelques secondes d'ambiance, puis s'éteint.
-                    if (q.isMusical) {
-                        delay((MUSICAL_REVELATION_MS - FONDU_REFRAIN_MS).coerceAtLeast(0))
-                        eteindre(player)
-                    }
                 }
                 enCours -> {
+                    player.setVolume(1f, 1f); volume[0] = 1f
                     // Après une reprise, la musique attend la fin du décompte 3, 2, 1, comme le chrono.
                     val start = state.resumeAt ?: 0L
                     val attente = start - (System.currentTimeMillis() + state.serverOffset)
@@ -115,6 +131,43 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
             }
             Unit
         }.onFailure { Log.w("Extrait", "Lecture impossible", it) }
+    }
+}
+
+/** Quiz musical : ce que fait la chanson une fois la question fermée. */
+enum class LectureMusicale {
+    /** Elle continue, un peu moins fort ([VOLUME_MUSICAL_FOND]). */
+    FOND,
+    /** Révélation avec refrain préparé : l'extrait s'éteint en fondu pendant que le refrain monte. */
+    VERS_REFRAIN,
+    /** Pause générale : la chanson attend, elle repart à la reprise. */
+    PAUSE,
+}
+
+/**
+ * Quiz musical (cedric, 31/10) : la chanson selon l'étape ; null pendant la question (elle suit le chrono, comme
+ * avant) et au classement (elle s'arrête, Aerodynamic prend la suite).
+ */
+fun lectureMusicale(phase: Phase, enPause: Boolean, refrainPret: Boolean): LectureMusicale? = when {
+    phase != Phase.CLOSED && phase != Phase.REVEAL -> null
+    enPause -> LectureMusicale.PAUSE
+    phase == Phase.REVEAL && refrainPret -> LectureMusicale.VERS_REFRAIN
+    else -> LectureMusicale.FOND
+}
+
+/** Quiz musical : volume de la chanson sous le verrou et la révélation (1 = pendant la question). */
+const val VOLUME_MUSICAL_FOND = 0.6f
+
+/** Mène le volume de [l] de [volume] (mis à jour) à [cible] en [dureeMs]. */
+private suspend fun glisserVolume(l: MediaPlayer, volume: FloatArray, cible: Float, dureeMs: Long = 1_000L) {
+    val depart = volume[0]
+    if (depart == cible) { l.setVolume(cible, cible); return }
+    val pas = 10
+    for (k in 1..pas) {
+        delay(dureeMs / pas)
+        val v = depart + (cible - depart) * k / pas
+        l.setVolume(v, v)
+        volume[0] = v
     }
 }
 
@@ -145,21 +198,9 @@ private const val FONDU_REFRAIN_MS = 2_000L
 
 /**
  * Quiz musical, révélation (cedric, 24/10) : la bonne réponse s'allume d'abord sur les cartes pendant [MUSICAL_GRILLE_MS],
- * puis la scène du blind test (pochette, titre, paroles) ; la musique dure [MUSICAL_REVELATION_MS] en tout, fondu compris.
+ * puis la scène du blind test (pochette, titre, paroles), la chanson toujours en dessous jusqu'au classement.
  */
 const val MUSICAL_GRILLE_MS = 2_500L
-const val MUSICAL_REVELATION_MS = 15_000L
-
-/** Baisse le son de [l] jusqu'au silence en [FONDU_REFRAIN_MS], puis l'arrête. */
-private suspend fun eteindre(l: MediaPlayer) {
-    val pas = 10
-    for (k in 1..pas) {
-        delay(FONDU_REFRAIN_MS / pas)
-        val v = 1f - k / pas.toFloat()
-        l.setVolume(v, v)
-    }
-    if (l.isPlaying) l.pause()
-}
 
 /**
  * Où en est le refrain qu'on entend (millisecondes depuis le début de son extrait) : les paroles de la révélation se
@@ -177,11 +218,11 @@ object PositionRefrain {
 /**
  * Blind test, révélation : le refrain (environ 90 s) joue plus fort que l'extrait et repart en boucle, avec un
  * fondu enchaîné, jusqu'au « Titre suivant » de l'animatrice (le composant disparaît alors, la musique s'arrête).
- * Deux lecteurs se relaient : le second démarre en fondu pendant que le premier s'éteint. Avec [dureeMs] (Quiz
- * musical) : un seul passage, qui s'éteint en fondu au bout de ce temps.
+ * Deux lecteurs se relaient : le second démarre en fondu pendant que le premier s'éteint. Quiz musical : joué à
+ * [volume] (plus bas que l'extrait de la question) et, avec [fonduEntree], il monte en fondu pendant que l'extrait s'éteint.
  */
 @Composable
-fun RefrainEnBoucle(cle: String, path: String, dureeMs: Long? = null) {
+fun RefrainEnBoucle(cle: String, path: String, volume: Float = 1f, fonduEntree: Boolean = false) {
     val preparation = rememberPrepareAuCalme(cle, path, liberer = { l: List<MediaPlayer> -> l.forEach(::rendreLecteur) }) {
         runCatching {
             List(2) {
@@ -211,14 +252,14 @@ fun RefrainEnBoucle(cle: String, path: String, dureeMs: Long? = null) {
     LaunchedEffect(lecteurs) {
         runCatching {
             var i = 0
-            lecteurs[0].setVolume(1f, 1f)
+            val pas = 10
+            lecteurs[0].setVolume(if (fonduEntree) 0f else volume, if (fonduEntree) 0f else volume)
             lecteurs[0].start()
             PositionRefrain.suivre(lecteurs[0])
-            if (dureeMs != null) {
-                val fin = minOf(dureeMs, lecteurs[0].duration.toLong().coerceAtLeast(FONDU_REFRAIN_MS))
-                delay((fin - FONDU_REFRAIN_MS).coerceAtLeast(0))
-                eteindre(lecteurs[0])
-                return@runCatching
+            if (fonduEntree) for (k in 1..pas) {
+                delay(FONDU_REFRAIN_MS / pas)
+                val v = volume * k / pas
+                lecteurs[0].setVolume(v, v)
             }
             while (true) {
                 val actuel = lecteurs[i]
@@ -230,12 +271,11 @@ fun RefrainEnBoucle(cle: String, path: String, dureeMs: Long? = null) {
                 suivant.start()
                 // Les paroles suivent le passage qui commence : elles repartent au début du refrain.
                 PositionRefrain.suivre(suivant)
-                val pas = 10
                 for (k in 1..pas) {
                     delay(FONDU_REFRAIN_MS / pas)
                     val v = k / pas.toFloat()
-                    suivant.setVolume(v, v)
-                    actuel.setVolume(1 - v, 1 - v)
+                    suivant.setVolume(v * volume, v * volume)
+                    actuel.setVolume((1 - v) * volume, (1 - v) * volume)
                 }
                 if (actuel.isPlaying) actuel.pause()
                 i = 1 - i

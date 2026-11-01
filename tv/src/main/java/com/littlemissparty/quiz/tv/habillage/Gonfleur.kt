@@ -10,12 +10,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
+import com.littlemissparty.quiz.tv.TexteAjuste
+import com.littlemissparty.quiz.tv.UneLigneQuiTient
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -215,12 +220,24 @@ fun SceneGonfleur(equipes: List<Triple<String, Color, Float>>, gagnante: Int?, m
                 Modifier.offset(x = (cx - fente / 2).dp, y = 478.dp).width(fente.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    nom, maxLines = if (n > 5) 2 else 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 3.dp).background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(if (n > 5) 12.dp else 50.dp))
-                        .border(2.dp, couleur, RoundedCornerShape(if (n > 5) 12.dp else 50.dp)).padding(horizontal = if (n > 5) 6.dp else 10.dp, vertical = 2.dp),
-                    style = styleGonfleur.copy(fontSize = if (n > 5) 12.sp else 17.sp, lineHeight = 1.1.em, color = Neon.Blanc),
-                )
+                // 6 à 8 équipes (audit du 31/10, choix A de cedric) : le nom sur deux lignes, plus grand, dans une étiquette
+                // de la même taille pour toutes ; il rapetisse un peu plutôt que d'être coupé.
+                if (n > 5) ProvideTextStyle(styleGonfleur) {
+                    TexteAjuste(
+                        nom, color = Neon.PlaqueTexte, max = 16.sp, min = 11.sp, lignes = 2, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 3.dp).fillMaxWidth().height(46.dp)
+                            .background(Neon.Plaque, RoundedCornerShape(12.dp)).border(2.dp, couleur, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 5.dp, vertical = 3.dp),
+                    )
+                } else UneLigneQuiTient(Modifier.padding(horizontal = 3.dp)) {
+                    // 1 à 5 équipes : une ligne, l'étiquette rapetisse un peu plutôt que de couper un nom long (tour du 31/10).
+                    Text(
+                        nom, maxLines = 1, softWrap = false, textAlign = TextAlign.Center,
+                        modifier = Modifier.background(Neon.Plaque, RoundedCornerShape(50.dp))
+                            .border(2.dp, couleur, RoundedCornerShape(50.dp)).padding(horizontal = 10.dp, vertical = 2.dp),
+                        style = styleGonfleur.copy(fontSize = 17.sp, lineHeight = 1.1.em, color = Neon.PlaqueTexte),
+                    )
+                }
             }
             if (gagnante != null && !gagne) {
                 Text(
@@ -228,7 +245,7 @@ fun SceneGonfleur(equipes: List<Triple<String, Color, Float>>, gagnante: Int?, m
                     modifier = Modifier.offset(x = (cx - fente / 2).dp, y = (ballonCentre(p, rMax) - 14f).dp).width(fente.dp)
                         .wrapContentWidth()
                         .graphicsLayer { alpha = ((eclat.value - 0.4f) / 0.3f).coerceIn(0f, 1f) }
-                        .background(Neon.Nuit2.copy(alpha = 0.85f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp),
+                        .background(Neon.Plaque, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp),
                     textAlign = TextAlign.Center,
                     style = styleGonfleur.copy(fontSize = if (n > 5) 13.sp else 20.sp, color = Neon.JusteClair),
                 )
@@ -247,7 +264,7 @@ fun SceneGonfleur(equipes: List<Triple<String, Color, Float>>, gagnante: Int?, m
             ) {
                 Text(
                     "$nom gagnent !", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(3.dp, couleur, RoundedCornerShape(50))
+                    modifier = Modifier.background(Neon.Plaque, RoundedCornerShape(50)).border(3.dp, couleur, RoundedCornerShape(50))
                         .padding(horizontal = 26.dp, vertical = 6.dp),
                     style = styleGonfleur.copy(fontSize = 34.sp, color = couleur),
                 )
@@ -256,15 +273,8 @@ fun SceneGonfleur(equipes: List<Triple<String, Color, Float>>, gagnante: Int?, m
                     style = styleGonfleur.copy(fontSize = 58.sp, color = Neon.JusteClair, shadow = Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 4f), 16f)),
                 )
             }
-        } else {
-            Text(
-                "Tapez vite sur la tablette !", maxLines = 1,
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp)
-                    .background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.5.dp, if (gs) GS.Cyan else Neon.Or, RoundedCornerShape(50))
-                    .padding(horizontal = 26.dp, vertical = 6.dp),
-                style = styleGonfleur.copy(fontSize = 26.sp, color = if (gs) GS.CyanClair else Neon.OrClair),
-            )
         }
+        // Plus de pastille « Tapez vite sur la tablette ! » en haut : on gonfle avec le vrai buzzer (cedric, 31/10 au soir).
     }
 }
 

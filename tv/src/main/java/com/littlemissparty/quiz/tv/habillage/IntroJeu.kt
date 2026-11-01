@@ -56,7 +56,6 @@ internal fun familleType(kind: QuestionKind?, musique: Boolean = false, images: 
     QuestionKind.QUISUIS -> "quisuis"
     QuestionKind.DISPARU -> "disparu"
     QuestionKind.STATUES -> "statues"
-    QuestionKind.PORTES -> "portes"
     QuestionKind.COFFRES -> "bombe"
     QuestionKind.GONFLEUR -> "gonfleur"
     QuestionKind.PATATE -> "patate"
@@ -71,8 +70,8 @@ internal fun familleType(kind: QuestionKind?, musique: Boolean = false, images: 
 }
 
 /**
- * Nom de l'intro vidéo d'une famille de jeu (res/raw/gs_intro_<nom>.mp4), ou null : Juste Chiffre et les Portes n'en
- * ont pas, leur écran de présentation dessiné reste.
+ * Nom de l'intro vidéo d'une famille de jeu (res/raw/gs_intro_<nom>.mp4), ou null : Juste Chiffre n'en
+ * a pas, leur écran de présentation dessiné reste.
  */
 internal fun nomIntroJeu(famille: String): String? = when (famille) {
     "quiz" -> "quiz"
@@ -93,6 +92,7 @@ internal fun nomIntroJeu(famille: String): String? = when (famille) {
     "gonfleur" -> "gonfleur"
     "duel" -> "duel"
     "simon" -> "simon"
+    "chrono" -> "chrono"
     else -> null
 }
 
@@ -114,6 +114,7 @@ private fun ressourceIntroJeu(nom: String): Int = when (nom) {
     "coffres" -> R.raw.gs_intro_coffres
     "duel" -> R.raw.gs_intro_duel
     "simon" -> R.raw.gs_intro_simon
+    "chrono" -> R.raw.gs_intro_chrono
     else -> R.raw.gs_intro_gonfleur
 }
 
@@ -131,7 +132,7 @@ internal fun repriseIntroJeu(nom: String): Int? = if (nom == "duel") REPRISE_INT
 internal fun volumeIntroJeu(nom: String): Float = if (nom in INTROS_SONORES) 1f else 0f
 
 /** Intros refaites dans leur décor avec leurs bruitages (cedric, 29-30/10 ; jamais de rire, Vrai ou Faux). */
-private val INTROS_SONORES = setOf("simon", "vraifaux", "disparu", "floue", "mimes", "picto", "statues", "quiz", "quisuisje", "gonfleur", "illustre", "patate", "musical", "coffres")
+private val INTROS_SONORES = setOf("simon", "vraifaux", "disparu", "floue", "mimes", "picto", "statues", "quiz", "quisuisje", "gonfleur", "illustre", "patate", "musical", "coffres", "chrono")
 internal const val REPRISE_INTRO_DUEL_MS = 21_720
 internal const val BOUCLE_INTRO_DUEL_MS = 12_000
 

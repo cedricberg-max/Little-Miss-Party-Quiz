@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import com.littlemissparty.quiz.tv.UneLigneQuiTient
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -89,6 +90,9 @@ internal const val ANNEAU_RANG_A = 3.5f
 /** Marge libre (dp à l'échelle 1) entre l'anneau du rang et le bord de la carte, en haut comme en bas. */
 internal fun margeRangA(g: GeometrieClassementA): Float = (g.hauteurCarte - (PASTILLE_RANG_A + 2 * ANNEAU_RANG_A) * g.f) / 2f
 
+/** Instant (s, temps du classement) où la carte [i] a fini d'arriver depuis la gauche (apparition en 0,3 s, décalées de 0,05 s). */
+internal fun arriveeCarteA(i: Int): Float = 0.35f + i * 0.05f
+
 internal data class GeometrieClassementA(val pas: Float, val f: Float, val haut: Float) {
     val hauteurCarte get() = pas - 7f * f
 }
@@ -131,7 +135,7 @@ private val jouerSonClassement: (Son) -> Unit = { Sons.executer(listOf(Ordre.Jou
  * de l'équipe qui a ouvert le coffre (−1 si elle n'est plus là : les lignes s'affichent sans animation de jeu).
  */
 @Composable
-fun ClassementCoffreGs(lignes: List<LignePortes>, joue: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonClassement) {
+fun ClassementCoffreGs(lignes: List<LigneClassement>, joue: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonClassement) {
     val evo = remember(lignes) { evolutions(lignes) }
     val ej = evo.getOrNull(joue)
     val renverse = ej?.recit == Recit.NOUVEAU_PREMIER
@@ -168,10 +172,10 @@ fun ClassementCoffreGs(lignes: List<LignePortes>, joue: Int, modifier: Modifier 
         TitreClassementA { t.value }
         lignes.forEachIndexed { i, l -> CarteClassementA(l, evo[i], i, i == joue, g, x0, largeur) { t.value } }
         if (ej != null) {
-            AutocollantA(ej, lignes.size, x0 + largeur + 20f, g.haut + ej.rangApres * g.pas + g.pas / 2f) { t.value }
+            AutocollantA(ej, lignes.size, x0 + largeur + AUTOCOLLANT_ECART_DP, g.haut + ej.rangApres * g.pas + g.pas / 2f) { t.value }
             if (renverse) {
                 val exPremier = evo.indexOfFirst { it.rangAvant == 0 }
-                if (exPremier >= 0) DetroneA(x0 + largeur + 20f, g.haut + evo[exPremier].rangApres * g.pas + g.pas / 2f) { t.value }
+                if (exPremier >= 0) DetroneA(x0 + largeur + AUTOCOLLANT_ECART_DP, g.haut + evo[exPremier].rangApres * g.pas + g.pas / 2f) { t.value }
             }
             if (renverse || monte) {
                 val source = Offset(x0 + largeur / 2f, g.haut + ej.rangApres * g.pas + g.pas / 2f)
@@ -195,12 +199,15 @@ private fun TitreClassementA(t: () -> Float) {
 
 @Composable
 private fun CarteClassementA(
-    e: LignePortes, evo: Evolution, i: Int, joue: Boolean, g: GeometrieClassementA, x0: Float, largeur: Float, t: () -> Float,
+    e: LigneClassement, evo: Evolution, i: Int, joue: Boolean, g: GeometrieClassementA, x0: Float, largeur: Float, t: () -> Float,
 ) {
     val f = g.f
     val forme = RoundedCornerShape((13f * f).dp)
     val nouveauxRangs by remember(evo) { derivedStateOf { t() >= TempsClassementA.NOUVEAUX_RANGS } }
     val premierFete by remember(evo) { derivedStateOf { evo.rangApres == 0 && t() > TempsClassementA.FETE } }
+    // Tant que la carte glisse depuis la gauche (ou attend, transparente, pendant l'ouverture du coffre), ses textes ne
+    // sont pas encore à l'écran : ils n'y entrent qu'une fois la carte arrivée à sa place.
+    val arrivee by remember(evo) { derivedStateOf { t() >= arriveeCarteA(i) } }
     Box(
         Modifier
             .zIndex(if (joue) 5f else 1f)
@@ -213,7 +220,7 @@ private fun CarteClassementA(
                 val u = if (joue) lisseA(b) else rebondA((s - TempsClassementA.BOUGE - 0.25f) / 0.9f)
                 val rang = evo.rangAvant + (evo.rangApres - evo.rangAvant) * u
                 val arc = if (joue) sin(PI.toFloat() * b) else 0f
-                val app = lisseA((s - 0.05f - i * 0.05f) / 0.3f)
+                val app = lisseA((s - arriveeCarteA(i) + 0.3f) / 0.3f)
                 val boing = if (joue && s > TempsClassementA.FETE) 0.03f * sin((s - TempsClassementA.FETE) * 10f) * exp(-(s - TempsClassementA.FETE) * 2f) else 0f
                 translationX = (arc * 35f + (1f - app) * -150f) * density
                 translationY = rang * g.pas * density
@@ -241,7 +248,7 @@ private fun CarteClassementA(
                     size = Size(size.width - 4f * f * density, size.height - 4f * f * density), cornerRadius = coin, style = Stroke(5f * f * density))
             }
             .border((2f * f).dp, e.couleur, forme)
-            .semantics { contentDescription = "${e.nom} : ${evo.rangApres + 1}" },
+            .then(if (arrivee) Modifier.semantics { contentDescription = "${e.nom} : ${evo.rangApres + 1}" } else Modifier.clearAndSetSemantics { }),
     ) {
         Row(
             Modifier.fillMaxSize().padding(start = (9f * f).dp, end = (17f * f).dp),
@@ -325,6 +332,14 @@ private fun CouronneA(f: Float, modifier: Modifier, t: () -> Float) {
     }
 }
 
+/**
+ * Place de l'autocollant à droite des cartes (x0 110 + largeur 560) : au plus [AUTOCOLLANT_MAX_DP] de large, même au
+ * plus fort du ressort (× 1,16), il reste dans l'écran de 960 (tour des écrans à 3 équipes, 31/10 : « GARDE SA PLACE »
+ * touchait le bord).
+ */
+internal const val AUTOCOLLANT_ECART_DP = 12f
+internal const val AUTOCOLLANT_MAX_DP = 235f
+
 /** Le gros autocollant de l'équipe qui joue, à droite de sa nouvelle ligne : il arrive en ressort et se balance. */
 @Composable
 private fun AutocollantA(evo: Evolution, equipes: Int, x: Float, centreY: Float, t: () -> Float) {
@@ -347,9 +362,12 @@ private fun AutocollantA(evo: Evolution, equipes: Int, x: Float, centreY: Float,
             .border(2.5.dp, NuitA, RoundedCornerShape(10.dp))
             .padding(2.5.dp)
             .background(fond, RoundedCornerShape(8.dp))
-            .padding(start = 13.dp, end = 13.dp, top = 5.dp, bottom = 3.dp),
+            .padding(start = 13.dp, end = 13.dp, top = 5.dp, bottom = 3.dp)
+            .widthIn(max = (AUTOCOLLANT_MAX_DP - 2f * (2f + 2.5f + 13f)).dp),
     ) {
-        Text(texte, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 23.sp, color = if (rose) Color.White else NuitA))
+        UneLigneQuiTient(echelleMin = 0.7f) {
+            Text(texte, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 23.sp, color = if (rose) Color.White else NuitA))
+        }
     }
 }
 

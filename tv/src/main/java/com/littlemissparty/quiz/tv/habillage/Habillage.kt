@@ -31,6 +31,10 @@ import kotlinx.coroutines.delay
 object Neon {
     val Nuit: Color get() = selonLook(Color(0xFF0B0614), GS.Noir)
     val Nuit2: Color get() = selonLook(Color(0xFF1A0B2E), GS.Nuit)
+    /** Fond des cadres et ovales sombres qui portent un texte (Game Show : « Doux 2 », [GS.Plaque]). */
+    val Plaque: Color get() = selonLook(Color(0xE61A0B2E), GS.Plaque)
+    /** Texte clair posé sur [Plaque] (Game Show : blanc cassé, [GS.PlaqueTexte]). */
+    val PlaqueTexte: Color get() = selonLook(Color(0xFFFFF4F2), GS.PlaqueTexte)
     /** Fonds de l'appli (plateau, intermèdes, fenêtres) : le violet un peu plus clair validé sur l'écran du blind test. */
     val FondHaut: Color get() = selonLook(Color(0xFF3A1466), GS.VioletProfond)
     val Fond: Color get() = selonLook(Color(0xFF221040), GS.Nuit)
@@ -193,6 +197,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         buzzs = s.funTotal,
         premiere = s.index == 0,
         superFinale = s.question?.double == true,
+        annonceFacteur = s.question?.double == true && s.introUntil != null,
         gagnants = if (s.phase == Phase.REVEAL) s.awards.values.count { it.points > 0 } else 0,
         meneurAPoints = (s.ranking.firstOrNull()?.second ?: 0) > 0,
         trouves = s.mime?.takeIf { it.team != null }?.found ?: 0,
@@ -213,6 +218,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         indices = indices,
         // Blind test, quiz musical (extrait bien reçu), statues : la TV joue déjà une musique, l'habillage se tait.
         musical = s.question?.let { q -> q.isStatues || (q.isBlind && s.blind != null) || q.audioId?.let { s.sounds[it] } != null } == true,
+        quizMusical = s.question?.let { q -> q.isMusical && q.audioId?.let { s.sounds[it] } != null } == true,
         statue = statue && s.question?.isStatues == true,
         statuesAnnonce = if (s.question?.isStatues == true) annonceStatues else 0,
         statuesGagnantes = s.statues?.result?.winners?.isNotEmpty() == true,

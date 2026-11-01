@@ -59,16 +59,17 @@ fun GonfleurScreen(state: UiState.Playing, actions: TvActions) {
                 )
             }
             Spacer(Modifier.height(10.dp))
-            // Game Show : l'onglet « TAPEZ ! » validé par cedric le 31/10 à 11:12 (un peu plus haut que l'ancienne ligne).
+            // Game Show : l'onglet validé par cedric le 31/10 à 11:12 (un peu plus haut que l'ancienne ligne). On gonfle avec
+            // le vrai buzzer, jamais un mot sur les tablettes (cedric, 31/10 au soir) : « GONFLEZ LE BALLON ! ».
             val onglet = Look.gs && !revele && !depart
             Row(Modifier.fillMaxWidth().height(if (onglet) 84.dp else 64.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (onglet) Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                    PlaqueAppel(GenrePlaque.GONFLEUR, "TAPEZ !", "sur vos tablettes : le premier ballon qui éclate gagne")
+                    PlaqueAppel(GenrePlaque.GONFLEUR, "GONFLEZ LE BALLON !", "le premier ballon qui éclate gagne")
                 } else Text(
                     when {
-                        revele && gagnant == null -> "Personne n'a tapé : tout le monde marque ses points de participation"
+                        revele && gagnant == null -> "Personne n'a gonflé : tout le monde marque ses points de participation"
                         revele || depart -> ""
-                        else -> "Tapez sur vos tablettes : le premier ballon qui éclate gagne !"
+                        else -> "Gonflez le ballon ! Le premier ballon qui éclate gagne !"
                     },
                     style = styleCentre(26.sp, Neon.OrClair),
                     modifier = Modifier.weight(1f),

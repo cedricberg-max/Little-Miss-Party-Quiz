@@ -194,8 +194,11 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     // Qui suis-je ? du Game Show : marge réduite, « BUZZEZ ! » et les équipes déjà essayées tiennent même à 4 équipes,
     // où les pastilles hautes laissent peu de hauteur au panneau (test du 30/10 au soir).
     val appelQuiSuis = Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION && buzzer == null
+    // Révélation du Qui suis-je ? (Game Show) : même petite marge, la phrase garde sa place à 4 équipes (CI du 31/10).
+    val revelationQuiSuis = Look.gs && q.isQuiSuis && (state.phase == Phase.REVEAL || state.phase == Phase.SCORES)
+    val margeReduite = appelQuiSuis || revelationQuiSuis
     Column(
-        modifier.panneauJeu(0.08f).padding(if (appelQuiSuis) 12.dp else 28.dp),
+        modifier.panneauJeu(0.08f).padding(if (margeReduite) 12.dp else 28.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

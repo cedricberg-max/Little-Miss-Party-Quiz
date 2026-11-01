@@ -12,7 +12,6 @@ import { envoyeurDessin } from "./picto.js";
 import { creerArdoise, choisirMot } from "./ardoise.js";
 import { mesurerHorloge, garder } from "./horloge.js";
 import { animationSpectateurs } from "./spectateurs.js";
-import { choisirPorte, ecranPorteOuverte } from "./portes.js";
 import { ecranCoffres, REVELATION_MS } from "./coffres.js";
 import { ecranGonfleur, ENVOI_MS, plafond } from "./gonfleur.js";
 import { ecranPatate } from "./patate.js";
@@ -53,7 +52,7 @@ for (const id of ["app", "paused", "resume-count"]) {
 const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu"];
 const BUZZ_INVITE = {
   flou: "Image floue : buzzez dès que vous la reconnaissez !",
-  chante: "Chante le mot ! Buzzez et chantez une chanson avec le mot de la TV !",
+  chante: "À vos micros ! Buzzez et chantez une chanson avec ce mot !",
   quisuis: "Qui suis-je ? Écoutez les indices de la TV et buzzez dès que vous savez !",
   blind: "Blind test : écoutez la musique et buzzez dès que vous reconnaissez la chanson !",
   disparu: "Qui a disparu ? Buzzez dès que vous savez quel objet manque sur la TV !",
@@ -225,7 +224,7 @@ function reconnecter() {
 }
 // Retour sur la page : le toucher qui la ramène tombe sur une grande réponse (cedric, 25/10 : « réponse envoyée » au
 // retour, sans avoir répondu). Une seconde sans réponse. Pas au passage en plein écran : il arrive au premier toucher
-// d'un jeu, et les touches suivantes (Juste Chiffre, Portes mystères) doivent passer tout de suite.
+// d'un jeu, et les touches suivantes (Juste Chiffre) doivent passer tout de suite.
 const REPONSES_BLOQUEES_MS = 1000;
 let reponsesBloqueesJusqua = 0;
 const bloquerReponses = () => { reponsesBloqueesJusqua = Date.now() + REPONSES_BLOQUEES_MS; };
@@ -568,6 +567,7 @@ function render() {
     if ($("buzz").textContent !== "BUZZ") $("buzz").textContent = "BUZZ";
   }
   $("play-intro").hidden = true;
+  $("chante-mot").hidden = true;
   $("play-status").classList.remove("fete");
   switch (st.phase) {
     case "question":
@@ -620,15 +620,12 @@ function renderIntro(st) {
 function renderQuestion(st) {
   show("question");
   $("q-number").textContent = st.kind === "express" ? "Vrai ou Faux express !"
-    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !" : st.kind === "portes" ? "Portes mystères !"
+    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !"
     // Box à jour : la position dans le jeu en cours (« Quiz · question 5 / 10 »), jamais dans toute la prestation.
     : st.game?.label ?? `Question ${(st.index ?? 0) + 1}`;
   $("q-double").hidden = !st.double;
   $("q-double").textContent = `Points ×${st.factor ?? 2}`;
   if (st.kind === "number") return renderNumber(st);
-  $("choices").hidden = st.kind === "portes";
-  $("portes-host").hidden = st.kind !== "portes";
-  if (st.kind === "portes") return renderPortesChoice(st);
   const choices = st.choices ?? [];
   const photos = Array.isArray(st.choiceImages) ? st.choiceImages : [];
   const pictures = photos.some((id) => IMAGE_ID.test(id ?? ""));
@@ -645,8 +642,7 @@ function renderQuestion(st) {
       const b = document.createElement("button");
       b.className = "choice";
       b.style.setProperty("--choice", CHOICE_COLORS[i]);
-      b.innerHTML = `<span class="letter">${st.kind === "portes" ? "🚪" : CHOICE_LETTERS[i]}</span><span class="text"></span>`;
-      if (st.kind === "portes") b.classList.add("door");
+      b.innerHTML = `<span class="letter">${CHOICE_LETTERS[i]}</span><span class="text"></span>`;
       b.querySelector(".text").textContent = text;
       if (pictures && IMAGE_ID.test(photos[i] ?? "")) showChoicePhoto(b, photos[i], text);
       b.onclick = () => answer(i);
@@ -688,7 +684,8 @@ function showChoicePhoto(button, id, text) {
 
 /** Le Juste Chiffre : un pavé de chiffres, un nombre envoyé une seule fois, comme une réponse. */
 let numberDraft = "";
-const NUMBER_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "−", "0", "⌫"];
+// Pas de touche « − » (cedric, 31/10 : inutile pour des enfants) : une case vide garde le « 0 » au milieu.
+const NUMBER_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
 function renderNumber(st) {
   const box = $("choices");
   const key = `${st.qid}:number`;
@@ -705,14 +702,14 @@ function renderNumber(st) {
     const pad = document.createElement("div");
     pad.className = "number-pad";
     NUMBER_KEYS.forEach((k) => {
+      if (!k) { const vide = document.createElement("span"); vide.className = "number-vide"; pad.appendChild(vide); return; }
       const b = document.createElement("button");
       b.className = "number-key";
       b.textContent = k;
       b.dataset.key = k;
       b.onclick = () => {
         if (k === "⌫") numberDraft = numberDraft.slice(0, -1);
-        else if (k === "−") numberDraft = numberDraft.startsWith("-") ? numberDraft.slice(1) : `-${numberDraft}`;
-        else if (numberDraft.replace("-", "").length < 9) numberDraft = numberDraft === "0" ? k : numberDraft === "-0" ? `-${k}` : numberDraft + k;
+        else if (numberDraft.length < 9) numberDraft = numberDraft === "0" ? k : numberDraft + k;
         beep(1200, 40);
         render();
         // Petit rebond de l'écran à chaque touche (l'animation repart même sur deux touches rapprochées).
@@ -763,6 +760,10 @@ function renderFlou(st) {
   const blocked = tried && !(rebuzzIn != null && rebuzzIn <= 0);
   const open = st.phase === "question" && st.buzzOpen === true && !st.paused && !counting(st) && !b.team && !blocked;
   buzz.disabled = !open;
+  // Chante le mot ! : le mot de la TV en grand au-dessus du BUZZ, pour que l'équipe l'ait sous les yeux.
+  const mot = st.kind === "chante" && st.phase === "question" ? String(st.text ?? "").trim() : "";
+  $("chante-mot").hidden = !mot;
+  if ($("chante-mot").textContent !== mot) $("chante-mot").textContent = mot;
   buzz.classList.toggle("winner", b.team === teamId);
   const chante = st.kind === "chante";
   if (b.team === teamId) $("play-status").textContent = chante ? "Vous avez buzzé ! À vous de chanter !" : st.kind === "blind" ? "Vous avez buzzé ! Le titre, à voix haute !" : "Vous avez buzzé ! Donnez votre réponse à voix haute.";
@@ -823,9 +824,19 @@ function renderStatues(st) {
       : gagnantes.length ? "Bien dansé ! À la prochaine chanson." : "Personne cette fois ! On se rattrape à la prochaine chanson.";
     return;
   }
-  status.textContent = s.ended ? "Fin de la chanson ! Plus personne ne bouge…"
-    : s.dancing === false ? "STATUE ! Plus personne ne bouge…"
-    : "DANSEZ ! Posez la tablette et bougez tant que la musique joue.";
+  // Un gros mot néon qui bouge, et une petite phrase dessous (cedric, 31/10, choix A : « plus fun, moins sérieux »).
+  const danse = !s.ended && s.dancing !== false;
+  const mot = document.createElement("span");
+  mot.className = `statues-mot ${danse ? "statues-danse" : "statues-fige"}`;
+  mot.textContent = danse ? "DANSE !" : "STATUE !";
+  const phrase = document.createElement("span");
+  phrase.className = "statues-phrase";
+  phrase.textContent = s.ended ? "Fin de la chanson ! Plus personne ne bouge…"
+    : danse ? "Posez la tablette et bougez comme des robots fous tant que la musique joue !"
+    : "Plus personne ne bouge… pas même un cil !";
+  // Remplacé seulement s'il change : le mot ne recommence pas son animation à chaque mise à jour.
+  const avant = status.querySelector(".statues-mot");
+  if (avant?.className !== mot.className || status.querySelector(".statues-phrase")?.textContent !== phrase.textContent) status.replaceChildren(mot, phrase);
 }
 
 /**
@@ -868,7 +879,7 @@ function renderDuel(st) {
   const contre = equipes.length === 2 ? `${nomEquipe(equipes[0])} contre ${nomEquipe(equipes[1])}` : "";
   if (!d.step || d.step === "none") status.textContent = "Le Duel des robots : il faut au moins 2 équipes. Regardez la TV !";
   else if (d.step === "ready") status.textContent = moi
-    ? `Duel n° ${d.n} : à toi, joueur n° ${d.players?.[place] ?? 1} ! Viens te placer, la main sur le buzzer…`
+    ? `Duel n° ${d.n} : à toi ! Viens te placer, la main sur le buzzer…`
     : `Duel n° ${d.n} : ${contre}. Regardez la TV !`;
   else if (d.step === "standoff") status.textContent = !moi ? `${contre} : silence, ça va tirer…`
     : duelEnvoye === d.key ? "Buzz envoyé ! Regardez la TV…" : "Attends le PAN ! Pas avant… Buzze dès qu'il apparaît !";
@@ -996,8 +1007,19 @@ function renderMime(st) {
   const m = st.mime;
   const mine = m.counts?.[teamId] ?? 0;
   const found = mine ? ` Déjà ${mine} mime${mine > 1 ? "s" : ""} trouvé${mine > 1 ? "s" : ""} !` : "";
-  if (m.team === teamId) $("play-status").textContent = "C'est votre tour ! Celui qui devine se met dos à la TV, les autres miment.";
-  else if (m.team) $("play-status").textContent = `C'est au tour de ${game.teams[m.team]?.name ?? "une autre équipe"} : regardez-les mimer !${found}`;
+  if (m.team === teamId) {
+    // « C'est votre tour ! » en grand néon, la consigne dessous (cedric, 31/10 : « fait penser à un article de journal »).
+    const status = $("play-status");
+    if (!status.querySelector(".mimes-titre")) {
+      const titre = document.createElement("span");
+      titre.className = "mimes-titre";
+      titre.textContent = "C'est votre tour !";
+      const phrase = document.createElement("span");
+      phrase.className = "mimes-phrase";
+      phrase.textContent = "Le mimeur se met en place, les autres se mettent dos à la TV.";
+      status.replaceChildren(titre, phrase);
+    }
+  } else if (m.team) $("play-status").textContent = `C'est au tour de ${game.teams[m.team]?.name ?? "une autre équipe"} : regardez-les mimer !${found}`;
   else $("play-status").textContent = `Mimes ! L'animatrice choisit l'équipe qui joue.${found}`;
 }
 
@@ -1195,7 +1217,7 @@ function runResumeCountdown(st) {
 
 function runTimer(st, el = $("q-timer")) {
   clearInterval(timerHandle);
-  // Pas de chrono (Portes mystères : chacun prend son temps) : rien à afficher.
+  // Pas de chrono : rien à afficher.
   if (st.phase === "question" && st.deadline == null && st.remainingMs == null) {
     el.textContent = "";
     el.classList.remove("urgent");
@@ -1240,8 +1262,6 @@ function renderResult(st) {
   $("r-icon").textContent = ok ? "✓" : answered ? "✗" : "…";
   $("r-icon").className = `result-icon ${ok ? "ok" : "ko"}`;
   const number = st.kind === "number";
-  if (st.kind === "portes") return renderPortesResult(st, award);
-  showPortesReveal(null);
   if (st.kind === "patate") {
     // La dernière bombe : chez qui elle a explosé, ce qu'elle a coûté ou rapporté ; puis le total de toutes les bombes.
     const booms = liste(st.potato?.booms);
@@ -1296,84 +1316,6 @@ function renderResult(st) {
   $("r-image").textContent = st.image ?? "";
   $("r-image").hidden = !st.image;
   $("r-total").textContent = totalEtPlace(st);
-}
-
-/** Équipe de cet appareil, pour les écrans des Portes mystères. */
-const myTeamInfo = () => (game.teams[teamId] ? { nom: game.teams[teamId].name, couleur: game.teams[teamId].color } : null);
-
-/** Choix des Portes mystères (écran portes.js) : { qid, etat, ctl } de la question en cours. */
-let portesChoix = null;
-function renderPortesChoice(st) {
-  const host = $("portes-host");
-  const mine = game.myAnswer?.choice ?? pending?.choice;
-  if (portesChoix?.qid !== st.qid) {
-    portesChoix?.ctl.detruire();
-    const qid = st.qid;
-    portesChoix = {
-      qid, etat: "choix",
-      ctl: choisirPorte(host, {
-        nombre: (st.choices ?? []).length || 4, equipe: myTeamInfo(),
-        // Choix refusé (pause, temps écoulé) : les portes reviennent, rien n'est perdu.
-        surChoix: (i) => Promise.resolve(answer(i)).finally(() => {
-          if (!game.myAnswer && portesChoix?.qid === qid && game.state?.phase === "question") { portesChoix.ctl.detruire(); portesChoix = null; render(); }
-        }),
-      }),
-    };
-  }
-  if (mine != null && portesChoix.etat !== `porte${mine}`) {
-    portesChoix.etat = `porte${mine}`;
-    portesChoix.ctl.verrouiller(mine);
-  } else if (mine == null && st.phase !== "question" && portesChoix.etat !== "ferme") {
-    portesChoix.etat = "ferme";
-    portesChoix.ctl.attente("Les choix sont fermés !");
-  }
-  $("q-status").textContent = "";
-  runTimer(st);
-}
-
-/** Résultat ouvert des Portes mystères (écran portes.js), pour ne pas rejouer l'ouverture à chaque mise à jour. */
-let portesResultat = null;
-function showPortesReveal(key, options) {
-  const box = $("r-portes");
-  for (const id of ["r-icon", "r-title", "r-detail"]) $(id).hidden = key != null;
-  box.hidden = key == null;
-  if (key == null) {
-    if (portesResultat) { portesResultat.ctl.detruire(); portesResultat = null; }
-    return;
-  }
-  if (portesResultat?.key === key) return;
-  portesResultat?.ctl.detruire();
-  portesResultat = { key, ctl: ecranPorteOuverte(box, options) };
-}
-
-/**
- * Portes mystères : le résultat de l'équipe n'apparaît qu'au moment où sa porte s'ouvre sur la TV (sinon la
- * tablette gâcherait le suspense), le total et la place seulement une fois toutes les portes ouvertes.
- */
-function renderPortesResult(st, award) {
-  const p = st.portes ?? {};
-  const door = award?.choice;
-  const opened = (p.order ?? []).slice(0, p.opened ?? 0);
-  const mineOpen = door != null && opened.includes(door);
-  const all = st.phase === "scores" || (p.opened ?? 0) >= (p.count ?? 0);
-  const name = door != null ? st.choices?.[door] ?? `Porte ${door + 1}` : null;
-  $("r-icon").className = `result-icon ${mineOpen && award.points > 0 ? "ok" : "ko"}`;
-  $("r-icon").textContent = !mineOpen ? "🚪" : award.points > 0 ? "🎁" : award.points < 0 ? "🧱" : "🫧";
-  $("r-title").textContent = door == null ? "Pas de porte choisie"
-    : !mineOpen ? `${name}… suspense !`
-    : award.points > 0 ? `BONUS ! +${award.points} points` : award.points < 0 ? `Aïe, la tuile ! −${-award.points} points` : "Ouf, le malus ne vous retire rien !";
-  $("r-detail").textContent = door == null ? "" : mineOpen ? `Derrière la ${name.toLowerCase()}` : "Les portes s'ouvrent une à une sur la TV…";
-  $("r-image").hidden = true;
-  // Sa porte est ouverte sur la TV : la porte s'ouvre aussi sur la tablette, avec les points exacts.
-  const value = mineOpen ? Number(p.values?.[door] ?? award.points) : null;
-  showPortesReveal(mineOpen ? `${st.qid}:${door}` : null, { valeur: value, porte: door, equipe: myTeamInfo() });
-  if (mineOpen && award.points !== value) {
-    $("r-detail").hidden = false;
-    $("r-detail").textContent = `Votre score ne descend jamais sous 0 : ${award.points < 0 ? "−" : "+"}${Math.abs(award.points)} points pour vous.`;
-  }
-  if (all) {
-    $("r-total").textContent = totalEtPlace(st);
-  } else $("r-total").textContent = "Classement à la fin des portes !";
 }
 
 /** Les coffres mystères (écran coffres.js) : { ctl, cle, envoi, tour, alarme } du jeu en cours. */
@@ -1839,7 +1781,9 @@ $("buzz").onclick = async () => {
 
 // Gros buzzer USB branché sur la tablette : elle le voit comme un clavier d'une seule touche. Un appui sur n'importe
 // quelle touche fait comme un toucher du BUZZ de l'écran, seulement quand il est affiché ; sans buzzer, rien ne change.
+// Au Gonfleur fou, chaque appui gonfle le ballon comme une tape sur le bouton (cedric, 31/10 : « vérifie dans tous les jeux »).
 const buzzAffiche = () => !$("buzz").hidden && $("screen-play").classList.contains("active");
+const gonfleurAffiche = () => !!gonfleur && $("screen-gonfleur").classList.contains("active");
 const TOUCHES_SYSTEME = /^(Shift|Control|Alt|Meta|OS|Fn|Hyper|Super|CapsLock|NumLock|ScrollLock|Tab|Escape|Unidentified|Dead|Process|Audio|Media|Browser|Launch|Power|Brightness|Volume|Help|ContextMenu|PrintScreen)/;
 const enFrappe = (e) => e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]");
 document.addEventListener("keydown", (e) => {
@@ -1853,7 +1797,7 @@ document.addEventListener("keydown", (e) => {
   if (!e.repeat && buzzAffiche()) {
     dernierAppui = e.timeStamp || performance.now();
     $("buzz").click();
-  }
+  } else if (!e.repeat && gonfleurAffiche()) gonfleur.ctl.appuyer();
 });
 // Espace appuie sur un bouton au relâché : même garde.
 document.addEventListener("keyup", (e) => { if (e.key === " " && !enFrappe(e) && !document.body.classList.contains("regie-mode")) e.preventDefault(); });

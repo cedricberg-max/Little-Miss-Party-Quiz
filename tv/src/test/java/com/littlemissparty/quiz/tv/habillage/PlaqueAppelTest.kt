@@ -24,13 +24,23 @@ class PlaqueAppelTest {
         listOf("DISPARU", "CHANTE", "QUISUIS", "BLIND", "FLOUE").forEach { assertTrue(it, floue.contains("GenrePlaque.$it to ")) }
         // Classique : les appels en texte restent.
         assertTrue(floue.contains("\"Mémorisez bien tous les objets !\""))
-        assertTrue(source("BlindTestEcrans.kt").contains("Look.gs && b != null && b.waiting && !b.played -> PlaqueAppel(GenrePlaque.BLIND, \"PRÊTS ?\", \"Écoutez bien…\""))
-        assertTrue(source("habillage/BlindTestScenes.kt").contains("if (Look.gs) PlaqueAppel(GenrePlaque.BLIND, \"PRÊTS ?\", \"Écoutez bien…\""))
-        assertTrue(source("habillage/BlindTestScenes.kt").contains("if (Look.gs) TitreBlindTest("))
-        assertTrue(source("GonfleurScreens.kt").contains("PlaqueAppel(GenrePlaque.GONFLEUR, \"TAPEZ !\", \"sur vos tablettes : le premier ballon qui éclate gagne\")"))
+        assertTrue(source("BlindTestEcrans.kt").contains("b != null && b.waiting && !b.played -> PlaqueAppel(GenrePlaque.BLIND, \"PRÊTS ?\", \"Écoutez bien…\""))
+        assertTrue(source("habillage/BlindTestScenes.kt").contains("PlaqueAppel(GenrePlaque.BLIND, \"PRÊTS ?\", \"Écoutez bien…\""))
+        assertTrue(source("habillage/BlindTestScenes.kt").contains("TitreBlindTest(px(76f)"))
+        assertTrue(source("GonfleurScreens.kt").contains("PlaqueAppel(GenrePlaque.GONFLEUR, \"GONFLEZ LE BALLON !\", \"le premier ballon qui éclate gagne\")"))
         assertTrue(source("PatateScreens.kt").contains("PlaqueAppel(GenrePlaque.BOMBE, appel.first, appel.second)"))
         assertTrue(source("habillage/DuelWestern.kt").contains("PlaqueAppel(GenrePlaque.DUEL, \"LA MAIN AU-DESSUS DU BUZZER !\", \"les deux joueurs\""))
         assertTrue(source("habillage/QuiSuisGs.kt").contains("PlaqueAppel(GenrePlaque.QUISUIS, \"BUZZEZ !\""))
+    }
+
+    @Test
+    fun `gonfleur fou - on gonfle au vrai buzzer, jamais un mot sur les tablettes`() {
+        // cedric, 31/10 au soir : ni « Tapez vite sur la tablette ! » en haut, ni « sur vos tablettes » en bas.
+        for (f in listOf("GonfleurScreens.kt", "habillage/Gonfleur.kt")) {
+            val texte = Regex("\"[^\"]*\"").findAll(source(f)).map { it.value.lowercase() }
+            assertTrue(f, texte.none { "tablette" in it || "tapez" in it || "tapé" in it })
+        }
+        assertTrue(source("GonfleurScreens.kt").contains("\"Gonflez le ballon ! Le premier ballon qui éclate gagne !\""))
     }
 
     @Test
@@ -82,5 +92,25 @@ class PlaqueAppelTest {
         val plaque = source("habillage/PlaqueAppel.kt")
         assertTrue(plaque.contains("GenrePlaque.GONFLEUR -> { scaleX = 1f + 0.03f * ecrase; scaleY = 1f - 0.06f * ecrase }"))
         assertTrue(plaque.contains("scaleX = 1f / (1f + 0.03f * ecrase); scaleY = 1f / (1f - 0.06f * ecrase)"))
+    }
+
+    @Test
+    fun `Blind test - les onglets a la taille et a la place de la planche, plus dans la scene qui rapetisse`() {
+        val intro = source("habillage/BlindTestScenes.kt")
+        // Présentation : titre 76 px bord gauche x 400 centre y 222 ; info rose 24 px x 406 y 300 ; « PRÊTS ? » x 400 y 398.
+        assertTrue(intro.contains("if (Look.gs) CalquePlanche(Modifier.matchParentSize())"))
+        assertTrue(intro.contains("TitreBlindTest(px(76f), Modifier.planche(400f, 222f, ancreX = 0f)"))
+        assertTrue(intro.contains("fontSize = pxSp(24f)"))
+        assertTrue(intro.contains("Modifier.planche(406f, 300f, ancreX = 0f)"))
+        assertTrue(intro.contains("Modifier.planche(400f, 398f, ancreX = 0f).apparition(1700, playlist), k = k)"))
+        assertFalse("plus de titre rapetissé avec la scène", intro.contains("TitreBlindTest((76f * 0.75f * ECHELLE_SCENE_BLIND).dp"))
+        // Écoute : « Morceau » x 950 y 226, points y 260 (26 px), l'onglet centré x 950 y 368, à la taille de la planche.
+        val ecoute = source("BlindTestEcrans.kt")
+        assertTrue(ecoute.contains("BlindPanelGs(state, Modifier.matchParentSize())"))
+        assertTrue(ecoute.contains("Modifier.planche(950f, 226f)"))
+        assertTrue(ecoute.contains("Modifier.planche(950f, 260f)"))
+        assertTrue(ecoute.contains("val centre = Modifier.planche(950f, 368f)"))
+        assertEquals(2, Regex("pxSp\\(26f\\)").findAll(ecoute).count())
+        assertTrue(ecoute.contains("PlaqueAppel(GenrePlaque.BLIND, \"BUZZEZ !\", \"dès que vous reconnaissez\\nla chanson\", centre, k = k)"))
     }
 }

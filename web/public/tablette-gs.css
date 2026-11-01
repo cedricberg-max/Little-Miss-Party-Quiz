@@ -357,6 +357,34 @@ body.look-gs:not(.regie-mode) .sp-bulle::after { display: none; }
 body.look-gs:not(.regie-mode) .sp-bandeau { background: none; color: #fff; font-size: clamp(18px, min(4.2vw, 3.4vh), 34px); text-shadow: var(--tg-halo); }
 body.look-gs:not(.regie-mode) .sp-scene-zone { width: min(94vw, calc((100vh - 330px) * 1.48), 900px); }
 
+/* ---------- Écran 9 : Juste Chiffre ---------- */
+/* Juste Chiffre : le nombre tapé brille en or sur le décor (un trait de néon dessous, plus de cadre) ; les touches
+   deviennent des boutons bonbon violets, « ⌫ » en rose, « Valider » en vert comme partout. */
+body.look-gs:not(.regie-mode) #app .number-screen {
+  background: none; border: 0; border-radius: 0; box-shadow: 0 4px 0 -1px var(--gs-cyan), 0 10px 18px -8px var(--gs-cyan);
+  font-family: "GS Orbitron"; color: #fff7a8; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 20px var(--gs-jaune), 0 0 40px var(--gs-jaune);
+}
+/* Touches légères (cedric, 31/10 : « moins chargé, moins les uns sur les autres ») : des ronds de verre violet, chiffres
+   fins et bien espacés, « ⌫ » cerclé de rose. */
+body.look-gs:not(.regie-mode) #app .number-pad { gap: clamp(12px, 2.6vh, 30px) clamp(18px, 5vw, 48px); justify-items: center; width: min(100%, 560px); margin-inline: auto; }
+body.look-gs:not(.regie-mode) #app .number-key {
+  width: clamp(58px, min(19vw, 10.5vh), 128px); min-height: 0; height: auto; aspect-ratio: 1; padding: 0; border-radius: 50%;
+  font-family: "GS Orbitron"; font-weight: 500; font-size: clamp(24px, min(7vw, 4.2vh), 50px); color: #fff;
+  background: radial-gradient(circle at 50% 30%, rgba(190, 150, 255, .38), rgba(110, 40, 220, .22) 70%);
+  border: 2px solid rgba(214, 190, 255, .75); box-shadow: 0 0 14px rgba(139, 44, 255, .35); text-shadow: 0 0 8px rgba(255, 255, 255, .5);
+}
+body.look-gs:not(.regie-mode) #app .number-key[data-key="⌫"] { color: #ffd0e6; border-color: rgba(255, 120, 190, .85); background: radial-gradient(circle at 50% 30%, rgba(255, 140, 200, .32), rgba(255, 45, 149, .18) 70%); box-shadow: 0 0 14px rgba(255, 45, 149, .35); }
+body.look-gs:not(.regie-mode) #app .number-key:active:not(:disabled) { transform: scale(.92); background: var(--team); border-color: #fff; box-shadow: 0 0 24px var(--team); }
+body.look-gs:not(.regie-mode) #app .number-vide { visibility: hidden; }
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .number-pad { gap: 8px 22px; }
+  body.look-gs:not(.regie-mode) #app .number-key { width: clamp(40px, 13vh, 60px); font-size: 22px; }
+}
+body.look-gs:not(.regie-mode) #app .number-send {
+  font-family: "GS Orbitron"; font-weight: 800; color: #fff; border: 0; text-shadow: 0 2px 0 rgba(0, 60, 15, .6);
+  background: linear-gradient(180deg, #9dffad 0%, #2bd94a 45%, #168a2c 100%);
+  box-shadow: 0 6px 0 #0d5a1c, 0 10px 22px rgba(43, 217, 74, .45), inset 0 2px 0 rgba(255, 255, 255, .7);
+}
 /* ---------- Plus grand, plus présent (cedric, 31/10 07:15 : « un petit peu trop minimisé ») ----------
    Tout grossit avec l'écran (hauteur et largeur), sans jamais sortir des marges : Buzzy, nom de l'équipe, titres,
    consignes, points, réponses. Le palier tablette de style.css (#app …) est repris ici pour passer devant. */
@@ -437,8 +465,8 @@ body.look-gs:not(.regie-mode) #app .sm-joueur { align-self: center; justify-self
 body.look-gs:not(.regie-mode) #app .sm-compte { text-align: center; }
 body.look-gs:not(.regie-mode) .sm-suite { justify-content: center; }
 /* De l'air sur les côtés (cedric, 31/10 08:34) : rien ne colle au bord de l'écran, en portrait comme en paysage. */
-/* (Le Simon garde sa marge d'avant : ses boules doivent rester assez grosses pour le doigt, les tests le vérifient.) */
-body.look-gs:not(.regie-mode) #app .screen:not(#screen-simon) { padding-left: max(clamp(32px, 8vw, 96px), env(safe-area-inset-left)); padding-right: max(clamp(32px, 8vw, 96px), env(safe-area-inset-right)); }
+/* Le Simon a les mêmes marges que les autres écrans (cedric, 31/10 12:56). */
+body.look-gs:not(.regie-mode) #app .screen { padding-left: max(clamp(32px, 8vw, 96px), env(safe-area-inset-left)); padding-right: max(clamp(32px, 8vw, 96px), env(safe-area-inset-right)); }
 @media (max-width: 600px) {
   /* Téléphone tenu droit : l'écran est étroit, une marge plus fine suffit. */
   body.look-gs:not(.regie-mode) #app .screen { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
@@ -450,3 +478,110 @@ body.look-gs:not(.regie-mode) #app .screen:not(#screen-simon) { padding-left: ma
   body.look-gs:not(.regie-mode) #app .sm.sm-a-moi .sm-titre { font-size: 22px; }
   body.look-gs:not(.regie-mode) #app .sm-compte { font-size: 17px; }
 }
+/* Pictionary, choix du mot en portrait : les flèches au milieu de l'image (cedric, 31/10 : « trop basses »), plus au
+   milieu de l'image et du mot réunis. Hauteur = marge de la carte + moitié de l'image − moitié de la flèche. */
+@media (orientation: portrait) {
+  body.look-gs:not(.regie-mode) #app .choix-piste { align-items: flex-start; }
+  body.look-gs:not(.regie-mode) #app .choix-fleche { margin-top: calc(18px + min(44vw, 220px) / 2 - clamp(52px, 7vh, 88px) / 2); }
+}
+@media (orientation: portrait) and (min-width: 700px) and (min-height: 700px) {
+  body.look-gs:not(.regie-mode) #app .choix-fleche { margin-top: calc(26px + 160px - clamp(52px, 7vh, 88px) / 2); }
+}
+/* Gonfleur : de l'air au-dessus et au-dessous du bouton GONFLEZ (cedric, 31/10), sans le rapetisser. */
+body.look-gs:not(.regie-mode) #app .gf-pompe { margin-block: clamp(14px, 3.4vh, 46px); white-space: nowrap; }
+body.look-gs:not(.regie-mode) .gf-scene { height: min(28vh, 380px); width: min(80vw, 28vh, 380px); }
+@media (orientation: landscape) {
+  body.look-gs:not(.regie-mode) .gf-scene { height: min(24vh, 380px); width: min(80vw, 24vh, 380px); }
+  body.look-gs:not(.regie-mode) #app .gf-pompe { margin-block: clamp(12px, 3.4vh, 40px); }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  /* Téléphone couché : ballon un peu plus petit pour que le bouton respire et que la consigne reste visible. */
+  body.look-gs:not(.regie-mode) .gf-scene { height: 20vh; width: min(60vw, 20vh); }
+  body.look-gs:not(.regie-mode) #app .gf-pompe { width: 34vh; font-size: 20px; margin-block: 10px; }
+  body.look-gs:not(.regie-mode) #app .gf-titre { font-size: 22px; }
+  body.look-gs:not(.regie-mode) #app .gf-texte { font-size: 17px; }
+}
+/* Accueil, « En attendant le quiz : buzzez… » : le halo sombre des consignes passait PAR-DESSUS l'arc-en-ciel (texte
+   transparent) et le rendait noir. Plus de halo de texte : l'arc-en-ciel garde sa lueur, avec un fin contour sombre. */
+body.look-gs:not(.regie-mode) #app #play-status.fete {
+  text-shadow: none; color: transparent; font-size: clamp(24px, min(6.6vw, 3.8vh), 48px);
+  filter: drop-shadow(0 0 2px rgba(5, 1, 13, .95)) drop-shadow(0 0 6px rgba(255, 255, 255, .45)) drop-shadow(0 0 14px rgba(255, 45, 149, .55));
+}
+/* Simon avec les marges de tous les écrans : en paysage, les boules prennent un peu plus de largeur (colonne de droite
+   plus étroite, boules un peu plus serrées) pour rester aussi grosses qu'avant sous le doigt. */
+body.look-gs:not(.regie-mode) .sm { padding-left: 0; padding-right: 0; }
+body.look-gs:not(.regie-mode) .sm.sm-sans-chiffres .sm-boules { gap: clamp(10px, 2vw, 18px); }
+@media (orientation: landscape) and (min-width: 700px) {
+  body.look-gs:not(.regie-mode) .sm.sm-a-moi.sm-sans-chiffres { grid-template-columns: 1.9fr 1fr; }
+  body.look-gs:not(.regie-mode) .sm.sm-sans-chiffres .sm-boules { gap: clamp(10px, 1.4vw, 18px); }
+}
+/* Ça va exploser, téléphone couché avec 6 à 8 équipes : deux colonnes de boutons plus bas, tout tient sans défiler. */
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .pc.pc-chez-moi .pc-equipes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
+  body.look-gs:not(.regie-mode) #app .pc-equipe { min-height: 46px; font-size: 16px; padding: 2px 8px; }
+  body.look-gs:not(.regie-mode) #app .pc-equipe small { font-size: 11px; }
+}
+/* Statues musicales (cedric, 31/10, choix A) : un gros mot néon qui bouge — « DANSE ! » vert qui se dandine,
+   « STATUE ! » cyan figé qui scintille — et une petite phrase dessous. */
+body.look-gs:not(.regie-mode) #app .statues-mot {
+  font-family: "GS Bungee"; font-weight: 400; font-size: clamp(54px, min(15vw, 11vh), 150px); line-height: 1.05; letter-spacing: .02em;
+  margin-bottom: .1em;
+}
+body.look-gs:not(.regie-mode) #app .statues-danse {
+  color: #eaffef; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 8px #fff, 0 0 24px var(--gs-vert), 0 0 52px var(--gs-vert);
+  animation: tg-danse .9s ease-in-out infinite;
+}
+body.look-gs:not(.regie-mode) #app .statues-fige {
+  color: #e9feff; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 8px #fff, 0 0 24px var(--gs-cyan), 0 0 52px var(--gs-cyan);
+  animation: tg-fige .35s steps(1) 1, tg-scintille 2.4s ease-in-out .35s infinite;
+}
+body.look-gs:not(.regie-mode) #app .statues-phrase { font-size: clamp(20px, min(5vw, 3.8vh), 40px); color: #fff; text-shadow: var(--tg-halo); max-width: 22em; margin-inline: auto; }
+@keyframes tg-danse { 0%, 100% { transform: rotate(-5deg) translateY(0) scale(1); } 25% { transform: rotate(0) translateY(-6%) scale(1.06); } 50% { transform: rotate(5deg) translateY(0) scale(1); } 75% { transform: rotate(0) translateY(-6%) scale(1.06); } }
+@keyframes tg-fige { 0% { transform: scale(1.25); } }
+@keyframes tg-scintille { 0%, 100% { opacity: 1; } 50% { opacity: .82; } }
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .statues-mot { font-size: 56px; }
+  body.look-gs:not(.regie-mode) #app .statues-phrase { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) { body.look-gs:not(.regie-mode) #app .statues-mot { animation: none; } }
+/* Chante le mot ! : le mot de la TV en néon rose sur la tablette (cedric, 31/10), comme le mot secret du Pictionary. */
+body.look-gs:not(.regie-mode) #app .chante-mot {
+  font-family: "GS Bungee"; font-weight: 400; font-size: clamp(38px, min(11vw, 7.4vh), 96px); text-transform: uppercase; max-width: 100%;
+  color: #ffe3f1; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 6px #fff, 0 0 22px var(--gs-rose), 0 0 44px var(--gs-rose);
+}
+@media (orientation: landscape) and (max-height: 520px) { body.look-gs:not(.regie-mode) #app .chante-mot { font-size: 34px; } }
+/* Juste Chiffre en paysage (cedric, 31/10) : les touches aussi denses qu'en portrait (le décor derrière est plus clair),
+   et les mêmes écarts dans les deux sens (avant : trop large de gauche à droite, trop serré de haut en bas). */
+@media (orientation: landscape) {
+  body.look-gs:not(.regie-mode) #app .number-pad { grid-template-columns: repeat(3, auto); justify-content: center; width: auto; gap: clamp(10px, 2.6vh, 26px); }
+  body.look-gs:not(.regie-mode) #app .number-key { width: clamp(46px, 11.5vh, 104px); font-size: clamp(22px, 5vh, 46px);
+    background: radial-gradient(circle at 50% 30%, rgba(200, 165, 255, .55), rgba(120, 50, 230, .42) 70%); border-color: rgba(224, 205, 255, .9); }
+  body.look-gs:not(.regie-mode) #app .number-key[data-key="⌫"] { background: radial-gradient(circle at 50% 30%, rgba(255, 150, 205, .5), rgba(255, 45, 149, .36) 70%); }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .number-pad { gap: 8px; }
+  body.look-gs:not(.regie-mode) #app .number-key { width: clamp(40px, 13vh, 60px); font-size: 22px; }
+}
+/* Pictionary : la flèche bien au centre de sa bulle (cedric, 31/10) ; le caractère ‹ › de la police tombait de côté,
+   la flèche est maintenant dessinée (un chevron), toujours pile au milieu. */
+body.look-gs:not(.regie-mode) #app .choix-fleche { position: relative; padding: 0; font-size: 0; line-height: 0; }
+body.look-gs:not(.regie-mode) #app .choix-fleche::before {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 30%; height: 30%; border: solid #fff; border-width: 0 0 4px 4px; border-radius: 2px;
+  filter: drop-shadow(0 2px 0 rgba(120, 0, 60, .6)); transform: translate(-32%, -50%) rotate(45deg);
+}
+body.look-gs:not(.regie-mode) #app .choix-fleche[data-sens="1"]::before { transform: translate(-68%, -50%) rotate(-135deg); }
+/* Mimes, c'est le tour de l'équipe : « C'est votre tour ! » en gros néon jaune qui pulse, la consigne en dessous. */
+body.look-gs:not(.regie-mode) #app .mimes-titre {
+  font-family: "GS Bungee"; font-weight: 400; font-size: clamp(40px, min(11vw, 8vh), 104px); line-height: 1.05; margin-bottom: .15em;
+  color: #fff7c2; text-shadow: 0 0 2px rgba(5, 1, 13, .9), 0 0 8px #fff, 0 0 24px var(--gs-jaune), 0 0 50px var(--gs-jaune);
+  animation: tg-pulse 1.6s ease-in-out infinite;
+}
+body.look-gs:not(.regie-mode) #app .mimes-phrase { font-size: clamp(22px, min(5.6vw, 4.2vh), 44px); color: #fff; text-shadow: var(--tg-halo); max-width: 20em; margin-inline: auto; }
+@keyframes tg-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@media (orientation: landscape) and (max-height: 520px) {
+  body.look-gs:not(.regie-mode) #app .mimes-titre { font-size: 40px; }
+  body.look-gs:not(.regie-mode) #app .mimes-phrase { font-size: 19px; }
+}
+@media (prefers-reduced-motion: reduce) { body.look-gs:not(.regie-mode) #app .mimes-titre { animation: none; } }
+/* Simon : encore un peu d'air entre les boules et le bord (cedric, 31/10), en plus des marges de tous les écrans. */
+body.look-gs:not(.regie-mode) #app .sm-boules { padding-inline: clamp(6px, 1.2vw, 12px); box-sizing: border-box; }

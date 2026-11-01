@@ -16,9 +16,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -29,13 +27,14 @@ import com.littlemissparty.quiz.engine.CHEST_RANKING_MS
 import com.littlemissparty.quiz.engine.CHEST_SHOW_MS
 import com.littlemissparty.quiz.engine.ChestOpen
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.tv.habillage.HALO_DECOR
 import com.littlemissparty.quiz.tv.habillage.AlerteBombe
 import com.littlemissparty.quiz.tv.habillage.BilanBombe
 import com.littlemissparty.quiz.tv.habillage.ClassementCoffre
 import com.littlemissparty.quiz.tv.habillage.ClassementCoffreGs
 import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.Look
-import com.littlemissparty.quiz.tv.habillage.LignePortes
+import com.littlemissparty.quiz.tv.habillage.LigneClassement
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.OuvertureCoffre
 import com.littlemissparty.quiz.tv.habillage.PoliceGsTitre
@@ -114,11 +113,12 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
                 Text(
                     bas,
                     // Texte long : un peu plus petit, pour tenir sur une ligne à côté du bouton de secours.
-                    // Game Show : en néon cyan (Bungee), comme l'enseigne du tour au-dessus.
+                    // Game Show : en cyan (Bungee), comme l'enseigne du tour au-dessus, détaché du plateau par le halo noir
+                    // doux du Chrono (tour des écrans du 1/11 : « ENCORE » se perdait dans un reflet blanc du sol).
                     style = if (Look.gs) TextStyle(
                         fontFamily = PoliceGsTitre, textAlign = TextAlign.Center, color = GS.CyanClair,
                         fontSize = when { bas.length > 46 -> 17.sp; bas.length > 32 -> 20.sp; else -> 23.sp },
-                        shadow = Shadow(GS.Cyan, Offset.Zero, 16f),
+                        shadow = HALO_DECOR,
                     ) else styleCentre(if (bas.length > 46) 22.sp else 26.sp, Neon.OrClair),
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
@@ -165,11 +165,11 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
  * Le classement juste après le coffre [o] : les scores d'avant (sans le coffre) et d'après, et les rangs. À égalité,
  * l'ancien rang départage, puis l'ordre des équipes.
  */
-private fun lignesClassement(state: UiState.Playing, o: ChestOpen): List<LignePortes> {
+private fun lignesClassement(state: UiState.Playing, o: ChestOpen): List<LigneClassement> {
     val equipes = state.teams
     val apres = equipes.map { state.scores[it.uid] ?: 0 }
     val avant = equipes.mapIndexed { i, t -> apres[i] - if (t.uid == o.team) o.delta else 0 }
     val rangsAvant = rangs(avant)
     val rangsApres = rangs(apres, rangsAvant)
-    return equipes.mapIndexed { i, t -> LignePortes(t.name, t.color.toColor(), avant[i], apres[i], rangsAvant[i] + 1, rangsApres[i] + 1) }
+    return equipes.mapIndexed { i, t -> LigneClassement(t.name, t.color.toColor(), avant[i], apres[i], rangsAvant[i] + 1, rangsApres[i] + 1) }
 }

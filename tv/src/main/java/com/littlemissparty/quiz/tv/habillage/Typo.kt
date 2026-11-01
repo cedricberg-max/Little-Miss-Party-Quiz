@@ -113,7 +113,7 @@ fun Modifier.boutonNeonDore(focus: Boolean, forme: Shape = RoundedCornerShape(18
     if (focus) {
         shadow(18.dp, forme, ambientColor = Neon.Or, spotColor = Neon.Or).clip(forme).background(Neon.Or).border(4.dp, Neon.Blanc, forme)
     } else {
-        shadow(10.dp, forme, ambientColor = Neon.Or, spotColor = Neon.Or).clip(forme).background(Neon.Nuit2.copy(alpha = 0.85f)).border(3.dp, Neon.Or, forme)
+        shadow(10.dp, forme, ambientColor = Neon.Or, spotColor = Neon.Or).clip(forme).background(Neon.Plaque).border(3.dp, Neon.Or, forme)
     }
 
 fun couleurTexteNeonDore(focus: Boolean): Color = if (focus) Neon.Nuit else Neon.OrClair

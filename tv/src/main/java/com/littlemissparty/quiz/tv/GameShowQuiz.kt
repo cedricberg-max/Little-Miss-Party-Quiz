@@ -216,7 +216,10 @@ internal fun TeamStatusGs(
         cadre.padding(horizontal = if (compacte) 8.dp else 12.dp, vertical = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(team.name, color = GS.Encre, fontSize = taille, fontWeight = FontWeight.Bold, fontFamily = PoliceGsTexte, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Jamais « … » (tour des écrans à 4 équipes, 31/10 : « Les Comètes Fila… ») : le nom rapetisse un peu s'il ne tient pas.
+        UneLigneQuiTient(echelleMin = 0.6f) {
+            Text(team.name, color = GS.Encre, fontSize = taille, fontWeight = FontWeight.Bold, fontFamily = PoliceGsTexte, maxLines = 1, softWrap = false)
+        }
         Statut()
     }
 }

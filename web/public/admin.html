@@ -36,6 +36,11 @@
       </form>
     </section>
 
+    <!-- Mode « carte » (cedric, 30/10) : la carte de réglage d'un jeu, ouverte par la régie téléphone dans « ＋ Jeu ». -->
+    <section id="screen-carte" class="screen" hidden>
+      <div id="carte-jeu" class="carte-jeu"><p class="hint">Chargement de la bibliothèque…</p></div>
+    </section>
+
     <!-- Tableau de bord : page d'accueil de l'administration. -->
     <section id="screen-home" class="screen" hidden>
       <div class="hero">
@@ -132,6 +137,8 @@
         <p id="show-summary" class="hint"></p>
         <ul id="show-problems" class="problems"></ul>
         <label class="wide">Notes pour l'animatrice<textarea id="show-notes" rows="3" maxlength="2000"></textarea></label>
+        <label class="wide">Défis de la pause en plus pour cette fête (un par ligne, [prénom] pour le prénom)<textarea id="show-defis" rows="3" maxlength="3700" placeholder="Tout le monde imite un lion !"></textarea></label>
+        <p class="hint">Pendant la pause, la TV tire au hasard parmi les 7 défis de base et ceux-ci. Sarah peut en ajouter pendant la fête (téléphone, onglet « Défis »).</p>
         <!-- « Enregistrer » du bas : dans la barre qui suit l'écran, à gauche d'« Annuler les modifications » et de « ← Retour » (admin.js). -->
         <button id="show-save" class="btn" type="submit" form="show-form">Enregistrer</button>
         <p id="show-status-msg" class="status"></p>
@@ -278,22 +285,22 @@
       <div id="game-tabs" class="chips game-tabs"></div>
       <p id="game-manche-hint" class="hint small"></p>
       <div class="search-row">
-        <input id="manche-search" type="search" placeholder="Rechercher : nom, contenu, note…" aria-label="Rechercher une manche" autocomplete="off">
+        <input id="manche-search" type="search" placeholder="Rechercher : nom, contenu, note…" aria-label="Rechercher un jeu" autocomplete="off">
         <span id="manche-search-count" class="hint small"></span>
       </div>
       <div id="manches-pinned-box" hidden>
-        <h2>⭐ Manches épinglées</h2>
+        <h2>⭐ Jeux épinglés</h2>
         <div id="manches-pinned" class="cards"></div>
       </div>
-      <h2>Mes manches</h2>
+      <h2>Mes jeux gardés</h2>
       <div id="manches-list" class="cards"></div>
       <details id="manches-archived-box" class="panel">
-        <summary>Manches archivées (<span id="manches-archived-count">0</span>)</summary>
+        <summary>Jeux archivés (<span id="manches-archived-count">0</span>)</summary>
         <div id="manches-archived" class="cards"></div>
       </details>
       <details id="manches-shows-box" class="panel" open>
         <summary>Historique : joué dans les prestations (<span id="manches-shows-count">0</span>)</summary>
-        <p class="hint small">Chaque manche de ce jeu dans vos prestations, les plus récentes d'abord. Une ancienne manche pas encore gardée : « Garder comme manche » l'ajoute à vos manches.</p>
+        <p class="hint small">Chaque fois que ce jeu a été joué dans vos prestations, les plus récentes d'abord. Un ancien jeu pas encore gardé : « Garder ce jeu » l'ajoute à vos jeux gardés.</p>
         <div id="manches-shows" class="cards"></div>
       </details>
       <p id="game-status" class="status"></p>
@@ -301,9 +308,9 @@
 
     <!-- Une manche : son nom, le tirage au hasard dans les collections, son contenu et ses réglages. -->
     <section id="screen-manche-edit" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button id="manche-crumb" class="link" type="button">Jeu</button> › <b id="manche-edit-title">Nouvelle manche</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button id="manche-crumb" class="link" type="button">Jeu</button> › <b id="manche-edit-title">Nouveau jeu</b></nav>
       <div class="panel grid">
-        <label class="wide">Nom de la manche<input id="manche-title" maxlength="60" placeholder="Mimes des animaux"></label>
+        <label class="wide">Nom du jeu<input id="manche-title" maxlength="60" placeholder="Mimes des animaux"></label>
       </div>
       <div id="manche-random-box" class="panel">
         <p class="label">🎲 Tirer au hasard dans les collections</p>
@@ -394,7 +401,7 @@
       </div>
       <p class="hint">
         Le catalogue intégré (animaux, métiers, sports…) est toujours disponible. Ajoutez ici vos propres collections de cartes :
-        elles apparaissent comme catégories quand vous composez une manche de mimes.
+        elles apparaissent comme catégories quand vous composez un jeu de mimes.
       </p>
       <div id="mime-list" class="cards"></div>
     </section>
@@ -501,7 +508,7 @@
         </div>
         <p id="statues-hint" class="hint small" hidden>
           Le titre est deviné depuis le nom du fichier : corrigez-le si besoin. Choisissez avec le curseur le passage gardé
-          (1 minute ou 1 min 30, réglable chanson par chanson) et écoutez-le avant d'enregistrer. Dans chaque manche, vous cochez
+          (1 minute ou 1 min 30, réglable chanson par chanson) et écoutez-le avant d'enregistrer. Dans chaque jeu, vous cochez
           les chansons à jouer, celles de cette liste ou de n'importe quelle playlist : la TV les joue l'une après l'autre.
         </p>
         <p id="playlist-hint" class="hint small">
@@ -607,7 +614,7 @@
       <div class="panel" id="sauvegarde-panel">
       <h2>Sauvegarde</h2>
       <p class="hint">
-        Télécharge sur ce PC un fichier avec les prestations, les manches, les quiz, les playlists, les mimes, les fiches
+        Télécharge sur ce PC un fichier avec les prestations, les jeux gardés, les quiz, les playlists, les mimes, les fiches
         des chansons, les paroles et les fiches des images. Les fichiers des images et des sons ne sont pas dedans
         (trop lourds) : ils ne bougent pas. Rien n'est modifié en ligne.
       </p>

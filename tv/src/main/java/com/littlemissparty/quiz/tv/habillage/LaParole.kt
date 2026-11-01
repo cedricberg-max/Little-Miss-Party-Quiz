@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import com.littlemissparty.quiz.tv.UneLigneQuiTient
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -34,7 +35,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -172,5 +172,7 @@ internal fun NomUneLigne(texte: String, couleur: Color, tailleMax: Float, largeu
         while (s > tailleMin && mesure.measure(texte, style(s), maxLines = 1, softWrap = false).size.width > maxPx) s *= 0.92f
         s
     }
-    Text(texte, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, style = style(taille))
+    // Jamais « … » (tour des écrans, 31/10) : si la police arrive après le calcul de la taille et que le nom ne tient
+    // plus, la ligne rapetisse un peu au lieu d'être coupée.
+    UneLigneQuiTient(echelleMin = 0.6f) { Text(texte, maxLines = 1, softWrap = false, style = style(taille)) }
 }

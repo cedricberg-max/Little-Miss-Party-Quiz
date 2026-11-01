@@ -134,6 +134,14 @@ class PodiumGameShowTest {
     }
 
     @Test
+    fun `nom sur deux lignes a peu pres egales, un seul mot reste entier`() {
+        assertEquals("Les Panthères\nNoires", nomSurDeuxLignes("Les Panthères Noires"))
+        assertEquals("Les Pirates\ndu Lac", nomSurDeuxLignes("Les Pirates du Lac"))
+        assertEquals("Licornes", nomSurDeuxLignes("  Licornes "))
+        assertEquals("Les\nRoses", nomSurDeuxLignes("Les  Roses"))
+    }
+
+    @Test
     fun `de 1 a 8 equipes, les tubes et leurs noms tiennent a l'ecran sans se toucher ni cacher le robot`() {
         for (n in 1..8) {
             val p = dispositionTubes(n)
@@ -145,14 +153,14 @@ class PodiumGameShowTest {
                 assertTrue("$n : nom hors écran", it.centre - it.placeNom / 2 >= 7.9f && it.centre + it.placeNom / 2 <= 952.1f)
                 assertTrue(it.echelle in 0.5f..1.15f)
             }
-            // Deux tubes voisins ne se touchent pas ; deux noms sur la même ligne non plus.
+            // Deux tubes voisins ne se touchent pas ; chaque nom reste sous son tube, sans toucher celui du voisin.
             val tries = p.sortedBy { it.centre }
             tries.zipWithNext { a, b -> assertTrue("$n : tubes collés", b.centre - a.centre >= (a.largeur + b.largeur) / 2 + 8f) }
-            for (ligne in listOf(true, false)) {
-                p.filter { it.decale == ligne }.sortedBy { it.centre }.zipWithNext { a, b ->
-                    assertTrue("$n : noms qui se chevauchent", b.centre - a.centre >= (a.placeNom + b.placeNom) / 2 - 0.01f)
-                }
+            tries.zipWithNext { a, b ->
+                assertTrue("$n : noms qui se chevauchent", b.centre - a.centre >= (a.placeNom + b.placeNom) / 2 - 0.01f)
             }
+            // 3 et 4 tubes par côté : tous les noms sur deux lignes (audit du 31/10, choix A), plus de noms décalés.
+            assertTrue(p.all { it.deuxLignes == (n >= 5) })
         }
         // Moitié (arrondie au-dessus) à gauche de l'arche, le reste à droite.
         assertEquals(4, dispositionTubes(7).count { it.centre < 480f })
@@ -271,5 +279,20 @@ class PodiumGameShowTest {
         assertFalse(podiumSansVideos)
         val appli = File("src/main/java").walkTopDown().filter { it.extension == "kt" }.map { it.readText() }
         assertTrue(appli.none { it.contains("podiumSansVideos = true") })
+    }
+
+    @Test
+    fun `les noms sous les tubes ont tous la meme taille, celle du nom le plus serre`() {
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/PodiumGameShow.kt").readText()
+        assertTrue(source.contains("places.indices.minOfOrNull { k -> tailleNomTube(textes[k], places[k], mesure, densite) }"))
+    }
+
+    @Test
+    fun `la bande du nom du gagnant reste dans l'ecran, filigrane et points compris`() {
+        // Tour des écrans à 5 équipes (31/10) : la bande de 230 dp dépassait le bas de l'écran de 2,5 dp.
+        val source = File("src/main/java/com/littlemissparty/quiz/tv/habillage/PodiumGameShow.kt").readText()
+        assertTrue(source.contains("val ligneNom = if (classement.size >= 6) 439.dp else 452.5.dp"))
+        assertTrue(452.5f - 140f + NOM_BANDE_DP <= 540f)
+        assertTrue(NOM_BANDE_DP >= 140f + POINTS_SOUS_NOM_DP + 14f)
     }
 }

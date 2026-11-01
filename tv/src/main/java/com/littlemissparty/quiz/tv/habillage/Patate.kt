@@ -12,12 +12,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
+import com.littlemissparty.quiz.tv.TexteAjuste
+import com.littlemissparty.quiz.tv.UneLigneQuiTient
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -59,6 +64,9 @@ import kotlin.math.sin
  */
 
 private val jouerSonPatate: (Son) -> Unit = { Sons.executer(listOf(Ordre.Jouer(it))) }
+
+/** Halo noir doux du Chrono ([HALO_DECOR]), un peu plus large pour les très grandes lettres du BOUM. */
+internal val HALO_BOUM = Shadow(Color.Black, Offset.Zero, 30f)
 
 private val stylePatate = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontWeight = FontWeight.ExtraBold)
 
@@ -285,7 +293,11 @@ fun ScenePatate(
                 for (k in 0 until 8) {
                     val a = -PI.toFloat() / 2 + (k - 3.5f) * 0.35f
                     val f = Offset(c.x + cos(a) * 110f * b * d, c.y + sin(a) * 90f * b * d - 40f * b * d)
-                    drawCircle(Color(0xFF3A2E48).copy(alpha = (0.75f - 0.5f * b).coerceIn(0f, 1f)), (28f + 10f * (k % 3)) * d * (0.5f + b), f)
+                    // Bouffées douces qui s'effacent complètement : plus de gros ronds gris restés au fond du décor
+                    // après le BOUM (cedric, 31/10 au soir).
+                    val rf = (28f + 10f * (k % 3)) * d * (0.5f + b)
+                    val af = fumeeBoum(b)
+                    if (af > 0f) drawCircle(Brush.radialGradient(listOf(Color(0xFF3A2E48).copy(alpha = af), Color(0xFF3A2E48).copy(alpha = af * 0.5f), Color.Transparent), f, rf), rf, f)
                 }
                 // Éclats dorés projetés tout autour.
                 if (b < 0.7f) for (k in 0 until 18) {
@@ -304,12 +316,23 @@ fun ScenePatate(
             val (x, y, s) = placePatate(i, n)
             val larg = (780f / n - 6f).coerceAtMost(200f)
             Column(Modifier.offset(x = (x - larg / 2).dp, y = (y + 22f * s).dp).width(larg.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    nom, maxLines = if (n > 5) 2 else 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
-                        .border(if (i == p) 3.dp else 2.dp, couleur, RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
-                    style = stylePatate.copy(fontSize = if (n > 5) 12.sp else 16.sp, lineHeight = 1.1.em, color = Neon.Blanc),
-                )
+                // 6 à 8 équipes (audit du 31/10, choix A de cedric) : étiquette au contour de l'équipe, le nom plus grand, sur
+                // deux lignes, la même taille d'étiquette pour toutes ; il rapetisse un peu plutôt que d'être coupé.
+                if (n > 5) ProvideTextStyle(stylePatate) {
+                    TexteAjuste(
+                        nom, color = Neon.PlaqueTexte, max = 16.sp, min = 11.sp, lignes = 2, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth().height(46.dp).background(Neon.Plaque, RoundedCornerShape(12.dp))
+                            .border(if (i == p) 3.dp else 2.dp, couleur, RoundedCornerShape(12.dp)).padding(horizontal = 5.dp, vertical = 3.dp),
+                    )
+                } else UneLigneQuiTient {
+                    // 1 à 5 équipes : une ligne, l'étiquette rapetisse un peu plutôt que de couper un nom long (tour du 31/10).
+                    Text(
+                        nom, maxLines = 1, softWrap = false, textAlign = TextAlign.Center,
+                        modifier = Modifier.background(Neon.Plaque, RoundedCornerShape(12.dp))
+                            .border(if (i == p) 3.dp else 2.dp, couleur, RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
+                        style = stylePatate.copy(fontSize = 16.sp, lineHeight = 1.1.em, color = Neon.PlaqueTexte),
+                    )
+                }
                 if (i == precedent && i != p && !explosion) {
                     Text("vient de l'envoyer", maxLines = 2, textAlign = TextAlign.Center, style = stylePatate.copy(fontSize = 12.sp, lineHeight = 1.05.em, color = Neon.Blanc.copy(alpha = 0.6f)))
                 }
@@ -325,7 +348,7 @@ fun ScenePatate(
                         val sc = if (u <= 0f) 0.5f else rebondSortie(u)
                         scaleX = sc; scaleY = sc
                     }
-                    .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(3.dp, couleurP, RoundedCornerShape(50))
+                    .background(Neon.Plaque, RoundedCornerShape(50)).border(3.dp, couleurP, RoundedCornerShape(50))
                     .padding(horizontal = 26.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -343,16 +366,17 @@ fun ScenePatate(
                 },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("BOUM !", maxLines = 1, style = stylePatate.copy(fontSize = 80.sp, color = Color(0xFFFFB347), shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 4f), 14f)))
+                // « BOUM ! » et les points perdus détachés du décor par le halo noir doux du Chrono (cedric, 31/10 : ils se fondaient).
+                Text("BOUM !", maxLines = 1, style = stylePatate.copy(fontSize = 80.sp, color = Color(0xFFFFB347), shadow = HALO_BOUM))
                 Text(
                     "La bombe a explosé chez $nomP !", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(3.dp, couleurP, RoundedCornerShape(50)).padding(horizontal = 24.dp, vertical = 5.dp),
+                    modifier = Modifier.background(Neon.Plaque, RoundedCornerShape(50)).border(3.dp, couleurP, RoundedCornerShape(50)).padding(horizontal = 24.dp, vertical = 5.dp),
                     style = stylePatate.copy(fontSize = 30.sp, color = couleurP),
                 )
                 if (pointsPerdus != null) {
                     Text(
                         texteValeur(pointsPerdus) + " POINTS", maxLines = 1,
-                        style = stylePatate.copy(fontSize = 54.sp, color = Color(0xFFFF5A5F), shadow = Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 4f), 16f)),
+                        style = stylePatate.copy(fontSize = 54.sp, color = Color(0xFFFF5A5F), shadow = HALO_BOUM),
                     )
                 }
             }
@@ -394,7 +418,7 @@ fun AnnonceBombe(numero: Int, total: Int, modifier: Modifier = Modifier, jouer: 
                 val sc = if (u <= 0f) 0.5f else rebondSortie(u); scaleX = sc; scaleY = sc
             }
                 // Sur un panneau : le message ne chevauche jamais les socles ni les noms des équipes.
-                .background(Neon.Nuit2.copy(alpha = 0.94f), RoundedCornerShape(32.dp)).border(3.dp, Color(0xFFFFB347), RoundedCornerShape(32.dp))
+                .background(Neon.Plaque, RoundedCornerShape(32.dp)).border(3.dp, Color(0xFFFFB347), RoundedCornerShape(32.dp))
                 .padding(horizontal = 48.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -440,3 +464,6 @@ fun MusiquePatate(deadline: Long?, depart: Long, decalage: Long, brule: Boolean)
     }
     DisposableEffect(Unit) { onDispose { Sons.calerSur(Son.PATATE_MUSIQUE, 0, joue = false) } }
 }
+
+/** Opacité de la fumée du BOUM selon l'avancée [b] (0 à 1) : épaisse au départ, plus rien à la fin. */
+internal fun fumeeBoum(b: Float): Float = (0.7f * (1f - b / 0.85f)).coerceIn(0f, 0.7f)

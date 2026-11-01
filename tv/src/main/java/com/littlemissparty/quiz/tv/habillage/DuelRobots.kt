@@ -195,7 +195,7 @@ private fun Pan(modifier: Modifier, cle: Any?) {
     Text("PAN !", maxLines = 1, softWrap = false, modifier = modifier.apparition(0, cle), style = titre(260.sp))
 }
 
-/** Le nom de l'équipe et le joueur appelé, sur une plaque à sa couleur. */
+/** Le nom de l'équipe, sur une plaque à sa couleur (plus de « joueur n° », cedric 31/10). */
 @Composable
 private fun Plaque(e: EquipeDuel, gagne: Boolean) {
     Column(
@@ -206,7 +206,6 @@ private fun Plaque(e: EquipeDuel, gagne: Boolean) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         NomUneLigne(e.nom.ifBlank { "Équipe" }, e.couleur, 52f, 460.dp)
-        Text("JOUEUR N° ${e.joueur}", maxLines = 1, softWrap = false, style = styleCentre(26.sp, Color.White))
     }
 }
 
