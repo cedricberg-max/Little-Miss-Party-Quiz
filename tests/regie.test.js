@@ -6659,13 +6659,10 @@ describe("bibliothèque de quiz et prestations", () => {
     let page = await ouvrir(2560, 1080);
     const [g, d] = await buzzy(page);
     assert.ok(g.visible && d.visible, "deux Buzzy");
-    assert.ok(g.opacite >= 0.25 && g.opacite <= 0.6, `présence ${g.opacite}`);
+    assert.ok(g.opacite >= 0.45 && g.opacite <= 0.6, `présence ${g.opacite} (niveau 2 choisi)`);
     assert.ok(g.gauche >= 0 && g.droite <= g.mainG, "Buzzy de gauche dans la bande de gauche");
     assert.ok(d.gauche >= d.mainD && d.droite <= d.large, "Buzzy de droite dans la bande de droite");
-    assert.ok(g.droite - g.gauche >= 400, `assez gros (${g.droite - g.gauche}px)`);
-    await page.context().close();
-    page = await ouvrir(2560, 1080, "&buzzy=fort");
-    assert.ok((await buzzy(page))[0].opacite > g.opacite, "?buzzy=fort : plus présent");
+    assert.ok(g.droite - g.gauche >= 600, `assez gros (${g.droite - g.gauche}px)`);
     await page.context().close();
     // Écran moyen : pas la place, pas de Buzzy.
     page = await ouvrir(1440, 900);
