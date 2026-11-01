@@ -1,0 +1,6 @@
+PORTES|p-juste|question|9927 ms après le début du film
+PORTES|p-juste|question|9928 ms après le début du film
+PORTES|p-mime|question|10662 ms après le début du film
+PORTES|p-mime|question|10662 ms après le début du film
+PORTES|p-vf|question|4676 ms après le début du film
+PORTES|p-vf|question|4676 ms après le début du film
