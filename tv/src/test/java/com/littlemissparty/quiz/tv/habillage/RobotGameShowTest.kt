@@ -97,6 +97,28 @@ class RobotGameShowTest {
     }
 
     @Test
+    fun `dans les coins, Buzzy est coupe d'environ 15 pour cent par le bord, plus de 30 a 43 (choix C, point 52, 1-11)`() {
+        // Position de repos (milieu du clip) mesurée sur la partie visible de chaque clip : tête, salto, cœur, confettis,
+        // ola, tourne et énergie passent de 0,96-0,97 à 0,852 ; la danse des scores de 0,04 à 0,096.
+        fun repos(fichier: String, moment: MomentRobot): Float {
+            val c = CATALOGUE.first { it.fichier == fichier && it.moment == moment }
+            return c.trajet.a(c.trajet.totalMs / 2f).first
+        }
+        assertEquals(0.852f, repos("gs_robot_tete", MomentRobot.TETE), 1e-3f)
+        assertEquals(0.855f, repos("gs_robot_salto", MomentRobot.TOUS), 1e-3f)
+        assertEquals(0.852f, repos("gs_robot_coeur", MomentRobot.TOUS), 1e-3f)
+        assertEquals(0.852f, repos("gs_robot_confettis", MomentRobot.BONUS), 1e-3f)
+        assertEquals(0.875f, repos("gs_robot_bravo", MomentRobot.TOUS), 1e-3f)
+        assertEquals(0.88f, repos("gs_robot_courtcircuit", MomentRobot.MALUS), 1e-3f)
+        assertEquals(0.096f, repos("gs_robot_danse", MomentRobot.SCORES), 1e-3f)
+        // Plus aucun clip posé à 0,96 ou plus contre le bord droit (ni à 0,04 contre le gauche).
+        for (c in CATALOGUE.filter { it.moment != MomentRobot.MANCHE && it.moment != MomentRobot.PAUSE }) {
+            val x = c.trajet.a(c.trajet.totalMs / 2f).first
+            assertTrue("$c au repos à $x", x !in 0.955f..0.99f && x !in 0.01f..0.05f)
+        }
+    }
+
+    @Test
     fun `pendant la pause, les numeros se suivent sans jamais repeter le dernier`() {
         val tirage = TirageRobot(Random(3))
         val n = CATALOGUE.count { it.moment == MomentRobot.PAUSE }
