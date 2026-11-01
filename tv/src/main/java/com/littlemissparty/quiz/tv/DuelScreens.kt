@@ -161,11 +161,9 @@ fun DuelScreen(state: UiState.Playing, actions: TvActions) {
         // Mode manuel (cedric, 1/11) : rien de prévu (total 0), juste le numéro du duel.
         val enPlus = d != null && state.duelTotal > 0 && (d.extra || d.n > state.duelTotal)
         val textes = TextesDuel(
-            pastille = "🤠 LE DUEL DES ROBOTS " + when {
-                enPlus -> "EN PLUS"
-                state.duelTotal == 0 -> "N° ${d?.n ?: 1}"
-                else -> "${d?.n} / ${state.duelTotal}"
-            },
+            // Plus de pastille « LE DUEL DES ROBOTS 1 / 9 » en haut à gauche (cedric, 1/11 au soir : « n'a absolument rien
+            // à faire là ») : le numéro du duel est dans l'annonce « DUEL N° … ».
+            pastille = "",
             annonce = if (enPlus) "DUEL EN PLUS" else "DUEL N° ${d?.n}",
             consigne = when (etape) {
                 EtapeDuel.PRET -> "Les deux joueurs, la main au-dessus du buzzer !"

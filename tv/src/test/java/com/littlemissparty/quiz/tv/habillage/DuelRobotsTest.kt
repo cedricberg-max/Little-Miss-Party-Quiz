@@ -96,4 +96,13 @@ class DuelRobotsTest {
             assertTrue("portrait $nom", java.io.File("src/main/res/drawable-nodpi/gs_duel_portrait_$nom.webp").isFile)
         }
     }
+    /** Cedric, 1/11 au soir : la pastille « LE DUEL DES ROBOTS 2 / 9 » en haut à gauche « n'a absolument rien à faire là ». */
+    @Test
+    fun `plus de pastille du numero de duel en haut a gauche`() {
+        val code = java.io.File("src/main/java/com/littlemissparty/quiz/tv/DuelScreens.kt").readText()
+        org.junit.Assert.assertTrue(code.contains("pastille = \"\","))
+        org.junit.Assert.assertFalse(code.contains("\"🤠 LE DUEL DES ROBOTS \" +"))
+        val western = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/DuelWestern.kt").readText()
+        org.junit.Assert.assertTrue(western.contains("if (textes.pastille.isNotBlank()) Pastille("))
+    }
 }
