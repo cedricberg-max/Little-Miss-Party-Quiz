@@ -33,11 +33,13 @@ export function barresRetour(ecran, precedent) {
   placer(ecran, barres);
 }
 
-function bouton(texte, titre, classe, onclick) {
+/** [suite] : la fin du texte, cachée sur un téléphone pour que les boutons tiennent sur une ligne (cedric, 01/11). */
+function bouton(texte, titre, classe, onclick, suite = "") {
   const b = document.createElement("button");
   b.type = "button";
   b.className = `btn secondary ${classe}`;
   b.textContent = texte;
+  if (suite) b.append(Object.assign(document.createElement("span"), { className: "suite-longue", textContent: suite }));
   b.title = titre;
   b.onclick = onclick;
   return b;
@@ -85,7 +87,7 @@ export function historique({ ecran, capturer, restaurer, precedent, enregistreSe
   const barre = document.createElement("div");
   barre.className = "retour-barre bas";
   barre.append(
-    bouton("Annuler les modifications", "Revenir au dernier enregistrement", "retour-tout", () => h.annuler()),
+    bouton("Annuler", "Revenir au dernier enregistrement", "retour-tout", () => h.annuler(), " les modifications"),
     bouton("← Retour", "Revenir à la page précédente", "retour-page", () => precedent()),
   );
   ecran.append(barre);

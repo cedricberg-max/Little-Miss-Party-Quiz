@@ -93,6 +93,8 @@ const $ = (id) => document.getElementById(id);
   let look = demande;
   try { look ??= localStorage.getItem("lmp-admin-look"); } catch { /* stockage refusé */ }
   document.body.classList.toggle("regie-gs", look !== "classique");
+  // Les Buzzy des bandes d'un écran large (cedric, 01/11) : ?buzzy=fort pour comparer un niveau plus présent.
+  document.body.classList.toggle("buzzy-fort", new URLSearchParams(location.search).get("buzzy") === "fort");
 }
 const params = new URLSearchParams(location.search);
 // Tests automatiques uniquement : émulateur Firebase, depuis l'ordinateur de test.

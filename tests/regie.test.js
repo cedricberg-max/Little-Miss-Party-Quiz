@@ -6370,7 +6370,9 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#screen-mime-edit .retour-barre.haut").count(), 0);
     // En bas (cedric, 24/10) : Enregistrer · Annuler les modifications · ← Retour, une barre qui suit l'écran dès
     // l'ouverture ; « Supprimer » reste à sa place en bas de la page, et le message d'enregistrement passe dans la barre.
-    assert.deepEqual(await bar.locator("button:visible").allInnerTexts(), ["Enregistrer le paquet", "Annuler les modifications", "← Retour"]);
+    // Sur un téléphone, « Annuler les modifications » s'affiche « Annuler » (cedric, 01/11) : le texte complet reste.
+    assert.deepEqual(await bar.locator("button:visible").allTextContents(), ["Enregistrer le paquet", "Annuler les modifications", "← Retour"]);
+    assert.equal(await bar.locator(".retour-tout").innerText(), "Annuler");
     assert.equal(await bar.evaluate((b) => b.classList.contains("flottante")), true);
     assert.equal(await bar.locator("#mime-delete").count(), 0);
     assert.equal(await bar.locator(".retour-tout").isDisabled(), true);
@@ -6641,6 +6643,44 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 01/11) : l'affichage suit la largeur de l'écran : un Buzzy de chaque côté sur un écran large, jamais sur le contenu ; rien sur un écran moyen ; téléphone : texte plus gros, rien ne dépasse", async () => {
+    const ouvrir = async (width, height, query = "") => {
+      const page = await openRegie(await browser.newContext({ viewport: { width, height } }), `?emu=1${query}`, "/admin.html");
+      await page.fill("#admin-password", ADMIN_PASSWORD);
+      await page.click("#login");
+      await page.locator("#screen-home:not([hidden])").waitFor();
+      return page;
+    };
+    const buzzy = (page) => page.evaluate(() => [...document.querySelectorAll(".bord-buzzy")].map((b) => {
+      const r = b.getBoundingClientRect(), m = document.querySelector("main").getBoundingClientRect(), st = getComputedStyle(b);
+      return { visible: st.display !== "none", opacite: Number(st.opacity), gauche: r.left, droite: r.right, mainG: m.left, mainD: m.right, large: innerWidth };
+    }));
+    // PC 21/9 : un Buzzy dans chaque bande, assez présent mais derrière, sans toucher le milieu ni sortir de l'écran.
+    let page = await ouvrir(2560, 1080);
+    const [g, d] = await buzzy(page);
+    assert.ok(g.visible && d.visible, "deux Buzzy");
+    assert.ok(g.opacite >= 0.25 && g.opacite <= 0.6, `présence ${g.opacite}`);
+    assert.ok(g.gauche >= 0 && g.droite <= g.mainG, "Buzzy de gauche dans la bande de gauche");
+    assert.ok(d.gauche >= d.mainD && d.droite <= d.large, "Buzzy de droite dans la bande de droite");
+    assert.ok(g.droite - g.gauche >= 400, `assez gros (${g.droite - g.gauche}px)`);
+    await page.context().close();
+    page = await ouvrir(2560, 1080, "&buzzy=fort");
+    assert.ok((await buzzy(page))[0].opacite > g.opacite, "?buzzy=fort : plus présent");
+    await page.context().close();
+    // Écran moyen : pas la place, pas de Buzzy.
+    page = await ouvrir(1440, 900);
+    assert.ok((await buzzy(page)).every((b) => !b.visible));
+    await page.context().close();
+    // Téléphone debout et couché : pas de Buzzy, le texte un peu plus gros, rien ne dépasse.
+    for (const [w, h] of [[390, 844], [844, 390]]) {
+      page = await ouvrir(w, h);
+      assert.ok((await buzzy(page)).every((b) => !b.visible));
+      assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector("main")).zoom), "1.1");
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `rien ne dépasse à ${w} px`);
+      await page.context().close();
+    }
+  });
+
   test("Régie PC (cedric, 31/10) : look « The Game Show » sur fond clair, l'Accueil en vitrine « THE GAME SHOW by Little Miss Party » avec Buzzy ; ?look=classique remet l'ancien look (gardé sur ce PC)", async () => {
     const page = await admin();
     const fond = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -6758,7 +6798,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // La barre du bas (cedric, 24/10) : Enregistrer · Annuler les modifications · ← Retour, de gauche à droite ; elle
     // suit l'écran même sans modification.
     const barreBas = page.locator("#screen-show-edit .retour-barre.bas");
-    assert.deepEqual(await barreBas.locator(".btn").allInnerTexts(), ["Enregistrer", "Annuler les modifications", "← Retour"]);
+    assert.deepEqual(await barreBas.locator(".btn").allTextContents(), ["Enregistrer", "Annuler les modifications", "← Retour"]);
     assert.equal(await barreBas.evaluate((b) => b.classList.contains("flottante")), true);
     assert.equal(await page.locator("#screen-show-edit button", { hasText: /^Enregistrer$/ }).count(), 1, "seulement dans la barre du bas (cedric, 25/10)");
     assert.equal(await page.locator("#screen-show-edit .retour-barre.haut").count(), 0, "plus de barre en haut (cedric, 25/10)");
@@ -9106,7 +9146,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await waitFor(async () => (await serieDe.locator("img.blind-pochette").evaluateAll((xs) => xs.filter((x) => x.src.startsWith("data:image/png")).length)) === 5, "5 mini pochettes");
     assert.deepEqual(await round.locator(".blind-series .blind-paroles").allTextContents(), Array(5).fill("✓ Paroles"));
     const [titre, paroles] = await Promise.all([round.locator(".blind-titre").first().boundingBox(), round.locator(".blind-series .blind-paroles").first().boundingBox()]);
-    assert.ok(paroles.x >= titre.x + titre.width - 1, "« ✓ Paroles » à droite du titre");
+    // À droite du titre ; sur un téléphone (texte plus gros, cedric 01/11) elle peut passer à la ligne, jamais dessus.
+    assert.ok(paroles.x >= titre.x + titre.width - 1 || paroles.y >= titre.y + titre.height - 1, "« ✓ Paroles » à droite du titre (ou dessous)");
     await capture(page, "blind-test-chansons");
     // Repliable comme une série du Quiz.
     await voir.click();
@@ -12121,7 +12162,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // Réglages d'une chanson (cedric, 24/10) : Enregistrer · Annuler les modifications · ← Retour suivent l'écran
     // ensemble, en haut de la page aussi.
     const barreReglages = page.locator("#screen-playlist-edit .retour-barre.bas");
-    assert.deepEqual(await barreReglages.locator("button:visible").allInnerTexts(), ["Enregistrer les réglages", "Annuler les modifications", "← Retour"]);
+    assert.deepEqual(await barreReglages.locator("button:visible").allTextContents(), ["Enregistrer les réglages", "Annuler les modifications", "← Retour"]);
     await page.evaluate(() => window.scrollTo(0, 0));
     const hauteur = page.viewportSize().height;
     const boitesReglages = await barreReglages.locator("button:visible").evaluateAll((xs) => xs.map((x) => x.getBoundingClientRect().bottom));
