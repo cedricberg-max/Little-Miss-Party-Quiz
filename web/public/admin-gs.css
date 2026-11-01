@@ -188,17 +188,17 @@ body.regie-gs {
  */
 .bord-buzzy { display: none; }
 @media (min-width: 1640px) {
+  /* Buzzy grand, au milieu de sa bande (cedric, 01/11 : « plus gros, moins discret », niveau 2 choisi). */
   .regie-gs .bord-buzzy {
     --bande: calc((100vw - 1200px) / 2);
-    --large: min(560px, calc(var(--bande) - 48px));
-    display: block; position: fixed; bottom: 0; z-index: -1; pointer-events: none;
-    width: var(--large); height: min(82vh, 800px);
-    background: url("img/buzzy-fier.webp") no-repeat center bottom / contain;
-    opacity: .3; filter: saturate(.8);
+    --large: min(720px, calc(var(--bande) - 32px));
+    display: block; position: fixed; top: 64px; bottom: 8px; z-index: -1; pointer-events: none;
+    width: var(--large);
+    background: url("img/buzzy-fier.webp") no-repeat center / contain;
+    opacity: .5;
   }
   .regie-gs .bord-buzzy.gauche { left: calc((var(--bande) - var(--large)) / 2); }
   .regie-gs .bord-buzzy.droite { right: calc((var(--bande) - var(--large)) / 2); transform: scaleX(-1); }
-  .regie-gs.buzzy-fort .bord-buzzy { opacity: .5; filter: saturate(1); }
 }
 @media (max-width: 940px) {
   .regie-gs main { zoom: 1.1; }
