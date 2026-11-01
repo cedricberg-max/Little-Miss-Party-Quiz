@@ -391,17 +391,19 @@ fun IntroPictionary(equipe: String, couleur: Color, motMontre: Boolean, modifier
                 },
             )
             Spacer(Modifier.height(30.dp))
-            // Posé sur le décor « comme les jauges » (n° 16 du 31/10).
-            TexteJauge(
+            // Choix A de cedric (planche du 1/11, point 33) : le halo noir doux du Chrono sur les deux, le nom dans la
+            // couleur de l'équipe ; plus la lueur colorée qui se fondait dans le décor.
+            Text(
                 "Au tour de",
-                color = Neon.Blanc.copy(alpha = 0.8f), fontSize = 28.sp, fontWeight = FontWeight.SemiBold,
+                color = Neon.Blanc, fontSize = 30.sp, fontWeight = FontWeight.Bold,
+                style = TextStyle(shadow = HALO_DECOR),
                 modifier = Modifier.apparition(300, equipe),
             )
             Text(
                 equipe,
-                color = couleur, fontSize = 60.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = couleur, fontSize = 64.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
-                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, shadow = Shadow(couleur.copy(alpha = 0.7f), Offset.Zero, 26f)),
+                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, shadow = HALO_DECOR),
                 modifier = Modifier.widthIn(max = 880.dp).apparition(450, equipe),
             )
             Spacer(Modifier.height(30.dp))

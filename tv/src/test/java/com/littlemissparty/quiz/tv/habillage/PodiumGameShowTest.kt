@@ -295,4 +295,26 @@ class PodiumGameShowTest {
         assertTrue(452.5f - 140f + NOM_BANDE_DP <= 540f)
         assertTrue(NOM_BANDE_DP >= 140f + POINTS_SOUS_NOM_DP + 14f)
     }
+
+    @Test
+    fun `couronne neon du gagnant, posee juste apres les lettres qui claquent puis qui se balance doucement (choix B, 1-11)`() {
+        val ev = evenementsNerveux("LES LICORNES".length)
+        assertEquals(null, couronneDuGagnant(ev.tMot, ev.tMot))
+        assertEquals(null, couronneDuGagnant(ev.tMot + COURONNE_RETARD, ev.tMot))
+        val (petite, _) = couronneDuGagnant(ev.tMot + COURONNE_RETARD + 0.05f, ev.tMot)!!
+        assertTrue(petite < 1f)
+        // Le petit rebond, puis la taille normale pour toujours.
+        val pic = (1..34).maxOf { couronneDuGagnant(ev.tMot + COURONNE_RETARD + it / 100f, ev.tMot)!!.first }
+        assertTrue(pic in 1.1f..1.2f)
+        for (t in listOf(1f, 2.3f, 5f, 30f)) {
+            val (echelle, angle) = couronneDuGagnant(ev.tMot + COURONNE_RETARD + t, ev.tMot)!!
+            assertEquals(1f, echelle, 1e-4f)
+            assertTrue("$angle", angle in 16f..22f)
+        }
+        // Penchée vers la droite, sur le coin droit du nom.
+        assertEquals(16f, couronneDuGagnant(ev.tMot + COURONNE_RETARD + COURONNE_POSE, ev.tMot)!!.second, 1.5f)
+        val src = File("src/main/java/com/littlemissparty/quiz/tv/habillage/NomNerveux.kt").readText()
+        assertTrue(src.contains("Color(0xFFFFE600)"))
+        assertTrue(src.contains("derniere.x + derniere.mise.size.width - 0.55f * hCap"))
+    }
 }

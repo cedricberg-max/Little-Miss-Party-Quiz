@@ -43,8 +43,10 @@ class ContourJaugeTest {
         val ecrans = mapOf(
             "BlindTestEcrans.kt" to "n° 1", "GameScreens.kt" to "n° 3", "ImageFloue.kt" to "nom de l'équipe qui a buzzé",
             "habillage/BlindTestScenes.kt" to "n° 9-10", "MimeScreens.kt" to "n° 14, 18", "PictionaryScreens.kt" to "n° 15",
-            "habillage/Pictionary.kt" to "n° 16", "GameShowQuiz.kt" to "n° 36",
+            "GameShowQuiz.kt" to "n° 36",
         )
+        // n° 16, intro du Pictionary : le halo noir doux du Chrono depuis le 1/11 (point 33, voir HaloDecorTest).
+        assertFalse(source("habillage/Pictionary.kt").contains("filigraneGs("))
         for ((fichier, n) in ecrans) {
             val s = source(fichier)
             assertTrue("$fichier ($n) : contour des jauges", s.contains("TexteJauge("))
