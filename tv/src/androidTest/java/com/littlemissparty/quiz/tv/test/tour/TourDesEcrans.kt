@@ -94,6 +94,13 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
         jeu("zoom") {
             aller("t-zoom")
             verifier("zoom-question", 1_500)
+            // Une tablette qui perd le Wi-Fi (cedric, 1/11 au soir : « Fantôme 7 » plus petit, puis coupé « Fantô / me 7 ») :
+            // le nom garde sa taille, « hors ligne » est à part. La tablette revient avant de répondre.
+            val absente = equipes.last()
+            absente.couperReseau()
+            attendreQue("équipe hors ligne", 30_000) { equipes.first().lire("games/$code/presence/${absente.uid}/online").takeIf { it == false } }
+            verifier("zoom-hors-ligne", 1_200)
+            absente.retablirReseau(code)
             equipes.forEachIndexed { i, e -> e.repondre(code, "t-zoom", i % 2) }
             reveler("t-zoom")
             verifier("zoom-revelation", ATTENTE_REVELATION)

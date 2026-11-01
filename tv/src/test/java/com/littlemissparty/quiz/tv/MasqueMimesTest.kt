@@ -51,4 +51,15 @@ class MasqueMimesTest {
         assertEquals(0.25f, a(3.05f), 0f)
         assertEquals(1f, a(-0.4f + 3f * 0.5f), 0f)
     }
+
+    @Test
+    fun `bilan d un tour en jaune Game Show, et pastille collee a la bulle de son equipe (1-11 au soir)`() {
+        val src = java.io.File("src/main/java/com/littlemissparty/quiz/tv/MimeScreens.kt").readText()
+        assertEquals(com.littlemissparty.quiz.tv.habillage.GS.Jaune, COULEUR_BILAN_MIMES)
+        assertTrue(src.contains("color = if (Look.gs) COULEUR_BILAN_MIMES else Neon.Or"))
+        // La bulle remplit la place de l'équipe : la pastille posée sur son coin ne flotte plus contre l'équipe voisine.
+        val puce = src.substringAfter("private fun MimeTeamChip(").substringBefore("private fun remainingTeams")
+        assertTrue(puce.contains("Box(modifier) {"))
+        assertTrue(puce.substringAfter("Box(modifier) {").substringBefore(".then(").contains(".fillMaxWidth()"))
+    }
 }

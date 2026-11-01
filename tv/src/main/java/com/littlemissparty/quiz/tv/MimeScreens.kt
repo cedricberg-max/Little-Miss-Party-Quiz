@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv
 import com.littlemissparty.quiz.tv.habillage.HALO_DECOR
 import androidx.compose.material3.LocalTextStyle
 import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.logoNeonJeu
 import androidx.compose.ui.res.painterResource
 import androidx.compose.animation.core.LinearEasing
@@ -439,6 +440,9 @@ internal fun sousTitreMimes(texte: String?): String? {
  */
 internal const val MARGE_REGLE_MIMES = 70f
 
+/** Bilan d'un tour (« 5 mimes trouvés · +250 points ») en Game Show : le jaune des boutons importants. */
+internal val COULEUR_BILAN_MIMES = GS.Jaune
+
 /** Place des textes sous le masque : bravo sur 2 lignes (nom long), points, consigne sur 3 lignes et espaces (dp). */
 private const val TEXTES_ENTRE_TOURS = 250f
 
@@ -474,7 +478,9 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                 )
                 TexteJauge(
                     "${last.found} mime${if (last.found > 1) "s" else ""} trouvé${if (last.found > 1) "s" else ""} · +${last.found * Scoring.MIME} points",
-                    color = Neon.Or, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black,
+                    // Cedric, 1/11 au soir : en cyan sur son contour cyan, sur le fond bleu, il ne se lisait pas ; en jaune
+                    // Game Show, il tranche (le contour sombre le détache du décor).
+                    color = if (Look.gs) COULEUR_BILAN_MIMES else Neon.Or, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.apparition(bilan + Tempo.TEMPS, m.turns.size),
                 )
             } else if (Look.gs) {
@@ -522,8 +528,11 @@ private fun MimeTeamChip(team: Team, count: Int, playing: Boolean, passed: Boole
     // nombre de mimes en pastille sur le coin.
     val forme = RoundedCornerShape(16.dp)
     Box(modifier) {
+        // La bulle prend toute la place de l'équipe : sa pastille reste collée à son coin (cedric, 1/11 au soir : la
+        // pastille « 0 mime » flottait loin à droite, contre l'équipe d'à côté).
         Box(
             Modifier
+                .fillMaxWidth()
                 .then(if (Look.gs) Modifier.shadow(10.dp, forme, ambientColor = color, spotColor = color) else Modifier)
                 .clip(forme)
                 .background(

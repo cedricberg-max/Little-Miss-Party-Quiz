@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
@@ -172,7 +174,16 @@ internal fun ChoiceCardGs(i: Int, text: String, correct: Int?, modifier: Modifie
 internal fun TeamStatusGs(
     team: Team, online: Boolean, answered: Boolean, revealedPoints: Int?, statut: String, compacte: Boolean, modifier: Modifier,
     uneLigne: Boolean = false,
+    /** Pastille dessinée sous l'étiquette « hors ligne » (contour gris, sans statut à côté du nom). */
+    compacteEtiquette: Boolean = false,
 ) {
+    // Équipe hors ligne (cedric, 1/11 au soir : « Fantôme 7 » plus petit que les autres, puis coupé « Fantô / me 7 ») :
+    // « hors ligne » ne prend plus la place du nom, il s'affiche en petite étiquette posée sur le haut de la pastille.
+    val horsLigne = !online && revealedPoints == null
+    if (horsLigne && !compacteEtiquette) return Box(modifier) {
+        TeamStatusGs(team, true, answered, null, if (uneLigne) "" else "…", compacte, Modifier.fillMaxWidth().grisee(), uneLigne, compacteEtiquette = true)
+        EtiquetteHorsLigne(Modifier.align(Alignment.TopCenter).offset(y = (-ETIQUETTE_HORS_LIGNE_DEBORD).dp))
+    }
     val color = team.color.toColor()
     val forme = RoundedCornerShape(14.dp)
     val allumee = answered || revealedPoints != null
@@ -184,7 +195,7 @@ internal fun TeamStatusGs(
         // de nuit (avant, la pastille devenait transparente et le nom se fondait dans le plateau), et le halo noir doux
         // sur le nom et le statut.
         .then(if (allumee) Modifier.background(GS.Nuit.copy(alpha = 0.55f)).background(color.copy(alpha = 0.55f)) else Modifier.background(GS.Nuit.copy(alpha = 0.85f)))
-        .border(2.dp, if (online) color else Color.Gray, forme)
+        .border(2.dp, if (online && !compacteEtiquette) color else Color.Gray, forme)
     val taille = if (compacte) 15.sp else 17.sp
     val halo = if (allumee) TextStyle(shadow = HALO_DECOR) else TextStyle.Default
     @Composable
@@ -215,8 +226,10 @@ internal fun TeamStatusGs(
             },
             modifier = Modifier.weight(1f), style = halo,
         )
-        Spacer(Modifier.width(6.dp))
-        Statut()
+        if (statut.isNotEmpty()) {
+            Spacer(Modifier.width(6.dp))
+            Statut()
+        }
     } else Column(
         cadre.padding(horizontal = if (compacte) 8.dp else 12.dp, vertical = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -228,6 +241,19 @@ internal fun TeamStatusGs(
         Statut()
     }
 }
+
+/** Une équipe hors ligne : pastille un peu éteinte, le nom garde sa taille. */
+private fun Modifier.grisee() = graphicsLayer { alpha = 0.8f }
+
+/** Petite étiquette grise « hors ligne », posée à cheval sur le haut de la pastille. */
+@Composable
+private fun EtiquetteHorsLigne(modifier: Modifier) = Text(
+    "hors ligne", color = GS.Encre, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = PoliceGsTexte, maxLines = 1, softWrap = false,
+    modifier = modifier.background(Color(0xFF4A4F63), RoundedCornerShape(50)).padding(horizontal = 7.dp, vertical = 1.dp),
+)
+
+/** De combien (dp) l'étiquette « hors ligne » dépasse au-dessus de la pastille. */
+internal const val ETIQUETTE_HORS_LIGNE_DEBORD = 9f
 
 /** Chrono (Game Show) : anneau cyan qui se vide, avec sa lueur ; rose dans les 5 dernières secondes. */
 @Composable
