@@ -54,4 +54,19 @@ class ImageFloueTest {
         }
         assertEquals(flous to flous, niveauxAffiches(flous.toFloat(), revealed = true, flous = flous))
     }
+    /** Cedric, 1/11 au soir : l'image doit être floue dès la première image, jamais nette une ou deux images. */
+    @Test
+    fun `floue des la premiere image, jamais nette au debut du chrono`() {
+        // Le moteur dit 0 ms restantes tant que le chrono tourne : on lit l'échéance.
+        org.junit.Assert.assertEquals(20_000L, restantInitial(deadline = 120_000L, maintenant = 100_000L, resumeAt = null, remainingMs = 0L))
+        // Décompte de reprise : le chrono ne repart qu'à resumeAt.
+        org.junit.Assert.assertEquals(15_000L, restantInitial(deadline = 120_000L, maintenant = 100_000L, resumeAt = 105_000L, remainingMs = 0L))
+        // Chrono figé (buzz, pause) : le temps gardé par le moteur.
+        org.junit.Assert.assertEquals(7_000L, restantInitial(deadline = null, maintenant = 100_000L, resumeAt = null, remainingMs = 7_000L))
+        org.junit.Assert.assertEquals(0f, departFlou(revealed = false, flous = 10), 0f)
+        org.junit.Assert.assertEquals(10f, departFlou(revealed = true, flous = 10), 0f)
+        val code = java.io.File("src/main/java/com/littlemissparty/quiz/tv/ImageFloue.kt").readText()
+        org.junit.Assert.assertTrue(code.contains("Animatable(departFlou(revealed, flous))"))
+        org.junit.Assert.assertFalse(code.contains("remember(q.id) { Animatable(cible) }"))
+    }
 }

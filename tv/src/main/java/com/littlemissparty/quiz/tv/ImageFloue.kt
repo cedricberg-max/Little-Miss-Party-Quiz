@@ -88,7 +88,9 @@ internal val NIVEAUX_FLOUS: Int get() = NIVEAUX.size
  */
 @Composable
 fun chronoRestant(q: Question, state: UiState.Playing): Long {
-    var remaining by remember(q.id) { mutableLongStateOf(state.remainingMs) }
+    var remaining by remember(q.id) {
+        mutableLongStateOf(restantInitial(state.deadline, System.currentTimeMillis() + state.serverOffset, state.resumeAt, state.remainingMs))
+    }
     LaunchedEffect(q.id, state.deadline, state.paused, state.phase) {
         val deadline = state.deadline
         if (deadline == null) {
@@ -104,6 +106,17 @@ fun chronoRestant(q: Question, state: UiState.Playing): Long {
     }
     return remaining
 }
+
+/**
+ * Temps restant dès la toute première image d'une question. [remainingMs] vaut 0 tant que le chrono tourne (le moteur
+ * ne connaît pas encore la fin du segment en cours) : pris tel quel, l'Image floue partait de son niveau le plus net
+ * pendant une ou deux images (cedric, 1/11 au soir : « on voit l'image nette avant qu'elle devienne floue »).
+ */
+internal fun restantInitial(deadline: Long?, maintenant: Long, resumeAt: Long?, remainingMs: Long): Long =
+    if (deadline == null) remainingMs else (deadline - maxOf(maintenant, resumeAt ?: 0L)).coerceAtLeast(0)
+
+/** Point de départ du flou d'une nouvelle question : le plus flou, sauf si la réponse est déjà révélée (box qui revient). */
+internal fun departFlou(revealed: Boolean, flous: Int): Float = if (revealed) flous.toFloat() else 0f
 
 /** Les photos de plus en plus nettes de l'Image floue ([NIVEAUX] pixels de large), calculées hors de l'écran. */
 private fun niveauxDeFlou(p: Bitmap, largeurs: List<Int>): List<ImageBitmap> = largeurs.map { w ->
@@ -137,7 +150,8 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     val cible = if (revealed) flous.toFloat() else (flous - 1) * progress * progress
     // Une animation par question : partie de la photo nette de la révélation d'avant, elle repassait une fraction de
     // seconde par les niveaux nets sur la nouvelle photo (test du 27/10 au soir : « on l'a vue une fraction de seconde »).
-    val anim = remember(q.id) { Animatable(cible) }
+    // Elle part toujours du plus flou (cedric, 1/11 au soir : floue dès la première image, jamais nette).
+    val anim = remember(q.id) { Animatable(departFlou(revealed, flous)) }
     LaunchedEffect(q.id, cible, revealed) {
         anim.animateTo(cible, if (revealed) tween(1_200, easing = FastOutSlowInEasing) else tween(120, easing = LinearEasing))
     }
