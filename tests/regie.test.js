@@ -7692,17 +7692,26 @@ describe("bibliothèque de quiz et prestations", () => {
       return round.locator(".quiz-complet .quiz-complet-q .zoom-depart");
     };
     const zoomDe = (mini) => mini.locator("img").evaluate((el) => [el.style.transform, el.style.transformOrigin]);
-    const enregistrer = async (prenom) => {
+    // « Enregistrée » peut encore être affiché depuis l'enregistrement d'avant : on attend la prestation voulue dans la
+    // bibliothèque ([pret] : ce qu'elle doit montrer), pas seulement le message.
+    const enregistrer = async (prenom, pret = () => true) => {
       await page.click("#show-save");
       await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
-      const show = Object.values(await library("shows")).find((x) => x.childName === prenom);
-      return { show, q: show.rounds[0].seriesQuiz.flatMap((x) => x.questions ?? []).find((q) => q && !q.vide) };
+      let lu = null;
+      await waitFor(async () => {
+        const show = Object.values((await library("shows")) ?? {}).find((x) => x.childName === prenom);
+        // La question de la photo du lion (le jeu peut en tirer d'autres au hasard, dans un ordre qui change).
+        const q = show?.rounds?.[0]?.seriesQuiz?.flatMap((x) => x.questions ?? []).find((y) => y?.imageId === LION);
+        lu = { show, q };
+        return q && pret(q);
+      }, `prestation de ${prenom} enregistrée`);
+      return lu;
     };
     // Sans réglage : la première image au zoom moyen (×6), et ce départ est enregistré avec la prestation.
     let mini = await nouvelle("Nina");
     await mini.locator("img").waitFor();
     assert.equal((await zoomDe(mini))[0], "scale(6)");
-    const auto = (await enregistrer("Nina")).q.zoomDepart;
+    const auto = (await enregistrer("Nina", (y) => y.zoomDepart)).q.zoomDepart;
     assert.equal(auto.z, 6);
     assert.ok(auto.x >= 0 && auto.x <= 1 && auto.y >= 0 && auto.y <= 1, JSON.stringify(auto));
     // Le réglage : « Fort », le cadre glissé en haut à gauche ; Annuler d'abord ne change rien.
@@ -7723,7 +7732,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator(".dz-boite").waitFor({ state: "detached" });
     await page.waitForFunction(() => document.querySelector(".zoom-depart img")?.style.transform === "scale(9)");
     assert.deepEqual(await zoomDe(mini), ["scale(9)", "0% 0%"]);
-    const { show, q } = await enregistrer("Nina");
+    const { show, q } = await enregistrer("Nina", (y) => y.zoomDepart?.z === 9);
     assert.deepEqual(q.zoomDepart, { x: 0, y: 0, z: 9 });
     assert.equal(q.imageId, LION, "la photo ne change pas");
     await waitFor(async () => (await library(`departsZoom/${LION}`))?.z === 9, "départ gardé pour la photo");
@@ -7733,7 +7742,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // Une autre prestation avec la même photo : le même départ, tout seul.
     mini = await nouvelle("Lou");
     await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(9)");
-    assert.deepEqual((await enregistrer("Lou")).q.zoomDepart, { x: 0, y: 0, z: 9 });
+    assert.deepEqual((await enregistrer("Lou", (y) => y.zoomDepart)).q.zoomDepart, { x: 0, y: 0, z: 9 });
     // La petite molette sous la photo (cedric, 31/10) : zoomer plus loin sans ouvrir le réglage, le même centre gardé.
     const { zoomerDepart } = await import("../web/public/departzoom.js");
     const centre = (d) => { const f = fenetreDuDepart(d); return [f.gauche + f.taille / 2, f.haut + f.taille / 2]; };
@@ -7746,7 +7755,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#show-rounds .zoom-molette-force").textContent(), "×9");
     await molette.fill("10");
     await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(10)");
-    assert.equal((await enregistrer("Lou")).q.zoomDepart.z, 10);
+    assert.equal((await enregistrer("Lou", (y) => y.zoomDepart?.z === 10)).q.zoomDepart.z, 10);
     await waitFor(async () => (await library(`departsZoom/${LION}`))?.z === 10, "la molette est gardée pour la photo");
     // La molette ne dépasse pas sous la photo.
     const [bloc, photo] = await Promise.all([page.locator("#show-rounds .zoom-depart-bloc").boundingBox(), page.locator("#show-rounds .zoom-depart").boundingBox()]);
