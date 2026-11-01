@@ -66,7 +66,9 @@ fun ZoomPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     }
     val revealed = state.phase == Phase.REVEAL || state.phase == Phase.SCORES
     val progress = 1f - remaining.toFloat() / total
-    val target = if (revealed) 1f else ZOOM_DEPART - (ZOOM_DEPART - ZOOM_FIN) * progress.coerceIn(0f, 1f)
+    // Départ réglé dans la Régie PC (cedric, 31/10 : la tête de Mickey visible dès la première image) : son zoom.
+    val depart = zoomDeDepart(q)
+    val target = if (revealed) 1f else depart - (depart - ZOOM_FIN) * progress.coerceIn(0f, 1f)
     val zoom by animateFloatAsState(
         target,
         animationSpec = if (revealed) tween(1_100, easing = FastOutSlowInEasing) else tween(90, easing = LinearEasing),
@@ -74,7 +76,9 @@ fun ZoomPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     )
     // Chaque photo a son détail de départ, toujours le même pour la même question, et toujours sur l'objet :
     // jamais sur le fond blanc d'un personnage détouré (test du 25/10 au soir : cadre tout blanc au Zoom mystère).
-    val pivot = remember(q.id, photo) {
+    val pivot = remember(q.id, photo, q.zoomDepart) {
+        // Départ réglé dans la Régie PC : son point, tel quel (la première image de la régie est celle de la TV).
+        q.zoomDepart?.let { return@remember TransformOrigin(it.x, it.y) }
         val graine = q.id.hashCode()
         val detail = photo?.let { runCatching { pivotSurPhoto(it.asAndroidBitmap(), graine) }.getOrNull() }
         val (x, y) = detail ?: (0.3f + (graine and 0xFF) / 255f * 0.4f to 0.3f + ((graine shr 8) and 0xFF) / 255f * 0.4f)
@@ -103,6 +107,9 @@ fun ZoomPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
         }
     }
 }
+
+/** Zoom de départ : celui réglé dans la Régie PC (de 2 à 10), sinon [ZOOM_DEPART]. */
+internal fun zoomDeDepart(q: Question): Float = q.zoomDepart?.z?.coerceIn(2f, 10f) ?: ZOOM_DEPART
 
 /** Cadre du Zoom mystère (largeur / hauteur), le même que dans [GameScreens]. */
 private const val CADRE = 4f / 3f
