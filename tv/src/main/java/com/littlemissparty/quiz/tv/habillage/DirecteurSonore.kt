@@ -937,7 +937,7 @@ enum class Lit(
      * −16 LUFS ; si le tour dure plus, elle reboucle à l'échantillon [CHRONO_NAPPE_REPRISE_IMAGE] (29,0 s), en plein
      * dans la mesure qui se répète, à plein volume, jamais sur le fondu du début (raccord fondu 40 ms).
      */
-    CHRONO_NAPPE(null, "gs_chrono_nappe", repriseImage = CHRONO_NAPPE_REPRISE_IMAGE),
+    CHRONO_NAPPE(null, "gs_chrono_nappe", repriseMs = 29_000L, repriseImage = CHRONO_NAPPE_REPRISE_IMAGE),
     /**
      * Game Show, le Chrono de Buzzy pendant la révélation (cedric, 31/10 : « boucle B ») : Around the World pris à 1:03,5,
      * 8 mesures ramenées à 120 BPM comme gs_bed_light, 16,000 s, raccord fondu 25 ms, −16 LUFS.
