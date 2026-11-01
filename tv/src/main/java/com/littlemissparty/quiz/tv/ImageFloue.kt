@@ -278,14 +278,14 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 // Game Show : les onglets d'appel néon validés par cedric le 31/10 à 11:12 (planche des onglets d'appel).
                 Look.gs && q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     // Choix A de cedric (planche du 1/11, point 36) : la petite tête de Buzzy à la place de l'œil, et
-                    // « Mémorisez bien ! », sans parler d'objets (les cartes n'en sont pas toujours).
+                    // « Regardez bien ! » (choix de cedric sur le tableau du 1/11), sans parler d'objets (les cartes n'en sont pas toujours).
                     TeteBuzzyMemorise()
                     Spacer(Modifier.height(10.dp))
-                    PlaqueAppel(GenrePlaque.DISPARU, "MÉMORISEZ BIEN !", "")
+                    PlaqueAppel(GenrePlaque.DISPARU, "REGARDEZ BIEN !", "")
                 }
                 Look.gs -> appelGs(q).let { (genre, ligne) -> PlaqueAppel(genre, "BUZZEZ !", ligne) }
                 q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Text(
-                    "Mémorisez bien !",
+                    "Regardez bien !",
                     color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
                 else -> Text(

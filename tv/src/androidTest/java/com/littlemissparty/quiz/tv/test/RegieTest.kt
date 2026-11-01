@@ -904,7 +904,7 @@ class RegieTest : TestTv() {
         val carte = { mot: String -> if (Look.gs) mot.uppercase() else mot }
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("MÉMORISEZ !")
-        ecran.voit(if (Look.gs) "MÉMORISEZ BIEN !" else "Mémorisez bien !")
+        ecran.voit(if (Look.gs) "REGARDEZ BIEN !" else "Regardez bien !")
         ecran.voit(carte("Téléphérique"))
         ecran.motsEntiers(carte("Bateau à voile"))
         attendreQue("question ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "d1" } }

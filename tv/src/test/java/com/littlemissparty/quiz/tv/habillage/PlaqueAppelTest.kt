@@ -19,14 +19,14 @@ class PlaqueAppelTest {
     fun `chaque jeu a son onglet, en Game Show seulement`() {
         val floue = source("ImageFloue.kt")
         assertTrue(floue.contains("Look.gs -> appelGs(q).let { (genre, ligne) -> PlaqueAppel(genre, \"BUZZEZ !\", ligne) }"))
-        // Qui a disparu : la tête de Buzzy et « Mémorisez bien ! », sans « les objets » (choix A de cedric, 1/11).
-        assertTrue(floue.contains("PlaqueAppel(GenrePlaque.DISPARU, \"MÉMORISEZ BIEN !\", \"\")"))
+        // Qui a disparu : la tête de Buzzy et « Regardez bien ! », sans « les objets » (choix de cedric, 1/11).
+        assertTrue(floue.contains("PlaqueAppel(GenrePlaque.DISPARU, \"REGARDEZ BIEN !\", \"\")"))
         assertTrue(floue.contains("TeteBuzzyMemorise()"))
         assertFalse(floue.contains("OeilMemorise()"))
         assertFalse(floue.lowercase().contains("les objets"))
         listOf("DISPARU", "CHANTE", "QUISUIS", "BLIND", "FLOUE").forEach { assertTrue(it, floue.contains("GenrePlaque.$it to ")) }
         // Classique : les appels en texte restent.
-        assertTrue(floue.contains("\"Mémorisez bien !\""))
+        assertTrue(floue.contains("\"Regardez bien !\""))
         assertTrue(source("BlindTestEcrans.kt").contains("b != null && b.waiting && !b.played -> PlaqueAppel(GenrePlaque.BLIND, \"PRÊTS ?\", \"Écoutez bien…\""))
         assertTrue(source("habillage/BlindTestScenes.kt").contains("PlaqueAppel(GenrePlaque.BLIND, \"PRÊTS ?\", \"Écoutez bien…\""))
         assertTrue(source("habillage/BlindTestScenes.kt").contains("TitreBlindTest(px(76f)"))
