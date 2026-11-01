@@ -692,15 +692,8 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
     }
     if (Look.gs) return ClassementGameShow(state, actions)
     Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 28.dp)) {
+        // Le classement seul, jamais « Après … » (cedric, 1/11 au soir, pour tous les jeux).
         Text("Classement", color = Palette.Ink, fontSize = 40.sp, fontWeight = FontWeight.Black)
-        Text(
-            when {
-                state.mime?.picto == true -> "Après le Pictionary"
-                state.mime != null -> "Après les mimes"
-                else -> "Après ${state.etape ?: "la question ${state.index + 1}"}"
-            },
-            color = Palette.InkSoft, fontSize = 20.sp,
-        )
         Spacer(Modifier.height(16.dp))
         Ranking(state, Modifier.weight(1f))
         Row(verticalAlignment = Alignment.CenterVertically) {
