@@ -128,8 +128,9 @@ private fun MedaillonSeul(nom: String, emoji: String?, image: ImageBitmap?, ms: 
     val ecran = LocalConfiguration.current.screenHeightDp.toFloat()
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val (largeur, hauteur) = taillePolaroid(maxWidth.value, maxHeight.value, ecran)
+        val rayons = minOf(maxWidth, maxHeight) * 1.8f
         Box(Modifier.fillMaxSize().clipToBounds(), contentAlignment = Alignment.Center) {
-            Box(Modifier.size((minOf(maxWidth, maxHeight) * 1.8f))) { Rayons { ms } }
+            Box(Modifier.size(rayons)) { Rayons { ms } }
             Gerbe(cle = nom)
         }
         Box(
