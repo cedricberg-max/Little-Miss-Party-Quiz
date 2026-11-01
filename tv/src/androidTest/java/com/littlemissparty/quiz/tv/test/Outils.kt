@@ -317,6 +317,22 @@ class Ecran(private val nomTest: () -> String) {
         return defauts.distinct()
     }
 
+    /**
+     * Textes sous Buzzy : ceux dont la zone commune avec [cadre] (gauche, haut, droite, bas, en pixels de la fenêtre :
+     * toute la place prise par le robot pendant son clip) dépasse [part] du texte.
+     */
+    fun sousLeRobot(cadre: FloatArray, part: Float = 0.1f): List<String> {
+        val zones = mutableListOf<Pair<String, android.graphics.RectF>>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            fenetres().flatMap(::racinesCompose).forEach { racine -> zonesDeTexte(racine.semanticsOwner.rootSemanticsNode, zones) }
+        }
+        val robot = android.graphics.RectF(cadre[0], cadre[1], cadre[2], cadre[3])
+        return zones.filter { (_, z) ->
+            val c = android.graphics.RectF()
+            c.setIntersect(z, robot) && z.width() * z.height() > 0 && c.width() * c.height() > part * z.width() * z.height()
+        }.map { "Buzzy passe sur « ${it.first.replace('\n', ' ').take(40)} »" }.distinct()
+    }
+
     private fun zonesDeTexte(n: SemanticsNode, zones: MutableList<Pair<String, android.graphics.RectF>>) {
         val texte = n.config.getOrNull(SemanticsProperties.Text).orEmpty().joinToString(" ") { it.text }.trim()
         val b = n.boundsInWindow

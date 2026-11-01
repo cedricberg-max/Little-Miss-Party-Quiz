@@ -575,6 +575,7 @@ private fun JouerClip(clip: ClipRobot, cle: String, attenteMs: Long, serre: Ress
                 onDrawBehind { drawCircle(degrade) }
             },
         )
+        val boiteVue = BOITES_ROBOT[clip.fichier]
         AndroidView(
             factory = { LecteurAlpha(it, resId, surDebut = { lecture = 1 }, surEchec = { lecture = -1 }) },
             onRelease = { it.liberer() },
@@ -585,7 +586,35 @@ private fun JouerClip(clip: ClipRobot, cle: String, attenteMs: Long, serre: Ress
                 translationX = x * largeur - hauteurPx * format / 2
                 translationY = bas * hauteur - hauteurPx / 2 - hauteurPx * echelle / 2
                 alpha = if (lecture == 1) (temps.value / 150f).coerceIn(0f, 1f) else 0f
+                // Pour le tour des écrans : toute la place prise par Buzzy pendant ce clip (jamais sur un texte).
+                if (alpha > 0f && boiteVue != null) {
+                    val l = hauteurPx * format * echelle
+                    val hh = hauteurPx * echelle
+                    val gauche = x * largeur - l / 2
+                    val haut = bas * hauteur - hh
+                    RobotEcran.etendre(cle, gauche + boiteVue.gauche * l, haut + boiteVue.haut * hh, gauche + boiteVue.droite * l, haut + boiteVue.bas * hh)
+                }
             },
         )
     }
+}
+
+/**
+ * Place prise par Buzzy à l'écran pendant le clip en cours (union de toutes ses images, en pixels de l'écran) : le tour
+ * des écrans vérifie qu'il ne passe jamais sur un texte (cedric, 1/11 : Buzzy cachait les réponses B et D du zoom).
+ * Rien n'est dessiné ni recomposé : une simple note, lue par les tests.
+ */
+object RobotEcran {
+    @Volatile var cle: String? = null
+        private set
+    @Volatile var cadre: FloatArray? = null
+        private set
+
+    internal fun etendre(c: String, g: Float, h: Float, d: Float, b: Float) {
+        val actuel = cadre
+        if (c != cle || actuel == null) { cle = c; cadre = floatArrayOf(g, h, d, b); return }
+        cadre = floatArrayOf(minOf(actuel[0], g), minOf(actuel[1], h), maxOf(actuel[2], d), maxOf(actuel[3], b))
+    }
+
+    fun oublier() { cle = null; cadre = null }
 }

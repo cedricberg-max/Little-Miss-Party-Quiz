@@ -4,6 +4,7 @@ import android.util.Log
 import com.google.firebase.database.DataSnapshot
 import com.littlemissparty.quiz.tv.Pilotage
 import com.littlemissparty.quiz.tv.TEAM_COLORS
+import com.littlemissparty.quiz.tv.habillage.RobotEcran
 import com.littlemissparty.quiz.tv.test.EXTRAIT_MP3
 import com.littlemissparty.quiz.tv.test.PupitreSimule
 import com.littlemissparty.quiz.tv.test.RegieSimulee
@@ -31,6 +32,8 @@ import org.junit.runners.Parameterized
 abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
     private val regies = mutableListOf<RegieSimulee>()
     private val coupes = mutableListOf<String>()
+    private val chevauchements = mutableListOf<String>()
+    private val robot = mutableListOf<String>()
     private val bloques = mutableListOf<String>()
     private lateinit var code: String
     private lateinit var regie: RegieSimulee
@@ -246,10 +249,15 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
             verifier("podium", 1_500)
         }
 
-        Log.i(TAG, "TOUR|$nombre|BILAN|coupés=${coupes.size}|bloqués=${bloques.size}")
+        Log.i(TAG, "TOUR|$nombre|BILAN|coupés=${coupes.size}|chevauchements=${chevauchements.size}|robot=${robot.size}|bloqués=${bloques.size}")
+        // Rouge dès qu'un texte est coupé, que deux textes se chevauchent ou que Buzzy passe sur un texte, dans l'une ou
+        // l'autre version (cedric, 1/11 au soir : aucune collision, rien ne coupe rien).
         assertTrue(
-            "$nombre équipes :\n" + (coupes.map { "Texte coupé — $it" } + bloques.map { "Bloqué — $it" }).joinToString("\n"),
-            coupes.isEmpty() && bloques.isEmpty(),
+            "$nombre équipes :\n" + (
+                coupes.map { "Texte coupé — $it" } + chevauchements.map { "Chevauchement — $it" } + robot.map { "Buzzy — $it" } +
+                    bloques.map { "Bloqué — $it" }
+                ).joinToString("\n"),
+            coupes.isEmpty() && chevauchements.isEmpty() && robot.isEmpty() && bloques.isEmpty(),
         )
     }
 
@@ -307,6 +315,7 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
      * chevauchements et plus petit texte, une ligne « TOUR| » dans le journal.
      */
     private fun verifier(moment: String, attente: Long = 900) {
+        RobotEcran.oublier()
         mode(false)
         verifierMode(moment, "sans", attente)
         mode(true)
@@ -327,6 +336,13 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
         val details = (coupe + chevauche).joinToString(" ; ").replace('\n', ' ').take(2_500)
         Log.i(TAG, "TOUR|$nombre|$moment|$mode|coupés=${coupe.size}|chevauchements=${chevauche.size}|plus petit=$taille|$details")
         if (coupe.isNotEmpty()) coupes += "$moment ($mode boutons) : ${coupe.joinToString(" ; ")}"
+        if (chevauche.isNotEmpty()) chevauchements += "$moment ($mode boutons) : ${chevauche.joinToString(" ; ")}"
+        // Buzzy, s'il est passé pendant ce moment : jamais sur un texte (cedric, 1/11).
+        val sous = RobotEcran.cadre?.let { ecran.sousLeRobot(it) }.orEmpty()
+        if (sous.isNotEmpty()) {
+            Log.i(TAG, "TOUR|$nombre|$moment|$mode|robot|${RobotEcran.cle}|${sous.joinToString(" ; ")}")
+            robot += "$moment ($mode boutons, ${RobotEcran.cle}) : ${sous.joinToString(" ; ")}"
+        }
     }
 
     private fun programme(quiz: Map<String, Any?>, photo: String, lion: String, extrait: String): List<Map<String, Any?>> {
