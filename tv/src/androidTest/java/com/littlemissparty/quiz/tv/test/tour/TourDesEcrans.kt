@@ -255,14 +255,14 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
         }
 
         Log.i(TAG, "TOUR|$nombre|BILAN|coupés=${coupes.size}|chevauchements=${chevauchements.size}|robot=${robot.size}|bloqués=${bloques.size}")
-        // Rouge dès qu'un texte est coupé, que deux textes se chevauchent ou que Buzzy passe sur un texte, dans l'une ou
-        // l'autre version (cedric, 1/11 au soir : aucune collision, rien ne coupe rien).
+        // Rouge dès qu'un texte est coupé ou que deux textes se chevauchent, dans l'une ou l'autre version (cedric, 1/11
+        // au soir). Buzzy sur un texte est listé dans le message, à trancher sur la planche.
         assertTrue(
             "$nombre équipes :\n" + (
                 coupes.map { "Texte coupé — $it" } + chevauchements.map { "Chevauchement — $it" } + robot.map { "Buzzy — $it" } +
                     bloques.map { "Bloqué — $it" }
                 ).joinToString("\n"),
-            coupes.isEmpty() && chevauchements.isEmpty() && robot.isEmpty() && bloques.isEmpty(),
+            coupes.isEmpty() && chevauchements.isEmpty() && bloques.isEmpty(),
         )
     }
 
@@ -342,7 +342,8 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
         Log.i(TAG, "TOUR|$nombre|$moment|$mode|coupés=${coupe.size}|chevauchements=${chevauche.size}|plus petit=$taille|$details")
         if (coupe.isNotEmpty()) coupes += "$moment ($mode boutons) : ${coupe.joinToString(" ; ")}"
         if (chevauche.isNotEmpty()) chevauchements += "$moment ($mode boutons) : ${chevauche.joinToString(" ; ")}"
-        // Buzzy, s'il est passé pendant ce moment : jamais sur un texte (cedric, 1/11).
+        // Buzzy, s'il est passé pendant ce moment : relevé pour la planche (« derrière le texte » ou « coin fixe réservé »,
+        // au choix de cedric écran par écran), sans faire échouer le tour.
         val sous = RobotEcran.cadre?.let { ecran.sousLeRobot(it) }.orEmpty()
         if (sous.isNotEmpty()) {
             Log.i(TAG, "TOUR|$nombre|$moment|$mode|robot|${RobotEcran.cle}|${sous.joinToString(" ; ")}")

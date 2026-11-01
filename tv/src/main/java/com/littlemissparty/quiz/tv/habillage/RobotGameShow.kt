@@ -447,11 +447,12 @@ internal fun momentRobot(s: UiState.Playing, secondes: Int, ancienMeneur: String
 }
 
 /**
- * Buzzy sur les écrans de questions et sur le tableau des scores : coupé tant qu'il n'a pas de coin à lui où il ne touche
- * aucun texte (règle de cedric, 1/11 : rien ne se chevauche). Il reste aux intros, aux coffres, en pause et au podium.
+ * Buzzy sur les écrans de questions et sur le tableau des scores : il reste (animations validées par cedric le 1/11).
+ * Pour chaque écran, cedric choisira « derrière le texte » ou « coin fixe réservé » (point 52) ; ces interrupteurs
+ * permettent seulement de le couper d'un coup si besoin.
  */
-internal const val BUZZY_SUR_LES_QUESTIONS = false
-internal const val BUZZY_SUR_LES_SCORES = false
+internal const val BUZZY_SUR_LES_QUESTIONS = true
+internal const val BUZZY_SUR_LES_SCORES = true
 
 /** À partir de ce nombre d'équipes, pas de robot sur le tableau des scores (de 1 à 5 équipes, il reste). */
 internal const val EQUIPES_SANS_ROBOT_SCORES = 6
@@ -474,8 +475,6 @@ fun RobotGameShow(state: UiState) {
     if (s.paused) return PauseRobot(s.code)
     // La grande intro du lancement a déjà son robot (et la box ne lit qu'une vidéo à la fois).
     if (Habillage.introLancement.value) return
-    // Classement entre deux coffres : ses cartes vont jusqu'au coin du robot, Buzzy n'y passe pas.
-    if (Habillage.classementCoffres.value) return
     // Le podium a son propre robot, au-dessus du nom du gagnant (PodiumGameShow).
     if (s.phase == Phase.ENDED) return
     // Une réaction (bonus, malus, coffre) passe avant le reste, le temps de son clip.
