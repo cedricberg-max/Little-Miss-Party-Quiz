@@ -66,6 +66,18 @@ sealed interface Command {
     /** Duel des robots : « ▶ Duel suivant », la box prépare le duel suivant de la ronde. */
     data class DuelNext(override val id: String, override val expectSeq: Int) : Command
 
+    /**
+     * Duel des robots (cedric, 1/11) : « C'est bon », les joueurs de chaque équipe ([counts], uid → nombre), ou « Passer
+     * cette étape » ([counts] null) : Sarah composera chaque duel elle-même.
+     */
+    data class DuelPlan(override val id: String, override val expectSeq: Int, val counts: Map<String, Int>?) : Command
+
+    /**
+     * Duel des robots (cedric, 1/11) : Sarah change une équipe du duel proposé, pour ce duel seulement : le duel prêt
+     * devient [teams] (2 équipes), sans être lancé ; les duels suivants se recalculent.
+     */
+    data class DuelSwap(override val id: String, override val expectSeq: Int, val teams: List<String>) : Command
+
     /** Duel des robots : « ✋ Arrêter le duel », le face-à-face s'arrête sans points. */
     data class DuelStop(override val id: String, override val expectSeq: Int) : Command
 
@@ -159,6 +171,12 @@ sealed interface Command {
                 "potato_stop" -> PotatoStop(id, seq)
                 "duel_start" -> DuelStart(id, seq, (m["teams"] as? List<*>)?.map { it as String })
                 "duel_next" -> DuelNext(id, seq)
+                "duel_plan" -> DuelPlan(
+                    id, seq,
+                    if (m["skip"] == true) null
+                    else (m["counts"] as? Map<*, *>)?.entries?.mapNotNull { (k, v) -> (k as? String)?.let { t -> (v as? Number)?.let { t to it.toInt() } } }?.toMap(),
+                )
+                "duel_swap" -> DuelSwap(id, seq, (m["teams"] as? List<*>)?.mapNotNull { it as? String }.orEmpty())
                 "duel_stop" -> DuelStop(id, seq)
                 "simon_go" -> SimonGo(id, seq)
                 "simon_stop" -> SimonStop(id, seq)
@@ -204,7 +222,7 @@ fun Game.execute(
         cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut ||
         cmd is Command.PictoShow || cmd is Command.PictoDraw || cmd is Command.ChestRandom || cmd is Command.PotatoRandom ||
         cmd is Command.PotatoStop || cmd is Command.StatuesStop || cmd is Command.StatuesPlay || cmd is Command.StatuesSong ||
-        cmd is Command.DuelStart || cmd is Command.DuelNext || cmd is Command.DuelStop || cmd is Command.SimonGo || cmd is Command.SimonStop ||
+        cmd is Command.DuelStart || cmd is Command.DuelNext || cmd is Command.DuelSwap || cmd is Command.DuelStop || cmd is Command.SimonGo || cmd is Command.SimonStop ||
         cmd is Command.ChronoGo || cmd is Command.ChronoCible || cmd is Command.ChronoReveal || cmd is Command.ChronoStop
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
@@ -270,7 +288,23 @@ fun Game.execute(
             !teams.containsAll(cmd.teams) -> return refused("unknown_team")
             else -> readyDuel(teams, now, cmd.teams, random)?.let { startDuel(now, random) }
         }
-        is Command.DuelNext -> if (state.duel?.result == null) null else readyDuel(teams, now, random = random)
+        is Command.DuelNext -> when {
+            duelManuel -> return refused("manual")
+            state.duel?.result == null -> null
+            else -> readyDuel(teams, now, random = random)
+        }
+        is Command.DuelPlan -> when {
+            cmd.counts == null -> planDuel(null, now)
+            cmd.counts.keys.any { it !in teams } -> return refused("unknown_team")
+            // Une équipe arrivée sans nombre : celui de la Régie PC.
+            else -> planDuel(duelJoueurs(teams) + cmd.counts, now)
+        }
+        is Command.DuelSwap -> when {
+            cmd.teams.size != 2 || cmd.teams.distinct().size != 2 -> return refused("bad_teams")
+            !teams.containsAll(cmd.teams) -> return refused("unknown_team")
+            state.duel?.step != "ready" -> return refused("not_ready")
+            else -> readyDuel(teams, now, cmd.teams, random, extra = state.duel?.extra == true)
+        }
         is Command.DuelStop -> stopDuel(now)
         is Command.SimonGo -> if (teams.isEmpty()) return refused("no_teams") else simonGo(teams, now, random)
         is Command.SimonStop -> stopSimon(now)

@@ -306,6 +306,13 @@ data class DuelPanShown(override val seq: Int, override val at: Long, val qid: S
 /** Le Duel des robots : plus d'appui à attendre (fenêtre après le premier buzz, ou personne 10 s après le PAN). */
 data class DuelSettled(override val seq: Int, override val at: Long, val qid: String, val n: Int) : GameEvent
 
+/**
+ * Le Duel des robots, nouveau déroulé (cedric, 1/11) : pendant la présentation, Sarah dit combien de joueurs a chaque
+ * équipe ([counts], uid → nombre) : la box prévoit les duels pour que chacun joue au moins une fois. [manual] : elle
+ * passe cette étape, plus rien n'est prévu, elle choisit les 2 équipes avant chaque duel.
+ */
+data class DuelPlanned(override val seq: Int, override val at: Long, val qid: String, val counts: Map<String, Int>, val manual: Boolean) : GameEvent
+
 /** Le Duel des robots : Sarah arrête le face-à-face ; la même paire reste prête, sans points. */
 data class DuelStopped(override val seq: Int, override val at: Long, val qid: String, val n: Int) : GameEvent
 
