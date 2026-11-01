@@ -88,6 +88,9 @@ async function openPupitre(extra = "", preparer = null) {
   return page;
 }
 
+/** LMP_PREUVES=dossier : images de preuve pour cedric (sinon rien). */
+const preuve = (page, nom) => (process.env.LMP_PREUVES ? page.screenshot({ path: join(process.env.LMP_PREUVES, `${nom}.png`) }) : null);
+
 const TEAM_COLORS = ["#FF2D95", "#FF6B1A", "#39FF14", "#FFE600", "#2B86C5", "#9B5DE5", "#F94144", "#2EE8E0"];
 
 /** Tablette en attente : son identifiant (affiché aussi par son numéro sur la régie). */
@@ -1176,6 +1179,112 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("coupure du Wi-Fi en pleine partie (cedric, 01/11) : la tablette revient seule, la réponse touchée pendant la coupure arrive", async () => {
+    const page = await openPupitre();
+    const uid = await joinTeam(page, "Les Licornes");
+    await hostState(question());
+    await page.locator("#screen-question.active").waitFor();
+
+    // Wi-Fi coupé quelques secondes : la réponse touchée pendant la coupure part dès qu'il revient.
+    await page.context().setOffline(true);
+    await page.locator(".choice").nth(1).click();
+    await page.locator("#q-status", { hasText: "Réponse B envoyée" }).waitFor();
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal(await read(`answers/q1/${uid}`), null, "hors ligne, rien n'est encore arrivé");
+    await preuve(page, "56-1-wifi-coupe-reponse-touchee");
+    await page.context().setOffline(false);
+    await waitFor(async () => (await read(`answers/q1/${uid}`))?.choice === 1, "réponse arrivée au retour du Wi-Fi", 20000);
+    await preuve(page, "56-2-wifi-revenu-reponse-arrivee");
+
+    // Nouvelle coupure : la TV passe à la question suivante pendant ce temps ; au retour, la tablette la montre.
+    await page.context().setOffline(true);
+    await hostState(question({ qid: "q2", index: 1 }));
+    await new Promise((r) => setTimeout(r, 1500));
+    await page.context().setOffline(false);
+    await page.locator("#q-number", { hasText: "Question 2" }).waitFor({ timeout: 20000 });
+    await preuve(page, "56-3-wifi-revenu-question-suivante");
+    assert.equal(await page.locator(".choice.picked").count(), 0, "nouvelle question : rien de coché");
+    assert.equal(Object.keys(await read("teams")).length, 1, "pas de doublon d'équipe");
+    await page.context().close();
+  });
+
+  test("appli rouverte depuis son icône (sans code) : retour tout seul dans sa propre équipe, jamais dans une partie finie ni chez les autres", async () => {
+    const page = await openPupitre();
+    const uid = await joinTeam(page, "Les Licornes");
+    await page.goto(`${baseUrl}/?emu=1`);
+    await page.locator("#screen-play.active").waitFor();
+    assert.ok(page.url().includes(`g=${CODE}`), "la tablette est retournée dans sa partie");
+    await preuve(page, "57-rouverte-depuis-icone-retour-equipe");
+    assert.equal(Object.keys(await read("teams")).length, 1, "pas de nouvelle équipe");
+    assert.equal(await read(`joinRequests/${uid}`), null, "aucune demande d'entrée");
+
+    // Partie finie : la tablette l'oublie et montre l'affiche (pas « Cette partie est terminée »).
+    await update(ref(hostDb(), `games/${CODE}/state`), { phase: "ended" });
+    await page.goto(`${baseUrl}/?emu=1`);
+    await page.locator("#screen-affiche.active").waitFor();
+    assert.ok(!page.url().includes("g="), "plus de code dans l'adresse");
+    assert.equal(await page.evaluate(() => localStorage.getItem("lmp-derniere-partie")), null, "partie oubliée");
+    await page.context().close();
+
+    // Appareil qui n'a pas d'équipe dans cette partie (mémoire présente) : l'affiche, et il ne demande pas à entrer.
+    await update(ref(hostDb(), `games/${CODE}/state`), { phase: "lobby" });
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.route("https://www.gstatic.com/firebasejs/11.1.0/*", (route) =>
+      route.fulfill({ path: join(FIREBASE_JS, new URL(route.request().url()).pathname.split("/").pop()), contentType: "text/javascript" }));
+    await context.addInitScript((code) => {
+      if (sessionStorage.getItem("prepare")) return;
+      sessionStorage.setItem("prepare", "1");
+      localStorage.setItem("lmp-derniere-partie", JSON.stringify({ code, at: Date.now() }));
+    }, CODE);
+    const inconnue = await context.newPage();
+    await inconnue.goto(`${baseUrl}/?emu=1`);
+    await inconnue.locator("#screen-affiche.active").waitFor();
+    await new Promise((r) => setTimeout(r, 800));
+    assert.equal(await read("joinRequests"), null, "un inconnu ne demande pas à entrer");
+    await inconnue.context().close();
+  });
+
+  test("Buzzy en plein écran (cedric, 01/11) : bienvenue, bonne réponse ; jamais par-dessus une question, une seule fois, rien de coupé", async () => {
+    const page = await openPupitre("&look=gs");
+    await joinTeam(page, "Les Licornes");
+    const fete = page.locator(".fete-buzzy");
+    await page.locator('.fete-buzzy[data-fete="bienvenue"]').waitFor();
+    assert.match(await fete.locator(".fete-sous").textContent(), /Les Licornes, vous êtes dans la fête/);
+    // Rien de coupé ni hors de l'écran : tablette debout, couchée, téléphone dans les deux sens.
+    for (const [width, height] of [[800, 1280], [1280, 800], [412, 860], [860, 412]]) {
+      await page.setViewportSize({ width, height });
+      await preuve(page, `43-bienvenue-${width}x${height}`);
+      const boites = await page.evaluate(() => [".fete-mot", ".fete-video", ".fete-sous"].map((s) => {
+        const e = document.querySelector(`.fete-buzzy ${s}`); const r = e.getBoundingClientRect();
+        return { s, l: r.left, t: r.top, r: r.right, b: r.bottom, coupe: e.scrollWidth > e.clientWidth + 1 };
+      }));
+      for (const x of boites) {
+        assert.ok(x.l >= 0 && x.t >= 0 && x.r <= width + 0.5 && x.b <= height + 0.5 && !x.coupe, `${x.s} tient dans ${width}×${height} : ${JSON.stringify(x)}`);
+      }
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    // Une question s'ouvre : Buzzy laisse la place tout de suite.
+    const uid = (await page.locator("#screen-waiting").getAttribute("data-device"));
+    await hostState(question());
+    await page.locator("#screen-question.active").waitFor();
+    await fete.waitFor({ state: "detached", timeout: 1000 });
+    await page.locator(".choice").nth(1).click();
+    await waitFor(async () => (await read(`answers/q1/${uid}`)) != null, "réponse enregistrée");
+    await hostState(question({ phase: "reveal", correct: 1, awards: { [uid]: { correct: true, points: 100, bonus: 0 } }, scores: { [uid]: 100 } }));
+    await page.locator('.fete-buzzy[data-fete="bonne"] .fete-mot', { hasText: "BONNE RÉPONSE !" }).waitFor();
+    await new Promise((r) => setTimeout(r, 500));
+    await preuve(page, "43-bonne-reponse-telephone");
+    // 3 secondes, puis la tablette revient seule sur son résultat.
+    await fete.waitFor({ state: "detached", timeout: 5000 });
+    await page.locator("#r-title", { hasText: "Bravo ! +100 points" }).waitFor();
+    // Rechargée, la tablette ne rejoue pas la même fête.
+    await page.reload();
+    await page.locator("#screen-result.active").waitFor();
+    await new Promise((r) => setTimeout(r, 800));
+    assert.equal(await fete.count(), 0, "la même fête ne se rejoue pas");
+    await page.context().close();
+  });
+
   test("pendant la pause, impossible de répondre", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
@@ -1519,8 +1628,31 @@ describe("pupitre", () => {
     const teams = Object.fromEntries([...Array(8)].map((_, i) => [`t${i}`, { name: `Équipe ${i}`, color: "#FF3CAC" }]));
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams`), teams));
     const page = await openPupitre();
-    await page.locator("#error-text", { hasText: "complète" }).waitFor();
+    // Cas normal, pas une erreur (cedric, 31/10) : en Game Show, la porte « COMPLET » et des mots doux.
+    await page.locator('#screen-error.active[data-cas="complet"]').waitFor();
+    if (process.env.LMP_LOOK === "gs") await page.locator("#arrivee-titre", { hasText: "On est déjà au complet" }).waitFor();
+    else await page.locator("#error-text", { hasText: "complète" }).waitFor();
     await page.context().close();
+  });
+
+  test("appli ouverte sans QR code : l'affiche du Game Show et le petit bouton appareil photo, pas de message", async () => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.route("https://www.gstatic.com/firebasejs/11.1.0/*", (route) =>
+      route.fulfill({ path: join(FIREBASE_JS, new URL(route.request().url()).pathname.split("/").pop()), contentType: "text/javascript" }));
+    const page = await context.newPage();
+    await page.goto(`${baseUrl}/`);
+    await page.locator("#screen-affiche.active .affiche-logo").waitFor();
+    assert.equal(await page.locator("#affiche-photo").isVisible(), true);
+    assert.equal(await page.locator("#screen-error.active").count(), 0);
+    // Le scanner n'accepte que le QR code d'une partie de ce site.
+    const lu = await page.evaluate(async () => {
+      const { adresseDePartie } = await import("./scanner.js");
+      return [adresseDePartie(`${location.origin}/?g=ABCD&look=gs`), adresseDePartie("https://exemple.fr/?g=ABCD"), adresseDePartie(`${location.origin}/`)];
+    });
+    assert.ok(lu[0]?.includes("g=ABCD"));
+    assert.equal(lu[1], null);
+    assert.equal(lu[2], null);
+    await context.close();
   });
 
   test("une partie inexistante affiche un message clair", async () => {
@@ -1530,6 +1662,7 @@ describe("pupitre", () => {
     const page = await context.newPage();
     await page.goto(`${baseUrl}/?g=ZZZZZ&emu=1`);
     await page.locator("#error-text", { hasText: "n'existe pas" }).waitFor();
+    assert.equal(await page.locator('#screen-error[data-cas="passe"]').count(), 1, "vieille partie : l'écran « HIER » en Game Show");
     await context.close();
   });
 });
