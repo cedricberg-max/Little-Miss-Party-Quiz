@@ -3030,6 +3030,8 @@ internal const val SANS_RESEAU_AU_DEMARRAGE =
 internal val CLES_REPRISE = listOf(
     "hostUid", "quizId", "conducteur", "show", "showStatus", "public", "log", "state", "teams",
     "commands", "commandStatus", "takeover", "regie", "pairingLock",
+    // Quand la partie a été vue pour la dernière fois (proposition de reprise : jamais une partie de plus de 24 h).
+    "createdAt", "hostOnline",
 )
 
 /** Une partie relue par morceaux ([CLES_REPRISE]) : se lit comme la partie entière. */
