@@ -198,6 +198,14 @@ private fun Content(ui: UpdateUi, actions: UpdateActions, focus: FocusRequester)
             Body("Téléchargement de la version ${ui.release.versionName}… ${(p * 100).toInt()} %")
             LinearProgressIndicator(progress = { p }, color = Palette.Gold, trackColor = Palette.Panel, modifier = Modifier.fillMaxWidth().height(12.dp))
             Text("${mb(ui.done)} sur ${mb(ui.release.size)}", color = Palette.InkSoft, fontSize = 18.sp)
+            // Wi-Fi faible : on dit ce qui se passe au lieu de rester figé (cedric, 31/10 : bloqué à 0 %).
+            if (ui.essai > 0) {
+                Text(
+                    "Connexion faible (${ui.raison ?: "coupure"}) : nouvel essai ${ui.essai + 1} sur ${UpdateViewModel.ESSAIS_TELECHARGEMENT}, " +
+                        "le téléchargement reprend là où il s'est arrêté.",
+                    color = Palette.Gold, fontSize = 18.sp,
+                )
+            }
             Buttons { Secondary("Annuler", actions.cancelDownload, focus) }
         }
         is UpdateUi.Verifying -> {
