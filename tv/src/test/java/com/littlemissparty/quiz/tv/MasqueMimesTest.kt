@@ -41,6 +41,9 @@ class MasqueMimesTest {
         assertEquals(60_000L, restantMimes(fin, lancement + 2_000, 0, 60_000))
         assertEquals(50_000L, restantMimes(fin, lancement + com.littlemissparty.quiz.engine.MIME_DEPART_MS + 10_000, 0, 60_000))
         assertEquals(0L, restantMimes(fin, fin + 5_000, 0, 60_000))
+        // Jamais une image à « 0 » au début du tour : la valeur de départ vient de l'échéance.
+        val code = java.io.File("src/main/java/com/littlemissparty/quiz/tv/MimeScreens.kt").readText()
+        assertTrue(code.contains("mutableLongStateOf(state.deadline?.let { restantMimes("))
     }
 
     @Test

@@ -653,7 +653,10 @@ internal fun restantMimes(deadline: Long, maintenant: Long, depart: Long, total:
 @Composable
 internal fun MimeCountdown(state: UiState.Playing) {
     val total = state.question?.durationMs ?: 1
-    var remaining by remember { mutableLongStateOf(state.remainingMs) }
+    // Valeur de départ calculée tout de suite sur l'échéance (film du 1/11 : une image à « 0 » au début du tour).
+    var remaining by remember {
+        mutableLongStateOf(state.deadline?.let { restantMimes(it, System.currentTimeMillis() + state.serverOffset, state.resumeAt ?: 0L, total) } ?: state.remainingMs)
+    }
     LaunchedEffect(state.deadline, state.paused) {
         val deadline = state.deadline
         if (deadline == null) {
