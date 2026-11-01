@@ -176,5 +176,6 @@ internal fun taillePolaroid(l: Float, h: Float): Pair<Float, Float> {
 /** Largeur sur hauteur du polaroid (planche du 1/11, choix C). */
 internal const val POLAROID_RAPPORT = 0.837f
 internal const val POLAROID_ANGLE = -5f
-/** « Très légèrement » plus petit que la planche, qui prenait toute la place (cedric, 1/11). */
-internal const val POLAROID_PART = 0.88f
+/** Plus petit que la planche, qui prenait toute la place ; vu à 0,88, « très légèrement trop gros » : « léger léger »
+ *  plus petit, jamais la moitié (cedric, 1/11). */
+internal const val POLAROID_PART = 0.80f

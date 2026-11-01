@@ -74,9 +74,11 @@ class QuiSuisGsTest {
             val bl = (w * kotlin.math.cos(a) + ht * kotlin.math.sin(a)).toFloat() * 1.08f
             val bh = (ht * kotlin.math.cos(a) + w * kotlin.math.sin(a)).toFloat() * 1.08f
             assertTrue("$l x $h : $bl x $bh", bl <= l + 0.01f && bh <= h + 0.01f)
-            // « Très légèrement » plus petit : jamais la moitié.
-            assertTrue(maxOf(bl / l, bh / h) >= 0.8f)
+            // « Léger léger » plus petit : jamais la moitié.
+            assertTrue(maxOf(bl / l, bh / h) >= 0.78f)
         }
+        // Vu à 0,88, « très légèrement trop gros » (cedric, 1/11) : environ 10 % plus petit.
+        assertEquals(0.80f, POLAROID_PART, 1e-3f)
         assertEquals(-5f, POLAROID_ANGLE)
         val src = java.io.File("src/main/java/com/littlemissparty/quiz/tv/habillage/RevelationPersonnage.kt").readText()
         val bloc = src.substringAfter("private fun MedaillonSeul(").substringBefore("\n}\n")
