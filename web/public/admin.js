@@ -24,6 +24,9 @@ import {
   DISPARU_CARTES, famillesPourLAge,
   pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX, leurresDeChanson, parolesDuHook,
   departZoom,
+  departFlou,
+  FLOU_NORMAL,
+  FLOU_MAX,
 } from "./show.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre, questionBanque } from "./banque-photos.js";
@@ -55,7 +58,7 @@ import { lireZipEtSesZip } from "./zip.js";
 import { catalogueDesPacks, packsQuiRepondent, piocherDansLesPacks, versQuestionDePack, niveauDesPacks, sourceDuDe, avecSesImages } from "./pioche-packs.js";
 import { analyserPack, chercheurImages, estImage, ouQuestion, IMAGE_MANQUANTE, EPREUVES, alerteImage, dossierDe, garderLesQuestionsIllustrees } from "./pack-zip.js";
 import { ouvrirCadrage } from "./cadrage.js";
-import { ZOOM_MOYEN, MOLETTE, graineDe, departAuto, zoomerDepart, premiereImage, ouvrirDepartZoom } from "./departzoom.js";
+import { ZOOM_MOYEN, MOLETTE, graineDe, departAuto, zoomerDepart, premiereImage, premiereImageFloue, ouvrirDepartZoom } from "./departzoom.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
 import {
@@ -474,6 +477,7 @@ function enter() {
   stops.push(onValue(ref(db, "boxes/allowed"), (s) => { boxAllowed = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   // Cadrages gardés : même tolérance (règles pas encore publiées) ; une prestation ouverte les reprend.
   stops.push(onValue(ref(db, "library/departsZoom"), (s) => { departsZoom = s.val() ?? {}; }, (e) => console.error(e)));
+  stops.push(onValue(ref(db, "library/departsFlou"), (s) => { departsFlou = s.val() ?? {}; }, (e) => console.error(e)));
   stops.push(onValue(ref(db, "library/cadrages"), (s) => { cadrages = s.val() ?? {}; if (editing && appliquerCadrages(editing.rounds)) refreshRounds(); }, (e) => console.error(e)));
   // Prestations lancées sur une box (en cours, interrompue, terminée) : une lecture refusée (règles pas encore
   // publiées) ne ferme pas l'administration. Relu chaque minute : une box peut se couper sans que rien d'autre change.
@@ -2308,6 +2312,7 @@ async function departDeLaPhoto(q) {
 /** À l'enregistrement : chaque photo du Zoom mystère gardée dans la prestation reçoit son départ (voir plus haut). */
 async function completerDepartsZoom(rounds) {
   for (const r of rounds ?? []) {
+    if (r?.type === "flou") { completerDepartsFlou(r); continue; }
     if (r?.type !== "zoom") continue;
     for (const serie of roundSeriesQuiz(r)) {
       if (serie?.origine === "quiz") continue;
@@ -2359,7 +2364,70 @@ function departZoomMini(r, x, changer) {
     montrer();
   };
   molette.onchange = () => { if (depart) garder(depart); };
-  // La ligne se glisse à la souris pour changer d'ordre : pas pendant qu'on tient la molette.
+  tenirLaMolette(molette);
+  return h("span", { class: "zoom-depart-bloc" }, bouton,
+    h("label", { class: "zoom-molette-ligne" }, molette, force));
+}
+
+/**
+ * Départ de l'Image floue (cedric, 01/11 : « par défaut le flou d'aujourd'hui, et à la main un flou plus fort ») : sous
+ * chaque photo de « Image floue complète », la première image floue de la TV et une petite molette pour la rendre plus
+ * floue. Va dans la question (flouDepart, lu par la TV, qui garde la même durée) et reste gardé pour la photo :
+ * `library/departsFlou/{photo}` = { w, at }. Sans réglage : rien d'enregistré, la TV floute comme avant.
+ */
+let departsFlou = {};
+const NOMS_FLOU = { 5: "normal", 4: "fort", 3: "très fort", 2: "max" };
+function memoriserFlou(src, d) {
+  const cle = cleDepart(src);
+  departsFlou[cle] = { ...d, at: Date.now() };
+  set(ref(db, `library/departsFlou/${cle}`), { ...d, at: serverTimestamp() }).catch((e) => console.error(e));
+}
+/** Le flou de départ d'une photo : celui de la question, sinon celui gardé pour la photo, sinon le flou d'origine. */
+const flouDeLaPhoto = (q) => {
+  const src = photoDuZoom(q);
+  return departFlou(q?.flouDepart) ?? (src ? departFlou(departsFlou[cleDepart(src)]) : null) ?? { w: FLOU_NORMAL };
+};
+/** À l'enregistrement : une photo déjà réglée plus floue dans une autre prestation garde ce réglage. */
+function completerDepartsFlou(r) {
+  for (const serie of roundSeriesQuiz(r)) {
+    if (serie?.origine === "quiz") continue;
+    for (const q of Array.isArray(serie.questions) ? serie.questions : Object.values(serie.questions ?? {})) {
+      if (!q || departFlou(q.flouDepart) || !photoDuZoom(q)) continue;
+      const d = flouDeLaPhoto(q);
+      if (d.w < FLOU_NORMAL) q.flouDepart = d;
+    }
+  }
+}
+function departFlouMini(r, x, changer) {
+  const gardee = questionGardee(r, x);
+  const q = gardee ?? x.q;
+  const src = photoDuZoom(q);
+  if (!src) return null;
+  let d = flouDeLaPhoto(q);
+  const vue = h("span", { class: "flou-depart", title: "La première image floue sur la TV", "aria-label": `Première image floue de « ${reponsePhoto(x.q)} »` });
+  let adresse = null;
+  const montrer = () => { if (adresse) vue.replaceChildren(premiereImageFloue(adresse, d.w)); };
+  sourceDuCadrage(src).then((a) => { adresse = a; montrer(); }).catch((e) => console.error(e));
+  if (!gardee) return vue;
+  const force = h("span", { class: "zoom-molette-force flou-molette-force", text: NOMS_FLOU[d.w] });
+  // À droite : plus flou (la largeur de la première image passe de 5 à 2 pixels).
+  const molette = h("input", { type: "range", class: "zoom-molette flou-molette", min: 0, max: FLOU_NORMAL - FLOU_MAX, step: 1, value: FLOU_NORMAL - d.w,
+    title: "Flou au départ : à droite, plus dur à deviner", "aria-label": `Flou au départ de « ${reponsePhoto(x.q)} »` });
+  molette.oninput = () => {
+    d = { w: FLOU_NORMAL - Number(molette.value) };
+    force.textContent = NOMS_FLOU[d.w];
+    montrer();
+  };
+  molette.onchange = () => {
+    gardee.flouDepart = departFlou(d);
+    memoriserFlou(src, gardee.flouDepart);
+    changer();
+  };
+  tenirLaMolette(molette);
+  return h("span", { class: "zoom-depart-bloc" }, vue, h("label", { class: "zoom-molette-ligne" }, molette, force));
+}
+/** La ligne se glisse à la souris pour changer d'ordre : pas pendant qu'on tient une molette. */
+function tenirLaMolette(molette) {
   let avant = null;
   const tenir = (oui) => {
     const li = molette.closest("li");
@@ -2370,8 +2438,6 @@ function departZoomMini(r, x, changer) {
   molette.addEventListener("pointerup", () => tenir(false));
   molette.addEventListener("pointercancel", () => tenir(false));
   molette.addEventListener("click", (e) => e.stopPropagation());
-  return h("span", { class: "zoom-depart-bloc" }, bouton,
-    h("label", { class: "zoom-molette-ligne" }, molette, force));
 }
 
 /** L'image d'un objet (carte, mot, personnage) : son identifiant, ou « b-… » pour une photo libre de l'appli. */
@@ -5102,7 +5168,7 @@ function quizComplet(r, assemblage, clesFinale, changer, des = null) {
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
       photos ? recadrable(apercuPhoto(x.q), r, x, changer) : null,
-      r.type === "zoom" ? departZoomMini(r, x, changer) : null,
+      r.type === "zoom" ? departZoomMini(r, x, changer) : r.type === "flou" ? departFlouMini(r, x, changer) : null,
       photos ? nomDePhoto(r, x, changer) : h("span", { class: "tirage-texte", text: `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
       themeDePack(x.cle),
       photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q, (img, k) => recadrable(img, r, x, changer, k))

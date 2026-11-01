@@ -5,8 +5,11 @@
  * chrono. La Régie PC montre cette première image à l'identique et laisse Sarah déplacer le départ et choisir la force.
  */
 
-/** Forces proposées (zoom de départ) ; « Moyen » = le zoom de la TV avant ce réglage. */
-export const FORCES_ZOOM = [{ z: 4, nom: "Léger" }, { z: 6, nom: "Moyen" }, { z: 9, nom: "Fort" }];
+/**
+ * Forces proposées (zoom de départ) ; « Normal » = le zoom de la TV avant ce réglage. Sarah peut seulement aller plus
+ * loin (cedric, 01/11) : la TV dézoome alors un peu plus vite, sur la même durée.
+ */
+export const FORCES_ZOOM = [{ z: 6, nom: "Normal" }, { z: 8, nom: "Fort" }, { z: 10, nom: "Très fort" }];
 export const ZOOM_MOYEN = 6;
 /** Cadre du Zoom mystère sur la TV (largeur / hauteur). */
 const CADRE = 4 / 3;
@@ -79,8 +82,8 @@ export function zoomerDepart(d, z) {
   const f = fenetreDuDepart(d);
   return departCentreSur(f.gauche + f.taille / 2, f.haut + f.taille / 2, z);
 }
-/** La molette sous chaque photo (cedric, 31/10) : du zoom ×2 (facile) au zoom ×10 (très dur), par demi-crans. */
-export const MOLETTE = { min: 2, max: 10, pas: 0.5 };
+/** La molette sous chaque photo (cedric, 01/11) : du zoom normal de la TV (×6) au zoom ×10 (très dur), par demi-crans. */
+export const MOLETTE = { min: ZOOM_MOYEN, max: 10, pas: 0.5 };
 
 const charger = async (src) => {
   const img = new Image();
@@ -176,4 +179,34 @@ export async function ouvrirDepartZoom(src, depart, auto) {
   });
   voile.remove();
   return choix ? d : null;
+}
+
+/**
+ * Image floue (cedric, 01/11) : la première image floue de la TV. La TV réduit la photo à [w] pixels de large puis
+ * l'agrandit en lissé, recadrée pour remplir son cadre (le haut gardé). Ici pareil : une toute petite image agrandie.
+ */
+export function premiereImageFloue(src, w, classe = "flou-premiere") {
+  const img = el("img", { alt: "", draggable: false });
+  const cadre = el("span", { className: classe }, img);
+  poserFlou(img, src, w);
+  return cadre;
+}
+const petites = new Map();
+async function poserFlou(img, src, w) {
+  try {
+    const cle = `${w}~${src}`;
+    if (!petites.has(cle)) {
+      const photo = await charger(src);
+      const h = Math.max(1, Math.round(photo.naturalHeight * w / Math.max(1, photo.naturalWidth)));
+      const c = el("canvas", { width: w, height: h });
+      const ctx = c.getContext("2d");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(photo, 0, 0, w, h);
+      if (petites.size > 200) petites.clear();
+      petites.set(cle, c.toDataURL("image/png"));
+    }
+    img.src = petites.get(cle);
+    img.dataset.largeur = `${w}`;
+  } catch { /* image illisible : la case reste vide */ }
 }

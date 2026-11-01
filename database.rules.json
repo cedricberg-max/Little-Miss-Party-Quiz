@@ -470,6 +470,15 @@
           }
         }
       },
+      "departsFlou": {
+        "$cle": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || ($cle.matches(/^[-\\w]{2,80}$/) && newData.child('w').isNumber() && newData.child('w').val() >= 2 && newData.child('w').val() <= 5 && newData.child('at').val() === now)",
+          "$other": {
+            ".validate": "$other === 'w' || $other === 'at'"
+          }
+        }
+      },
       "sounds": {
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && (!data.exists() || !newData.exists())",
