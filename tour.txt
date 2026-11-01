@@ -1,0 +1,249 @@
+TOUR|3|BILAN|coupés=0|chevauchements=1|robot=8|bloqués=1
+TOUR|3|blind-test-buzz|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|blind-test-buzz|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|blind-test-ecoute|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|blind-test-ecoute|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|blind-test-presentation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|blind-test-presentation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|blind-test-revelation|avec|coupés=0|chevauchements=0|plus petit=18 px « 100 points »|
+TOUR|3|blind-test-revelation|sans|coupés=0|chevauchements=0|plus petit=18 px « 100 points »|
+TOUR|3|ca-va-exploser-bombe|avec|coupés=0|chevauchements=0|plus petit=16 px « Les Licornes Roses »|
+TOUR|3|ca-va-exploser-bombe|sans|coupés=0|chevauchements=0|plus petit=16 px « Les Licornes Roses »|
+TOUR|3|chante-le-mot-buzz|avec|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|3|chante-le-mot-buzz|sans|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|3|chante-le-mot-question|avec|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|3|chante-le-mot-question|sans|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|3|chante-le-mot-revelation|avec|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|3|chante-le-mot-revelation|sans|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|3|coffres-choix|avec|coupés=0|chevauchements=0|plus petit=25 px « Les Dragons Dorés »|
+TOUR|3|coffres-choix|sans|coupés=0|chevauchements=0|plus petit=25 px « Les Dragons Dorés »|
+TOUR|3|coffres-classement|avec|coupés=0|chevauchements=0|plus petit=11 px « +300 »|
+TOUR|3|coffres-classement|avec|robot|signal 1|Buzzy passe sur « Encore 8 coffres sans danger »
+TOUR|3|coffres-classement|sans|coupés=0|chevauchements=0|plus petit=11 px « +300 »|
+TOUR|3|coffres-classement|sans|robot|signal 1|Buzzy passe sur « Encore 8 coffres sans danger »
+TOUR|3|coffres-ouverture|avec|coupés=0|chevauchements=0|plus petit=11 px « +300 »|
+TOUR|3|coffres-ouverture|avec|robot|signal 1|Buzzy passe sur « 425 » ; Buzzy passe sur « 1 411 » ; Buzzy passe sur « 563 » ; Buzzy passe sur « +300 »
+TOUR|3|coffres-ouverture|sans|coupés=0|chevauchements=1|plus petit=21 px « Score »|« Les Dragons Dorés » et « +300 POINTS » se chevauchent [[546.0,173.0][765.0,210.0] / [536.25,167.0][744.75,218.0]]
+TOUR|3|duel-face-a-face|avec|coupés=0|chevauchements=0|plus petit=29 px « Les Dragons Dorés »|
+TOUR|3|duel-face-a-face|sans|coupés=0|chevauchements=0|plus petit=29 px « Les Dragons Dorés »|
+TOUR|3|duel-pret|avec|coupés=0|chevauchements=0|plus petit=22 px « les deux joueurs »|
+TOUR|3|duel-pret|sans|coupés=0|chevauchements=0|plus petit=22 px « les deux joueurs »|
+TOUR|3|gonfleur-course|avec|coupés=0|chevauchements=0|plus petit=17 px « Les Licornes Roses »|
+TOUR|3|gonfleur-course|sans|coupés=0|chevauchements=0|plus petit=17 px « Les Licornes Roses »|
+TOUR|3|gonfleur-depart|avec|coupés=0|chevauchements=0|plus petit=17 px « Les Licornes Roses »|
+TOUR|3|gonfleur-depart|sans|coupés=0|chevauchements=0|plus petit=17 px « Les Licornes Roses »|
+TOUR|3|image-floue-buzz|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|image-floue-buzz|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|image-floue-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|image-floue-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|image-floue-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|image-floue-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|juste-chiffre-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|juste-chiffre-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|juste-chiffre-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|juste-chiffre-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|juste-chiffre-roulette|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|juste-chiffre-roulette|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|mimes-bravo|avec|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|3|mimes-bravo|sans|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|3|mimes-changement|avec|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|3|mimes-changement|sans|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|3|mimes-presentation|avec|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|3|mimes-presentation|sans|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|3|mimes-tour|avec|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|3|mimes-tour|sans|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|3|pictionary-au-tour-de|avec|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|3|pictionary-au-tour-de|sans|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|3|pictionary-choix|avec|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|3|pictionary-choix|sans|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|3|pictionary-dessin|avec|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|3|pictionary-dessin|sans|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|3|pictionary-presentation|avec|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|3|pictionary-presentation|sans|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|3|pictionary-trouve|avec|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|3|pictionary-trouve|sans|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|3|podium|BLOQUÉ|expected:<[applied]> but was:<[stale]>
+TOUR|3|qui-a-disparu-buzz|avec|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|3|qui-a-disparu-buzz|sans|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|3|qui-a-disparu-chercher|avec|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|3|qui-a-disparu-chercher|sans|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|3|qui-a-disparu-memoriser|avec|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|3|qui-a-disparu-memoriser|sans|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|3|qui-a-disparu-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|3|qui-a-disparu-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|3|qui-suis-je-buzz|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|qui-suis-je-buzz|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|qui-suis-je-question|avec|coupés=0|chevauchements=0|plus petit=21 px « dès que vous savez qui je suis »|
+TOUR|3|qui-suis-je-question|sans|coupés=0|chevauchements=0|plus petit=21 px « dès que vous savez qui je suis »|
+TOUR|3|qui-suis-je-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|qui-suis-je-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|quiz-illustre-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|quiz-illustre-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|quiz-illustre-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|quiz-illustre-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|quiz-musical-paroles|avec|coupés=0|chevauchements=0|plus petit=21 px « Comptine »|
+TOUR|3|quiz-musical-paroles|sans|coupés=0|chevauchements=0|plus petit=21 px « Comptine »|
+TOUR|3|quiz-musical-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|quiz-musical-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|quiz-musical-revelation|avec|coupés=0|chevauchements=0|plus petit=21 px « Comptine »|
+TOUR|3|quiz-musical-revelation|sans|coupés=0|chevauchements=0|plus petit=21 px « Comptine »|
+TOUR|3|quiz-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|quiz-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|quiz-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|quiz-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|salon|avec|coupés=0|chevauchements=0|plus petit=-|
+TOUR|3|salon|sans|coupés=0|chevauchements=0|plus petit=-|
+TOUR|3|scores|avec|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|3|scores|avec|robot|scores JLAUQ 0|Buzzy passe sur « Les Dragons Dorés » ; Buzzy passe sur « Jeu suivant : Le Juste Chiffre  ▶ »
+TOUR|3|scores|sans|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|3|scores|sans|robot|scores JLAUQ 0|Buzzy passe sur « Les Dragons Dorés »
+TOUR|3|simon-a-vous|avec|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|3|simon-a-vous|sans|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|3|simon-pret|avec|coupés=0|chevauchements=0|plus petit=19 px « encore en jeu »|
+TOUR|3|simon-pret|sans|coupés=0|chevauchements=0|plus petit=19 px « encore en jeu »|
+TOUR|3|simon-regardez|avec|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|3|simon-regardez|sans|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|3|statues-danse|avec|coupés=0|chevauchements=0|plus petit=35 px « Statue !  ▶ »|
+TOUR|3|statues-danse|sans|coupés=0|chevauchements=0|plus petit=125 px « D »|
+TOUR|3|statues-gagnante|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|statues-gagnante|sans|coupés=0|chevauchements=0|plus petit=27 px « Les Licornes Roses »|
+TOUR|3|statues-statue|avec|coupés=0|chevauchements=0|plus petit=35 px « On danse !  ▶ »|
+TOUR|3|statues-statue|sans|coupés=0|chevauchements=0|plus petit=44 px « PLUS PERSONNE NE BOUGE »|
+TOUR|3|vrai-faux-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|vrai-faux-question|avec|robot|suspense JLAUQ t-vf|Buzzy passe sur « Arrêter le chrono  ▶ »
+TOUR|3|vrai-faux-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|vrai-faux-revelation|avec|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|3|vrai-faux-revelation|avec|robot|scores JLAUQ 2|Buzzy passe sur « Les Dragons Dorés » ; Buzzy passe sur « Jeu suivant : Zoom mystère  ▶ »
+TOUR|3|vrai-faux-revelation|sans|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|3|vrai-faux-revelation|sans|robot|scores JLAUQ 2|Buzzy passe sur « Les Dragons Dorés »
+TOUR|3|zoom-hors-ligne|avec|coupés=0|chevauchements=0|plus petit=15 px « hors ligne »|
+TOUR|3|zoom-hors-ligne|sans|coupés=0|chevauchements=0|plus petit=15 px « hors ligne »|
+TOUR|3|zoom-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|zoom-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|zoom-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|zoom-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|BILAN|coupés=0|chevauchements=2|robot=8|bloqués=0
+TOUR|4|blind-test-buzz|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|blind-test-buzz|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|blind-test-ecoute|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|blind-test-ecoute|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|blind-test-presentation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|blind-test-presentation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|blind-test-revelation|avec|coupés=0|chevauchements=0|plus petit=18 px « 100 points »|
+TOUR|4|blind-test-revelation|sans|coupés=0|chevauchements=0|plus petit=18 px « 100 points »|
+TOUR|4|ca-va-exploser-bombe|avec|coupés=0|chevauchements=0|plus petit=16 px « Les Licornes Roses »|
+TOUR|4|ca-va-exploser-bombe|sans|coupés=0|chevauchements=0|plus petit=16 px « Les Licornes Roses »|
+TOUR|4|chante-le-mot-buzz|avec|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|4|chante-le-mot-buzz|sans|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|4|chante-le-mot-question|avec|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|4|chante-le-mot-question|sans|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|4|chante-le-mot-revelation|avec|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|4|chante-le-mot-revelation|sans|coupés=0|chevauchements=0|plus petit=22 px « UNE CHANSON AVEC LE MOT »|
+TOUR|4|coffres-choix|avec|coupés=0|chevauchements=0|plus petit=25 px « Les Comètes Filantes »|
+TOUR|4|coffres-choix|sans|coupés=0|chevauchements=0|plus petit=25 px « Les Comètes Filantes »|
+TOUR|4|coffres-classement|avec|coupés=0|chevauchements=0|plus petit=11 px « +200 »|
+TOUR|4|coffres-classement|avec|robot|signal 1|Buzzy passe sur « Encore 7 coffres sans danger »
+TOUR|4|coffres-classement|sans|coupés=0|chevauchements=0|plus petit=11 px « +200 »|
+TOUR|4|coffres-classement|sans|robot|signal 1|Buzzy passe sur « Encore 7 coffres sans danger »
+TOUR|4|coffres-ouverture|avec|coupés=0|chevauchements=0|plus petit=11 px « +200 »|
+TOUR|4|coffres-ouverture|avec|robot|signal 1|Buzzy passe sur « 425 » ; Buzzy passe sur « 374 » ; Buzzy passe sur « 1 474 » ; Buzzy passe sur « 468 » ; Buzzy passe sur « +200 »
+TOUR|4|coffres-ouverture|sans|coupés=0|chevauchements=1|plus petit=21 px « Score »|« Les Comètes Filantes » et « +200 POINTS » se chevauchent [[529.0,173.0][780.0,210.0] / [536.0,167.0][744.0,218.0]]
+TOUR|4|duel-face-a-face|avec|coupés=0|chevauchements=0|plus petit=29 px « Les Dragons Dorés »|
+TOUR|4|duel-face-a-face|sans|coupés=0|chevauchements=0|plus petit=29 px « Les Dragons Dorés »|
+TOUR|4|duel-pret|avec|coupés=0|chevauchements=0|plus petit=22 px « les deux joueurs »|
+TOUR|4|duel-pret|sans|coupés=0|chevauchements=0|plus petit=22 px « les deux joueurs »|
+TOUR|4|gonfleur-course|avec|coupés=0|chevauchements=0|plus petit=17 px « Les Licornes Roses »|
+TOUR|4|gonfleur-course|sans|coupés=0|chevauchements=0|plus petit=17 px « Les Licornes Roses »|
+TOUR|4|gonfleur-depart|avec|coupés=0|chevauchements=0|plus petit=17 px « Les Licornes Roses »|
+TOUR|4|gonfleur-depart|sans|coupés=0|chevauchements=0|plus petit=18 px « Les Licornes Roses »|
+TOUR|4|image-floue-buzz|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|image-floue-buzz|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|image-floue-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|image-floue-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|image-floue-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|image-floue-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|juste-chiffre-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|juste-chiffre-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|juste-chiffre-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|juste-chiffre-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|juste-chiffre-roulette|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|juste-chiffre-roulette|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|mimes-bravo|avec|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|4|mimes-bravo|sans|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|4|mimes-changement|avec|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|4|mimes-changement|sans|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|4|mimes-presentation|avec|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|4|mimes-presentation|sans|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|4|mimes-tour|avec|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|4|mimes-tour|sans|coupés=0|chevauchements=0|plus petit=17 px « 0 mime »|
+TOUR|4|pictionary-au-tour-de|avec|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|4|pictionary-au-tour-de|sans|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|4|pictionary-choix|avec|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|4|pictionary-choix|sans|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|4|pictionary-dessin|avec|coupés=0|chevauchements=0|plus petit=20 px «  dessine ! »|
+TOUR|4|pictionary-dessin|sans|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|4|pictionary-presentation|avec|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|4|pictionary-presentation|sans|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|4|pictionary-trouve|avec|coupés=0|chevauchements=0|plus petit=20 px « Le mot »|
+TOUR|4|pictionary-trouve|sans|coupés=0|chevauchements=0|plus petit=21 px « Les Licornes Roses »|
+TOUR|4|podium|avec|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|4|podium|sans|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|4|qui-a-disparu-buzz|avec|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|4|qui-a-disparu-buzz|sans|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|4|qui-a-disparu-chercher|avec|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|4|qui-a-disparu-chercher|sans|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|4|qui-a-disparu-memoriser|avec|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|4|qui-a-disparu-memoriser|sans|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|4|qui-a-disparu-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|4|qui-a-disparu-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « PETIT AVION »|
+TOUR|4|qui-suis-je-buzz|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|qui-suis-je-buzz|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|qui-suis-je-question|avec|coupés=0|chevauchements=0|plus petit=21 px « dès que vous savez qui je suis »|
+TOUR|4|qui-suis-je-question|sans|coupés=0|chevauchements=0|plus petit=21 px « dès que vous savez qui je suis »|
+TOUR|4|qui-suis-je-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|qui-suis-je-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|quiz-illustre-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|quiz-illustre-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|quiz-illustre-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|quiz-illustre-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|quiz-musical-paroles|avec|coupés=0|chevauchements=0|plus petit=21 px « Comptine »|
+TOUR|4|quiz-musical-paroles|sans|coupés=0|chevauchements=0|plus petit=21 px « Comptine »|
+TOUR|4|quiz-musical-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|quiz-musical-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|quiz-musical-revelation|avec|coupés=0|chevauchements=0|plus petit=21 px « Comptine »|
+TOUR|4|quiz-musical-revelation|sans|coupés=0|chevauchements=0|plus petit=21 px « Comptine »|
+TOUR|4|quiz-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|quiz-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|quiz-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|quiz-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|salon|avec|coupés=0|chevauchements=0|plus petit=-|
+TOUR|4|salon|sans|coupés=0|chevauchements=0|plus petit=-|
+TOUR|4|scores|avec|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|4|scores|avec|robot|scores 4ZLA3 0|Buzzy passe sur « Les Pirates du Lac » ; Buzzy passe sur « 4e » ; Buzzy passe sur « Jeu suivant : Le Juste Chiffre  ▶ »
+TOUR|4|scores|sans|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|4|scores|sans|robot|scores 4ZLA3 0|Buzzy passe sur « Les Pirates du Lac » ; Buzzy passe sur « 4e »
+TOUR|4|simon-a-vous|avec|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|4|simon-a-vous|sans|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|4|simon-pret|avec|coupés=0|chevauchements=0|plus petit=19 px « encore en jeu »|
+TOUR|4|simon-pret|sans|coupés=0|chevauchements=0|plus petit=19 px « encore en jeu »|
+TOUR|4|simon-regardez|avec|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|4|simon-regardez|sans|coupés=0|chevauchements=0|plus petit=19 px « Les Comètes Filantes »|
+TOUR|4|statues-danse|avec|coupés=0|chevauchements=0|plus petit=35 px « Statue !  ▶ »|
+TOUR|4|statues-danse|sans|coupés=0|chevauchements=0|plus petit=125 px « D »|
+TOUR|4|statues-gagnante|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|statues-gagnante|sans|coupés=0|chevauchements=0|plus petit=25 px « Les Comètes Filantes »|
+TOUR|4|statues-statue|avec|coupés=0|chevauchements=0|plus petit=35 px « On danse !  ▶ »|
+TOUR|4|statues-statue|sans|coupés=0|chevauchements=0|plus petit=44 px « PLUS PERSONNE NE BOUGE »|
+TOUR|4|vrai-faux-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|vrai-faux-question|avec|robot|suspense 4ZLA3 t-vf|Buzzy passe sur « Arrêter le chrono  ▶ »
+TOUR|4|vrai-faux-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|vrai-faux-revelation|avec|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|4|vrai-faux-revelation|avec|robot|scores 4ZLA3 2|Buzzy passe sur « Les Dragons Dorés » ; Buzzy passe sur « 4e » ; Buzzy passe sur « Jeu suivant : Zoom mystère  ▶ »
+TOUR|4|vrai-faux-revelation|sans|coupés=0|chevauchements=0|plus petit=13 px « by »|
+TOUR|4|vrai-faux-revelation|sans|robot|scores 4ZLA3 2|Buzzy passe sur « Les Dragons Dorés » ; Buzzy passe sur « 4e »
+TOUR|4|zoom-hors-ligne|avec|coupés=0|chevauchements=3|plus petit=10 px « by »|« Quel animal se cache sur la photo ? » et « GAME SHOW » se chevauchent [[106.0,58.0][1039.0,115.0] / [555.0,85.0][726.0,124.0]] ; « Les Comètes Filantes » et « Reprendre  ▶ » se chevauchent [[498.0,623.0][692.0,652.0] / [499.59998,576.92][780.4,660.08]] ; « Les Pirates du Lac » et « Reprendre  ▶ » se chevauchent [[737.0,623.0][902.0,652.0] / [499.59998,576.92][780.4,660.08]]
+TOUR|4|zoom-hors-ligne|sans|coupés=0|chevauchements=0|plus petit=15 px « hors ligne »|
+TOUR|4|zoom-question|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|zoom-question|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|zoom-revelation|avec|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|zoom-revelation|sans|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
