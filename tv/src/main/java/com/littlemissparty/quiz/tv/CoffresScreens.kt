@@ -16,9 +16,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -29,6 +27,7 @@ import com.littlemissparty.quiz.engine.CHEST_RANKING_MS
 import com.littlemissparty.quiz.engine.CHEST_SHOW_MS
 import com.littlemissparty.quiz.engine.ChestOpen
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.tv.habillage.HALO_DECOR
 import com.littlemissparty.quiz.tv.habillage.AlerteBombe
 import com.littlemissparty.quiz.tv.habillage.BilanBombe
 import com.littlemissparty.quiz.tv.habillage.ClassementCoffre
@@ -114,11 +113,12 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
                 Text(
                     bas,
                     // Texte long : un peu plus petit, pour tenir sur une ligne à côté du bouton de secours.
-                    // Game Show : en néon cyan (Bungee), comme l'enseigne du tour au-dessus.
+                    // Game Show : en cyan (Bungee), comme l'enseigne du tour au-dessus, détaché du plateau par le halo noir
+                    // doux du Chrono (tour des écrans du 1/11 : « ENCORE » se perdait dans un reflet blanc du sol).
                     style = if (Look.gs) TextStyle(
                         fontFamily = PoliceGsTitre, textAlign = TextAlign.Center, color = GS.CyanClair,
                         fontSize = when { bas.length > 46 -> 17.sp; bas.length > 32 -> 20.sp; else -> 23.sp },
-                        shadow = Shadow(GS.Cyan, Offset.Zero, 16f),
+                        shadow = HALO_DECOR,
                     ) else styleCentre(if (bas.length > 46) 22.sp else 26.sp, Neon.OrClair),
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
