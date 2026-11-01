@@ -7,21 +7,38 @@ package com.littlemissparty.quiz.tv
  * rien quand personne n'a décroché.
  */
 internal class Coupures {
-    private class Suivi(var enLigne: Boolean, var depuis: Long, var nombre: Int = 0, var pireMs: Long = 0)
+    private class Suivi(var enLigne: Boolean, var depuis: Long, var nombre: Int = 0, var pireMs: Long = 0) {
+        /** Dernier état de la page vu en ligne : cachée (appli quittée, écran éteint), affichée, ou null (non signalé). */
+        var cachee: Boolean? = null
+        /** Pour chaque coupure du relevé : « page cachée » ou « réseau ». */
+        val causes = mutableListOf<String>()
+    }
 
     private val suivis = linkedMapOf<String, Suivi>()
 
-    /** L'appareil [id] est vu en ligne ou non à [maintenant] (ms) ; seuls les changements comptent. */
+    /**
+     * L'appareil [id] est vu en ligne ou non à [maintenant] (ms) ; seuls les changements comptent. [cachee] : la page dit
+     * être passée en arrière-plan (téléphone de la régie, cedric 31/10 : savoir si une coupure vient de l'appli quittée
+     * ou de l'écran éteint, ou bien du réseau). Une coupure qui suit une page cachée est notée « page cachée ».
+     */
     @Synchronized
-    fun vu(id: String, enLigne: Boolean, maintenant: Long) {
+    fun vu(id: String, enLigne: Boolean, maintenant: Long, cachee: Boolean? = null) {
         val s = suivis[id]
         if (s == null) {
             // Déjà hors ligne quand la box le découvre (box relancée pendant une coupure) : une coupure en cours.
-            suivis[id] = Suivi(enLigne, maintenant, nombre = if (enLigne) 0 else 1)
+            suivis[id] = Suivi(enLigne, maintenant, nombre = if (enLigne) 0 else 1).also { if (enLigne) it.cachee = cachee }
             return
         }
+        if (enLigne) s.cachee = cachee
         if (s.enLigne == enLigne) return
-        if (!enLigne) s.nombre++ else ajouterDuree(s, maintenant - s.depuis)
+        if (!enLigne) {
+            s.nombre++
+            when (s.cachee) {
+                true -> s.causes += CAUSE_PAGE_CACHEE
+                false -> s.causes += CAUSE_RESEAU
+                null -> Unit
+            }
+        } else ajouterDuree(s, maintenant - s.depuis)
         s.enLigne = enLigne
         s.depuis = maintenant
     }
@@ -38,16 +55,25 @@ internal class Coupures {
             val pire = maxOf(s.pireMs, enCours)
             val details = listOfNotNull(
                 if (s.nombre > 1) "pire ${secondes(pire)}" else secondes(pire),
+                s.causes.distinct().takeIf { it.isNotEmpty() }?.joinToString(" / "),
                 "encore coupée".takeIf { !s.enLigne },
             ).joinToString(", ")
             "${nom(id)} ${s.nombre}× ($details)"
         }
         suivis.values.forEach { s ->
             s.nombre = 0; s.pireMs = 0
+            val derniere = s.causes.lastOrNull()
+            s.causes.clear()
+            if (!s.enLigne && derniere != null) s.causes += derniere
             // Une coupure qui dure encore compte de nouveau dans le relevé suivant, avec toute sa durée.
             if (!s.enLigne) s.nombre = 1
         }
         return lignes.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "coupures 5 min : ")
+    }
+
+    companion object {
+        const val CAUSE_PAGE_CACHEE = "page cachée (appli quittée ou écran éteint)"
+        const val CAUSE_RESEAU = "réseau (page affichée)"
     }
 
     private fun ajouterDuree(s: Suivi, ms: Long) {

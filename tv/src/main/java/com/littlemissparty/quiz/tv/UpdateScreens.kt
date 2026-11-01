@@ -62,6 +62,14 @@ fun gameInProgress(state: UiState): Boolean = state is UiState.ResumeOffer || st
         else -> true
     })
 
+/**
+ * « Rechercher une mise à jour » demandé à la main : refusé seulement pendant une prestation en route (une question
+ * jouée, des scores…), jamais au salon, même avec des équipes déjà là, ni sur l'écran « Reprendre » (cedric, 31/10 :
+ * une page fantôme restée ouverte rejoignait chaque nouvelle partie, et la box refusait la mise à jour).
+ */
+fun manualUpdateBlocked(state: UiState): Boolean =
+    state is UiState.Playing && state.phase != com.littlemissparty.quiz.engine.Phase.LOBBY && state.phase != com.littlemissparty.quiz.engine.Phase.ENDED
+
 private fun mb(bytes: Long) = String.format(Locale.FRANCE, "%.1f Mo", bytes / 1_048_576.0)
 
 /** Fenêtre « Rechercher une mise à jour », entièrement utilisable à la télécommande. */
@@ -190,6 +198,14 @@ private fun Content(ui: UpdateUi, actions: UpdateActions, focus: FocusRequester)
             Body("Téléchargement de la version ${ui.release.versionName}… ${(p * 100).toInt()} %")
             LinearProgressIndicator(progress = { p }, color = Palette.Gold, trackColor = Palette.Panel, modifier = Modifier.fillMaxWidth().height(12.dp))
             Text("${mb(ui.done)} sur ${mb(ui.release.size)}", color = Palette.InkSoft, fontSize = 18.sp)
+            // Wi-Fi faible : on dit ce qui se passe au lieu de rester figé (cedric, 31/10 : bloqué à 0 %).
+            if (ui.essai > 0) {
+                Text(
+                    "Connexion faible (${ui.raison ?: "coupure"}) : nouvel essai ${ui.essai + 1} sur ${UpdateViewModel.ESSAIS_TELECHARGEMENT}, " +
+                        "le téléchargement reprend là où il s'est arrêté.",
+                    color = Palette.Gold, fontSize = 18.sp,
+                )
+            }
             Buttons { Secondary("Annuler", actions.cancelDownload, focus) }
         }
         is UpdateUi.Verifying -> {

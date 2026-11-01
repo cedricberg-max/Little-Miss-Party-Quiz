@@ -82,6 +82,14 @@ object QuizJson {
         return if (ids.any { it != null }) ids else emptyList()
     }
 
+    /** Départ du Zoom mystère : ramené dans ses limites ; incomplet ou illisible, null (la TV choisit seule). */
+    internal fun zoomDepart(o: JSONObject?): ZoomDepart? {
+        if (o == null) return null
+        val (x, y, z) = listOf("x", "y", "z").map { o.optDouble(it, Double.NaN) }
+        if (listOf(x, y, z).any { it.isNaN() || it.isInfinite() }) return null
+        return ZoomDepart(x.coerceIn(0.0, 1.0).toFloat(), y.coerceIn(0.0, 1.0).toFloat(), z.coerceIn(2.0, 10.0).toFloat())
+    }
+
     private fun question(q: JSONObject, i: Int): Question {
         val imageId = q.optString("imageId").takeIf { it.matches(IMAGE_ID) }
         // Zoom mystère ou image floue sans photo valable : la question se joue comme une question classique.
@@ -110,6 +118,7 @@ object QuizJson {
             // Une illustration mal formée est ignorée : elle ne doit jamais empêcher de jouer.
             emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && !turns },
             imageId = imageId?.takeIf { !turns },
+            zoomDepart = if (kind == QuestionKind.ZOOM) zoomDepart(q.optJSONObject("zoomDepart")) else null,
             choiceImages = choiceImages(q.optJSONArray("choiceImages"), choices.length(), kind),
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && chanson }?.take(MAX_ARTIST),
             audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && !turns },

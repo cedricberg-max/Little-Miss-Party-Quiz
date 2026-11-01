@@ -1,5 +1,7 @@
 package com.littlemissparty.quiz.tv
 
+import com.littlemissparty.quiz.tv.habillage.HALO_DECOR
+import androidx.compose.material3.LocalTextStyle
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.logoNeonJeu
 import androidx.compose.ui.res.painterResource
@@ -396,9 +398,11 @@ private fun FoundCounter(found: Int) {
                 modifier = Modifier.scale(bump.value),
             )
             Spacer(Modifier.height(6.dp))
+            // Petit texte posé sur le décor : le halo noir doux du Chrono (règle des petits textes, 31/10), sans cadre.
             Text(
                 if (found > 1) "trouvés" else "trouvé", color = Palette.InkSoft, fontSize = 24.sp, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center, maxLines = 1, softWrap = false,
+                style = LocalTextStyle.current.copy(shadow = HALO_DECOR),
             )
         }
         Text(

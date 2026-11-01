@@ -141,4 +141,29 @@ class SimonEcranTest {
         assertFalse(src.contains("joueur appelé prend"))
         assertTrue(src.contains("if (dehors) \"éliminés\" else \"encore en jeu\""))
     }
+
+    @Test
+    fun `duel des robots - jamais de « joueur n° » non plus, seulement le nom de l'equipe (cedric, 31 octobre au soir)`() {
+        for (f in listOf("habillage/DuelWestern.kt", "habillage/DuelRobots.kt")) {
+            val src = java.io.File("src/main/java/com/littlemissparty/quiz/tv/$f").readText()
+            // Seulement les textes entre guillemets (les commentaires peuvent citer la règle).
+            val textes = Regex("\"[^\"\n]*\"").findAll(src).map { it.value.lowercase() }
+            assertFalse(f, textes.any { "joueur n°" in it })
+        }
+    }
+
+    @Test
+    fun `plaques des equipes, deux rangees au-dela de 4, le tableau leur laisse la place, l'etat jamais coupe`() {
+        assertEquals(1, plaquesParRangee(1))
+        assertEquals(4, plaquesParRangee(4))
+        assertEquals(3, plaquesParRangee(5))
+        assertEquals(4, plaquesParRangee(7))
+        assertEquals(4, plaquesParRangee(8))
+        assertEquals(190f, basTableauSimon(4))
+        // Deux rangées de 92 dp, 12 dp entre elles, posées à 36 dp du bas : le tableau s'arrête au-dessus.
+        assertTrue(basTableauSimon(8) >= 36f + 2 * 92f + 12f + 20f)
+        val src = java.io.File("src/main/java/com/littlemissparty/quiz/tv/SimonScreens.kt").readText()
+        val plaques = src.substringAfter("private fun Plaques(").substringBefore("internal fun plaquesParRangee")
+        assertTrue("UneLigneQuiTient(echelleMin = 0.6f) {\n                            Text(p.etat" in plaques)
+    }
 }

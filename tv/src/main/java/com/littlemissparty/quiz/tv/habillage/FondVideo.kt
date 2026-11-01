@@ -26,7 +26,7 @@ import kotlin.math.abs
 @Composable
 internal fun FondVideo3d(surPret: () -> Unit, surEchec: () -> Unit) {
     AndroidView(
-        factory = { LecteurFond(it, R.raw.gs_fond_plateau, surPret, surEchec, departMs = GelFond.reprise) },
+        factory = { LecteurFond(it, R.raw.gs_fond_plateau, surPret, surEchec, departMs = GelFond.reprise, imagesAvantPret = IMAGES_PROPRES_DECOR, departSurImageCle = true) },
         update = { GelFond.fond = it },
         onRelease = { lacher(it) },
         modifier = Modifier.fillMaxSize(),
@@ -42,7 +42,7 @@ internal fun FondVideo3d(surPret: () -> Unit, surEchec: () -> Unit) {
 @Composable
 internal fun VideoAccueil(surPret: () -> Unit, surEchec: () -> Unit) {
     AndroidView(
-        factory = { LecteurFond(it, R.raw.gs_accueil_video, surPret, surEchec) },
+        factory = { LecteurFond(it, R.raw.gs_accueil_video, surPret, surEchec, imagesAvantPret = IMAGES_PROPRES_DECOR) },
         update = { GelFond.fond = it },
         onRelease = { lacher(it) },
         modifier = Modifier.fillMaxSize(),
@@ -102,6 +102,18 @@ private fun lacher(lecteur: LecteurFond) {
     lecteur.liberer()
 }
 
+/**
+ * La vidéo du décor peut remplacer sa photo : le lecteur a rendu sa première image et [attendues] images sont
+ * vraiment arrivées dans la vue depuis (les premières, encore en train de se décoder, restent cachées).
+ */
+internal fun fondPret(renduCommence: Boolean, recues: Int, attendues: Int): Boolean = renduCommence && recues >= attendues
+
+/** Images propres attendues avant de montrer le décor vidéo (≈ 0,2 s à 24 i/s). */
+internal const val IMAGES_PROPRES_DECOR = 4
+
+/** Au plus cette attente (ms) après la première image, si la box ne signale pas les suivantes. */
+internal const val ATTENTE_IMAGES_MAX_MS = 600L
+
 /** Écart toléré entre une vidéo et sa musique (ms) : moins d'un quart de temps à 120 BPM, invisible à l'œil. */
 internal const val ECART_CALAGE_MS = 120
 
@@ -143,6 +155,14 @@ internal class LecteurFond(
     private val attenteMs: () -> Int = { 0 },
     /** [volume] > 0 : appelé une fois la vidéo prête, vrai si la box a une piste son à lire (grande intro). */
     private val surSon: (Boolean) -> Unit = {},
+    /**
+     * Décor du plateau : la vidéo reste cachée (sa photo fixe au-dessus) jusqu'à ce nombre d'images vraiment reçues
+     * après la première ([fondPret]). Portes qui se rouvrent sur le jeu suivant (cedric, 31/10) : quelques images de
+     * « texture métallique à traits », le décodeur de la box qui démarre, passaient avant le décor.
+     */
+    private val imagesAvantPret: Int = 0,
+    /** [departMs] pris sur l'image clé la plus proche : jamais une image décodée sans sa référence (gris à traits). */
+    private val departSurImageCle: Boolean = false,
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     private var lecteur: MediaPlayer? = null
     private var surface: Surface? = null
@@ -152,6 +172,19 @@ internal class LecteurFond(
     /** Une image est à l'écran (avant, une photo du fond serait noire). */
     var affiche = false
         private set
+
+    /** Le lecteur a annoncé sa première image ; [imagesRecues] : images arrivées depuis dans la vue. */
+    private var renduCommence = false
+    private var imagesRecues = 0
+    private val pretQuandMeme = Runnable { declarerPret() }
+
+    private fun declarerPret() {
+        if (affiche || fini) return
+        removeCallbacks(pretQuandMeme)
+        affiche = true
+        if (imagesAvantPret > 0) alpha = 1f
+        surPret()
+    }
     private val guetteur = object : Runnable {
         override fun run() {
             val l = lecteur ?: return
@@ -162,6 +195,8 @@ internal class LecteurFond(
 
     init {
         surfaceTextureListener = this
+        // Décor : invisible tant que ses images ne sont pas propres (la photo du plateau est dessous et au-dessus).
+        if (imagesAvantPret > 0) alpha = 0f
     }
 
     /**
@@ -196,8 +231,10 @@ internal class LecteurFond(
                 setVolume(volume, volume)
                 setOnInfoListener { _, quoi, _ ->
                     if (quoi == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
-                        affiche = true
-                        surPret()
+                        renduCommence = true
+                        if (fondPret(renduCommence, imagesRecues, imagesAvantPret)) declarerPret()
+                        // Box qui ne signale pas ses images : la vidéo se montre quand même, un peu plus tard.
+                        else postDelayed(pretQuandMeme, ATTENTE_IMAGES_MAX_MS)
                     }
                     false
                 }
@@ -220,7 +257,8 @@ internal class LecteurFond(
                     if (fini) return@setOnPreparedListener
                     if (volume > 0f) surSon(runCatching { mp.trackInfo.any { it.trackType == MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_AUDIO } }.getOrDefault(true))
                     val depart = departLu?.invoke() ?: departMs
-                    if (depart > 0) runCatching { mp.seekTo(depart.toLong(), MediaPlayer.SEEK_CLOSEST) }
+                    val mode = if (departSurImageCle) MediaPlayer.SEEK_CLOSEST_SYNC else MediaPlayer.SEEK_CLOSEST
+                    if (depart > 0) runCatching { mp.seekTo(depart.toLong(), mode) }
                     val lancer = Runnable {
                         if (fini || lecteur !== mp) return@Runnable
                         mp.start()
@@ -248,7 +286,11 @@ internal class LecteurFond(
         return true
     }
 
-    override fun onSurfaceTextureUpdated(st: SurfaceTexture) = Unit
+    override fun onSurfaceTextureUpdated(st: SurfaceTexture) {
+        if (affiche || !renduCommence) return
+        imagesRecues++
+        if (fondPret(renduCommence, imagesRecues, imagesAvantPret)) declarerPret()
+    }
 
     /** Position de lecture (ms), ou null tant que la vidéo n'est pas prête. */
     fun position(): Int? = lecteur?.let { l -> runCatching { if (l.isPlaying) l.currentPosition else null }.getOrNull() }
@@ -297,6 +339,12 @@ internal class LecteurFond(
 
     private fun arreter() {
         removeCallbacks(guetteur)
+        removeCallbacks(pretQuandMeme)
+        renduCommence = false
+        imagesRecues = 0
+        // Plus de lecteur, plus d'image : au prochain départ (nouvelle surface), le décor attend de nouveau ses images.
+        affiche = false
+        if (imagesAvantPret > 0) alpha = 0f
         val l = lecteur
         lecteur = null
         vitesseActuelle = 1f

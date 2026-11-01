@@ -479,7 +479,9 @@ class DirecteurSonore {
             o += Ordre.Musique(Ambiance.SILENCE)
             o += Ordre.Jouer(Son.BUZZ_GROS)
             o += Ordre.Jouer(Son.equipe(i.buzzEquipe), motEquipe)
-            if (!i.chante) o += Ordre.Jouer(Son.SUSPENSE_REPONSE, Tempo.FLOU_SUSPENSE)
+            // La nappe de suspense (battement qui monte) tourne en boucle tant que l'équipe a la parole, jusqu'au ✓ ou
+            // ✗ de Sarah (cedric, 31/10 au soir : jouée une seule fois, elle laissait un long silence après 12 s).
+            if (!i.chante) o += Ordre.Musique(Ambiance.PAROLE, Tempo.FLOU_SUSPENSE, fonduMs = 0)
         } else if (repart) {
             // L'image (ou la chanson) reprend, avec sa musique ; Image floue : la montée dramatique repart là où le
             // buzz l'avait figée, comme la photo.
@@ -505,6 +507,9 @@ class DirecteurSonore {
 
     private fun tousOntRepondu(i: Instant) = i.equipes > 0 && i.reponses >= i.equipes
 
+    /** Une équipe a buzzé et répond : la nappe [Ambiance.PAROLE] tourne (pas pour Chante le mot ni le Blind test). */
+    private fun parole(i: Instant) = i.jeuBuzz && !i.chante && !i.blind && i.buzzEquipe >= 0 && i.ecran == Ecran.QUESTION
+
     private fun ambiance(i: Instant) = when (i.ecran) {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
@@ -513,6 +518,9 @@ class DirecteurSonore {
             i.express -> Ambiance.EXPRESS
             // Blind test, Game Show : la musique d'attente tant que Sarah n'a pas lancé le morceau.
             i.blindAttente && i.gameShow && i.ecran == Ecran.QUESTION -> Ambiance.BT_ATTENTE
+            // Jeux au buzzer : une équipe a la parole, la nappe de suspense tourne jusqu'au verdict (aussi après une
+            // pause) ; sauf Chante le mot (l'équipe chante) et le Blind test (un vrai silence pour répondre).
+            parole(i) -> Ambiance.PAROLE
             // Extrait musical : rien ne doit couvrir la chanson.
             i.musical && (i.ecran != Ecran.VERROUILLEE || i.quizMusical) -> Ambiance.SILENCE
             // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
@@ -738,6 +746,9 @@ internal val Lit.departFranc: Boolean get() = name.endsWith("_INTRO")
  * silence du début) : échantillon [DISPARU_INTRO_REPRISE_IMAGE] à 44,1 kHz.
  */
 internal const val DISPARU_INTRO_REPRISE_MS = 3_300L
+
+/** Nappe de suspense des jeux au buzzer ([Lit.PAROLE]) : la boucle repart à 12 s, pile sur un battement (4 s = 8 battements). */
+internal const val PAROLE_REPRISE_MS = 12_000L
 internal const val DISPARU_INTRO_REPRISE_IMAGE = 145_547L
 
 /**
@@ -919,6 +930,12 @@ enum class Lit(
      * 8 mesures ramenées à 120 BPM comme gs_bed_light, 16,000 s, raccord fondu 25 ms, −16 LUFS.
      */
     CHRONO_REVELATION(null, "gs_chrono_revelation"),
+    /**
+     * Jeux au buzzer, pendant qu'une équipe répond (cedric, 31/10 au soir) : le battement de suspense qui monte (12 s, le
+     * même qu'avant) joué une fois, puis ses 4 dernières secondes (8 battements, 120 BPM) qui tournent sans fin au niveau
+     * atteint ([repriseMs]), jusqu'au ✓ ou ✗ de Sarah. Les deux designs.
+     */
+    PAROLE("lmp_suspense_parole", repriseMs = PAROLE_REPRISE_MS),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -933,6 +950,7 @@ enum class Ambiance(
     private val pause: Float = 0f,
     private val express: Float = 0f,
     private val magie: Float = 0f,
+    private val parole: Float = 0f,
     /** Volumes propres au Game Show, à la place des autres ; null : les mêmes que le Classique. */
     private val gameShow: Map<Lit, Float>? = null,
 ) {
@@ -1035,7 +1053,9 @@ enum class Ambiance(
     /** Qui a disparu ? : boîte à musique et harpe pendant qu'on mémorise les objets. */
     MEMOIRE(magie = 0.6f),
     /** Qui a disparu ? : le tour de magie, la boîte à musique s'efface sous l'« abracadabra ». */
-    ENVOUTEMENT(magie = 0.25f);
+    ENVOUTEMENT(magie = 0.25f),
+    /** Jeux au buzzer : une équipe a la parole, la nappe de suspense en boucle, au volume de l'ancien son (les deux designs). */
+    PAROLE(parole = 1f);
 
     /** Volume d'une boucle dans cette ambiance ; [gs] : design « The Game Show ». */
     fun volume(l: Lit, gs: Boolean = false): Float {
@@ -1047,6 +1067,7 @@ enum class Ambiance(
             Lit.PAUSE -> pause
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
+            Lit.PAROLE -> parole
             Lit.BILAN, Lit.TENSION, Lit.FINALE, Lit.FIN, Lit.ACCUEIL, Lit.DUEL, Lit.SIMON_DOUCE, Lit.SIMON_SUITE, Lit.SIMON_FORT,
             Lit.BT_ATTENTE, Lit.BT_INTRO, Lit.CHANTE_INTRO, Lit.ZOOM_INTRO, Lit.DISPARU_INTRO, Lit.CHRONO_INTRO, Lit.COFFRES_INTRO, Lit.QUIZ_INTRO, Lit.QUISUIS_INTRO, Lit.VRAIFAUX_INTRO, Lit.MIMES_INTRO, Lit.STATUES_INTRO, Lit.GONFLEUR_INTRO, Lit.ILLUSTRE_INTRO, Lit.MUSICAL_INTRO, Lit.PATATE_INTRO, Lit.PICTO_INTRO, Lit.SIMON_INTRO, Lit.PODIUM_ATTENTE, Lit.CHRONO_NAPPE, Lit.CHRONO_REVELATION -> 0f
         }
@@ -1103,7 +1124,6 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     ZOOM_REVELE("lmp_zoom_revele", true),
     FLOU_MONTEE("lmp_flou_montee", true),
     BUZZ_GROS("lmp_buzz_gros"),
-    SUSPENSE_REPONSE("lmp_suspense_reponse", true),
     INDICE("lmp_indice"),
     BT_DIAMANT("lmp_bt_diamant"),
     BT_SCRATCH("lmp_bt_scratch"),

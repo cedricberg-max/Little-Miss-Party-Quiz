@@ -1012,7 +1012,7 @@ describe("régie", () => {
     await inRegie(page);
     await page.locator('.mime-team.selected[data-team="dragons"]').waitFor();
     await page.locator("#mime-info", { hasText: "Au tour de l'équipe Rose : Dragons." }).waitFor();
-    await page.locator("#mime-progress", { hasText: "Manche de l'équipe Rose : ses 2 images" }).waitFor();
+    await page.locator("#mime-progress", { hasText: "Tour de l'équipe Rose : ses 2 images" }).waitFor();
     assert.equal(await page.textContent("#c-step"), "Mimes · Équipe Rose");
     // Un seul jeu « Mimes » dans le conducteur, pas trois.
     assert.match(await page.textContent("#c-games"), /En cours : Mimes(?! :)/);
@@ -1720,7 +1720,9 @@ describe("régie", () => {
   test("duel des robots : lancer, face-à-face (arrêt en deux appuis), gagnante, trop tôt, personne, duel suivant, résultats", async () => {
     const { page, etat } = await duelEnCours({});
     await page.locator("#duel-info", { hasText: "Duel 1 sur 3 : appelez les deux joueurs." }).waitFor();
-    await page.locator("#duel-face .duel-equipe", { hasText: "Les Roses" }).locator("small", { hasText: "Joueur n°1" }).waitFor();
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Roses" }).waitFor();
+    // Jamais de « joueur n° » : l'équipe joue, la rotation se fait entre eux (cedric, 31/10 au soir).
+    assert.equal(await page.locator("#duel-face").getByText(/joueur n°/i).count(), 0, "pas de joueur n° au duel");
     await page.locator("#duel-face .duel-equipe", { hasText: "Les Bleus" }).waitFor();
     await page.locator("#duel-points", { hasText: "100 points par duel gagné" }).waitFor();
     assert.equal(await page.locator("#c-tuiles").isVisible(), false, "le milieu est au duel");
@@ -1805,10 +1807,11 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("duel des robots sur 8 équipes : joueur appelé, choix de 2 équipes, gros bouton toujours visible", async () => {
+  test("duel des robots sur 8 équipes : sans joueur n°, choix de 2 équipes, gros bouton toujours visible", async () => {
     const huit = ["Orange", "Vert", "Rose", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"].map((n, i) => [`e${i}`, `Les ${n}s`, TEAM_COLORS_TEST[i % TEAM_COLORS_TEST.length]]);
     const { page } = await duelEnCours({ teams: ["e0", "e7"], players: [3, 2] }, huit);
-    await page.locator("#duel-face .duel-equipe", { hasText: "Les Turquoises" }).locator("small", { hasText: "Joueur n°2" }).waitFor();
+    await page.locator("#duel-face .duel-equipe", { hasText: "Les Turquoises" }).waitFor();
+    assert.equal(await page.locator("#duel-face").getByText(/joueur n°/i).count(), 0, "pas de joueur n° sur 8 équipes");
     await capture(page, "regie-duel-pret");
     await page.click("#duel-autres");
     assert.equal(await page.locator("#duel-choix .statues-tuile").count(), 8);
@@ -1895,7 +1898,8 @@ describe("régie", () => {
   test("Simon de Buzzy : lancer la suite, l'arrêter en deux appuis, bilan après la vérification TV, suite et tour suivants, jeu suivant", async () => {
     const { page, etat } = await simonEnCours({});
     await page.locator("#simon-info", { hasText: "Tour 1 sur 2. Suite de 3 : appelez le joueur de chaque équipe." }).waitFor();
-    await page.locator("#simon-equipes li", { hasText: "Les Bleus" }).locator("span", { hasText: "en jeu · joueur n°2" }).waitFor();
+    await page.locator("#simon-equipes li", { hasText: "Les Bleus" }).locator("span", { hasText: "en jeu" }).waitFor();
+    assert.equal(await page.locator("#simon-equipes").getByText(/joueur n°/i).count(), 0, "pas de joueur n° au Simon");
     await page.locator("#simon-points", { hasText: "300 points pour l'équipe qui gagne le tour" }).waitFor();
     assert.equal(await page.locator("#c-tuiles").isVisible(), false, "le milieu est au Simon");
     assert.equal(await page.locator("#c-answer").isVisible(), false, "pas de « bonne réponse » : la suite est secrète");
@@ -4332,8 +4336,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
     await deplierJeux(page);
-    await page.locator("#show-summary", { hasText: "3 questions · 1 manche de mimes jouables" }).waitFor();
-    await page.locator("#show-rounds .round").nth(1).locator(".mime-ancienne", { hasText: "Manche préparée à l'ancienne" }).waitFor();
+    await page.locator("#show-summary", { hasText: "3 questions · 1 jeu de mimes jouables" }).waitFor();
+    await page.locator("#show-rounds .round").nth(1).locator(".mime-ancienne", { hasText: "Jeu préparé à l'ancienne" }).waitFor();
     await page.context().close();
 
     box = startBox();
@@ -5974,7 +5978,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // La page du jeu : son aperçu, ses manches, son historique ; on n'y compose plus de manche (cedric, 21/10).
     await page.locator('#home-games .tile[data-game=mimes]').click();
     await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Mimes" }).waitFor();
-    await page.locator("#manches-list", { hasText: "Aucune manche pour l'instant : elles arrivent ici quand vous composez une prestation." }).waitFor();
+    await page.locator("#manches-list", { hasText: "Aucun jeu gardé pour l'instant : ils arrivent ici quand vous composez une prestation." }).waitFor();
     assert.equal(await page.locator("#manche-new").count(), 0);
     assert.match(await page.locator("#game-apercu").getAttribute("src"), /apercus-jeux\/mimes\.mp4$/);
     assert.match(await page.locator("#game-manche-hint").textContent(), /« ＋ Ajouter un jeu »/);
@@ -6023,9 +6027,9 @@ describe("bibliothèque de quiz et prestations", () => {
     // Dans la page du jeu : la manche, épinglée en tête ; l'historique dit qu'elle est gardée.
     await openGamePage(page, "mimes");
     await page.locator(`#manches-list [data-manche="${id}"] button`, { hasText: "⭐ Épingler" }).click();
-    await page.locator(`#manches-pinned [data-manche="${id}"]`, { hasText: "⭐ Épinglée" }).waitFor();
+    await page.locator(`#manches-pinned [data-manche="${id}"]`, { hasText: "⭐ Épinglé" }).waitFor();
     assert.equal((await library(`manches/${id}`)).pinned, true);
-    await page.locator("#manches-shows .manche-from-show", { hasText: "Gardée : « Mimes · Anniversaire de Léa »" }).waitFor();
+    await page.locator("#manches-shows .manche-from-show", { hasText: "Gardé : « Mimes · Anniversaire de Léa »" }).waitFor();
     await capture(page, "page-jeu-mimes");
 
     // Prestation de 6 équipes : le 🎲 tire pour les 6 couleurs (pas de « Reprendre » dans les Mimes).
@@ -6203,15 +6207,15 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await ordre(), ["t", "m", "a", "s"], "sans recherche : les plus récentes d'abord");
     // « ma » : Maman (commence par), La marelle (un mot commence par), Tomates (contient) ; Soleil disparaît.
     await page.locator("#manche-search").pressSequentially("ma");
-    await page.locator("#manche-search-count", { hasText: "4 manches trouvées" }).waitFor();
+    await page.locator("#manche-search-count", { hasText: "4 jeux trouvés" }).waitFor();
     assert.deepEqual(await ordre(), ["a", "m", "t"]);
     assert.equal(await page.locator("#manches-archived-box").evaluate((d) => d.open), true, "l'archivée trouvée s'ouvre toute seule");
     await page.locator('#manches-archived [data-manche="v"]').waitFor();
     assert.equal(await page.locator("#manches-shows-count").textContent(), "0");
     // Le prénom d'une prestation retrouve ses manches.
     await page.fill("#manche-search", "zoe");
-    await page.locator("#manche-search-count", { hasText: "1 manche trouvée" }).waitFor();
-    await page.locator("#manches-list", { hasText: "Aucune de vos manches ne correspond" }).waitFor();
+    await page.locator("#manche-search-count", { hasText: "1 jeu trouvé" }).waitFor();
+    await page.locator("#manches-list", { hasText: "Aucun de vos jeux gardés ne correspond" }).waitFor();
     assert.equal(await page.locator("#manches-shows-box").evaluate((d) => d.open), true);
     await page.locator("#manches-shows .manche-from-show", { hasText: "Anniversaire de Zoé" }).waitFor();
     await page.fill("#manche-search", "");
@@ -6456,7 +6460,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await seedLibrary("manches/gouter", { type: "patate", title: "Patate du goûter", origin: "admin", round: { type: "patate" }, updatedAt: 1 });
     await openGamePage(page, "patate");
     await page.locator(".manche-card", { hasText: "Patate du goûter" }).getByRole("button", { name: "Dupliquer" }).click();
-    await page.locator("#game-status", { hasText: "« Copie de Patate du goûter » est ajoutée à vos manches." }).waitFor();
+    await page.locator("#game-status", { hasText: "« Copie de Patate du goûter » est ajouté à vos jeux gardés." }).waitFor();
     await page.locator(".manche-card.copie-recente", { hasText: "Copie de Patate du goûter" }).waitFor();
     assert.equal(await page.locator("#screen-manche-edit").isHidden(), true);
     const titres = Object.values(await library("manches")).map((m) => [m.title, m.type, m.origin]).sort();
@@ -7657,6 +7661,108 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 31/10) : Zoom mystère, la première image de la TV dans le « complet » ; « Départ du zoom » règle le point et la force ; enregistré dans la question (zoomDepart, lu par la TV) et gardé pour la photo ; sans réglage, le départ que choisirait la TV est enregistré", async () => {
+    const { departZoom, buildSnapshot } = await import("../web/public/show.js");
+    const { pivotDetail, fenetreDuDepart, departCentreSur } = await import("../web/public/departzoom.js");
+    // Les calculs : bornes, fenêtre vue au départ, départ centré sur un point, détail le plus fort.
+    assert.deepEqual(departZoom({ x: 1.4, y: -2, z: 30 }), { x: 1, y: 0, z: 10 });
+    assert.equal(departZoom({ x: "a", y: 0, z: 6 }), null);
+    assert.deepEqual(fenetreDuDepart({ x: 1, y: 0, z: 4 }), { gauche: 0.75, haut: 0, taille: 0.25 });
+    assert.deepEqual(departCentreSur(0.5, 0.5, 6), { x: 0.5, y: 0.5, z: 6 });
+    assert.deepEqual(departCentreSur(0, 1, 9), { x: 0, y: 1, z: 9 });
+    const blanc = new Uint8ClampedArray(40 * 30 * 4).fill(255);
+    assert.equal(pivotDetail(blanc, 40, 30, 7), null, "photo uniforme : pas de détail");
+    for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) { const k = (j * 40 + i) * 4; blanc[k] = (i + j) % 2 ? 0 : 255; blanc[k + 1] = blanc[k + 2] = blanc[k]; }
+    const p = pivotDetail(blanc, 40, 30, 7);
+    assert.ok(p.x <= 0.3 && p.y <= 0.35, `départ sur le détail, en haut à gauche (${JSON.stringify(p)})`);
+
+    const PNG = `data:image/png;base64,${pngHalves(400, 300, [220, 30, 30], [30, 60, 220]).toString("base64")}`;
+    const LION = "b4b4b4b4b4b4b4b4";
+    await seedLibrary("images", { [LION]: PNG });
+    await seedLibrary("medias", { [LION]: { name: "Lion", cat: "Animaux", createdAt: 1, updatedAt: 1 } });
+    const page = await admin();
+    const nouvelle = async (prenom) => {
+      await page.click("#nav button[data-screen=home]");
+      await page.click("#home-new");
+      await page.fill("#show-child", prenom);
+      await ajouterJeu(page, "zoom");
+      const round = page.locator("#show-rounds .round").nth(0);
+      await round.locator(".vos-images-cherche").fill("lion");
+      await round.locator(`.vos-images-tuile[data-image="${LION}"]`).click();
+      return round.locator(".quiz-complet .quiz-complet-q .zoom-depart");
+    };
+    const zoomDe = (mini) => mini.locator("img").evaluate((el) => [el.style.transform, el.style.transformOrigin]);
+    // « Enregistrée » peut encore être affiché depuis l'enregistrement d'avant : on attend la prestation voulue dans la
+    // bibliothèque ([pret] : ce qu'elle doit montrer), pas seulement le message.
+    const enregistrer = async (prenom, pret = () => true) => {
+      await page.click("#show-save");
+      await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+      let lu = null;
+      await waitFor(async () => {
+        const show = Object.values((await library("shows")) ?? {}).find((x) => x.childName === prenom);
+        // La question de la photo du lion (le jeu peut en tirer d'autres au hasard, dans un ordre qui change).
+        const q = show?.rounds?.[0]?.seriesQuiz?.flatMap((x) => x.questions ?? []).find((y) => y?.imageId === LION);
+        lu = { show, q };
+        return q && pret(q);
+      }, `prestation de ${prenom} enregistrée`);
+      return lu;
+    };
+    // Sans réglage : la première image au zoom moyen (×6), et ce départ est enregistré avec la prestation.
+    let mini = await nouvelle("Nina");
+    await mini.locator("img").waitFor();
+    assert.equal((await zoomDe(mini))[0], "scale(6)");
+    const auto = (await enregistrer("Nina", (y) => y.zoomDepart)).q.zoomDepart;
+    assert.equal(auto.z, 6);
+    assert.ok(auto.x >= 0 && auto.x <= 1 && auto.y >= 0 && auto.y <= 1, JSON.stringify(auto));
+    // Le réglage : « Fort », le cadre glissé en haut à gauche ; Annuler d'abord ne change rien.
+    await mini.click();
+    await page.locator(".dz-boite").waitFor();
+    await page.locator(".dz-boite button", { hasText: "Annuler" }).click();
+    await page.locator(".dz-boite").waitFor({ state: "detached" });
+    assert.equal((await zoomDe(mini))[0], "scale(6)");
+    await mini.click();
+    await page.locator(".dz-forces button", { hasText: "Fort" }).click();
+    const scene = await page.locator(".dz-scene").boundingBox();
+    await page.mouse.move(scene.x + scene.width / 2, scene.y + scene.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(scene.x + 2, scene.y + 2, { steps: 5 });
+    await page.mouse.up();
+    assert.equal(await page.locator(".dz-apercu img").evaluate((el) => el.style.transform), "scale(9)", "l'aperçu en grand suit");
+    await page.locator(".dz-boite button", { hasText: "Valider le départ" }).click();
+    await page.locator(".dz-boite").waitFor({ state: "detached" });
+    await page.waitForFunction(() => document.querySelector(".zoom-depart img")?.style.transform === "scale(9)");
+    assert.deepEqual(await zoomDe(mini), ["scale(9)", "0% 0%"]);
+    const { show, q } = await enregistrer("Nina", (y) => y.zoomDepart?.z === 9);
+    assert.deepEqual(q.zoomDepart, { x: 0, y: 0, z: 9 });
+    assert.equal(q.imageId, LION, "la photo ne change pas");
+    await waitFor(async () => (await library(`departsZoom/${LION}`))?.z === 9, "départ gardé pour la photo");
+    // La TV le reçoit dans la question du Zoom mystère.
+    const { snapshot } = buildSnapshot("nina", show, {}, {}, () => 0.5);
+    assert.deepEqual(snapshot.quiz.questions.find((x) => x.kind === "zoom").zoomDepart, { x: 0, y: 0, z: 9 });
+    // Une autre prestation avec la même photo : le même départ, tout seul.
+    mini = await nouvelle("Lou");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(9)");
+    assert.deepEqual((await enregistrer("Lou", (y) => y.zoomDepart)).q.zoomDepart, { x: 0, y: 0, z: 9 });
+    // La petite molette sous la photo (cedric, 31/10) : zoomer plus loin sans ouvrir le réglage, le même centre gardé.
+    const { zoomerDepart } = await import("../web/public/departzoom.js");
+    const centre = (d) => { const f = fenetreDuDepart(d); return [f.gauche + f.taille / 2, f.haut + f.taille / 2]; };
+    const plusFort = zoomerDepart({ x: 0.3, y: 0.6, z: 4 }, 8);
+    assert.equal(plusFort.z, 8);
+    centre(plusFort).forEach((c, k) => assert.ok(Math.abs(c - centre({ x: 0.3, y: 0.6, z: 4 })[k]) < 0.002, "même centre"));
+    const molette = page.locator("#show-rounds .quiz-complet-q .zoom-molette");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-molette")?.disabled === false);
+    assert.equal(await molette.inputValue(), "9");
+    assert.equal(await page.locator("#show-rounds .zoom-molette-force").textContent(), "×9");
+    await molette.fill("10");
+    await page.waitForFunction(() => document.querySelector("#show-rounds .zoom-depart img")?.style.transform === "scale(10)");
+    assert.equal((await enregistrer("Lou", (y) => y.zoomDepart?.z === 10)).q.zoomDepart.z, 10);
+    await waitFor(async () => (await library(`departsZoom/${LION}`))?.z === 10, "la molette est gardée pour la photo");
+    // La molette ne dépasse pas sous la photo.
+    const [bloc, photo] = await Promise.all([page.locator("#show-rounds .zoom-depart-bloc").boundingBox(), page.locator("#show-rounds .zoom-depart").boundingBox()]);
+    assert.ok(bloc.width <= photo.width + 1, `molette pas plus large que la photo (${bloc.width} > ${photo.width})`);
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 29/10) : le cadrage d'une photo est gardé pour ce jeu et cette forme : la même photo dans le Zoom mystère d'une autre prestation le reprend tout seul ; l'Image floue garde l'image d'origine ; l'image d'origine n'est jamais modifiée", async () => {
     const PNG = `data:image/png;base64,${png([30, 120, 200]).toString("base64")}`;
     const OURS = "a9a9a9a9a9a9a9a9";
@@ -8848,7 +8954,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // sous le jeu, dans « Reste à faire avant le jour J » et à l'enregistrement.
     const trou = "il manque 1 chanson (case 🎲 vide) : 7 jouées au lieu de 8.";
     await round.locator(".alerte-equipes", { hasText: `⚠ I${trou.slice(1)}` }).waitFor();
-    await page.locator("#show-ready li", { hasText: `Manche 1 (Blind test) : ${trou}` }).waitFor();
+    await page.locator("#show-ready li", { hasText: `Jeu n° 1 (Blind test) : ${trou}` }).waitFor();
 
     // 🎧 (cedric : vérifier l'extrait et le hook sans charger la page) : un petit menu sous la chanson, un seul ouvert.
     await chanson("sp").locator(".blind-ecouter").click();
@@ -8882,7 +8988,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // « ⏱ Régler… » : la prestation (pas encore enregistrée) l'est d'abord, puis les réglages de la chanson s'ouvrent.
     await menu.locator(".blind-regler").click();
     assert.match(await repondreFenetre(page), /la prestation est d'abord enregistrée/);
-    await page.locator("#annonce", { hasText: `Enregistrée. À revoir avant le jour J : Manche 1 (Blind test) : ${trou}` }).waitFor();
+    await page.locator("#annonce", { hasText: `Enregistrée. À revoir avant le jour J : Jeu n° 1 (Blind test) : ${trou}` }).waitFor();
     await page.locator("#screen-playlist-edit:not([hidden])").waitFor();
     assert.equal(await page.textContent("#playlist-edit-title"), "Réglages de « Complète 1 »");
     // Ses paroles arrivent dans les réglages : les lire n'est pas une modification.
@@ -9948,7 +10054,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="vieux"]').getByRole("button", { name: "Ouvrir" }).click();
     await deplierJeux(page);
-    await page.locator("#show-status-msg", { hasText: "Les manches Quiz qui se suivaient n'en font plus qu'une" }).waitFor();
+    await page.locator("#show-status-msg", { hasText: "Les jeux Quiz qui se suivaient n'en font plus qu'une" }).waitFor();
     assert.equal(await page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] .round').count(), 1);
     const round = page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] .round');
     // Ses séries (le quiz, puis les questions tirées) se voient dans le « Quiz complet » (cedric, 25/10), bougies comprises.
@@ -10146,7 +10252,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await page.locator('#home-upcoming [data-show="vieille"]').getByRole("button", { name: "Ouvrir" }).click();
     await deplierJeux(page);
-    await page.locator("#show-status-msg", { hasText: "L'ancienne manche « Super Finale » est devenue le réglage du quiz" }).waitFor();
+    await page.locator("#show-status-msg", { hasText: "L'ancien jeu « Super Finale » est devenue le réglage du quiz" }).waitFor();
     // Un seul jeu, le Quiz, avec une manche ; la Super Finale n'est plus proposée comme jeu.
     assert.equal(await page.locator("#show-rounds .round").count(), 1);
     assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((els) => els.map((e) => e.dataset.jeu)), ["quiz"]);
@@ -10217,7 +10323,7 @@ describe("bibliothèque de quiz et prestations", () => {
     cadre = await carteDuJeu(regie, "patate");
     box.refuseNextProgram("current_round");
     await regie.locator("#carte-envoyer:not([disabled])").click();
-    await regie.locator("#r-toast", { hasText: "La manche en cours ne peut pas changer" }).waitFor();
+    await regie.locator("#r-toast", { hasText: "Le jeu en cours ne peut pas changer" }).waitFor();
     assert.equal(await regie.locator("#carte").isHidden(), false, "la carte reste ouverte");
     await regie.locator("#carte-envoyer:not([disabled])").click();
     await regie.locator("#r-toast", { hasText: "« Ça va exploser ! » est ajouté après le jeu en cours." }).waitFor();
@@ -11710,7 +11816,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(message, /Créer la prestation de test \?/);
     assert.match(message, /2 prestations de test : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux », « ANNIVERSAIRE TEST – Léa, 9 ans »|2 prestations de test : « ANNIVERSAIRE TEST – Léa, 9 ans », « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux »/);
     assert.match(message, /1 quiz de démo, 1 paquet de mimes de démo, 1 playlist de démo/);
-    assert.match(message, /1 manche gardée pour elles/);
+    assert.match(message, /1 jeu gardé pour elles/);
     assert.match(message, /leurs photos dessinées et comptines \(2 fichiers\)/);
     // La prestation s'ouvre, remplie, et s'enregistre « À venir ».
     await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor({ timeout: 30000 });
@@ -11760,7 +11866,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#test-prestation");
     const encore = await repondreFenetre(page);
     assert.match(encore, /1 prestation de test : « ANNIVERSAIRE TEST – Touktouka, 9 ans »/);
-    assert.match(encore, /13 manches gardées pour elles/);
+    assert.match(encore, /13 jeux gardés pour elles/);
     await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor({ timeout: 30000 });
     shows = await library("shows");
     assert.deepEqual(Object.keys(shows).sort(), ["copie", "ines", "test-prestation"]);

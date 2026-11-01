@@ -44,4 +44,14 @@ class ZoomMystereTest {
         val points = (0 until 20).mapNotNull { pivotDetail(bruit, w, h, it) }.toSet()
         assertTrue("${points.size} points", points.size > 3)
     }
+
+    @Test
+    fun `depart regle dans la Regie PC, son zoom, sinon le zoom habituel`() {
+        val base = com.littlemissparty.quiz.engine.Question("z", "?", listOf("a", "b"), 0, kind = com.littlemissparty.quiz.engine.QuestionKind.ZOOM, imageId = "0123456789abcdef")
+        assertTrue(zoomDeDepart(base) == 6f)
+        assertTrue(zoomDeDepart(base.copy(zoomDepart = com.littlemissparty.quiz.engine.ZoomDepart(0.2f, 0.3f, 9f))) == 9f)
+        // Le point réglé sert tel quel de centre au zoom (la première image de la Régie PC est celle de la TV).
+        val source = java.io.File("src/main/java/com/littlemissparty/quiz/tv/ZoomMystere.kt").readText()
+        assertTrue(source.contains("q.zoomDepart?.let { return@remember TransformOrigin(it.x, it.y) }"))
+    }
 }

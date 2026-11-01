@@ -27,10 +27,20 @@ class PlaqueAppelTest {
         assertTrue(source("BlindTestEcrans.kt").contains("b != null && b.waiting && !b.played -> PlaqueAppel(GenrePlaque.BLIND, \"PRÊTS ?\", \"Écoutez bien…\""))
         assertTrue(source("habillage/BlindTestScenes.kt").contains("PlaqueAppel(GenrePlaque.BLIND, \"PRÊTS ?\", \"Écoutez bien…\""))
         assertTrue(source("habillage/BlindTestScenes.kt").contains("TitreBlindTest(px(76f)"))
-        assertTrue(source("GonfleurScreens.kt").contains("PlaqueAppel(GenrePlaque.GONFLEUR, \"TAPEZ !\", \"sur vos tablettes : le premier ballon qui éclate gagne\")"))
+        assertTrue(source("GonfleurScreens.kt").contains("PlaqueAppel(GenrePlaque.GONFLEUR, \"GONFLEZ LE BALLON !\", \"le premier ballon qui éclate gagne\")"))
         assertTrue(source("PatateScreens.kt").contains("PlaqueAppel(GenrePlaque.BOMBE, appel.first, appel.second)"))
         assertTrue(source("habillage/DuelWestern.kt").contains("PlaqueAppel(GenrePlaque.DUEL, \"LA MAIN AU-DESSUS DU BUZZER !\", \"les deux joueurs\""))
         assertTrue(source("habillage/QuiSuisGs.kt").contains("PlaqueAppel(GenrePlaque.QUISUIS, \"BUZZEZ !\""))
+    }
+
+    @Test
+    fun `gonfleur fou - on gonfle au vrai buzzer, jamais un mot sur les tablettes`() {
+        // cedric, 31/10 au soir : ni « Tapez vite sur la tablette ! » en haut, ni « sur vos tablettes » en bas.
+        for (f in listOf("GonfleurScreens.kt", "habillage/Gonfleur.kt")) {
+            val texte = Regex("\"[^\"]*\"").findAll(source(f)).map { it.value.lowercase() }
+            assertTrue(f, texte.none { "tablette" in it || "tapez" in it || "tapé" in it })
+        }
+        assertTrue(source("GonfleurScreens.kt").contains("\"Gonflez le ballon ! Le premier ballon qui éclate gagne !\""))
     }
 
     @Test

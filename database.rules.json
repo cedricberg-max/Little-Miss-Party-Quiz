@@ -240,6 +240,9 @@
           "$uid": {
             ".write": "auth != null && auth.uid === $uid && root.child('games').child($code).child('regie').child($uid).exists()",
             ".validate": "newData.hasChildren(['online', 'at']) && newData.child('online').isBoolean() && newData.child('at').isNumber()",
+            "cachee": {
+              ".validate": "newData.isBoolean()"
+            },
             "$other": {
               ".validate": "$other === 'online' || $other === 'at'"
             }
@@ -496,6 +499,15 @@
           ".validate": "!newData.exists() || ($cle.matches(/^[a-z]{2,12}~(vignette|revelation|rond|mime)~[-\\w]{1,80}$/) && newData.child('src').isString() && newData.child('src').val().length >= 2 && newData.child('src').val().length <= 120 && newData.child('crop').isString() && newData.child('crop').val().matches(/^[0-9a-f]{16}$/) && newData.child('at').val() === now)",
           "$other": {
             ".validate": "$other === 'src' || $other === 'crop' || $other === 'at'"
+          }
+        }
+      },
+      "departsZoom": {
+        "$cle": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || ($cle.matches(/^[-\\w]{2,80}$/) && newData.child('x').isNumber() && newData.child('x').val() >= 0 && newData.child('x').val() <= 1 && newData.child('y').isNumber() && newData.child('y').val() >= 0 && newData.child('y').val() <= 1 && newData.child('z').isNumber() && newData.child('z').val() >= 2 && newData.child('z').val() <= 10 && newData.child('at').val() === now)",
+          "$other": {
+            ".validate": "$other === 'x' || $other === 'y' || $other === 'z' || $other === 'at'"
           }
         }
       },
