@@ -38,6 +38,31 @@ class ChronoEcranTest {
     }
 
     @Test
+    fun `chaque bip et chaque tic tombent pile quand le chiffre change a l ecran, jamais sous le drap`() {
+        // 3, 2, 1 : le chiffre change à −3000, −2000, −1000 ms ; le bip de chacun part à ce moment-là.
+        assertEquals(-3L, secondeTic(-3_000, 0))
+        assertEquals(-4L, secondeTic(-3_001, 0))
+        assertEquals(1L, secondeTic(1_000, 0))
+        assertEquals(0L, secondeTic(999, 0))
+        // Box qui met 120 ms à faire entendre un son : il part 95 ms avant le chiffre (une image et demie d'écran).
+        assertEquals(95L, avanceTic(120))
+        assertEquals(1L, secondeTic(905, avanceTic(120)))
+        assertEquals(0L, secondeTic(904, avanceTic(120)))
+        assertEquals("latence pas encore mesurée : pile sur l'image", 0L, avanceTic(-1))
+        assertEquals(200L, avanceTic(5_000))
+        assertEquals(listOf(Son.CHRONO_BIP, Son.CHRONO_BIP, Son.CHRONO_BIP, Son.CHRONO_GO), (-3L..0L).map { sonSeconde(it, 8_000) })
+        assertEquals(Son.CHRONO_TIC, sonSeconde(1, 8_000))
+        assertEquals(Son.CHRONO_TAC, sonSeconde(2, 8_000))
+        // Un tic seulement si son chiffre est encore à l'écran : le drap le cache 0,5 s avant de se poser.
+        for (cache in listOf(3_600L, 7_300L, 8_000L, 12_400L)) for (s in 1L..15L) {
+            val son = sonSeconde(s, cache)
+            if (son != null) assertTrue("tic $s sous le drap ($cache)", chiffresVisibles(s * 1_000, cache))
+        }
+        assertEquals(null, sonSeconde(7, 7_300))
+        assertEquals(Son.CHRONO_TIC, sonSeconde(7, 8_000))
+    }
+
+    @Test
     fun `la plus loin d'abord, la plus proche en dernier`() {
         assertEquals(listOf("vert", "orange", "rose"), ordreRevelation(mapOf("orange" to -500L, "vert" to 1_200L, "rose" to 300L)))
     }

@@ -54,6 +54,7 @@ import com.littlemissparty.quiz.engine.ChronoResult
 import com.littlemissparty.quiz.engine.ChronoBuzz
 import com.littlemissparty.quiz.engine.ChronoRound
 import com.littlemissparty.quiz.engine.centiemes
+import com.littlemissparty.quiz.tv.habillage.BouclePcm
 import com.littlemissparty.quiz.tv.habillage.EchelleSansCoupe
 import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.Ordre
@@ -204,21 +205,22 @@ internal fun sonsRevelation(ecarts: Map<String, Long>, winners: List<String>): L
 
 /**
  * Le son du chrono, image par image : 3, 2, 1 (bips), le départ, puis le tic-tac une fois par seconde tant qu'on voit
- * le chrono (le tempo à garder en tête), plus rien quand le drap tombe (son lancer, le fantôme) ; à chaque buzz, le
- * mot Daft Punk de l'équipe, comme dans tous les jeux au buzzer (cedric, 31/10) ; à la révélation, [sonsRevelation]. Un son déjà passé de plus de 300 ms n'est jamais joué en retard.
+ * les chiffres (le tempo à garder en tête, cedric 1/11 : chaque tic pile quand la seconde change à l'écran), plus rien
+ * quand le drap tombe (son lancer, le fantôme) ; à chaque buzz, le mot Daft Punk de l'équipe, comme dans tous les jeux
+ * au buzzer (cedric, 31/10) ; à la révélation, [sonsRevelation]. Un son déjà passé de plus de 300 ms n'est jamais joué
+ * en retard.
  */
 @Composable
 private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long, equipes: List<String>) {
     val cache = c?.cacheMs
-    val seconde = if (ecoule == Long.MIN_VALUE || c?.enCours != true) null else Math.floorDiv(ecoule, 1_000L)
+    // Le son part en avance du temps que cette box met à le faire entendre (mesuré sur sa sortie son), moins l'image
+    // que l'écran met à s'afficher : le tic tombe avec le chiffre, pas après.
+    val avance = avanceTic(BouclePcm.latenceMs)
+    val seconde = if (ecoule == Long.MIN_VALUE || c?.enCours != true) null else secondeTic(ecoule, avance)
     LaunchedEffect(seconde) {
         val s = seconde ?: return@LaunchedEffect
-        if (ecoule - s * 1_000L > 300 || cache == null) return@LaunchedEffect
-        when {
-            s in -3L..-1L -> jouerChrono(Son.CHRONO_BIP)
-            s == 0L -> jouerChrono(Son.CHRONO_GO)
-            s >= 1 && s * 1_000L < cache -> jouerChrono(if (s % 2 == 1L) Son.CHRONO_TIC else Son.CHRONO_TAC)
-        }
+        if (ecoule + avance - s * 1_000L > 300 || cache == null) return@LaunchedEffect
+        sonSeconde(s, cache)?.let { jouerChrono(it) }
     }
     val drapTombe = seconde != null && cache != null && ecoule >= cache
     LaunchedEffect(drapTombe) { if (drapTombe && ecoule - cache!! < 400) jouerChrono(Son.CHRONO_DRAP) }
@@ -238,6 +240,23 @@ private fun ChronoSons(c: ChronoRound?, ecoule: Long, maintenant: () -> Long, eq
             jouerChrono(son.son, son.vitesse, son.volume)
         }
     }
+}
+
+/** Avance du tic sur l'image : la latence de la sortie son de la box, moins une image et demie (25 ms), 0 à 200 ms. */
+internal fun avanceTic(latenceMs: Long): Long = (latenceMs - 25L).coerceIn(0L, 200L)
+
+/** La seconde dont le son doit partir maintenant : celle qui s'affichera dans [avance] ms. */
+internal fun secondeTic(ecoule: Long, avance: Long): Long = Math.floorDiv(ecoule + avance, 1_000L)
+
+/**
+ * Le son de la seconde [s] du chrono : bips à 3, 2, 1, le départ à 0, puis tic, tac tant que le chiffre de cette seconde
+ * est encore à l'écran (jamais un tic sous le drap) ; null sinon.
+ */
+internal fun sonSeconde(s: Long, cacheMs: Long): Son? = when {
+    s in -3L..-1L -> Son.CHRONO_BIP
+    s == 0L -> Son.CHRONO_GO
+    s >= 1 && s * 1_000L < cacheMs && chiffresVisibles(s * 1_000L, cacheMs) -> if (s % 2 == 1L) Son.CHRONO_TIC else Son.CHRONO_TAC
+    else -> null
 }
 
 /**
