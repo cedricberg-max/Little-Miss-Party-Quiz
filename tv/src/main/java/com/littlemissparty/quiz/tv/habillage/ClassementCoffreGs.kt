@@ -360,7 +360,7 @@ private fun CouronneA(f: Float, modifier: Modifier, t: () -> Float) {
 /**
  * Place de l'autocollant à droite des cartes (x0 110 + largeur 560) : au plus [AUTOCOLLANT_MAX_DP] de large, même au
  * plus fort du ressort (× 1,16), il reste dans l'écran de 960 (tour des écrans à 3 équipes, 31/10 : « GARDE SA PLACE »
- * touchait le bord ; 1/11 à 2 équipes, encore à cheval avec la lueur et la pente : ramené de 235 à 215).
+ * touchait le bord ; 1/11 à 2 équipes, encore à cheval avec la lueur et la pente : ramené de 235 à 215, texte en 21 pour tenir sans rétrécir).
  */
 internal const val AUTOCOLLANT_ECART_DP = 12f
 internal const val AUTOCOLLANT_MAX_DP = 215f
@@ -391,7 +391,7 @@ private fun AutocollantA(evo: Evolution, equipes: Int, x: Float, centreY: Float,
             .widthIn(max = (AUTOCOLLANT_MAX_DP - 2f * (2f + 2.5f + 13f)).dp),
     ) {
         UneLigneQuiTient(echelleMin = 0.7f) {
-            Text(texte, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 23.sp, color = if (rose) Color.White else NuitA))
+            Text(texte, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTitre, fontSize = 21.sp, color = if (rose) Color.White else NuitA))
         }
     }
 }
