@@ -88,6 +88,9 @@ async function openPupitre(extra = "", preparer = null) {
   return page;
 }
 
+/** LMP_PREUVES=dossier : images de preuve pour cedric (sinon rien). */
+const preuve = (page, nom) => (process.env.LMP_PREUVES ? page.screenshot({ path: join(process.env.LMP_PREUVES, `${nom}.png`) }) : null);
+
 const TEAM_COLORS = ["#FF2D95", "#FF6B1A", "#39FF14", "#FFE600", "#2B86C5", "#9B5DE5", "#F94144", "#2EE8E0"];
 
 /** Tablette en attente : son identifiant (affiché aussi par son numéro sur la régie). */
@@ -1188,8 +1191,10 @@ describe("pupitre", () => {
     await page.locator("#q-status", { hasText: "Réponse B envoyée" }).waitFor();
     await new Promise((r) => setTimeout(r, 1500));
     assert.equal(await read(`answers/q1/${uid}`), null, "hors ligne, rien n'est encore arrivé");
+    await preuve(page, "56-1-wifi-coupe-reponse-touchee");
     await page.context().setOffline(false);
     await waitFor(async () => (await read(`answers/q1/${uid}`))?.choice === 1, "réponse arrivée au retour du Wi-Fi", 20000);
+    await preuve(page, "56-2-wifi-revenu-reponse-arrivee");
 
     // Nouvelle coupure : la TV passe à la question suivante pendant ce temps ; au retour, la tablette la montre.
     await page.context().setOffline(true);
@@ -1197,6 +1202,7 @@ describe("pupitre", () => {
     await new Promise((r) => setTimeout(r, 1500));
     await page.context().setOffline(false);
     await page.locator("#q-number", { hasText: "Question 2" }).waitFor({ timeout: 20000 });
+    await preuve(page, "56-3-wifi-revenu-question-suivante");
     assert.equal(await page.locator(".choice.picked").count(), 0, "nouvelle question : rien de coché");
     assert.equal(Object.keys(await read("teams")).length, 1, "pas de doublon d'équipe");
     await page.context().close();
@@ -1208,6 +1214,7 @@ describe("pupitre", () => {
     await page.goto(`${baseUrl}/?emu=1`);
     await page.locator("#screen-play.active").waitFor();
     assert.ok(page.url().includes(`g=${CODE}`), "la tablette est retournée dans sa partie");
+    await preuve(page, "57-rouverte-depuis-icone-retour-equipe");
     assert.equal(Object.keys(await read("teams")).length, 1, "pas de nouvelle équipe");
     assert.equal(await read(`joinRequests/${uid}`), null, "aucune demande d'entrée");
 
@@ -1246,6 +1253,7 @@ describe("pupitre", () => {
     // Rien de coupé ni hors de l'écran : tablette debout, couchée, téléphone dans les deux sens.
     for (const [width, height] of [[800, 1280], [1280, 800], [412, 860], [860, 412]]) {
       await page.setViewportSize({ width, height });
+      await preuve(page, `43-bienvenue-${width}x${height}`);
       const boites = await page.evaluate(() => [".fete-mot", ".fete-video", ".fete-sous"].map((s) => {
         const e = document.querySelector(`.fete-buzzy ${s}`); const r = e.getBoundingClientRect();
         return { s, l: r.left, t: r.top, r: r.right, b: r.bottom, coupe: e.scrollWidth > e.clientWidth + 1 };
@@ -1264,6 +1272,8 @@ describe("pupitre", () => {
     await waitFor(async () => (await read(`answers/q1/${uid}`)) != null, "réponse enregistrée");
     await hostState(question({ phase: "reveal", correct: 1, awards: { [uid]: { correct: true, points: 100, bonus: 0 } }, scores: { [uid]: 100 } }));
     await page.locator('.fete-buzzy[data-fete="bonne"] .fete-mot', { hasText: "BONNE RÉPONSE !" }).waitFor();
+    await new Promise((r) => setTimeout(r, 500));
+    await preuve(page, "43-bonne-reponse-telephone");
     // 3 secondes, puis la tablette revient seule sur son résultat.
     await fete.waitFor({ state: "detached", timeout: 5000 });
     await page.locator("#r-title", { hasText: "Bravo ! +100 points" }).waitFor();
