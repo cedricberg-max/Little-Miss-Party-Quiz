@@ -50,7 +50,7 @@ class RebusTest {
     }
 
     @Test
-    fun `mauvaise réponse : l'équipe attend 3 s, les morceaux reprennent, la suivante gagne selon ce qu'elle a vu`() {
+    fun `mauvaise réponse, l'équipe attend 3 s, les morceaux reprennent, la suivante gagne selon ce qu'elle a vu`() {
         val g = game(rebus())
         g.buzz("rose", t0 + 5_000)
         g.judgeBuzz(false, t0 + 9_000)
@@ -63,7 +63,7 @@ class RebusTest {
     }
 
     @Test
-    fun `chrono écoulé sans bonne réponse : personne ne marque, on passe au rébus suivant`() {
+    fun `chrono écoulé sans bonne réponse, personne ne marque, on passe au rébus suivant`() {
         val g = game(rebus("a"), rebus("b"))
         g.timeUp(t0 + 36_000)
         assertEquals(Phase.CLOSED, g.state.phase)
@@ -73,7 +73,7 @@ class RebusTest {
     }
 
     @Test
-    fun `pack lu depuis la Régie PC : durée par défaut 12 s par morceau, de 2 à 6 morceaux`() {
+    fun `pack lu depuis la Régie PC, durée par défaut 12 s par morceau, de 2 à 6 morceaux`() {
         val quiz = QuizJson.parse(
             """{"id":"p","questions":[
                {"id":"a","text":"Quel est ce mot ?","choices":["Pompier"],"correct":0,"kind":"rebus",
