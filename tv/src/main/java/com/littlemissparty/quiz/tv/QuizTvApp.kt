@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,6 +68,7 @@ import com.littlemissparty.quiz.engine.Release
 import com.littlemissparty.quiz.tv.habillage.BalayageDore
 import com.littlemissparty.quiz.tv.habillage.Design
 import com.littlemissparty.quiz.tv.habillage.GeneriqueSalon
+import com.littlemissparty.quiz.tv.habillage.HALO_DECOR
 import com.littlemissparty.quiz.tv.habillage.RobotGameShow
 import com.littlemissparty.quiz.tv.habillage.GrilleEquipes
 import com.littlemissparty.quiz.tv.habillage.HabillageEcran
@@ -318,23 +320,26 @@ fun NextButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier
 @Composable
 private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewGame: () -> Unit) {
     val focus = remember { FocusRequester() }
+    // Posé sur le décor du plateau : chaque texte a le halo noir doux du Chrono, en gras, jamais de cadre derrière
+    // (cedric, 31/10 : écran illisible sur la TV).
+    val halo = TextStyle(shadow = HALO_DECOR)
     Column(
         Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Une partie est en cours", color = Color.White, fontSize = 48.sp, lineHeight = 56.sp, fontWeight = FontWeight.Black)
+        Text("Une partie est en cours", color = Color.White, fontSize = 48.sp, lineHeight = 56.sp, fontWeight = FontWeight.Black, style = halo)
         Spacer(Modifier.height(12.dp))
         Text(
             "Code ${state.code}",
-            color = Palette.Gold, fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp,
+            color = Palette.Gold, fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp, style = halo,
         )
         Spacer(Modifier.height(16.dp))
         Text(
             if (state.teamNames.isEmpty()) "Équipes : liste indisponible hors connexion"
             else "Équipes : " + state.teamNames.joinToString(", "),
-            color = Color.White.copy(alpha = 0.85f), fontSize = 24.sp, lineHeight = 30.sp, textAlign = TextAlign.Center,
-            maxLines = 3, overflow = TextOverflow.Ellipsis,
+            color = Color.White, fontSize = 24.sp, lineHeight = 30.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold,
+            maxLines = 3, overflow = TextOverflow.Ellipsis, style = halo,
         )
         Spacer(Modifier.height(32.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -344,7 +349,7 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
         Spacer(Modifier.height(24.dp))
         Text(
             "Reprise automatique dans ${state.secondsLeft} s",
-            color = Color.White.copy(alpha = 0.7f), fontSize = 20.sp, lineHeight = 26.sp,
+            color = Color.White.copy(alpha = 0.9f), fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold, style = halo,
         )
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
