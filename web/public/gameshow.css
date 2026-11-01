@@ -169,6 +169,7 @@ body.look-gs::after {
 
 /* Question : chrono Orbitron cyan, propositions en verre sombre bordées de leur néon (A rose, B orange, C vert, D jaune,
    comme sur la TV), lettre dans un carré néon. */
+.look-gs .play-etape { font-family: "GS Orbitron"; font-weight: 700; font-size: 15px; color: var(--gs-cyan); letter-spacing: 1px; }
 .look-gs .question-head { font-family: "GS Orbitron"; font-weight: 700; font-size: 15px; color: var(--gs-cyan); letter-spacing: 1px; }
 .look-gs .question-head .timer { font-family: "GS Orbitron"; font-weight: 900; color: var(--gs-encre); text-shadow: 0 0 14px var(--gs-cyan); }
 .look-gs .question-head .timer.urgent { color: var(--gs-rose); text-shadow: 0 0 14px var(--gs-rose); }

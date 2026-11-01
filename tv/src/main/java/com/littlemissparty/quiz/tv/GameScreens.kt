@@ -97,35 +97,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
         // Qui suis-je ? du Game Show : des confettis légers tombent derrière les indices (planche du 28/10).
         if (Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION) ConfettisLegers(Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Blind test du Game Show : pas d'onglet « Blind test 1 / 3 », le titre et « Morceau 1 / 3 » le disent déjà
-                // (cedric, 1/11 au soir) ; la scène reprend la place.
-                if (Look.gs && q.isBlind) Unit
-                else if (Look.gs) EtapeGs(state.etape ?: "Question ${state.index + 1}", Modifier.weight(1f, fill = false))
-                else Text(
-                    state.etape ?: "Question ${state.index + 1}",
-                    color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
-                )
-                // Game Show : le nom du jeu est déjà dans l'étape ; la pastille en double serrait l'étape sur deux lignes.
-                if (q.isExpress && !Look.gs) {
-                    Spacer(Modifier.width(16.dp))
-                    Text(
-                        "VRAI OU FAUX EXPRESS",
-                        color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
-                        modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Ink).padding(horizontal = 14.dp, vertical = 4.dp),
-                    )
-                }
-                if (q.double) {
-                    Spacer(Modifier.width(16.dp))
-                    Text(
-                        "POINTS ×${state.factor.coerceAtLeast(2)}",
-                        color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
-                        modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp),
-                    )
-                }
-                Spacer(Modifier.width(20.dp))
-                Spacer(Modifier.weight(1f))
+            // Chrono, « Temps écoulé ! » ou la chanson des statues : en haut à droite.
+            val statut: @Composable () -> Unit = {
                 when (state.phase) {
                     // Statues : pas de chrono, la chanson en cours (« Chanson 2 / 5 »).
                     Phase.QUESTION -> if (!q.isStatues) Countdown(state)
@@ -139,28 +112,82 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     else -> {}
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            val badgeDouble: @Composable () -> Unit = {
+                Text(
+                    "POINTS ×${state.factor.coerceAtLeast(2)}",
+                    color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp),
+                )
+            }
             // Blind test : pas de question écrite (« Quel est ce titre ? »), la scène prend la place.
             // Statues : le panneau porte déjà l'étiquette « STATUES MUSICALES », le titre en double lui volerait sa place.
             // Chante le mot en Game Show : le mot est déjà sur l'enseigne néon, en double il lui volerait sa hauteur.
             // Quiz musical, scène du titre : « Quel est ce titre ? » laisse sa hauteur à la scène (8 équipes, cedric, 30/10).
-            if (!q.isBlind && !q.isStatues && !sceneMusicale && !(Look.gs && q.isChante) && !(Look.gs && q.isDisparu && PropositionDisparu.sansEnseigne)) {
-                // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène). Qui a
-                // disparu ? y a droit aussi, lettres de couleur comme « Quel est ce titre ? » (cedric, 25/10 au soir).
-                val panneau = planchesQuiz3d()?.takeIf { !q.isBuzz || q.isDisparu }
+            val avecQuestion = !q.isBlind && !q.isStatues && !sceneMusicale && !(Look.gs && q.isChante) && !(Look.gs && q.isDisparu && PropositionDisparu.sansEnseigne)
+            // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène). Qui a
+            // disparu ? y a droit aussi, lettres de couleur comme « Quel est ce titre ? » (cedric, 25/10 au soir).
+            val panneau = if (avecQuestion) planchesQuiz3d()?.takeIf { !q.isBuzz || q.isDisparu } else null
+            val blocQuestion: @Composable (Modifier) -> Unit = { m ->
                 // Qui suis-je ? du Game Show : l'enseigne de fête à ampoules (planche du 28/10, version A).
-                if (Look.gs && q.isQuiSuis) Box(Modifier.fillMaxWidth().apparition(0, state.index), contentAlignment = Alignment.Center) { EnseigneQuiSuis() }
-                else if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index), festif = q.isMusical || q.isDisparu)
-                else if (Look.gs && q.isMusical && q.text.length <= 24) MotsNeon(q.text, 40.sp, Modifier.apparition(0, state.index))
+                if (Look.gs && q.isQuiSuis) Box(m.fillMaxWidth().apparition(0, state.index), contentAlignment = Alignment.Center) { EnseigneQuiSuis() }
+                else if (panneau != null) QuestionPanneau3d(panneau, q.text, m.fillMaxWidth().apparition(0, state.index), festif = q.isMusical || q.isDisparu)
+                else if (Look.gs && q.isMusical && q.text.length <= 24) Box(m.fillMaxWidth(), contentAlignment = Alignment.Center) { MotsNeon(q.text, 40.sp, Modifier.apparition(0, state.index)) }
                 else TexteJauge(
                     q.text,
                     color = Palette.Ink, fontSize = selonLook(34.sp, 38.sp), fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     lineHeight = selonLook(40.sp, 42.sp), maxLines = 3, overflow = TextOverflow.Ellipsis,
                     // Game Show : la question posée sur le décor prend le contour « comme les jauges » (cedric, 31/10,
                     // n° 3), à la place du filigrane du 30/10.
-                    modifier = Modifier.fillMaxWidth().apparition(0, state.index).wrapContentWidth(),
+                    modifier = m.fillMaxWidth().apparition(0, state.index).wrapContentWidth(),
                 )
-                Spacer(Modifier.height(if (panneau != null) 14.dp else 20.dp))
+            }
+            if (Look.gs) {
+                // Game Show (cedric, 1/11 au soir) : plus d'onglet « Zoom mystère 1 / 3 » en haut à gauche, le nom du jeu et
+                // le numéro de la question restent sur les tablettes et la régie. La question monte tout en haut et le
+                // chrono se range à sa droite, sur la même ligne : l'image respire.
+                if (avecQuestion) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        blocQuestion(Modifier.weight(1f))
+                        if (q.double || state.phase == Phase.QUESTION || state.phase == Phase.CLOSED) Spacer(Modifier.width(16.dp))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (q.double) badgeDouble()
+                            statut()
+                        }
+                    }
+                    Spacer(Modifier.height(if (panneau != null) 14.dp else 20.dp))
+                } else Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (q.double) badgeDouble()
+                    Spacer(Modifier.weight(1f))
+                    statut()
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        state.etape ?: "Question ${state.index + 1}",
+                        color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (q.isExpress) {
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            "VRAI OU FAUX EXPRESS",
+                            color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Ink).padding(horizontal = 14.dp, vertical = 4.dp),
+                        )
+                    }
+                    if (q.double) {
+                        Spacer(Modifier.width(16.dp))
+                        badgeDouble()
+                    }
+                    Spacer(Modifier.width(20.dp))
+                    Spacer(Modifier.weight(1f))
+                    statut()
+                }
+                Spacer(Modifier.height(12.dp))
+                if (avecQuestion) {
+                    blocQuestion(Modifier)
+                    Spacer(Modifier.height(if (panneau != null) 14.dp else 20.dp))
+                }
             }
             // Chaque question a ses propres cartes : elles surgissent une à une, sur les bulles sonores.
             key(state.index) {

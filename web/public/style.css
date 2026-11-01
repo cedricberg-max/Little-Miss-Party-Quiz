@@ -113,6 +113,7 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .intro-jeu-titre { font-size: clamp(30px, 9vw, 48px); font-weight: 900; line-height: 1.1; overflow-wrap: anywhere; }
 
 /* Question */
+.play-etape { margin: 0; font-weight: 800; font-size: 18px; text-align: center; opacity: 0.9; }
 .question-head { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 520px; font-weight: 800; font-size: 18px; }
 .question-head .timer { margin-left: auto; font-size: 30px; font-weight: 900; min-width: 48px; text-align: right; }
 .question-head .timer.urgent { color: #ff4d6d; }
@@ -234,6 +235,7 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
   #screen-play > .team-banner { grid-column: 1; grid-row: 2; }
   #screen-play > #play-status { grid-column: 1; grid-row: 3; max-width: 22em; }
   #screen-play > #buzz { grid-column: 2; grid-row: 1 / -1; }
+  #screen-play > #play-etape { grid-column: 1; grid-row: 1; align-self: end; }
   /* Duel des robots : le titre western entre l'équipe et la consigne. */
   #screen-play.active:has(> #duel-titre:not([hidden])) { grid-template-rows: 1fr auto auto auto 1fr; }
   #screen-play > #duel-titre { grid-column: 1; grid-row: 3; }

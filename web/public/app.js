@@ -173,6 +173,9 @@ const AWAKE_SCREENS = new Set(["waiting", "play", "question", "coffres", "gonfle
 const SLEEP_SCREENS = new Set(["gate", "ended", "replaced"]);
 
 function show(name) {
+  // Le jeu en cours sur l'écran du buzzer : seul renderFlou le remet, juste après.
+  const etape = document.getElementById("play-etape");
+  if (etape) etape.hidden = true;
   // « Accès régie » : avant d'entrer dans une équipe (et si la partie est complète), jamais pendant le jeu.
   // Sur l'écran d'avant la régie, c'est son grand bouton qui ouvre l'accès.
   $("regie-open").hidden = !(gameExists && (name === "waiting" || name === "error"));
@@ -745,8 +748,9 @@ function renderIntro(st) {
 
 function renderQuestion(st) {
   show("question");
-  $("q-number").textContent = st.kind === "express" ? "Vrai ou Faux express !"
-    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !"
+  $("q-number").textContent = st.kind === "express" ? (st.game?.label ?? "Vrai ou Faux express !")
+    // La TV n'affiche plus le jeu ni le numéro de la question (cedric, 1/11) : la tablette les garde toujours.
+    : st.kind === "zoom" ? `${st.game?.label ?? "Zoom mystère"} : regardez la TV !`
     // Box à jour : la position dans le jeu en cours (« Quiz · question 5 / 10 »), jamais dans toute la prestation.
     : st.game?.label ?? `Question ${(st.index ?? 0) + 1}`;
   $("q-double").hidden = !st.double;
@@ -886,6 +890,11 @@ function renderFlou(st) {
   const blocked = tried && !(rebuzzIn != null && rebuzzIn <= 0);
   const open = st.phase === "question" && st.buzzOpen === true && !st.paused && !counting(st) && !b.team && !blocked;
   buzz.disabled = !open;
+  // Le jeu et la question en cours : la TV ne les affiche plus (cedric, 1/11), la tablette les garde.
+  // Chante le mot ! : le nom du jeu seul, pas « mot 1 / 3 » (cedric, 1/11 : Sarah garde la main sur la fin du jeu).
+  const etape = (st.kind === "chante" ? st.game?.title : st.game?.label) ?? "";
+  $("play-etape").hidden = !etape;
+  if ($("play-etape").textContent !== etape) $("play-etape").textContent = etape;
   // Chante le mot ! : le mot de la TV en grand au-dessus du BUZZ, pour que l'équipe l'ait sous les yeux.
   const mot = st.kind === "chante" && st.phase === "question" ? String(st.text ?? "").trim() : "";
   $("chante-mot").hidden = !mot;
