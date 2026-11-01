@@ -201,13 +201,17 @@ body.regie-gs {
   .regie-gs .bord-buzzy.droite { right: calc((var(--bande) - var(--large)) / 2); transform: scaleX(-1); }
 }
 @media (max-width: 940px) {
-  .regie-gs main { zoom: 1.1; }
   .regie-gs .brand small { display: none; }
   /* La barre du bas tient sur une ligne : Enregistrer · Annuler · ← Retour. */
   .regie-gs .retour-barre.bas { gap: 6px; justify-content: flex-end; }
   .regie-gs .retour-barre.bas .btn { padding: 10px 14px; font-size: 15px; white-space: nowrap; }
   .regie-gs .retour-barre.bas .status { flex: 1 1 100%; }
   .regie-gs .retour-barre .suite-longue { display: none; }
+}
+/* Texte un peu plus gros sur un vrai téléphone (écran tactile) seulement : sur un PC en fenêtre étroite, à la souris,
+   « zoom » décale la ligne attrapée quand on glisse une ligne d'un « … complet » (essai du 01/11). */
+@media (max-width: 940px) and (pointer: coarse) {
+  .regie-gs main { zoom: 1.1; }
 }
 /* Téléphone couché (peu de hauteur) : l'en-tête ne suit pas l'écran, la place va au contenu. */
 @media (max-width: 940px) and (max-height: 520px) {

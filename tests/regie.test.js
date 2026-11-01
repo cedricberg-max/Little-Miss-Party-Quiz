@@ -6644,8 +6644,8 @@ describe("bibliothèque de quiz et prestations", () => {
   });
 
   test("Régie PC (cedric, 01/11) : l'affichage suit la largeur de l'écran : un Buzzy de chaque côté sur un écran large, jamais sur le contenu ; rien sur un écran moyen ; téléphone : texte plus gros, rien ne dépasse", async () => {
-    const ouvrir = async (width, height, query = "") => {
-      const page = await openRegie(await browser.newContext({ viewport: { width, height } }), `?emu=1${query}`, "/admin.html");
+    const ouvrir = async (width, height, query = "", hasTouch = false) => {
+      const page = await openRegie(await browser.newContext({ viewport: { width, height }, hasTouch }), `?emu=1${query}`, "/admin.html");
       await page.fill("#admin-password", ADMIN_PASSWORD);
       await page.click("#login");
       await page.locator("#screen-home:not([hidden])").waitFor();
@@ -6670,12 +6670,16 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
     // Téléphone debout et couché : pas de Buzzy, le texte un peu plus gros, rien ne dépasse.
     for (const [w, h] of [[390, 844], [844, 390]]) {
-      page = await ouvrir(w, h);
+      page = await ouvrir(w, h, "", true);
       assert.ok((await buzzy(page)).every((b) => !b.visible));
       assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector("main")).zoom), "1.1");
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `rien ne dépasse à ${w} px`);
       await page.context().close();
     }
+    // PC en fenêtre étroite, à la souris : taille normale, pour que glisser une ligne attrape la bonne.
+    page = await ouvrir(800, 900);
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector("main")).zoom), "1");
+    await page.context().close();
   });
 
   test("Régie PC (cedric, 31/10) : look « The Game Show » sur fond clair, l'Accueil en vitrine « THE GAME SHOW by Little Miss Party » avec Buzzy ; ?look=classique remet l'ancien look (gardé sur ce PC)", async () => {
