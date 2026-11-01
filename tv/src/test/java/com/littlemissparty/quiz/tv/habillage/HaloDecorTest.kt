@@ -20,7 +20,7 @@ class HaloDecorTest {
     }
 
     @Test
-    fun `ecran « Une partie est en cours » : chaque texte a le halo, sans fond derriere`() {
+    fun `ecran « Une partie est en cours », chaque texte a le halo, sans fond derriere`() {
         val src = File("src/main/java/com/littlemissparty/quiz/tv/QuizTvApp.kt").readText()
         val bloc = src.substringAfter("private fun ResumeOffer(").substringBefore("/** Box de secours")
         val textes = Regex("""\bText\(""").findAll(bloc).count()
@@ -31,7 +31,7 @@ class HaloDecorTest {
     }
 
     @Test
-    fun `Coffres : la ligne du bas a le halo noir doux, plus la lueur cyan qui se perdait dans les reflets`() {
+    fun `Coffres, la ligne du bas a le halo noir doux, plus la lueur cyan qui se perdait dans les reflets`() {
         val src = File("src/main/java/com/littlemissparty/quiz/tv/CoffresScreens.kt").readText()
         val bloc = src.substringAfter("val bas = when {").substringBefore("maxLines = 1")
         assertTrue("shadow = HALO_DECOR" in bloc)
@@ -39,7 +39,7 @@ class HaloDecorTest {
     }
 
     @Test
-    fun `Mimes : « trouve » sous le compteur a le halo noir doux`() {
+    fun `Mimes, « trouve » sous le compteur a le halo noir doux`() {
         val src = File("src/main/java/com/littlemissparty/quiz/tv/MimeScreens.kt").readText()
         val bloc = src.substringAfter("if (found > 1) \"trouvés\" else \"trouvé\"").substringBefore(")\n")
         assertTrue(bloc, "shadow = HALO_DECOR" in bloc)

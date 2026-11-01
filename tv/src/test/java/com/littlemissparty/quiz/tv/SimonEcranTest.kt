@@ -153,7 +153,7 @@ class SimonEcranTest {
     }
 
     @Test
-    fun `plaques des equipes : deux rangees au-dela de 4, le tableau leur laisse la place, l'etat jamais coupe`() {
+    fun `plaques des equipes, deux rangees au-dela de 4, le tableau leur laisse la place, l'etat jamais coupe`() {
         assertEquals(1, plaquesParRangee(1))
         assertEquals(4, plaquesParRangee(4))
         assertEquals(3, plaquesParRangee(5))
