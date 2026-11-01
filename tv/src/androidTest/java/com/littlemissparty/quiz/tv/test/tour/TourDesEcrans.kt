@@ -202,6 +202,10 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
         if (nombre >= 2) jeu("ca-va-exploser") {
             aller("t-patate") { it.child("potato/lit").value == true }
             verifier("ca-va-exploser-bombe", 1_200)
+            // Preuves du 1/11 (points 31 et 32) : « BOUM ! », les points perdus et la phrase du bas après l'explosion.
+            ecran.voit("BOUM !", 90_000)
+            verifier("ca-va-exploser-boum", 300)
+            verifier("ca-va-exploser-apres-boum", 1_800)
         }
         if (nombre >= 2) jeu("duel") {
             aller("t-duel") { it.child("duel/step").value == "ready" }
