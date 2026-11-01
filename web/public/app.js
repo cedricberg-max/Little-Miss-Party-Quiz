@@ -64,6 +64,32 @@ const code = (params.get("g") || "").toUpperCase();
 const regieDirect = params.get("regie") === "1";
 // QR « Reconnecter une tablette » de la TV : cette tablette reprend une équipe existante.
 const takeover = params.get("reprise") === "1";
+// Retour tout seul (cedric, 01/11, points 56/57) : la tablette retient sa dernière partie 12 h. Rouverte depuis l'icône
+// (adresse sans code), elle y retourne d'elle-même avec « &retour=1 », mais seulement dans SA propre équipe : partie
+// finie, effacée ou sans équipe de cet appareil, elle oublie la partie et montre l'affiche, comme avant.
+const retour = params.get("retour") === "1";
+const CLE_DERNIERE_PARTIE = "lmp-derniere-partie";
+const DERNIERE_PARTIE_GARDE_MS = 12 * 3600_000;
+function retenirPartie() {
+  try { localStorage.setItem(CLE_DERNIERE_PARTIE, JSON.stringify({ code, at: Date.now() })); } catch { /* stockage refusé */ }
+}
+function dernierePartie() {
+  try {
+    const d = JSON.parse(localStorage.getItem(CLE_DERNIERE_PARTIE) ?? "null");
+    return d && /^[A-Z0-9]{4,8}$/.test(d.code) && Date.now() - Number(d.at) < DERNIERE_PARTIE_GARDE_MS ? d.code : null;
+  } catch {
+    return null;
+  }
+}
+function adresseSans(...cles) {
+  const u = new URL(location.href);
+  for (const c of cles) u.searchParams.delete(c);
+  return u;
+}
+function abandonnerRetour() {
+  try { localStorage.removeItem(CLE_DERNIERE_PARTIE); } catch { /* rien */ }
+  location.replace(adresseSans("g", "retour").href);
+}
 // Tests automatiques uniquement : l'émulateur Firebase n'est accepté que depuis l'ordinateur de test.
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
 // Design de la TV (menu Retour) : son QR code ajoute &look=gs ou &look=classique. Un lien sans ce réglage (QR de
@@ -317,7 +343,14 @@ function suivreCoupures() {
 async function start() {
   show("loading");
   lastScreen = "loading";
-  if (!code) return show("affiche");
+  if (!code) {
+    const derniere = dernierePartie();
+    if (!derniere) return show("affiche");
+    const u = adresseSans("retour");
+    u.searchParams.set("g", derniere);
+    u.searchParams.set("retour", "1");
+    return location.replace(u.href);
+  }
   try {
     if (!db) {
       const config = await (await fetch("firebase-config.json", { cache: "no-store" })).json();
@@ -337,18 +370,23 @@ async function start() {
     gameRef = ref(db, `games/${code}`);
     const host = await get(ref(db, `games/${code}/hostUid`));
     gameExists = host.exists();
+    if (!host.exists() && retour) return abandonnerRetour();
     if (!host.exists()) return fail(`La partie ${code} n'existe pas ou est terminée.`, "passe");
     suivreLook();
     // Téléphone de l'animatrice déjà relié : retour direct à la régie (rechargement, écran verrouillé).
     if (await hasAccess({ db, uid }, code)) return enterRegie();
     const teams = (await get(ref(db, `games/${code}/teams`))).val() ?? {};
     const mine = myTeam(teams);
+    if (retour && (!mine || isReplaced(teams, mine) || (await get(ref(db, `games/${code}/state/phase`))).val() === "ended")) {
+      return abandonnerRetour();
+    }
     if (mine && isReplaced(teams, mine)) return showReplaced(teams[mine]);
     if (mine) { teamId = mine; return play(); }
     // Partie commencée : un nouvel appareil n'entre que si la régie l'accepte (nouvelle équipe ou remplaçant).
     const phase = (await get(ref(db, `games/${code}/state/phase`))).val() ?? "lobby";
     if (phase === "ended") {
       if (suivreLaSuite((await get(ref(db, `games/${code}/state/suite`))).val())) return;
+      if (retour) return abandonnerRetour();
       return fail("Cette partie est terminée. Merci d'avoir joué !", "passe");
     }
     if (takeover && !regieDirect && Object.keys(teams).length) return showTakeover();
@@ -508,6 +546,7 @@ onAwakeChange((awake) => {
 
 function play() {
   stopListening();
+  retenirPartie();
   // Game Show : les mots de Daft Punk se chargent dès l'entrée dans l'équipe, prêts pour le tout premier buzz (la
   // tablette n'est plus touchée avant : l'animatrice l'a fait entrer depuis son téléphone, cedric 24/10).
   if (lookGs) {

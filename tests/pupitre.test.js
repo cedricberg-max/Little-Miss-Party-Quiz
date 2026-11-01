@@ -1176,6 +1176,67 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("coupure du Wi-Fi en pleine partie (cedric, 01/11) : la tablette revient seule, la réponse touchée pendant la coupure arrive", async () => {
+    const page = await openPupitre();
+    const uid = await joinTeam(page, "Les Licornes");
+    await hostState(question());
+    await page.locator("#screen-question.active").waitFor();
+
+    // Wi-Fi coupé quelques secondes : la réponse touchée pendant la coupure part dès qu'il revient.
+    await page.context().setOffline(true);
+    await page.locator(".choice").nth(1).click();
+    await page.locator("#q-status", { hasText: "Réponse B envoyée" }).waitFor();
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal(await read(`answers/q1/${uid}`), null, "hors ligne, rien n'est encore arrivé");
+    await page.context().setOffline(false);
+    await waitFor(async () => (await read(`answers/q1/${uid}`))?.choice === 1, "réponse arrivée au retour du Wi-Fi", 20000);
+
+    // Nouvelle coupure : la TV passe à la question suivante pendant ce temps ; au retour, la tablette la montre.
+    await page.context().setOffline(true);
+    await hostState(question({ qid: "q2", index: 1 }));
+    await new Promise((r) => setTimeout(r, 1500));
+    await page.context().setOffline(false);
+    await page.locator("#q-number", { hasText: "Question 2" }).waitFor({ timeout: 20000 });
+    assert.equal(await page.locator(".choice.picked").count(), 0, "nouvelle question : rien de coché");
+    assert.equal(Object.keys(await read("teams")).length, 1, "pas de doublon d'équipe");
+    await page.context().close();
+  });
+
+  test("appli rouverte depuis son icône (sans code) : retour tout seul dans sa propre équipe, jamais dans une partie finie ni chez les autres", async () => {
+    const page = await openPupitre();
+    const uid = await joinTeam(page, "Les Licornes");
+    await page.goto(`${baseUrl}/?emu=1`);
+    await page.locator("#screen-play.active").waitFor();
+    assert.ok(page.url().includes(`g=${CODE}`), "la tablette est retournée dans sa partie");
+    assert.equal(Object.keys(await read("teams")).length, 1, "pas de nouvelle équipe");
+    assert.equal(await read(`joinRequests/${uid}`), null, "aucune demande d'entrée");
+
+    // Partie finie : la tablette l'oublie et montre l'affiche (pas « Cette partie est terminée »).
+    await update(ref(hostDb(), `games/${CODE}/state`), { phase: "ended" });
+    await page.goto(`${baseUrl}/?emu=1`);
+    await page.locator("#screen-affiche.active").waitFor();
+    assert.ok(!page.url().includes("g="), "plus de code dans l'adresse");
+    assert.equal(await page.evaluate(() => localStorage.getItem("lmp-derniere-partie")), null, "partie oubliée");
+    await page.context().close();
+
+    // Appareil qui n'a pas d'équipe dans cette partie (mémoire présente) : l'affiche, et il ne demande pas à entrer.
+    await update(ref(hostDb(), `games/${CODE}/state`), { phase: "lobby" });
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.route("https://www.gstatic.com/firebasejs/11.1.0/*", (route) =>
+      route.fulfill({ path: join(FIREBASE_JS, new URL(route.request().url()).pathname.split("/").pop()), contentType: "text/javascript" }));
+    await context.addInitScript((code) => {
+      if (sessionStorage.getItem("prepare")) return;
+      sessionStorage.setItem("prepare", "1");
+      localStorage.setItem("lmp-derniere-partie", JSON.stringify({ code, at: Date.now() }));
+    }, CODE);
+    const inconnue = await context.newPage();
+    await inconnue.goto(`${baseUrl}/?emu=1`);
+    await inconnue.locator("#screen-affiche.active").waitFor();
+    await new Promise((r) => setTimeout(r, 800));
+    assert.equal(await read("joinRequests"), null, "un inconnu ne demande pas à entrer");
+    await inconnue.context().close();
+  });
+
   test("pendant la pause, impossible de répondre", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
