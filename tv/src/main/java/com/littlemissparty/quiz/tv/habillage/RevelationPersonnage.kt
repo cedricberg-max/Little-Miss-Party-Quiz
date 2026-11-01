@@ -170,7 +170,7 @@ private fun VisuelPolaroid(image: ImageBitmap?, emoji: String?, tailleEmoji: Flo
  * Largeur et hauteur du polaroid (dp) dans un cadre de [l] × [h] dp, sur un écran de [ecran] dp de haut : les
  * proportions de la planche (0,837), penché de [POLAROID_ANGLE] degrés. Sa boîte penchée peut sortir du cadre de
  * [POLAROID_DEBORD] dp de chaque côté, et sa hauteur ne dépasse jamais [POLAROID_ECRAN] de l'écran (la planche C,
- * 51 % de l'écran, moins 4 %).
+ * 51 % de l'écran, moins 4 %) ; puis encore 5 % de moins ([POLAROID_REDUCTION]).
  */
 internal fun taillePolaroid(l: Float, h: Float, ecran: Float): Pair<Float, Float> {
     val a = Math.toRadians(kotlin.math.abs(POLAROID_ANGLE).toDouble())
@@ -179,7 +179,7 @@ internal fun taillePolaroid(l: Float, h: Float, ecran: Float): Pair<Float, Float
     // Boîte englobante du polaroid penché, pour une hauteur de 1.
     val bl = POLAROID_RAPPORT * c + s
     val bh = c + POLAROID_RAPPORT * s
-    val haut = minOf((l + 2 * POLAROID_DEBORD) / bl, (h + 2 * POLAROID_DEBORD) / bh, ecran * POLAROID_ECRAN)
+    val haut = minOf((l + 2 * POLAROID_DEBORD) / bl, (h + 2 * POLAROID_DEBORD) / bh, ecran * POLAROID_ECRAN) * POLAROID_REDUCTION
     return POLAROID_RAPPORT * haut to haut
 }
 
@@ -192,3 +192,5 @@ internal const val POLAROID_ECRAN = 0.49f
  *  sur les captures de 3 et 8 équipes). */
 internal const val POLAROID_DEBORD = 36f
 internal const val POLAROID_REBOND = 0.04f
+/** Vu à 12 h 39 : « encore enlever 5 % » (cedric, 1/11), partout, centre inchangé. */
+internal const val POLAROID_REDUCTION = 0.95f
