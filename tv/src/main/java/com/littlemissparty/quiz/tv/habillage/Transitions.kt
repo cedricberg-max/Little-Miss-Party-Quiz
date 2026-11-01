@@ -317,8 +317,8 @@ private fun LumieresDuJoint(ms: () -> Float, dureeMs: Long) {
  */
 internal fun profilJoint(y: Float): Float = 1f - 0.35f * y * y
 
-/** Le profil en dégradé continu (17 arrêts), appliqué d'un seul trait sur toute la hauteur. */
-internal val ARRETS_JOINT: List<Pair<Float, Float>> = List(17) { i -> val t = i / 16f; t to profilJoint(t * 2f - 1f) }
+/** Le profil en dégradé continu (33 arrêts), appliqué d'un seul trait sur toute la hauteur. */
+internal val ARRETS_JOINT: List<Pair<Float, Float>> = List(33) { i -> val t = i / 32f; t to profilJoint(t * 2f - 1f) }
 
 private val MasqueJoint = Brush.verticalGradient(*ARRETS_JOINT.map { (t, a) -> t to Color.White.copy(alpha = a) }.toTypedArray())
 

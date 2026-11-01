@@ -44,7 +44,7 @@ class PortesTransitionTest {
         org.junit.Assert.assertEquals(1f, profilJoint(0f), 1e-6f)
         org.junit.Assert.assertEquals(0.65f, profilJoint(-1f), 1e-6f)
         org.junit.Assert.assertEquals(0.65f, profilJoint(1f), 1e-6f)
-        assertTrue(ARRETS_JOINT.size >= 17)
+        assertTrue(ARRETS_JOINT.size >= 33)
         ARRETS_JOINT.zipWithNext().forEach { (a, b) -> assertTrue(kotlin.math.abs(a.second - b.second) < 0.05f) }
     }
 }
