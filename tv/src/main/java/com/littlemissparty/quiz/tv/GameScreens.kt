@@ -648,7 +648,8 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
             val lignes = state.teams.map { t ->
                 t to b.tracks.filter { it.status == BlindStatus.FOUND && it.team == t.uid }.sumOf { it.points }
             }.sortedByDescending { it.second }
-            return ClassementGameShow(state, actions, "BILAN DU BLIND TEST", "Points gagnés pendant le blind test", lignes, emptyMap())
+            // Les jauges partent de zéro et montent des points du blind test (avant, elles s'affichaient déjà pleines).
+            return ClassementGameShow(state, actions, "BILAN DU BLIND TEST", "Points gagnés pendant le blind test", lignes, lignes.associate { (t, p) -> t.uid to p })
         }
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             BlindBilanEcran(state, Modifier.weight(1f).fillMaxWidth())
