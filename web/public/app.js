@@ -17,6 +17,8 @@ import { ecranGonfleur, ENVOI_MS, plafond } from "./gonfleur.js";
 import { ecranPatate } from "./patate.js";
 import { ecranSimon, noteSimon } from "./simon.js";
 import { afficherMotsDePasse } from "./oeil.js";
+import { ouvrirScanner } from "./scanner.js";
+import { feter, fermerFete, ecranSousFete, prechargerFetes } from "./fete-buzzy.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -63,6 +65,32 @@ const code = (params.get("g") || "").toUpperCase();
 const regieDirect = params.get("regie") === "1";
 // QR « Reconnecter une tablette » de la TV : cette tablette reprend une équipe existante.
 const takeover = params.get("reprise") === "1";
+// Retour tout seul (cedric, 01/11, points 56/57) : la tablette retient sa dernière partie 12 h. Rouverte depuis l'icône
+// (adresse sans code), elle y retourne d'elle-même avec « &retour=1 », mais seulement dans SA propre équipe : partie
+// finie, effacée ou sans équipe de cet appareil, elle oublie la partie et montre l'affiche, comme avant.
+const retour = params.get("retour") === "1";
+const CLE_DERNIERE_PARTIE = "lmp-derniere-partie";
+const DERNIERE_PARTIE_GARDE_MS = 12 * 3600_000;
+function retenirPartie() {
+  try { localStorage.setItem(CLE_DERNIERE_PARTIE, JSON.stringify({ code, at: Date.now() })); } catch { /* stockage refusé */ }
+}
+function dernierePartie() {
+  try {
+    const d = JSON.parse(localStorage.getItem(CLE_DERNIERE_PARTIE) ?? "null");
+    return d && /^[A-Z0-9]{4,8}$/.test(d.code) && Date.now() - Number(d.at) < DERNIERE_PARTIE_GARDE_MS ? d.code : null;
+  } catch {
+    return null;
+  }
+}
+function adresseSans(...cles) {
+  const u = new URL(location.href);
+  for (const c of cles) u.searchParams.delete(c);
+  return u;
+}
+function abandonnerRetour() {
+  try { localStorage.removeItem(CLE_DERNIERE_PARTIE); } catch { /* rien */ }
+  location.replace(adresseSans("g", "retour").href);
+}
 // Tests automatiques uniquement : l'émulateur Firebase n'est accepté que depuis l'ordinateur de test.
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
 // Design de la TV (menu Retour) : son QR code ajoute &look=gs ou &look=classique. Un lien sans ce réglage (QR de
@@ -129,7 +157,7 @@ let gameExists = false;
  * affiche un bandeau : l'animatrice choisit le moment.
  */
 let newVersion = false;
-const SAFE_TO_RELOAD = new Set(["gate", "play", "result", "ended", "error", "loading", "replaced", "watch"]);
+const SAFE_TO_RELOAD = new Set(["gate", "play", "result", "ended", "error", "loading", "replaced", "watch", "affiche"]);
 function maybeReload() {
   if (!newVersion) return;
   if (document.body.classList.contains("regie-mode") || !$("regie-login").hidden) {
@@ -153,17 +181,50 @@ function show(name) {
     if (AWAKE_SCREENS.has(name)) setAwake(true);
     else if (SLEEP_SCREENS.has(name)) setAwake(false);
   }
+  // Buzzy en plein écran : il laisse la place dès que l'écran du jeu change (une question n'est jamais cachée).
+  if (ecranSousFete() && ecranSousFete() !== name) fermerFete();
   if (lastScreen === name) return;
   lastScreen = name;
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === `screen-${name}`));
   maybeReload();
 }
 
-function fail(message) {
+/**
+ * Écrans d'arrivée en Game Show (cedric, 31/10) : chaque cas normal (partie complète, pas de réseau, vieille partie,
+ * pas encore entré) a sa petite scène en 3D avec Buzzy et des mots doux, jamais un écran d'erreur qui fait peur.
+ * Le texte de [fail] reste celui du design classique.
+ */
+const ARRIVEES = {
+  complet: { objet: "porte", buzzy: "pouces", couleur: "rose", titre: "On est déjà au complet\u00a0!", sous: `${MAX_TEAMS} équipes jouent déjà. Venez encourager les autres !` },
+  reseau: { objet: "cable", buzzy: "applaudit", couleur: "cyan", titre: "Oups ! Plus de réseau…", sous: "Pas de panique : je reviens tout seul dès que le Wi-Fi revient.", reessayer: true },
+  passe: { objet: "hier", buzzy: "applaudit", couleur: "jaune", titre: "Cette partie est déjà terminée\u00a0!", sous: "C'est du passé ! Scannez le QR code de la TV pour la nouvelle fête.", retourne: true },
+  attente: { objet: "sablier", buzzy: "batterie", couleur: "rose", titre: "Ça n'a pas encore commencé\u00a0!", sous: "", reessayer: true },
+};
+let reseauRetour = null;
+function fail(message, cas = null) {
   stopListening();
-  $("error-text").textContent = message;
+  clearInterval(reseauRetour);
+  reseauRetour = null;
+  const a = ARRIVEES[cas];
+  const ecran = $("screen-error");
+  ecran.dataset.cas = a ? cas : "";
+  $("arrivee-scene").hidden = !a;
+  $("arrivee-titre").hidden = !a;
+  if (a) {
+    $("arrivee-objet").src = `img/gs/arrivee/${a.objet}.webp`;
+    $("arrivee-buzzy").src = `img/gs/buzzy-${a.buzzy}.webp`;
+    $("arrivee-buzzy").classList.toggle("retourne", a.retourne === true);
+    $("arrivee-titre").textContent = a.titre;
+    $("arrivee-titre").className = `arrivee-titre ${a.couleur}`;
+    ecran.classList.toggle("sans-reessayer", !a.reessayer);
+  } else ecran.classList.remove("sans-reessayer");
+  $("error-text").textContent = lookGs && a ? a.sous : message;
+  $("error-text").hidden = lookGs && a && !a.sous;
   show("error");
+  // Pas de réseau : la tablette réessaie toute seule dès que le Wi-Fi revient (et toutes les 10 s, au cas où).
+  if (cas === "reseau") reseauRetour = setInterval(() => { if (lastScreen === "error" && navigator.onLine !== false) start(); }, 10000);
 }
+window.addEventListener("online", () => { if (lastScreen === "error" && $("screen-error").dataset.cas === "reseau") start(); });
 
 function beep(freq = 880, ms = 180) {
   try {
@@ -285,7 +346,14 @@ function suivreCoupures() {
 async function start() {
   show("loading");
   lastScreen = "loading";
-  if (!code) return fail("Scannez le QR code affiché sur la TV pour rejoindre une partie.");
+  if (!code) {
+    const derniere = dernierePartie();
+    if (!derniere) return show("affiche");
+    const u = adresseSans("retour");
+    u.searchParams.set("g", derniere);
+    u.searchParams.set("retour", "1");
+    return location.replace(u.href);
+  }
   try {
     if (!db) {
       const config = await (await fetch("firebase-config.json", { cache: "no-store" })).json();
@@ -305,28 +373,33 @@ async function start() {
     gameRef = ref(db, `games/${code}`);
     const host = await get(ref(db, `games/${code}/hostUid`));
     gameExists = host.exists();
-    if (!host.exists()) return fail(`La partie ${code} n'existe pas ou est terminée.`);
+    if (!host.exists() && retour) return abandonnerRetour();
+    if (!host.exists()) return fail(`La partie ${code} n'existe pas ou est terminée.`, "passe");
     suivreLook();
     // Téléphone de l'animatrice déjà relié : retour direct à la régie (rechargement, écran verrouillé).
     if (await hasAccess({ db, uid }, code)) return enterRegie();
     const teams = (await get(ref(db, `games/${code}/teams`))).val() ?? {};
     const mine = myTeam(teams);
+    if (retour && (!mine || isReplaced(teams, mine) || (await get(ref(db, `games/${code}/state/phase`))).val() === "ended")) {
+      return abandonnerRetour();
+    }
     if (mine && isReplaced(teams, mine)) return showReplaced(teams[mine]);
     if (mine) { teamId = mine; return play(); }
     // Partie commencée : un nouvel appareil n'entre que si la régie l'accepte (nouvelle équipe ou remplaçant).
     const phase = (await get(ref(db, `games/${code}/state/phase`))).val() ?? "lobby";
     if (phase === "ended") {
       if (suivreLaSuite((await get(ref(db, `games/${code}/state/suite`))).val())) return;
-      return fail("Cette partie est terminée. Merci d'avoir joué !");
+      if (retour) return abandonnerRetour();
+      return fail("Cette partie est terminée. Merci d'avoir joué !", "passe");
     }
     if (takeover && !regieDirect && Object.keys(teams).length) return showTakeover();
     if (phase === "lobby" && Object.keys(teams).length >= MAX_TEAMS) {
-      fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`);
+      fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`, "complet");
     } else showGate();
     if (regieDirect) openRegieLogin();
   } catch (e) {
     console.error(e);
-    fail("Connexion impossible. Vérifiez Internet puis réessayez.");
+    fail("Connexion impossible. Vérifiez Internet puis réessayez.", "reseau");
   }
 }
 
@@ -389,7 +462,7 @@ async function askToJoin() {
     waitForAdmission();
   } catch (e) {
     console.error(e);
-    fail("Impossible d'envoyer la demande. Vérifiez Internet puis réessayez.");
+    fail("Impossible d'envoyer la demande. Vérifiez Internet puis réessayez.", "reseau");
   }
 }
 
@@ -421,7 +494,7 @@ async function askTakeover(id, team) {
     waitForAdmission(`L'animatrice confirme sur son téléphone (ou sur la TV) que cette tablette reprend « ${team.name} ».`);
   } catch (e) {
     console.error(e);
-    fail("Impossible d'envoyer la demande. Vérifiez Internet puis réessayez.");
+    fail("Impossible d'envoyer la demande. Vérifiez Internet puis réessayez.", "reseau");
   }
 }
 
@@ -444,6 +517,7 @@ function waitForAdmission(text = "L'animatrice vous fait entrer dans la partie d
     done = true;
     clearTimeout(refusal);
     teamId = mine;
+    bienvenueAFeter = true;
     setTimeout(play, 0); // hors de l'écouteur en cours, qui sera débranché par play()
     return true;
   };
@@ -452,7 +526,7 @@ function waitForAdmission(text = "L'animatrice vous fait entrer dans la partie d
     if (s.exists()) return;
     // Demande effacée : acceptée (l'équipe arrive dans la même écriture) ou écartée par l'animatrice.
     refusal = setTimeout(() => {
-      if (!admitted()) fail("L'animatrice n'a pas fait entrer cet appareil. Réessayez ou demandez-lui.");
+      if (!admitted()) fail("L'animatrice n'a pas fait entrer cet appareil. Réessayez ou demandez-lui.", "attente");
     }, 2000);
   });
 }
@@ -476,6 +550,8 @@ onAwakeChange((awake) => {
 
 function play() {
   stopListening();
+  retenirPartie();
+  if (lookGs) prechargerFetes();
   // Game Show : les mots de Daft Punk se chargent dès l'entrée dans l'équipe, prêts pour le tout premier buzz (la
   // tablette n'est plus touchée avant : l'animatrice l'a fait entrer depuis son téléphone, cedric 24/10).
   if (lookGs) {
@@ -569,6 +645,11 @@ function render() {
   $("play-intro").hidden = true;
   $("chante-mot").hidden = true;
   $("play-status").classList.remove("fete");
+  afficherPhase(st);
+  momentsDeFete(st);
+}
+
+function afficherPhase(st) {
   switch (st.phase) {
     case "question":
     case "closed":
@@ -593,6 +674,51 @@ function render() {
     default:
       return renderLobby(st);
   }
+}
+
+/**
+ * Buzzy en plein écran (fete-buzzy.js, cedric 01/11, point 43) : les moments validés sur la planche. Game Show seulement ;
+ * chaque moment une seule fois (clé = partie + question) ; jamais sur un écran où l'équipe doit toucher quelque chose.
+ */
+let bienvenueAFeter = false;
+let phaseVue = null;
+function fete(nom, cle, sous = null) {
+  if (!lookGs || document.body.classList.contains("regie-mode")) return false;
+  return feter(nom, `${code}:${cle}`, lastScreen, sous);
+}
+function momentsDeFete(st) {
+  const avant = phaseVue;
+  phaseVue = st.phase;
+  if (!lookGs) return;
+  const q = `${st.qid ?? ""}:${st.index ?? ""}`;
+  if (bienvenueAFeter) {
+    bienvenueAFeter = false;
+    if (st.phase === "lobby") return fete("bienvenue", `bienvenue:${teamId}`, `${game.teams[teamId]?.name ?? "L'équipe"}, vous êtes dans la fête !`);
+  }
+  if (avant === "lobby" && st.phase === "intro") return fete("parti", "parti");
+  if (st.phase === "question" && BUZZ_KINDS.includes(st.kind) && st.buzz?.team === teamId) return fete("premiers", `premiers:${q}:${st.round ?? ""}`);
+  if (st.phase === "closed" && (st.kind === "number" || st.kind === "chrono")) return fete("roulement", `roulement:${q}`);
+  if (st.phase !== "reveal" && st.phase !== "scores") return;
+  const ok = st.awards?.[teamId]?.correct === true;
+  let nom = null;
+  let sous = null;
+  if (st.mime) nom = (st.mime.counts?.[teamId] ?? 0) > 0 ? "trouve" : null;
+  else if (st.kind === "coffres") {
+    const gains = st.chests?.gains ?? {};
+    const meilleur = Math.max(0, ...Object.values(gains).map(Number).filter(Number.isFinite));
+    nom = st.phase === "scores" && meilleur > 0 && Number(gains[teamId]) === meilleur ? "gagne" : null;
+  } else if (!ok || st.kind === "patate") nom = null;
+  else if (st.kind === "gonfleur") { nom = "gagne"; sous = "Votre ballon a gagné !"; }
+  else if (st.kind === "statues") nom = "statues";
+  else if (st.kind === "duel") nom = "duel";
+  else if (st.kind === "chrono") nom = "chrono";
+  else if (st.kind === "number") { nom = "points"; sous = game.myAnswer?.choice === st.correct ? "Pile le bon nombre !" : "Le plus proche !"; }
+  else if (st.kind === "blind" || /musical/i.test(st.game?.title ?? "")) nom = "chanson";
+  else if (BUZZ_KINDS.includes(st.kind)) nom = "points";
+  else nom = "bonne";
+  if (nom && fete(nom, `resultat:${q}`, sous)) return;
+  // Fin d'un jeu (dernière question de la série) : petite pause pendant que l'animatrice prépare la suite.
+  if (st.phase === "scores" && st.game?.n != null && st.game.n === st.game.of) fete("pause", `pause:${st.game.title ?? ""}:${q}`);
 }
 
 function renderLobby(st) {
@@ -1710,10 +1836,12 @@ function renderEnded(st) {
   if (attente) {
     $("e-rank").textContent = "Le grand gagnant est…";
     $("e-total").textContent = "Regardez la télé !";
+    fete("podium", `podium:${st.endedAt ?? ""}`);
     finHandle = setTimeout(() => { if (game.state === st) renderEnded(st); }, reste + 50);
     return;
   }
   const { mine, rank } = rankOf(st.scores);
+  fete("merci", `merci:${st.endedAt ?? ""}`);
   $("e-rank").textContent = rank === 1 ? "Vous avez gagné !" : `${rank}e place`;
   $("e-total").textContent = `${mine} points`;
 }
@@ -1899,4 +2027,5 @@ function exitRegie(message) {
 }
 
 $("retry").onclick = start;
+$("affiche-photo").onclick = () => ouvrirScanner();
 start();

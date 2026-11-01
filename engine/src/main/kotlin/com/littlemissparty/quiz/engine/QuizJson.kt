@@ -90,6 +90,12 @@ object QuizJson {
         return ZoomDepart(x.coerceIn(0.0, 1.0).toFloat(), y.coerceIn(0.0, 1.0).toFloat(), z.coerceIn(2.0, 10.0).toFloat())
     }
 
+    /** Départ de l'Image floue : largeur de 2 à 4 ; 5, absent, illisible ou hors bornes, null (le flou d'aujourd'hui). */
+    internal fun flouDepart(o: JSONObject?): Int? {
+        val w = o?.optInt("w", 0) ?: return null
+        return w.takeIf { it in 2..4 }
+    }
+
     private fun question(q: JSONObject, i: Int): Question {
         val imageId = q.optString("imageId").takeIf { it.matches(IMAGE_ID) }
         // Zoom mystère ou image floue sans photo valable : la question se joue comme une question classique.
@@ -119,6 +125,7 @@ object QuizJson {
             emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && !turns },
             imageId = imageId?.takeIf { !turns },
             zoomDepart = if (kind == QuestionKind.ZOOM) zoomDepart(q.optJSONObject("zoomDepart")) else null,
+            flouDepart = if (kind == QuestionKind.FLOU) flouDepart(q.optJSONObject("flouDepart")) else null,
             choiceImages = choiceImages(q.optJSONArray("choiceImages"), choices.length(), kind),
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && chanson }?.take(MAX_ARTIST),
             audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && !turns },

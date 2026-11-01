@@ -1677,8 +1677,12 @@ describe("Le Duel des robots", () => {
     await assertFails(buzz("bleu"));
     await assertSucceeds(buzz("tablette2", "bleu"));
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
-    for (const [id, cmd] of [["d1", { type: "duel_start" }], ["d2", { type: "duel_start", teams: ["bleu", "rose"] }], ["d3", { type: "duel_next" }], ["d4", { type: "duel_stop" }]]) {
+    for (const [id, cmd] of [["d1", { type: "duel_start" }], ["d2", { type: "duel_start", teams: ["bleu", "rose"] }], ["d3", { type: "duel_next" }], ["d4", { type: "duel_stop" }], ["d5", { type: "duel_plan", counts: { bleu: 3, rose: 12 } }], ["d6", { type: "duel_plan", skip: true }], ["d7", { type: "duel_swap", teams: ["rose", "bleu"] }]]) {
       await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/${id}`), { ...cmd, expectSeq: 3, by: "tel", at: serverTimestamp() }), cmd.type);
+    }
+    // Joueurs par équipe (cedric, 1/11) : de 1 à 12, rien d'autre.
+    for (const [id, counts] of [["d8", { bleu: 0 }], ["d9", { bleu: 13 }], ["d10", { bleu: "3" }]]) {
+      await assertFails(set(ref(db("tel"), `games/${CODE}/commands/${id}`), { type: "duel_plan", counts, expectSeq: 3, by: "tel", at: serverTimestamp() }), JSON.stringify(counts));
     }
   });
 });
@@ -1795,6 +1799,10 @@ describe("Le Simon de Buzzy", () => {
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
     for (const [id, cmd] of [["s1", { type: "simon_go" }], ["s2", { type: "simon_stop" }]]) {
       await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/${id}`), { ...cmd, expectSeq: 3, by: "tel", at: serverTimestamp() }), cmd.type);
+    }
+    // Joueurs par équipe (cedric, 1/11) : de 1 à 12, rien d'autre.
+    for (const [id, counts] of [["d8", { bleu: 0 }], ["d9", { bleu: 13 }], ["d10", { bleu: "3" }]]) {
+      await assertFails(set(ref(db("tel"), `games/${CODE}/commands/${id}`), { type: "duel_plan", counts, expectSeq: 3, by: "tel", at: serverTimestamp() }), JSON.stringify(counts));
     }
   });
 });

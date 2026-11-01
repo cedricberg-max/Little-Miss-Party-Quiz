@@ -23,6 +23,8 @@
   <link rel="stylesheet" href="regie-gs.css">
   <link rel="stylesheet" href="gameshow.css">
   <link rel="stylesheet" href="tablette-gs.css">
+  <link rel="stylesheet" href="arrivee.css">
+  <link rel="stylesheet" href="fete-buzzy.css">
 </head>
 <body>
   <div id="offline" class="offline" hidden>Connexion perdue… reconnexion en cours</div>
@@ -34,8 +36,25 @@
 
     <section id="screen-error" class="screen">
       <div class="logo small">Oups !</div>
+      <!-- Game Show : chaque cas a sa petite scène avec Buzzy, jamais un écran d'erreur qui fait peur (cedric, 31/10). -->
+      <div id="arrivee-scene" class="arrivee-scene" hidden><img id="arrivee-objet" class="arrivee-objet" alt=""><img id="arrivee-buzzy" class="arrivee-buzzy" alt=""></div>
+      <p id="arrivee-titre" class="arrivee-titre" hidden></p>
       <p id="error-text" class="hint"></p>
       <button id="retry" class="btn">Réessayer</button>
+    </section>
+
+    <!-- Appli ouverte sans QR code (icône de l'écran d'accueil) : l'affiche du Game Show, et un petit bouton appareil
+         photo pour scanner le QR code de la TV (cedric, 31/10). -->
+    <section id="screen-affiche" class="screen">
+      <div class="affiche-lasers" aria-hidden="true"></div>
+      <div class="affiche-sol" aria-hidden="true"></div>
+      <div class="affiche-scene">
+        <img class="affiche-logo" src="img/gs/arrivee/logo.webp" alt="THE GAME SHOW by Little Miss Party">
+        <div class="affiche-buzzy"><img src="img/gs/buzzy-salut.webp" alt=""></div>
+      </div>
+      <button id="affiche-photo" class="affiche-photo" type="button" aria-label="Scanner le QR code de la TV">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.6"/></svg>
+      </button>
     </section>
 
     <!-- Entrée d'une tablette (cedric, 24/10) : rien à taper ni à choisir. Avant la régie, seulement l'accès régie. -->
@@ -243,11 +262,19 @@
       <!-- Le Duel des robots (cedric, 27/10) : deux équipes face à face, la première qui buzze après le PAN gagne. -->
       <section id="duel" class="flou" hidden aria-label="Le Duel des robots">
         <p id="duel-info" class="mime-info"></p>
+        <!-- Nouveau déroulé (cedric, 1/11) : les joueurs de chaque équipe, pendant la présentation du jeu. -->
+        <div id="duel-compte" class="duel-compte" hidden>
+          <div id="duel-lignes" class="duel-lignes"></div>
+          <p id="duel-total" class="duel-total"></p>
+          <button id="duel-ok" class="btn duel-ok" type="button">C'est bon</button>
+          <button id="duel-passer" class="duel-passer" type="button">Passer cette étape</button>
+        </div>
         <div id="duel-face" class="duel-face"></div>
+        <p id="duel-astuce" class="hint duel-astuce" hidden>Touche une équipe pour la changer</p>
         <p id="duel-resultat" class="duel-resultat" hidden></p>
         <div id="duel-choix" class="statues-teams" hidden></div>
         <button id="duel-stop" class="btn secondary" type="button" hidden>✋ Arrêter le face-à-face</button>
-        <button id="duel-autres" class="btn secondary" type="button" hidden>🎯 Choisir 2 équipes</button>
+        <button id="duel-plus" class="btn secondary duel-plus" type="button" hidden>＋ Un duel en plus</button>
         <button id="duel-retour" class="btn secondary statues-retour" type="button" hidden>← Retour</button>
         <button id="duel-fin" class="btn secondary" type="button" hidden>⏭ Jeu suivant</button>
         <p id="duel-points" class="hint"></p>

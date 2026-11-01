@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import com.littlemissparty.quiz.tv.habillage.HALO_DECOR
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
@@ -179,16 +180,20 @@ internal fun TeamStatusGs(
         .rebond(revealedPoints != null && revealedPoints > 0, 0.25f)
         .then(if (allumee && online) Modifier.lueurNeon(color, 14.dp, 0.7f) else Modifier)
         .clip(forme)
-        .background(if (allumee) color.copy(alpha = 0.26f) else GS.Nuit.copy(alpha = 0.85f))
+        // Choix B de cedric (planche du 1/11, point 37) : une équipe qui a répondu, sa couleur bien plus forte sur un fond
+        // de nuit (avant, la pastille devenait transparente et le nom se fondait dans le plateau), et le halo noir doux
+        // sur le nom et le statut.
+        .then(if (allumee) Modifier.background(GS.Nuit.copy(alpha = 0.55f)).background(color.copy(alpha = 0.55f)) else Modifier.background(GS.Nuit.copy(alpha = 0.85f)))
         .border(2.dp, if (online) color else Color.Gray, forme)
     val taille = if (compacte) 15.sp else 17.sp
+    val halo = if (allumee) TextStyle(shadow = HALO_DECOR) else TextStyle.Default
     @Composable
     fun Statut(m: Modifier = Modifier) = Text(
         statut,
         color = if (revealedPoints != null && revealedPoints > 0) GS.Jaune else GS.Encre.copy(alpha = 0.75f),
         fontSize = taille, fontWeight = FontWeight.Bold,
         fontFamily = if (revealedPoints != null) PoliceGsChiffres else PoliceGsTexte,
-        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = m,
+        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = m, style = halo,
     )
     // 5 équipes et plus : pastille basse, nom et statut côte à côte, pour laisser leur hauteur aux cartes (maquette du 24/10).
     if (uneLigne) Row(cadre.padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -208,7 +213,7 @@ internal fun TeamStatusGs(
                     t > 11f -> t -= 1f
                 }
             },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f), style = halo,
         )
         Spacer(Modifier.width(6.dp))
         Statut()
@@ -218,7 +223,7 @@ internal fun TeamStatusGs(
     ) {
         // Jamais « … » (tour des écrans à 4 équipes, 31/10 : « Les Comètes Fila… ») : le nom rapetisse un peu s'il ne tient pas.
         UneLigneQuiTient(echelleMin = 0.6f) {
-            Text(team.name, color = GS.Encre, fontSize = taille, fontWeight = FontWeight.Bold, fontFamily = PoliceGsTexte, maxLines = 1, softWrap = false)
+            Text(team.name, color = GS.Encre, fontSize = taille, fontWeight = FontWeight.Bold, fontFamily = PoliceGsTexte, maxLines = 1, softWrap = false, style = halo)
         }
         Statut()
     }

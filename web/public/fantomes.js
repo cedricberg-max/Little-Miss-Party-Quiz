@@ -61,7 +61,7 @@ async function ouvrirConnexion(nom) {
   return { db, uid };
 }
 
-const reglages = { vitesse: 1, buzz: true, simonFort: false };
+const reglages = { vitesse: 1, buzz: true };
 
 // ---------- Journal de la page ----------
 
@@ -395,8 +395,8 @@ class Fantome {
       const suite = Array.from({ length: n }, (_, k) => secret[k] ?? this.simonVu?.[k] ?? auHasard(vocabulaire));
       // Comme de vrais enfants, ils se trompent de plus en plus quand la suite s'allonge (1 fois sur 10 à 1 boule,
       // 1 sur 3 à 5, 6 sur 10 à 12) : une partie avec des fantômes ne dure pas indéfiniment (cedric, 30/10).
-      // « Ne se trompent jamais » (cedric, 31/10 : voir l'accélération jusqu'au bout) : la suite secrète, telle quelle.
-      if (n && !reglages.simonFort && Math.random() < 1 - 0.92 ** Math.max(n, 1.3)) { const k = Math.floor(Math.random() * n); suite[k] = auHasard(vocabulaire.filter((x) => x !== suite[k])); }
+      // Toujours humains (cedric, 1/11 : la case « ne se trompent jamais » du 31/10 a fait son temps).
+      if (n && Math.random() < 1 - 0.92 ** Math.max(n, 1.3)) { const k = Math.floor(Math.random() * n); suite[k] = auHasard(vocabulaire.filter((x) => x !== suite[k])); }
       const debut = Math.max(sm.reponseAt ?? now, this.maintenant()) + hasard(600, 1500) * reglages.vitesse;
       const fin = (sm.finAt ?? debut + 10_000) - 400;
       const pas = Math.max(80, Math.min(hasard(350, 900) * reglages.vitesse, (fin - debut) / (n + 1)));
@@ -627,7 +627,6 @@ $("lancer").onclick = lancer;
 $("arreter").onclick = arreterTout;
 $("vitesse").onchange = () => { reglages.vitesse = VITESSES[$("vitesse").value] ?? 1; };
 $("buzz").onchange = () => { reglages.buzz = $("buzz").checked; fantomes.forEach((f) => f.reagir()); };
-$("simon-fort").onchange = () => { reglages.simonFort = $("simon-fort").checked; };
 $("auto").onchange = () => { $("mdp-ligne").hidden = !$("auto").checked; };
 // Petit œil sur le mot de passe régie, comme dans la Régie PC : voir ce qu'on tape (cedric, 27/10).
 afficherMotsDePasse();

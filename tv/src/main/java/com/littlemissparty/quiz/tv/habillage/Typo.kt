@@ -46,7 +46,7 @@ import com.littlemissparty.quiz.tv.R
  */
 val PoliceLmp: FontFamily get() = selonLook(PoliceBaloo, PoliceGsTexte)
 
-private val PoliceBaloo = FontFamily(
+internal val PoliceBaloo = FontFamily(
     Font(R.font.lmp_baloo_semibold, FontWeight.Medium),
     Font(R.font.lmp_baloo_semibold, FontWeight.SemiBold),
     Font(R.font.lmp_baloo_extrabold, FontWeight.Bold),

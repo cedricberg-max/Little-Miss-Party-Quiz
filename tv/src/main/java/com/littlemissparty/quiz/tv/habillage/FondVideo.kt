@@ -165,6 +165,8 @@ internal class LecteurFond(
     private val departSurImageCle: Boolean = false,
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     private var lecteur: MediaPlayer? = null
+    /** Le nouveau lecteur (point 46) : boucles sans trou. [lecteur] ne sert plus que de secours ([MoteurVideo]). */
+    private var exo: VideoExo? = null
     private var surface: Surface? = null
     private var fini = false
     private var finSignalee = false
@@ -187,8 +189,8 @@ internal class LecteurFond(
     }
     private val guetteur = object : Runnable {
         override fun run() {
-            val l = lecteur ?: return
-            if ((runCatching { l.currentPosition }.getOrNull() ?: 0) >= finMs) return terminer()
+            val pos = exo?.position ?: lecteur?.let { l -> runCatching { l.currentPosition }.getOrNull() ?: 0 } ?: return
+            if (pos >= finMs) return terminer()
             postDelayed(this, 50)
         }
     }
@@ -220,6 +222,11 @@ internal class LecteurFond(
         arreter()
         try {
             val s = Surface(st).also { surface = it }
+            if (!MoteurVideo.ancien) {
+                ouvrirExo(s)
+                GelFond.fondsOuverts++
+                return
+            }
             lecteur = MediaPlayer().apply {
                 // Vidéo qui a du son : sur la même sortie que les sons du jeu (même volume de la TV).
                 if (volume > 0f) setAudioAttributes(
@@ -276,6 +283,41 @@ internal class LecteurFond(
         }
     }
 
+    /** Même déroulé qu'avec l'ancien lecteur, sans trou à chaque tour de boucle. */
+    private fun ouvrirExo(s: Surface) {
+        val v = VideoExo(context, resId, android.os.Looper.getMainLooper(), boucle = boucle, repriseMs = repriseMs, avecSon = volume > 0f)
+        exo = v
+        if (volume > 0f) v.volume(volume)
+        v.surPremiereImage = {
+            renduCommence = true
+            if (fondPret(renduCommence, imagesRecues, imagesAvantPret)) declarerPret()
+            // Box qui ne signale pas ses images : la vidéo se montre quand même, un peu plus tard.
+            else postDelayed(pretQuandMeme, ATTENTE_IMAGES_MAX_MS)
+        }
+        v.surErreur = { quoi ->
+            Log.w("Habillage", "Vidéo ignorée : nouveau lecteur $quoi")
+            Sons.incident("Vidéo ${runCatching { resources.getResourceEntryName(resId) }.getOrDefault("$resId")} : nouveau lecteur en échec ($quoi), retour à l'ancien")
+            // Les vidéos suivantes reprennent l'ancien lecteur ; celle-ci laisse la place au décor dessiné.
+            MoteurVideo.ancien = true
+            if (GelFond.clipsOuverts.get() > 0) GelFond.uneSeuleVideo()
+            surEchec()
+        }
+        v.surFin = { if (!boucle) terminer() }
+        v.surPrete = prete@{
+            if (fini || exo !== v) return@prete
+            if (volume > 0f) surSon(v.aDuSon())
+            departLu?.invoke()?.let { if (it > 0) v.caler(it, departSurImageCle) }
+            val lancer = Runnable {
+                if (fini || exo !== v) return@Runnable
+                v.demarrer()
+                if (finMs < Int.MAX_VALUE) post(guetteur)
+            }
+            val attente = attenteMs()
+            if (attente > 0) postDelayed(lancer, attente.toLong()) else lancer.run()
+        }
+        v.preparer(s, departMs = if (departLu == null) departMs else 0, surImageCle = departSurImageCle)
+    }
+
     override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, largeur: Int, hauteur: Int) = Unit
 
     // Surface perdue (veille, autre appli) : la vidéo s'arrête et le décor dessiné revient ; elle repart à la surface
@@ -293,10 +335,11 @@ internal class LecteurFond(
     }
 
     /** Position de lecture (ms), ou null tant que la vidéo n'est pas prête. */
-    fun position(): Int? = lecteur?.let { l -> runCatching { if (l.isPlaying) l.currentPosition else null }.getOrNull() }
+    fun position(): Int? = exo?.let { v -> if (v.joue) v.position else null }
+        ?: lecteur?.let { l -> runCatching { if (l.isPlaying) l.currentPosition else null }.getOrNull() }
 
     /** Durée de la vidéo (ms), ou null tant qu'elle n'est pas prête. */
-    fun duree(): Int? = lecteur?.let { l -> runCatching { l.duration.takeIf { it > 0 } }.getOrNull() }
+    fun duree(): Int? = exo?.duree ?: lecteur?.let { l -> runCatching { l.duration.takeIf { it > 0 } }.getOrNull() }
 
     /** Vitesse de lecture en cours (1 = normale). */
     var vitesseActuelle = 1f
@@ -304,6 +347,12 @@ internal class LecteurFond(
 
     /** Change la vitesse de lecture, sans saut ni image redécodée ; seulement pendant la lecture (sinon elle repartirait). */
     fun vitesse(v: Float) {
+        exo?.let { e ->
+            if (v == vitesseActuelle || !e.joue) return
+            e.vitesse(v)
+            vitesseActuelle = v
+            return
+        }
         val l = lecteur ?: return
         if (v == vitesseActuelle || vitesseRefusee) return
         runCatching {
@@ -320,6 +369,7 @@ internal class LecteurFond(
 
     /** Saute à [ms] exactement (l'image la plus proche, pas seulement l'image clé). */
     fun caler(ms: Int) {
+        exo?.let { return it.caler(ms) }
         val l = lecteur ?: return
         runCatching { l.seekTo(ms.toLong(), MediaPlayer.SEEK_CLOSEST) }
     }
@@ -347,10 +397,16 @@ internal class LecteurFond(
         if (imagesAvantPret > 0) alpha = 0f
         val l = lecteur
         lecteur = null
+        val e = exo
+        exo = null
         vitesseActuelle = 1f
         val s = surface
         surface = null
-        if (l != null) {
+        if (e != null) {
+            GelFond.fondsOuverts--
+            // La surface ne part qu'après le lecteur qui dessine dedans.
+            e.liberer { s?.release() }
+        } else if (l != null) {
             GelFond.fondsOuverts--
             // La surface ne part qu'après le lecteur qui dessine dedans.
             Liberation.lecteur(l) { s?.release() }
@@ -372,4 +428,12 @@ internal object Liberation {
         runCatching { mp.release() }
         runCatching(apres)
     }
+}
+
+/**
+ * Quel lecteur pour les vidéos : le nouveau (sans trou à chaque boucle, point 46) tant qu'il marche ; s'il échoue une
+ * fois sur la box, toutes les vidéos suivantes de la soirée reprennent l'ancien lecteur du système.
+ */
+internal object MoteurVideo {
+    @Volatile var ancien = false
 }
