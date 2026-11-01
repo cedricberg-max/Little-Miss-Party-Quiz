@@ -6573,9 +6573,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC : l'accueil montre les 19 jeux par famille, chacun mène à ce qui se prépare", async () => {
+  test("Régie PC : l'accueil montre les 20 jeux par famille, chacun mène à ce qui se prépare", async () => {
     const page = await admin();
-    assert.equal(await page.locator("#home-games .tile").count(), 19);
+    assert.equal(await page.locator("#home-games .tile").count(), 20);   // + le Rébus (1/11)
     assert.equal(await page.locator("#home-games h3").count(), 4);
     assert.equal(await page.locator("#home-import").count(), 0, "Importer un quiz : seulement dans la rubrique Quiz");
     // Chaque tuile ouvre la page du jeu (ses manches) ; l'onglet Collections mène à son contenu.
@@ -10723,7 +10723,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // « ＋ Jeu » (cedric, 30/10) : une ligne par jeu, plus les jeux des prestations épinglées (« Rappeler un ancien
     // anniversaire » est dans la carte de chaque jeu).
     await regie.locator("#lib-list .lib-jeu").first().waitFor();
-    assert.equal(await regie.locator("#lib-list .lib-jeu").count(), 18);
+    assert.equal(await regie.locator("#lib-list .lib-jeu").count(), 19);   // + le Rébus (1/11)
     assert.equal(await regie.locator("#lib-list", { hasText: "Prestations épinglées" }).count(), 0);
     await regie.context().close();
   });
