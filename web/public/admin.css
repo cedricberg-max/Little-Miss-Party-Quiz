@@ -976,6 +976,7 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 .grille-vignette.emoji { display: grid; place-items: center; font-size: 22px; line-height: 1; }
 /* Rébus : un morceau en lettre / chiffre (néon sur la TV), et le bouton qui change l'image d'un morceau. */
 .grille-vignette.rebus-lettre { display: grid; place-items: center; font: 800 20px/1 system-ui, sans-serif; color: #c02a86; }
+.grille-vignette.rebus-lettre.long { font-size: 13px; letter-spacing: -.5px; }
 .rebus-morceau { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 6px; }
 .rebus-morceau:hover .grille-vignette, .rebus-morceau:focus-visible .grille-vignette { outline: 2px solid var(--accent, #c02a86); outline-offset: 1px; }
 .mot-deja { display: block; color: var(--bad); font-size: 13px; font-weight: 800; }

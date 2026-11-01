@@ -3055,7 +3055,7 @@ function morceauxDuRebus(m, changer) {
     const titre = `« ${x.son || x.texte} » : cliquer pour mettre une autre image`;
     const vignette = x.imageId ? photoBibliotheque(x.imageId, { class: "grille-vignette", alt: x.son, title: titre })
       : x.banque ? h("img", { class: "grille-vignette", src: cheminPhotoBanque(x.banque), alt: x.son, title: titre, loading: "lazy" })
-      : h("span", { class: "grille-vignette rebus-lettre", title: titre, text: x.texte });
+      : h("span", { class: `grille-vignette rebus-lettre${String(x.texte).length > 2 ? " long" : ""}`, title: titre, text: x.texte });
     const fichier = h("input", {
       type: "file", accept: "image/*", hidden: true,
       onchange: async (e) => {
@@ -3081,7 +3081,7 @@ function morceauxDuRebus(m, changer) {
 function apercuRebus(m) {
   return h("span", { class: "grille-vignettes rebus-morceaux" }, ...(m.morceaux ?? []).map((x) => (x.imageId ? photoBibliotheque(x.imageId, { class: "grille-vignette", alt: x.son, title: x.son })
     : x.banque ? h("img", { class: "grille-vignette", src: cheminPhotoBanque(x.banque), alt: x.son, title: x.son, loading: "lazy" })
-    : h("span", { class: "grille-vignette rebus-lettre", title: x.son, text: x.texte }))));
+    : h("span", { class: `grille-vignette rebus-lettre${String(x.texte).length > 2 ? " long" : ""}`, title: x.son, text: x.texte }))));
 }
 
 /**
@@ -3113,7 +3113,8 @@ function mancheMots(r) {
   const ce = "ce";
   const tous = "tous";
   const NOMBRES = disparu ? GRILLES_NOMBRES : MOTS_NOMBRES;
-  const nMots = (k) => `${k} ${unite}${k > 1 ? "s" : ""}`;
+  const unites = /[sx]$/.test(unite) ? unite : `${unite}s`; // « rébus » ne prend pas de s
+  const nMots = (k) => `${k} ${k > 1 ? unites : unite}`;
   const series = r.seriesMots;
   const deSerie = series.find((x) => x.origine === "de") ?? null;
   const n = deSerie?.mots.length || (NOMBRES.includes(r.count) ? r.count : builtin.count);
@@ -3163,7 +3164,7 @@ function mancheMots(r) {
     changer();
   };
   const nombre = h("select", {
-    class: "tirage-nombre mots-nombre", "aria-label": `Nombre de ${unite}s à tirer au hasard`,
+    class: "tirage-nombre mots-nombre", "aria-label": `Nombre de ${unites} à tirer au hasard`,
     onchange: (e) => {
       const k = Number(e.target.value);
       r.count = k;
@@ -3180,9 +3181,9 @@ function mancheMots(r) {
   const ligne = h("div", { class: "tirage-ligne" },
     nombre,
     h("button", {
-      type: "button", class: "btn tirage-de", text: "🎲", "aria-label": `Tirer les ${unite}s au hasard`,
+      type: "button", class: "btn tirage-de", text: "🎲", "aria-label": `Tirer les ${unites} au hasard`,
       title: disparu ? "Tirer les grilles au hasard dans les familles d'émojis (les autres séries ne bougent pas)"
-        : `Tirer les ${unite}s au hasard, selon l'âge (les ${quisuis ? "autres séries" : `${unite}s écrits à la main`} ne bougent pas)`, onclick: () => tirerTout(Number(nombre.value)),
+        : `Tirer les ${unites} au hasard, selon l'âge (les ${quisuis ? "autres séries" : `${unites} écrits à la main`} ne bougent pas)`, onclick: () => tirerTout(Number(nombre.value)),
     }));
 
   // Deuxième ligne : écrire un mot à la main ; il rejoint la série « écrits à la main », à la fin.
@@ -3192,7 +3193,7 @@ function mancheMots(r) {
     if (!m) { champ.focus(); return; }
     const cle = cleDuMot(type, m);
     if (cles().has(cle)) { annonce(`« ${m.word} » est déjà dans ce jeu.`); champ.select(); return; }
-    if (!place()) { annonce(`${MAX_MOTS} ${unite}s au plus dans ${jeu} : retirez-en avant d'en ajouter.`); return; }
+    if (!place()) { annonce(`${MAX_MOTS} ${unites} au plus dans ${jeu} : retirez-en avant d'en ajouter.`); return; }
     let main = r.seriesMots.find((x) => x.origine === "main");
     if (!main) { main = { id: nouvelId("m"), origine: "main", mots: [] }; r.seriesMots.push(main); }
     main.mots.push(m);
@@ -3211,7 +3212,7 @@ function mancheMots(r) {
   const ajouterSerie = (origine, titre, mots) => {
     const deja = cles();
     const neufs = mots.map((m) => game.clean(m)).filter(Boolean).filter((m) => !deja.has(cleDuMot(type, m)) && deja.add(cleDuMot(type, m))).slice(0, place());
-    if (!neufs.length) return annonce(place() ? `Tous ces ${unite}s sont déjà dans ${jeu}.` : `${MAX_MOTS} ${unite}s au plus dans ${jeu} : retirez-en avant d'en ajouter.`);
+    if (!neufs.length) return annonce(place() ? `Tous ces ${unites} sont déjà dans ${jeu}.` : `${MAX_MOTS} ${unites} au plus dans ${jeu} : retirez-en avant d'en ajouter.`);
     const serie = { id: nouvelId(origine === "reprise" ? "p" : "b"), origine, titre, mots: neufs };
     r.seriesMots.push(serie);
     seriesDepliees.add(serie);
@@ -3306,7 +3307,7 @@ function mancheMots(r) {
     qs.hidden = !seriesDepliees.has(x);
     const voir = h("button", {
       type: "button", class: "chip tirage-voir serie-voir", "aria-expanded": qs.hidden ? "false" : "true", text: `${qs.hidden ? "▸" : "▾"} ${titreSerie(x)}`,
-      title: `Voir ou cacher les ${unite}s de cette série`,
+      title: `Voir ou cacher les ${unites} de cette série`,
       onclick: (e) => {
         qs.hidden = !qs.hidden;
         if (qs.hidden) seriesDepliees.delete(x); else seriesDepliees.add(x);
@@ -3406,7 +3407,7 @@ function mancheMots(r) {
     h("div", { class: "serie-tete" },
       h("button", {
         type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir", "aria-expanded": listeComplete.hidden ? "false" : "true", text: titreComplet(),
-        title: `Voir ${tous} les ${unite}s de ${jeu}, dans l'ordre`,
+        title: `Voir ${tous} les ${unites} de ${jeu}, dans l'ordre`,
         onclick: (e) => {
           listeComplete.hidden = !listeComplete.hidden;
           if (listeComplete.hidden) motsCompletsDeplies.delete(r); else motsCompletsDeplies.add(r);
@@ -3415,7 +3416,7 @@ function mancheMots(r) {
           e.currentTarget.setAttribute("aria-expanded", listeComplete.hidden ? "false" : "true");
         },
       }),
-      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: `Mélanger ${tous} les ${unite}s de ${jeu}`, disabled: ordre.length < 2, onclick: melanger })),
+      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: `Mélanger ${tous} les ${unites} de ${jeu}`, disabled: ordre.length < 2, onclick: melanger })),
     listeComplete);
 
   const compteur = h("p", {
@@ -5314,7 +5315,7 @@ function roundFields(r) {
       roundPicks(r).length ? null : h("select", { class: "grow", "aria-label": "Nombre", onchange: (e) => { r.count = Number(e.target.value); roundCtx.summary(); } },
         ...[4, 5, 6, 8, 10].map((n) => h("option", {
           value: n, selected: (r.count ?? BUILTIN_GAMES[r.type].count) === n,
-          text: `${n} ${BUILTIN_GAMES[r.type].unit}s (${BUILTIN_GAMES[r.type].rule})`,
+          text: `${n} ${BUILTIN_GAMES[r.type].unit.replace(/([^sx])$/, "$1s")} (${BUILTIN_GAMES[r.type].rule})`,
         }))),
       r.type === "disparu" ? photoSwitch(r) : null,
       picksSelection(r))
@@ -11017,7 +11018,7 @@ function gameInfo(g) {
 
 /** Accord des mots d'un jeu : « 3 familles actives », « 2 mots ajoutés ». */
 const accord = (unit, n, mot) => `${mot}${unit === "famille" ? "e" : ""}${n > 1 ? "s" : ""}`;
-const actifs = (unit, n) => `${n} ${unit}${n > 1 ? "s" : ""} ${accord(unit, n, "actif")}`;
+const actifs = (unit, n) => `${n} ${unit}${n > 1 && !/[sx]$/.test(unit) ? "s" : ""} ${accord(unit, n, "actif")}`;
 
 /** « 38 mots actifs dont 2 ajoutés · 3 retirés » */
 function builtinLine(type) {
