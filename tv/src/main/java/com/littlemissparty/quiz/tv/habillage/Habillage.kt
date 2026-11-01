@@ -63,6 +63,11 @@ object Habillage {
     val equipesAnnoncees = mutableSetOf<String>()
     /** Parties dont la box a montré l'accueil : la grande intro du Game Show attend que Sarah lance la fête. */
     val introsAttendues = mutableSetOf<String>()
+    /**
+     * Le classement entre deux coffres est à l'écran : Buzzy s'efface (tour des écrans du 1/11, cedric : jamais de robot
+     * sur un texte ; ses cartes et autocollants prennent toute la largeur, jusqu'au coin du robot).
+     */
+    val classementCoffres = androidx.compose.runtime.mutableStateOf(false)
 
     /**
      * La fête vient d'être lancée et la grande intro va passer : vrai dès la toute première image de la présentation du

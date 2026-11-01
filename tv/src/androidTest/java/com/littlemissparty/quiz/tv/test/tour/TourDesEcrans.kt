@@ -102,20 +102,25 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
             verifier("zoom-question", 1_500)
             // Une tablette qui perd le Wi-Fi (cedric, 1/11 au soir : « Fantôme 7 » plus petit, puis coupé « Fantô / me 7 ») :
             // le nom garde sa taille, « hors ligne » est à part. La tablette revient avant de répondre.
-            val absente = equipes.last()
-            val coupeA = System.currentTimeMillis()
-            absente.couperReseau()
-            attendreQue("équipe hors ligne", 30_000) { equipes.first().lire("games/$code/presence/${absente.uid}/online").takeIf { it == false } }
-            verifier("zoom-hors-ligne", 1_200)
-            absente.retablirReseau(code)
-            // Comme en vrai : la coupure d'un pupitre en pleine question met la partie en pause automatique ; Sarah reprend.
-            // (4 s de grâce côté TV : on attend de l'avoir passée pour ne pas reprendre avant la pause).
-            attendreQue("partie reprise", 30_000) {
-                when {
-                    etat().child("paused").value == true -> { regie.commande(code, "resume"); Thread.sleep(500); null }
-                    System.currentTimeMillis() - coupeA < 6_000 -> { Thread.sleep(300); null }
-                    else -> true
+            // Une seule équipe : personne d'autre pour lire sa présence, l'étape « hors ligne » se voit de 2 à 8 équipes.
+            val lecteur = equipes.firstOrNull { it !== equipes.last() }
+            if (lecteur != null) {
+                val absente = equipes.last()
+                val coupeA = System.currentTimeMillis()
+                absente.couperReseau()
+                attendreQue("équipe hors ligne", 30_000) { lecteur.lire("games/$code/presence/${absente.uid}/online").takeIf { it == false } }
+                // Comme en vrai : la coupure d'un pupitre en pleine question met la partie en pause automatique (4 s de grâce
+                // côté TV) ; Sarah reprend, la tablette toujours absente. On capture après : sans le voile de la pause posé
+                // par-dessus la question (il comptait comme un chevauchement avec les textes du dessous).
+                attendreQue("partie reprise", 30_000) {
+                    when {
+                        etat().child("paused").value == true -> { regie.commande(code, "resume"); Thread.sleep(500); null }
+                        System.currentTimeMillis() - coupeA < 6_000 -> { Thread.sleep(300); null }
+                        else -> true
+                    }
                 }
+                verifier("zoom-hors-ligne", 1_200)
+                absente.retablirReseau(code)
             }
             equipes.forEachIndexed { i, e -> e.repondre(code, "t-zoom", i % 2) }
             reveler("t-zoom")

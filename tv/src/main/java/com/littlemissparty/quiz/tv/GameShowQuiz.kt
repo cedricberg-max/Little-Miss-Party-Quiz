@@ -51,6 +51,8 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import com.littlemissparty.quiz.tv.habillage.HALO_DECOR
 import androidx.compose.ui.text.font.FontWeight
@@ -296,7 +298,13 @@ internal fun ClassementGameShow(
     lignes: List<Pair<Team, Int>> = state.ranking,
     gains: Map<String, Int> = state.lastGain,
 ) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 22.dp)) {
+    // Le jeu qui vient de finir n'est plus écrit à l'écran : il reste dans la description (lecteurs d'écran, tests).
+    val apres = when {
+        state.mime?.picto == true -> "Après le Pictionary"
+        state.mime != null -> "Après les mimes"
+        else -> "Après ${state.etape ?: "la question ${state.index + 1}"}"
+    }
+    Column(Modifier.fillMaxSize().semantics { contentDescription = apres }.padding(horizontal = 48.dp, vertical = 22.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(titre, style = styleTitreNeon(38.sp, GS.Cyan, TextAlign.Start), maxLines = 1, softWrap = false)
             // Plus de « Après Qui suis-je ? 2 / 3 » (cedric, 1/11 au soir : incompris, et le jeu et la question en cours ne

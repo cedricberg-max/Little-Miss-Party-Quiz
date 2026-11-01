@@ -183,6 +183,10 @@ class RobotGameShowTest {
         assertNull(meneur(emptyMap()))
     }
 
+    /** Buzzy coupé sur les questions et les scores (cedric, 1/11 : jamais sur un texte) : le moment attendu devient « aucun ». */
+    private fun surQuestion(m: MomentRobot): MomentRobot? = if (BUZZY_SUR_LES_QUESTIONS) m else null
+    private fun surScores(m: MomentRobot): MomentRobot? = if (BUZZY_SUR_LES_SCORES) m else null
+
     private val equipes = listOf("e0", "e1", "e2").map { Team(it, it, "#fff", 0L) }
     private val q = Question("q1", "Combien ?", listOf("1", "2", "3", "4"), 0)
     private fun partie(phase: Phase, bloc: UiState.Playing.() -> UiState.Playing = { this }) =
@@ -194,9 +198,9 @@ class RobotGameShowTest {
         assertEquals(MomentRobot.MANCHE, momentRobot(partie(Phase.QUESTION) { copy(intro = true, question = q.copy(kind = QuestionKind.NUMBER, choices = emptyList(), correct = 42)) }, 0, null)?.first)
         assertEquals(MomentRobot.SUPER_FINALE, momentRobot(partie(Phase.QUESTION) { copy(factor = 3, introUntil = 1L) }, 0, null)?.first)
         val tous = equipes.associate { it.uid to Award(0, true, 100, 0) }
-        assertEquals(MomentRobot.TOUS, momentRobot(partie(Phase.REVEAL) { copy(awards = tous) }, 0, null)?.first)
+        assertEquals(surQuestion(MomentRobot.TOUS), momentRobot(partie(Phase.REVEAL) { copy(awards = tous) }, 0, null)?.first)
         val aucun = equipes.associate { it.uid to Award(1, false, 0, 0) }
-        assertEquals(MomentRobot.RATE, momentRobot(partie(Phase.REVEAL) { copy(awards = aucun) }, 0, null)?.first)
+        assertEquals(surQuestion(MomentRobot.RATE), momentRobot(partie(Phase.REVEAL) { copy(awards = aucun) }, 0, null)?.first)
         // Une équipe sur trois a trouvé : pas de robot.
         assertNull(momentRobot(partie(Phase.REVEAL) { copy(awards = aucun + ("e0" to Award(0, true, 100, 0))) }, 0, null))
         assertEquals(MomentRobot.PODIUM, momentRobot(partie(Phase.ENDED), 0, null)?.first)
@@ -211,18 +215,18 @@ class RobotGameShowTest {
 
     @Test
     fun `pas de robot inquiet quand toutes les equipes ont deja repondu`() {
-        assertEquals(MomentRobot.SUSPENSE, momentRobot(partie(Phase.QUESTION) { copy(answered = setOf("e0", "e1")) }, 4, null)?.first)
+        assertEquals(surQuestion(MomentRobot.SUSPENSE), momentRobot(partie(Phase.QUESTION) { copy(answered = setOf("e0", "e1")) }, 4, null)?.first)
         assertNull(momentRobot(partie(Phase.QUESTION) { copy(answered = setOf("e0", "e1", "e2")) }, 4, null))
     }
 
     @Test
     fun `une equipe qui passe en tete est fetee au classement`() {
         val scores = partie(Phase.SCORES) { copy(scores = mapOf("e0" to 200, "e1" to 300)) }
-        assertEquals(MomentRobot.TETE, momentRobot(scores, 0, "e0")?.first)
-        assertEquals(MomentRobot.SCORES, momentRobot(scores, 0, "e1")?.first)
-        assertEquals(MomentRobot.SCORES, momentRobot(scores, 0, null)?.first)
+        assertEquals(surScores(MomentRobot.TETE), momentRobot(scores, 0, "e0")?.first)
+        assertEquals(surScores(MomentRobot.SCORES), momentRobot(scores, 0, "e1")?.first)
+        assertEquals(surScores(MomentRobot.SCORES), momentRobot(scores, 0, null)?.first)
         // Égalité en tête : pas de nouveau meneur.
-        assertEquals(MomentRobot.SCORES, momentRobot(partie(Phase.SCORES) { copy(scores = mapOf("e0" to 300, "e1" to 300)) }, 0, "e0")?.first)
+        assertEquals(surScores(MomentRobot.SCORES), momentRobot(partie(Phase.SCORES) { copy(scores = mapOf("e0" to 300, "e1" to 300)) }, 0, "e0")?.first)
     }
 
     @Test
@@ -231,15 +235,15 @@ class RobotGameShowTest {
         for (n in 1..8) {
             val eq = (0 until n).map { Team("e$it", "e$it", "#fff", 0L) }
             val sc = partie(Phase.SCORES) { copy(teams = eq, scores = eq.associate { it.uid to 100 }) }
-            if (n <= 5) assertEquals(MomentRobot.SCORES, momentRobot(sc, 0, null)?.first) else assertNull(momentRobot(sc, 0, null))
+            if (n <= 5) assertEquals(surScores(MomentRobot.SCORES), momentRobot(sc, 0, null)?.first) else assertNull(momentRobot(sc, 0, null))
             val tete = partie(Phase.SCORES) { copy(teams = eq, scores = eq.associate { it.uid to 100 } + ("e0" to 500)) }
-            if (n <= 5) assertEquals(MomentRobot.TETE, momentRobot(tete, 0, "e9")?.first) else assertNull(momentRobot(tete, 0, "e9"))
+            if (n <= 5) assertEquals(surScores(MomentRobot.TETE), momentRobot(tete, 0, "e9")?.first) else assertNull(momentRobot(tete, 0, "e9"))
         }
     }
 
     @Test
     fun `le suspense vient a chaque question, dans les cinq dernieres secondes`() {
-        for (i in 0 until 10) assertEquals(MomentRobot.SUSPENSE, momentRobot(partie(Phase.QUESTION) { copy(index = i) }, 4, null)?.first)
+        for (i in 0 until 10) assertEquals(surQuestion(MomentRobot.SUSPENSE), momentRobot(partie(Phase.QUESTION) { copy(index = i) }, 4, null)?.first)
         assertNull(momentRobot(partie(Phase.QUESTION), 8, null))
         assertNull(momentRobot(partie(Phase.QUESTION), 0, null))
     }

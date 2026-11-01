@@ -138,6 +138,10 @@ private val jouerSonClassement: (Son) -> Unit = { Sons.executer(listOf(Ordre.Jou
  */
 @Composable
 fun ClassementCoffreGs(lignes: List<LigneClassement>, joue: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonClassement) {
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        Habillage.classementCoffres.value = true
+        onDispose { Habillage.classementCoffres.value = false }
+    }
     val evo = remember(lignes) { evolutions(lignes) }
     val ej = evo.getOrNull(joue)
     val renverse = ej?.recit == Recit.NOUVEAU_PREMIER

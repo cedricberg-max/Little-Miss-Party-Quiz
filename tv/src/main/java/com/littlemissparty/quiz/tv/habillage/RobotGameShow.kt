@@ -421,6 +421,9 @@ internal fun momentRobot(s: UiState.Playing, secondes: Int, ancienMeneur: String
         Phase.QUESTION, Phase.CLOSED, Phase.REVEAL -> when {
             // Présentation d'un jeu : son intro vidéo montre déjà le robot qui y joue, pas de second robot par-dessus.
             s.intro -> if (nomIntroJeu(familleJeu(q)) != null) null else MomentRobot.MANCHE to "manche ${s.code} ${s.index}"
+            // Jamais de Buzzy sur un écran de questions ni de réponses (cedric, 1/11 au soir : il cachait les réponses B et D ;
+            // tour des écrans : il entrait sur la carte D). La super finale garde son annonce.
+            !BUZZY_SUR_LES_QUESTIONS && quiz && !(s.phase == Phase.QUESTION && s.introUntil != null && s.factor > 1) -> null
             quiz && s.phase == Phase.QUESTION && s.introUntil != null && s.factor > 1 -> MomentRobot.SUPER_FINALE to "finale ${s.code} ${q!!.id}"
             // Suspense seulement si une équipe n'a pas encore répondu : sinon, juste après une bonne réponse, le robot
             // inquiet passait pour un robot triste (cedric, 23 octobre).
@@ -433,6 +436,8 @@ internal fun momentRobot(s: UiState.Playing, secondes: Int, ancienMeneur: String
             s.blind != null -> null
             // Dès 6 équipes, le tableau des scores remplit l'écran : le robot y cachait un nom (cedric, 31/10).
             s.teams.size >= EQUIPES_SANS_ROBOT_SCORES -> null
+            // Tour des écrans du 1/11 : en fusée il passait sur « TABLEAU DES SCORES » (1 équipe), et dès 3 équipes sur un nom.
+            !BUZZY_SUR_LES_SCORES -> null
             ancienMeneur != null && meneur(s.scores).let { it != null && it != ancienMeneur } -> MomentRobot.TETE to "scores ${s.code} ${s.index}"
             else -> MomentRobot.SCORES to "scores ${s.code} ${s.index}"
         }
@@ -440,6 +445,13 @@ internal fun momentRobot(s: UiState.Playing, secondes: Int, ancienMeneur: String
         Phase.LOBBY -> null
     }
 }
+
+/**
+ * Buzzy sur les écrans de questions et sur le tableau des scores : coupé tant qu'il n'a pas de coin à lui où il ne touche
+ * aucun texte (règle de cedric, 1/11 : rien ne se chevauche). Il reste aux intros, aux coffres, en pause et au podium.
+ */
+internal const val BUZZY_SUR_LES_QUESTIONS = false
+internal const val BUZZY_SUR_LES_SCORES = false
 
 /** À partir de ce nombre d'équipes, pas de robot sur le tableau des scores (de 1 à 5 équipes, il reste). */
 internal const val EQUIPES_SANS_ROBOT_SCORES = 6
@@ -462,6 +474,8 @@ fun RobotGameShow(state: UiState) {
     if (s.paused) return PauseRobot(s.code)
     // La grande intro du lancement a déjà son robot (et la box ne lit qu'une vidéo à la fois).
     if (Habillage.introLancement.value) return
+    // Classement entre deux coffres : ses cartes vont jusqu'au coin du robot, Buzzy n'y passe pas.
+    if (Habillage.classementCoffres.value) return
     // Le podium a son propre robot, au-dessus du nom du gagnant (PodiumGameShow).
     if (s.phase == Phase.ENDED) return
     // Une réaction (bonus, malus, coffre) passe avant le reste, le temps de son clip.

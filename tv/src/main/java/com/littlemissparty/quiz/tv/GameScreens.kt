@@ -45,6 +45,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
@@ -96,7 +98,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
     Box(Modifier.fillMaxSize()) {
         // Qui suis-je ? du Game Show : des confettis légers tombent derrière les indices (planche du 28/10).
         if (Look.gs && q.isQuiSuis && state.phase == Phase.QUESTION) ConfettisLegers(Modifier.fillMaxSize())
-        Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
+        // Game Show : le jeu et la question en cours ne sont plus écrits sur la TV (cedric, 1/11 au soir), ils restent dans la
+        // description de l'écran (lecteurs d'écran, tests).
+        Column(Modifier.fillMaxSize().then(if (Look.gs) Modifier.semantics { contentDescription = state.etape ?: "" } else Modifier).padding(horizontal = 40.dp, vertical = 24.dp)) {
             // Chrono, « Temps écoulé ! » ou la chanson des statues : en haut à droite.
             val statut: @Composable () -> Unit = {
                 when (state.phase) {

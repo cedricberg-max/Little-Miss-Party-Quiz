@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -168,10 +169,13 @@ fun BonusMalus(
                         style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = couleur, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, shadow = Shadow(Neon.Nuit, Offset(0f, 3f), 6f)),
                     )
                 }
+                // Le chiffre qui tombe de très haut passe un instant sur le nom, exprès : il n'est lu (tests, lecteurs d'écran)
+                // qu'une fois posé, pour que le tour des écrans ne compte pas ce passage comme un chevauchement.
+                val pose by remember { derivedStateOf { t.value * d >= claque } }
                 Text(
                     texteDelta(delta),
                     maxLines = 1,
-                    modifier = Modifier.graphicsLayer {
+                    modifier = Modifier.then(if (pose) Modifier else Modifier.clearAndSetSemantics { }).graphicsLayer {
                         // Le chiffre claque : il tombe de très gros et se pose net.
                         val ms = t.value * d
                         val u = ((ms - entree) / (claque - entree)).coerceIn(0f, 1f)

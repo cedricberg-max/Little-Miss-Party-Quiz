@@ -872,7 +872,8 @@ class RegieTest : TestTv() {
         }
         assertEquals("applied", regie.commande(code, "statues_song"))
         ecran.voit("DANSEZ !")
-        ecran.voit("Chanson 2 / 2")
+        // La chanson en cours n'est plus sur la TV (cedric, 1/11 au soir) : elle est sur la régie.
+        ecran.neVoitPas("Chanson 2 / 2")
         // « Personne » : aucun point pour personne.
         assertEquals("applied", regie.commande(code, "statues_win", mapOf("personne" to true)))
         ecran.voit(if (Look.gs) "PERSONNE CETTE FOIS !" else "Personne cette fois !", 8_000)
