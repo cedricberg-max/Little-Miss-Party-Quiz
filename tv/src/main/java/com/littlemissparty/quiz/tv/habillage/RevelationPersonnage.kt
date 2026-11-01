@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -116,27 +118,32 @@ private fun VisuelPersonnage(image: ImageBitmap?, emoji: String?, tailleEmoji: F
 
 /**
  * Choix C de cedric (planche du 1/11, point 35) : à la place du médaillon rond, une photo polaroid blanche un peu
- * penchée, « très légèrement » plus petite que sur la planche ([POLAROID_PART] de la plus grande qui tient, penchée,
- * dans le cadre) : elle grandit avec la place, de 1 à 8 équipes, et ne déborde jamais. Rayons et gerbe derrière,
- * rognés au cadre ; elle arrive avec le même petit rebond que le rond d'avant.
+ * penchée, presque aussi grande que sur la planche (cedric, 1/11 à 11 h : « à peine » plus petite, 3 à 5 %). Comme sur
+ * la planche, elle sort un peu du cadre ([POLAROID_DEBORD] dp en haut et en bas, la place libre entre l'enseigne et les
+ * équipes) : elle grandit avec la place, de 1 à 8 équipes. Rayons et gerbe derrière, rognés au cadre ; elle arrive
+ * avec un petit rebond.
  */
 @Composable
 private fun MedaillonSeul(nom: String, emoji: String?, image: ImageBitmap?, ms: Float, modifier: Modifier) {
-    BoxWithConstraints(modifier.fillMaxSize().clipToBounds(), contentAlignment = Alignment.Center) {
-        val (largeur, hauteur) = taillePolaroid(maxWidth.value, maxHeight.value)
-        Box(Modifier.size((minOf(maxWidth, maxHeight) * 1.8f))) { Rayons { ms } }
-        Gerbe(cle = nom)
+    val ecran = LocalConfiguration.current.screenHeightDp.toFloat()
+    BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val (largeur, hauteur) = taillePolaroid(maxWidth.value, maxHeight.value, ecran)
+        Box(Modifier.fillMaxSize().clipToBounds(), contentAlignment = Alignment.Center) {
+            Box(Modifier.size((minOf(maxWidth, maxHeight) * 1.8f))) { Rayons { ms } }
+            Gerbe(cle = nom)
+        }
         Box(
             Modifier
                 .graphicsLayer {
                     val p = (ms / 450f).coerceIn(0f, 1f)
-                    // Le rebond reste dans le cadre : 1 + 0,08 au plus fort.
-                    val s = 0.3f + 0.7f * p + 0.08f * sin(p * PI.toFloat())
+                    // Petit rebond : 1 + 0,04 au plus fort, le temps d'un éclair.
+                    val s = 0.3f + 0.7f * p + POLAROID_REBOND * sin(p * PI.toFloat())
                     scaleX = s; scaleY = s
                     alpha = p
                     rotationZ = POLAROID_ANGLE
                 }
-                .size(largeur.dp, hauteur.dp)
+                // Plus grand que le cadre : il en sort, centré (comme sur la planche).
+                .requiredSize(largeur.dp, hauteur.dp)
                 .shadow(10.dp, RoundedCornerShape(3.dp), ambientColor = Color.Black, spotColor = Color.Black)
                 .background(Color.White, RoundedCornerShape(3.dp))
                 // Bord blanc fin sur trois côtés, large en bas, comme un vrai polaroid.
@@ -159,23 +166,28 @@ private fun VisuelPolaroid(image: ImageBitmap?, emoji: String?, tailleEmoji: Flo
 }
 
 /**
- * Largeur et hauteur du polaroid (dp) dans un cadre de [l] × [h] dp : les proportions de la planche (0,837), penché de
- * [POLAROID_ANGLE] degrés, rebond compris (× 1,08), puis [POLAROID_PART] de cette taille.
+ * Largeur et hauteur du polaroid (dp) dans un cadre de [l] × [h] dp, sur un écran de [ecran] dp de haut : les
+ * proportions de la planche (0,837), penché de [POLAROID_ANGLE] degrés. Sa boîte penchée peut sortir du cadre de
+ * [POLAROID_DEBORD] dp de chaque côté, et sa hauteur ne dépasse jamais [POLAROID_ECRAN] de l'écran (la planche C,
+ * 51 % de l'écran, moins 4 %).
  */
-internal fun taillePolaroid(l: Float, h: Float): Pair<Float, Float> {
+internal fun taillePolaroid(l: Float, h: Float, ecran: Float): Pair<Float, Float> {
     val a = Math.toRadians(kotlin.math.abs(POLAROID_ANGLE).toDouble())
     val c = kotlin.math.cos(a).toFloat()
     val s = kotlin.math.sin(a).toFloat()
     // Boîte englobante du polaroid penché, pour une hauteur de 1.
     val bl = POLAROID_RAPPORT * c + s
     val bh = c + POLAROID_RAPPORT * s
-    val haut = minOf(l / bl, h / bh) / 1.08f * POLAROID_PART
+    val haut = minOf((l + 2 * POLAROID_DEBORD) / bl, (h + 2 * POLAROID_DEBORD) / bh, ecran * POLAROID_ECRAN)
     return POLAROID_RAPPORT * haut to haut
 }
 
 /** Largeur sur hauteur du polaroid (planche du 1/11, choix C). */
 internal const val POLAROID_RAPPORT = 0.837f
 internal const val POLAROID_ANGLE = -5f
-/** Plus petit que la planche, qui prenait toute la place ; vu à 0,88, « très légèrement trop gros » : « léger léger »
- *  plus petit, jamais la moitié (cedric, 1/11). */
-internal const val POLAROID_PART = 0.80f
+/** La planche C prenait 51 % de la hauteur de l'écran ; « à peine » plus petit, 3 à 5 % (cedric, 1/11 à 11 h). */
+internal const val POLAROID_ECRAN = 0.49f
+/** Ce qui peut sortir du cadre en haut et en bas : la place libre entre l'enseigne et les équipes (36 à 38 dp, mesuré
+ *  sur les captures de 3 et 8 équipes). */
+internal const val POLAROID_DEBORD = 36f
+internal const val POLAROID_REBOND = 0.04f

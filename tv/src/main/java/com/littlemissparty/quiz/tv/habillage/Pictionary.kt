@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -391,21 +392,16 @@ fun IntroPictionary(equipe: String, couleur: Color, motMontre: Boolean, modifier
                 },
             )
             Spacer(Modifier.height(30.dp))
-            // Choix A de cedric (planche du 1/11, point 33) : le halo noir doux du Chrono sur les deux, le nom dans la
-            // couleur de l'équipe ; plus la lueur colorée qui se fondait dans le décor.
+            // « Au tour de » : petit texte sur le décor, le halo noir doux du Chrono (règle du 31/10).
             Text(
                 "Au tour de",
                 color = Neon.Blanc, fontSize = 30.sp, fontWeight = FontWeight.Bold,
                 style = TextStyle(shadow = HALO_DECOR),
                 modifier = Modifier.apparition(300, equipe),
             )
-            Text(
-                equipe,
-                color = couleur, fontSize = 64.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, shadow = HALO_DECOR),
-                modifier = Modifier.widthIn(max = 880.dp).apparition(450, equipe),
-            )
+            // Le nom de l'équipe en néon, comme avant (cedric, 1/11 : il préfère le néon au halo noir), mais qui se détache
+            // mieux : un halo noir doux dessous, puis le néon, cœur plus clair et lueur de la couleur plus forte.
+            NomNeonPictionary(equipe, couleur, Modifier.widthIn(max = 880.dp).apparition(450, equipe))
             Spacer(Modifier.height(30.dp))
             Box(
                 Modifier
@@ -497,5 +493,28 @@ fun RevelationPictionary(
                 }
             }
         }
+    }
+}
+
+/** Cœur du néon : la couleur de l'équipe éclaircie, pour que les lettres « brillent » sur leur lueur. */
+internal const val NEON_NOM_COEUR = 0.35f
+/** Lueur de la couleur de l'équipe autour des lettres (avant le 1/11 : 0,7 et 26). */
+internal const val NEON_NOM_LUEUR = 34f
+
+/**
+ * Nom de l'équipe du Pictionary en néon (point 33, cedric 1/11) : deux fois le même texte, l'un sur l'autre. Dessous, la
+ * couleur de l'équipe avec le halo noir doux qui la détache du décor ; dessus, le néon (cœur éclairci, lueur pleine de
+ * la couleur). Jamais de cadre.
+ */
+@Composable
+internal fun NomNeonPictionary(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
+    val base = TextStyle(fontFamily = PoliceLmp, fontSize = 64.sp, fontWeight = FontWeight.Black, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, textAlign = TextAlign.Center)
+    Box(modifier, contentAlignment = Alignment.Center) {
+        // Le calque du dessous n'est pas lu (un seul nom pour l'accessibilité et les tests).
+        Text(equipe, color = couleur, maxLines = 1, overflow = TextOverflow.Ellipsis, style = base.copy(shadow = HALO_DECOR), modifier = Modifier.clearAndSetSemantics {})
+        Text(
+            equipe, color = lerp(couleur, Color.White, NEON_NOM_COEUR), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = base.copy(shadow = Shadow(couleur, Offset.Zero, NEON_NOM_LUEUR)),
+        )
     }
 }
