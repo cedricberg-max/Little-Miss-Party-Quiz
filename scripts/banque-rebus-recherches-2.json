@@ -1,0 +1,72 @@
+[
+{
+"cle": "rebus-pain",
+"recherche": "baguette bread",
+"etiquette": "pain"
+},
+{
+"cle": "rebus-rat",
+"recherche": "white rat pet",
+"etiquette": "rat"
+},
+{
+"cle": "rebus-roue",
+"recherche": "car wheel tire",
+"etiquette": "roue"
+},
+{
+"cle": "rebus-patte",
+"recherche": "dog paw",
+"etiquette": "patte"
+},
+{
+"cle": "rebus-carte",
+"recherche": "playing card ace",
+"etiquette": "carte"
+},
+{
+"cle": "rebus-lac",
+"recherche": "mountain lake",
+"etiquette": "lac"
+},
+{
+"cle": "rebus-veau",
+"recherche": "calf cow",
+"etiquette": "veau"
+},
+{
+"cle": "rebus-bras",
+"recherche": "arm biceps",
+"etiquette": "bras"
+},
+{
+"cle": "rebus-gant",
+"recherche": "glove",
+"etiquette": "gant"
+},
+{
+"cle": "rebus-fee",
+"recherche": "fairy costume girl",
+"etiquette": "fee"
+},
+{
+"cle": "rebus-toit",
+"recherche": "roof tiles",
+"etiquette": "toit"
+},
+{
+"cle": "rebus-nez",
+"recherche": "nose",
+"etiquette": "nez"
+},
+{
+"cle": "rebus-cage",
+"recherche": "bird cage",
+"etiquette": "cage"
+},
+{
+"cle": "rebus-vase",
+"recherche": "glass vase",
+"etiquette": "vase"
+}
+]
