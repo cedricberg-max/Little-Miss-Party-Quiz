@@ -18,7 +18,7 @@ class PastilleHorsLigneTest {
         assertTrue(pastille.contains("if (statut.isNotEmpty()) {"))
         assertTrue(pastille.contains("EtiquetteHorsLigne(Modifier.align(Alignment.TopCenter)"))
         assertTrue(src.contains("\"hors ligne\", color = GS.Encre, fontSize = 11.sp"))
-        assertTrue(ETIQUETTE_HORS_LIGNE_DEBORD in 4f..12f)
+        assertTrue(ETIQUETTE_HORS_LIGNE_DEBORD in 4f..16f)
     }
 
     @Test

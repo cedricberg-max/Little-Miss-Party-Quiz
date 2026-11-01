@@ -818,8 +818,11 @@ fun OuvertureCoffre(
             if (bombe && ms >= T_BOUM) explosion((ms - T_BOUM) / 1000f, Offset(cx, size.height * 0.52f), boules, braises, debris, d)
         }
         // Qui ouvre quel coffre (la carte BONUS / MALUS reprend le nom : le bandeau s'efface pour lui laisser la place).
-        // Game Show : la même enseigne en néon que le tour des coffres.
-        if (Look.gs) BandeauTourGs(
+        // Game Show : la même enseigne en néon que le tour des coffres. Une fois effacé, le bandeau quitte l'écran pour de bon
+        // (invisible, il restait posé sous la carte et chevauchait ses « −150 POINTS » : tour des écrans du 1/11).
+        val bandeauParti by remember(index, carte) { derivedStateOf { carte && t.value >= tVerdict + 220f } }
+        if (bandeauParti) Unit
+        else if (Look.gs) BandeauTourGs(
             equipe to couleur,
             Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
                 .graphicsLayer { alpha = if (carte) 1f - ((t.value - tVerdict) / 220f).coerceIn(0f, 1f) else 1f },
@@ -845,7 +848,9 @@ fun OuvertureCoffre(
         // Le verdict : visible dès qu'il tombe et jusqu'à la fin.
         // Bombe : le verdict arrive quand la boule de feu tourne en fumée, pour rester lisible.
         val apparu = if (bombe) T_BOUM + 400f else if (carte) Float.MAX_VALUE else tVerdict
-        Column(
+        // Pas encore tombé : le verdict n'est pas posé du tout (invisible, il chevauchait le bandeau du haut).
+        val verdictTombe by remember(index, apparu) { derivedStateOf { t.value >= apparu } }
+        if (verdictTombe) Column(
             Modifier.align(Alignment.TopCenter).padding(top = 62.dp).graphicsLayer {
                 val u = ((t.value - apparu) / 380f).coerceIn(0f, 1f)
                 alpha = if (u <= 0f) 0f else 1f

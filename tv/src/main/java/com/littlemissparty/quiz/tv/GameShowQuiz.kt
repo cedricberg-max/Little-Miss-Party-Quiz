@@ -252,8 +252,8 @@ private fun EtiquetteHorsLigne(modifier: Modifier) = Text(
     modifier = modifier.background(Color(0xFF4A4F63), RoundedCornerShape(50)).padding(horizontal = 7.dp, vertical = 1.dp),
 )
 
-/** De combien (dp) l'étiquette « hors ligne » dépasse au-dessus de la pastille. */
-internal const val ETIQUETTE_HORS_LIGNE_DEBORD = 9f
+/** De combien (dp) l'étiquette « hors ligne » dépasse au-dessus de la pastille : assez pour ne plus toucher le nom (tour du 1/11). */
+internal const val ETIQUETTE_HORS_LIGNE_DEBORD = 13f
 
 /** Chrono (Game Show) : anneau cyan qui se vide, avec sa lueur ; rose dans les 5 dernières secondes. */
 @Composable
