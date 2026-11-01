@@ -9,7 +9,7 @@
  */
 export const REBUS = [
   // Facile
-  { mot: "Pinceau", niveau: "facile", morceaux: [{ son: "pain", banque: "pain" }, { son: "seau", banque: "seau" }] },
+  { mot: "Pinceau", niveau: "facile", morceaux: [{ son: "pain", banque: "rebus-pain" }, { son: "seau", banque: "seau" }] },
   { mot: "Pompier", niveau: "facile", morceaux: [{ son: "pont", banque: "pont" }, { son: "pied", banque: "pied" }] },
   { mot: "Oiseau", niveau: "facile", morceaux: [{ son: "oie", banque: "oie" }, { son: "seau", banque: "seau" }] },
   { mot: "Serpent", niveau: "facile", morceaux: [{ son: "cerf", banque: "cerf" }, { son: "paon", banque: "paon" }] },
@@ -30,11 +30,14 @@ export const REBUS = [
   { mot: "Chouchou", niveau: "facile", morceaux: [{ son: "chou", banque: "rebus-chou" }, { son: "chou", banque: "rebus-chou" }] },
   { mot: "Filet", niveau: "facile", morceaux: [{ son: "fil", banque: "rebus-fil" }, { son: "lait", banque: "lait" }] },
   { mot: "Coquille", niveau: "facile", morceaux: [{ son: "coq", banque: "coq" }, { son: "quille", banque: "rebus-quille" }] },
-  { mot: "Copain", niveau: "facile", morceaux: [{ son: "coq", banque: "coq" }, { son: "pain", banque: "pain" }] },
+  { mot: "Copain", niveau: "facile", morceaux: [{ son: "coq", banque: "coq" }, { son: "pain", banque: "rebus-pain" }] },
   { mot: "Demain", niveau: "facile", morceaux: [{ son: "dé", banque: "de" }, { son: "main", banque: "main" }] },
   { mot: "Poulet", niveau: "facile", morceaux: [{ son: "poule", banque: "poule" }, { son: "lait", banque: "lait" }] },
   { mot: "Traîneau", niveau: "facile", morceaux: [{ son: "train", banque: "train" }, { son: "eau", banque: "eau" }] },
   { mot: "Canot", niveau: "facile", morceaux: [{ son: "cane", banque: "rebus-cane" }, { son: "eau", banque: "eau" }] },
+
+  { mot: "Râteau", niveau: "facile", morceaux: [{ son: "rat", banque: "rebus-rat" }, { son: "eau", banque: "eau" }] },
+  { mot: "Ramer", niveau: "facile", morceaux: [{ son: "rat", banque: "rebus-rat" }, { son: "mer", banque: "mer" }] },
 
   // Moyen
   { mot: "Saucisse", niveau: "moyen", morceaux: [{ son: "seau", banque: "seau" }, { son: "six", texte: "6" }] },
@@ -59,7 +62,7 @@ export const REBUS = [
   { mot: "Corail", niveau: "moyen", morceaux: [{ son: "cor", banque: "rebus-cor" }, { son: "ail", banque: "ail" }] },
   { mot: "Décor", niveau: "moyen", morceaux: [{ son: "dé", banque: "de" }, { son: "cor", banque: "rebus-cor" }] },
   { mot: "Béquille", niveau: "moyen", morceaux: [{ son: "B", texte: "B" }, { son: "quille", banque: "rebus-quille" }] },
-  { mot: "Pépin", niveau: "moyen", morceaux: [{ son: "P", texte: "P" }, { son: "pain", banque: "pain" }] },
+  { mot: "Pépin", niveau: "moyen", morceaux: [{ son: "P", texte: "P" }, { son: "pain", banque: "rebus-pain" }] },
   { mot: "Poulain", niveau: "moyen", morceaux: [{ son: "poule", banque: "poule" }, { son: "un", texte: "1" }] },
   { mot: "Murmure", niveau: "moyen", morceaux: [{ son: "mur", banque: "rebus-mur" }, { son: "mûre", banque: "mure" }] },
   { mot: "Vélo", niveau: "moyen", morceaux: [{ son: "V", texte: "V" }, { son: "l'eau", banque: "eau" }] },
@@ -68,6 +71,9 @@ export const REBUS = [
   { mot: "Huître", niveau: "moyen", morceaux: [{ son: "huit", texte: "8" }, { son: "R", texte: "R" }] },
   { mot: "Millefeuille", niveau: "moyen", morceaux: [{ son: "mille", texte: "1000" }, { son: "feuille", banque: "feuille" }] },
   { mot: "Pantin", niveau: "moyen", morceaux: [{ son: "paon", banque: "paon" }, { son: "T", texte: "T" }, { son: "un", texte: "1" }] },
+
+  { mot: "Radis", niveau: "moyen", morceaux: [{ son: "rat", banque: "rebus-rat" }, { son: "dix", texte: "10" }] },
+  { mot: "Lacet", niveau: "moyen", morceaux: [{ son: "lac", banque: "rebus-lac" }, { son: "C", texte: "C" }] },
 
   // Difficile
   { mot: "Muraille", niveau: "difficile", morceaux: [{ son: "mûre", banque: "mure" }, { son: "ail", banque: "ail" }] },
@@ -83,6 +89,8 @@ export const REBUS = [
   { mot: "Piscine", niveau: "difficile", morceaux: [{ son: "pie", banque: "rebus-pie" }, { son: "scie", banque: "scie" }, { son: "N", texte: "N" }] },
   { mot: "Occupé", niveau: "difficile", morceaux: [{ son: "O", texte: "O" }, { son: "Q", texte: "Q" }, { son: "P", texte: "P" }] },
   { mot: "Bulletin", niveau: "difficile", morceaux: [{ son: "bulle", banque: "rebus-bulle" }, { son: "T", texte: "T" }, { son: "un", texte: "1" }] },
+  { mot: "Pirate", niveau: "difficile", morceaux: [{ son: "pie", banque: "rebus-pie" }, { son: "rat", banque: "rebus-rat" }, { son: "T", texte: "T" }] },
+  { mot: "Rapide", niveau: "difficile", morceaux: [{ son: "rat", banque: "rebus-rat" }, { son: "pie", banque: "rebus-pie" }, { son: "D", texte: "D" }] },
 ];
 
 /** Niveaux du Rébus, dans l'ordre de la Régie PC. */
