@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
                     newGame = viewModel::newGame,
                     // La partie active reste mémorisée : elle sera proposée au prochain lancement.
                     quit = ::finish,
+                    terminerEtQuitter = { viewModel.terminerEtQuitter(::finish) },
                     showRegie = viewModel::showRegie,
                     hideRegie = viewModel::hideRegie,
                     removeRegies = viewModel::removeRegies,

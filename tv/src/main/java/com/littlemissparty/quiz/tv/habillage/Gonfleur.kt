@@ -273,15 +273,8 @@ fun SceneGonfleur(equipes: List<Triple<String, Color, Float>>, gagnante: Int?, m
                     style = styleGonfleur.copy(fontSize = 58.sp, color = Neon.JusteClair, shadow = Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 4f), 16f)),
                 )
             }
-        } else {
-            Text(
-                "Tapez vite sur la tablette !", maxLines = 1,
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp)
-                    .background(Neon.Plaque, RoundedCornerShape(50)).border(2.5.dp, if (gs) GS.Cyan else Neon.Or, RoundedCornerShape(50))
-                    .padding(horizontal = 26.dp, vertical = 6.dp),
-                style = styleGonfleur.copy(fontSize = 26.sp, color = if (gs) GS.CyanClair else Neon.OrClair),
-            )
         }
+        // Plus de pastille « Tapez vite sur la tablette ! » en haut : on gonfle avec le vrai buzzer (cedric, 31/10 au soir).
     }
 }
 

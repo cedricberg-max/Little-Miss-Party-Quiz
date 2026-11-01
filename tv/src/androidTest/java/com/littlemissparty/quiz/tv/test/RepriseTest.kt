@@ -5,6 +5,7 @@ import com.littlemissparty.quiz.engine.Scoring
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -12,6 +13,10 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class RepriseTest : TestTv() {
     private val regies = mutableListOf<RegieSimulee>()
+
+    /** Le mot de passe de la régie, posé ici aussi : la classe lancée seule n'a personne d'autre pour le faire. */
+    @Before
+    fun motDePasse() = RegieSimulee.definirMotDePasse()
 
     @After
     fun rangerRegies() = regies.forEach { it.close() }

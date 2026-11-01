@@ -144,6 +144,10 @@ data class Question(
     val emoji: String? = null,
     val imageId: String? = null,
     /**
+     * Zoom mystère : le départ du zoom réglé dans la Régie PC (cedric, 31/10) ; null : la TV choisit le détail toute seule.
+     */
+    val zoomDepart: ZoomDepart? = null,
+    /**
      * Réponses en images (quiz des petits) : une photo par proposition, dans l'ordre des propositions, lue dans
      * games/<code>/choiceImages. Vide : propositions en texte. Une proposition sans photo reste en texte.
      */
@@ -344,6 +348,13 @@ data class Quiz(val id: String, val title: String, val questions: List<Question>
 }
 
 /** Carte de mime : le mot à faire deviner et son image (un emoji du catalogue intégré, facultatif). */
+/**
+ * Départ du Zoom mystère (format partagé avec la Régie PC, departZoom de show.js) : le point d'où part le zoom ([x], [y] :
+ * fraction du cadre 4/3 de la TV, la photo le remplissant centrée) et le zoom de départ [z] (de 2 à 10). La TV finit
+ * toujours au même zoom de fin.
+ */
+data class ZoomDepart(val x: Float, val y: Float, val z: Float)
+
 data class MimeCard(val word: String, val image: String? = null, val imageId: String? = null)
 
 const val MAX_MIME_CARDS = 200

@@ -213,7 +213,7 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
         // Le robot prof à gauche, le tableau à sa droite ; un tableau plus large pour les lignes des équipes.
         val gauche = if (lignes) 470f else 620f
         Tableau(
-            Modifier.padding(start = gauche.dp, end = 40.dp, top = 130.dp, bottom = if (lignes) 40.dp else 190.dp).fillMaxSize(),
+            Modifier.padding(start = gauche.dp, end = 40.dp, top = 130.dp, bottom = if (lignes) 40.dp else basTableauSimon(r?.teams?.size ?: 0).dp).fillMaxSize(),
         ) { CompositionLocalProvider(LargeurTableau provides 1920f - gauche - 40f - 84f) {
             when (vue.etape) {
                 // Avant le premier tour : le nom du jeu au tableau (cedric, 30/10), comme les autres jeux.
@@ -705,20 +705,42 @@ private class Plaque(val nom: String, val couleur: Color, val etat: String, val 
 @Composable
 private fun Plaques(plaques: List<Plaque>, largeur: Float, modifier: Modifier) {
     if (plaques.isEmpty()) return
-    val l = minOf(300f, (largeur - 14f * (plaques.size - 1)) / plaques.size).dp
+    // Plus de 4 équipes : deux rangées (tour des écrans du 1/11 : à 8 équipes, les noms tombaient à 10 px et
+    // « encore en jeu » était coupé en « encore en j »).
+    val rangees = plaques.chunked(plaquesParRangee(plaques.size))
+    val deux = rangees.size > 1
+    val parRangee = rangees.first().size
+    val l = minOf(300f, (largeur - 14f * (parRangee - 1)) / parRangee).dp
     val forme = RoundedCornerShape(22.dp)
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        plaques.forEach { p ->
-            Column(
-                Modifier.width(l).height(112.dp).alpha(if (p.eteinte) 0.4f else 1f)
-                    .drawBehind { if (!p.eteinte) halo(p.couleur, 22.dp.toPx(), 2) }
-                    .background(GS.Plaque, forme).border(4.dp, if (p.eteinte) Color.White.copy(alpha = 0.4f) else p.couleur, forme)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-            ) {
-                TexteNeon(p.nom, p.couleur, 42f, PoliceGsTexte, largeurMax = l - 24.dp, force = 0.35f, tailleMin = 16f, graisse = FontWeight.Bold)
-                Text(p.etat, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 28.sp, color = Creme))
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(PLAQUES_ECART.dp), horizontalAlignment = Alignment.End) {
+        rangees.forEach { rangee ->
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                rangee.forEach { p ->
+                    Column(
+                        Modifier.width(l).height((if (deux) PLAQUE_H_DEUX else PLAQUE_H).dp).alpha(if (p.eteinte) 0.4f else 1f)
+                            .drawBehind { if (!p.eteinte) halo(p.couleur, 22.dp.toPx(), 2) }
+                            .background(GS.Plaque, forme).border(4.dp, if (p.eteinte) Color.White.copy(alpha = 0.4f) else p.couleur, forme)
+                            .padding(horizontal = 12.dp, vertical = if (deux) 4.dp else 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+                    ) {
+                        TexteNeon(p.nom, p.couleur, if (deux) 36f else 42f, PoliceGsTexte, largeurMax = l - 24.dp, force = 0.35f, tailleMin = 16f, graisse = FontWeight.Bold)
+                        UneLigneQuiTient(echelleMin = 0.6f) {
+                            Text(p.etat, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = (if (deux) 26 else 28).sp, color = Creme))
+                        }
+                    }
+                }
             }
         }
     }
 }
+
+/** Les plaques des équipes sous le tableau : une rangée jusqu'à 4 équipes, deux au-delà (4 + 4 au plus). */
+internal fun plaquesParRangee(n: Int): Int = if (n > 4) (n + 1) / 2 else n.coerceAtLeast(1)
+
+private const val PLAQUE_H = 112f
+private const val PLAQUE_H_DEUX = 92f
+private const val PLAQUES_ECART = 12f
+
+/** Le bas du tableau (dp de la scène) : il laisse la place à une ou deux rangées de plaques, posées à 36 du bord. */
+internal fun basTableauSimon(equipes: Int): Float =
+    if (plaquesParRangee(equipes) < equipes) 36f + 2 * PLAQUE_H_DEUX + PLAQUES_ECART + 42f else 190f

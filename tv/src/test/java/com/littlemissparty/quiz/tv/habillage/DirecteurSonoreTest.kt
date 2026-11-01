@@ -232,7 +232,7 @@ class DirecteurSonoreTest {
         val qui = q2.copy(jeuBuzz = true, quiSuis = true, gameShow = true)
         d.observer(salon.copy(gameShow = true))
         assertEquals(Ambiance.MIMES_ENTRE, d.observer(qui).musique())
-        assertEquals(Ambiance.SILENCE, d.observer(qui.copy(buzzEquipe = 0)).musique())
+        assertEquals(Ambiance.PAROLE, d.observer(qui.copy(buzzEquipe = 0)).musique())
         // Look Classique : rien ne change.
         assertEquals(Ambiance.SUSPENSE, DirecteurSonore().apply { observer(salon) }.observer(qui.copy(gameShow = false)).musique())
     }
@@ -617,9 +617,9 @@ class DirecteurSonoreTest {
         assertEquals(Ambiance.SUSPENSE, entree.musique())
         // L'équipe 2 buzze : gros buzz, sa note, suspense, plus de musique.
         val buzz = d.observer(image.copy(buzzEquipe = 1))
-        assertEquals(listOf(Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), buzz.sons())
+        assertEquals(listOf(Son.BUZZ_GROS, Son.EQUIPE_2), buzz.sons())
         assertEquals(Ordre.Couper, buzz.first())
-        assertEquals(Ambiance.SILENCE, buzz.musique())
+        assertEquals(Ambiance.PAROLE, buzz.musique())
         // Le même état observé deux fois ne rejoue rien.
         assertTrue(d.observer(image.copy(buzzEquipe = 1)).isEmpty())
         // Raté : « pouet » gentil et la musique revient.
@@ -682,10 +682,11 @@ class DirecteurSonoreTest {
         // L'équipe 2 buzze avant que la musique revienne : tout ce qui était prévu est annulé d'abord.
         val buzz = d.observer(image.copy(ratees = 1, buzzEquipe = 2))
         assertEquals(Ordre.Couper, buzz.first())
-        assertEquals(Ambiance.SILENCE, buzz.musique())
+        assertEquals(Ambiance.PAROLE, buzz.musique())
         // Les deux changements arrivent d'un coup (raté de l'équipe 3, buzz de l'équipe 1) : pouet puis buzz.
         val coup = d.observer(image.copy(ratees = 2, buzzEquipe = 1))
-        assertEquals(listOf(Son.RATE, Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), coup.sons())
+        assertEquals(listOf(Son.RATE, Son.BUZZ_GROS, Son.EQUIPE_2), coup.sons())
+        assertEquals(Ambiance.PAROLE, coup.musique())
     }
 
     @Test
@@ -731,7 +732,8 @@ class DirecteurSonoreTest {
         assertEquals(listOf(Son.BT_DIAMANT), entree.sons())
         assertFalse(Son.TENSION in d.observer(bt.copy(urgent = true)).sons())
         val buzz = d.observer(bt.copy(urgent = true, buzzEquipe = 1))
-        assertEquals(listOf(Son.BT_SCRATCH, Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), buzz.sons())
+        assertEquals(listOf(Son.BT_SCRATCH, Son.BUZZ_GROS, Son.EQUIPE_2), buzz.sons())
+        assertEquals(Ambiance.PAROLE, buzz.musique())
         val rate = d.observer(bt.copy(urgent = true, ratees = 1))
         assertEquals(listOf(Son.RATE), rate.sons())
         assertEquals(Ambiance.SILENCE, rate.musique())
@@ -1730,5 +1732,57 @@ class DirecteurSonoreTest {
         assertEquals(95_256L, repriseEnImages(2_160L, 0L, 44_100))
         assertEquals(0L, repriseEnImages(0L, 0L, 44_100))
         Lit.entries.filter { it.repriseImage > 0 }.forEach { assertEquals("$it", it.repriseImage.toDouble(), it.repriseMs * 44.1, 44.1) }
+    }
+
+    @Test
+    fun `jeux au buzzer, la nappe de suspense tourne en boucle tant que l'equipe a la parole, meme apres une pause`() {
+        // Test du 31/10 au soir : la nappe (12 s) ne jouait qu'une fois, puis silence jusqu'au ✓ ou ✗ de Sarah.
+        for (jeu in listOf("disparu", "flou", "quisuis")) {
+            val d = DirecteurSonore()
+            val base = Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, jeuBuzz = true, gameShow = true,
+                flou = jeu == "flou", quiSuis = jeu == "quisuis", disparu = if (jeu == "disparu") DISPARU_CHERCHER else 0)
+            d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 8, equipes = 3, gameShow = true))
+            d.observer(base)
+            val buzz = d.observer(base.copy(buzzEquipe = 1))
+            // Le buzz et le mot de l'équipe d'abord, puis la nappe (une boucle, plus un son joué une fois) qui part net.
+            assertTrue(jeu, Son.BUZZ_GROS in buzz.sons())
+            assertEquals(jeu, Ordre.Musique(Ambiance.PAROLE, Tempo.FLOU_SUSPENSE, 0), buzz.filterIsInstance<Ordre.Musique>().last())
+            // Pause pendant la réponse, puis reprise : la nappe revient (jamais le silence).
+            d.observer(base.copy(buzzEquipe = 1, enPause = true))
+            assertEquals(jeu, Ambiance.PAROLE, d.observer(base.copy(buzzEquipe = 1, repriseDansMs = 3_000)).musique())
+            // Raté : la nappe s'arrête, la musique du jeu revient.
+            val rate = d.observer(base.copy(ratees = 1))
+            assertTrue(jeu, rate.filterIsInstance<Ordre.Musique>().none { it.ambiance == Ambiance.PAROLE })
+        }
+        // La nappe ne joue que dans son ambiance, dans les deux designs.
+        Lit.entries.forEach { l ->
+            assertEquals("$l", if (l == Lit.PAROLE) 1f else 0f, Ambiance.PAROLE.volume(l, gs = true), 0f)
+            assertEquals("$l", if (l == Lit.PAROLE) 1f else 0f, Ambiance.PAROLE.volume(l, gs = false), 0f)
+        }
+        assertEquals(0f, Ambiance.SUSPENSE.volume(Lit.PAROLE, gs = true), 0f)
+    }
+
+    @Test
+    fun `nappe de suspense, la boucle repart sans saut ni a-coup de volume`() {
+        // Les tests JVM d'Android tournent depuis le dossier du module tv/.
+        val octets = java.io.File("src/main/res/raw/gs_suspense_parole.wav").readBytes()
+        val e = lireEnteteWav(octets.copyOf(512), octets.size.toLong())!!
+        assertEquals(44_100, e.frequence)
+        // Sa propre longueur (20 s), loin des 16 s du tempo commun : elle part toujours de son début, à chaque buzz.
+        assertTrue("durée ${e.dureeMs}", kotlin.math.abs(e.dureeMs - 16_000) > 1_000)
+        val pcm = java.nio.ByteBuffer.wrap(octets, e.debutDonnees.toInt(), e.octetsDonnees.toInt()).order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        val n = pcm.remaining() / 2
+        fun g(i: Int) = (pcm.get(2 * i) + pcm.get(2 * i + 1)) / 2.0
+        val reprise = (PAROLE_REPRISE_MS * 44_100 / 1000).toInt()
+        assertTrue(reprise in 1 until n)
+        // Raccord : la dernière image enchaîne sur l'image de reprise comme deux images voisines du fichier.
+        val saut = kotlin.math.abs(g(n - 1) - g(reprise))
+        val pasMax = (reprise until n - 1).maxOf { kotlin.math.abs(g(it + 1) - g(it)) }
+        assertTrue("saut au raccord $saut (pas max $pasMax)", saut <= pasMax)
+        // Même niveau au début et à la fin de la partie qui tourne (à 1 dB près) : pas d'à-coup à chaque tour.
+        fun rms(a: Int, b: Int) = kotlin.math.sqrt((a until b).sumOf { g(it) * g(it) } / (b - a))
+        val seconde = 44_100
+        val db = 20 * kotlin.math.log10(rms(n - seconde, n) / rms(reprise, reprise + seconde))
+        assertTrue("écart $db dB", kotlin.math.abs(db) < 1.0)
     }
 }

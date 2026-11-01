@@ -1177,7 +1177,7 @@ class RegieTest : TestTv() {
         val goAt = (licornes.etat(code).child("pump/goAt").value as Number).toLong()
         attendreQue("départ") { (System.currentTimeMillis() > goAt + 6_000).takeIf { it } }
         ecran.voit(if (Look.gs) "le premier ballon qui éclate gagne" else "Tapez sur vos tablettes")
-        if (Look.gs) ecran.entierementVisible("TAPEZ !")
+        if (Look.gs) ecran.entierementVisible("GONFLEZ LE BALLON !")
         // Les Licornes tapent, les Dragons font éclater leur ballon : la box termine la course.
         assertTrue(licornes.gonfler(code, 60))
         assertTrue(dragons.gonfler(code, 80))

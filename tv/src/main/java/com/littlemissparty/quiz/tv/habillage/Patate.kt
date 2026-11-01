@@ -65,6 +65,9 @@ import kotlin.math.sin
 
 private val jouerSonPatate: (Son) -> Unit = { Sons.executer(listOf(Ordre.Jouer(it))) }
 
+/** Halo noir doux du Chrono ([HALO_DECOR]), un peu plus large pour les très grandes lettres du BOUM. */
+internal val HALO_BOUM = Shadow(Color.Black, Offset.Zero, 30f)
+
 private val stylePatate = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontWeight = FontWeight.ExtraBold)
 
 /** Place du socle de l'équipe [i] sur [n] : en arc, celles du milieu un peu plus loin (plus haut, plus petites) ; arc plus plat et socles plus petits au-delà de 5 équipes. */
@@ -290,7 +293,11 @@ fun ScenePatate(
                 for (k in 0 until 8) {
                     val a = -PI.toFloat() / 2 + (k - 3.5f) * 0.35f
                     val f = Offset(c.x + cos(a) * 110f * b * d, c.y + sin(a) * 90f * b * d - 40f * b * d)
-                    drawCircle(Color(0xFF3A2E48).copy(alpha = (0.75f - 0.5f * b).coerceIn(0f, 1f)), (28f + 10f * (k % 3)) * d * (0.5f + b), f)
+                    // Bouffées douces qui s'effacent complètement : plus de gros ronds gris restés au fond du décor
+                    // après le BOUM (cedric, 31/10 au soir).
+                    val rf = (28f + 10f * (k % 3)) * d * (0.5f + b)
+                    val af = fumeeBoum(b)
+                    if (af > 0f) drawCircle(Brush.radialGradient(listOf(Color(0xFF3A2E48).copy(alpha = af), Color(0xFF3A2E48).copy(alpha = af * 0.5f), Color.Transparent), f, rf), rf, f)
                 }
                 // Éclats dorés projetés tout autour.
                 if (b < 0.7f) for (k in 0 until 18) {
@@ -359,7 +366,8 @@ fun ScenePatate(
                 },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("BOUM !", maxLines = 1, style = stylePatate.copy(fontSize = 80.sp, color = Color(0xFFFFB347), shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 4f), 14f)))
+                // « BOUM ! » et les points perdus détachés du décor par le halo noir doux du Chrono (cedric, 31/10 : ils se fondaient).
+                Text("BOUM !", maxLines = 1, style = stylePatate.copy(fontSize = 80.sp, color = Color(0xFFFFB347), shadow = HALO_BOUM))
                 Text(
                     "La bombe a explosé chez $nomP !", maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.background(Neon.Plaque, RoundedCornerShape(50)).border(3.dp, couleurP, RoundedCornerShape(50)).padding(horizontal = 24.dp, vertical = 5.dp),
@@ -368,7 +376,7 @@ fun ScenePatate(
                 if (pointsPerdus != null) {
                     Text(
                         texteValeur(pointsPerdus) + " POINTS", maxLines = 1,
-                        style = stylePatate.copy(fontSize = 54.sp, color = Color(0xFFFF5A5F), shadow = Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 4f), 16f)),
+                        style = stylePatate.copy(fontSize = 54.sp, color = Color(0xFFFF5A5F), shadow = HALO_BOUM),
                     )
                 }
             }
@@ -456,3 +464,6 @@ fun MusiquePatate(deadline: Long?, depart: Long, decalage: Long, brule: Boolean)
     }
     DisposableEffect(Unit) { onDispose { Sons.calerSur(Son.PATATE_MUSIQUE, 0, joue = false) } }
 }
+
+/** Opacité de la fumée du BOUM selon l'avancée [b] (0 à 1) : épaisse au départ, plus rien à la fin. */
+internal fun fumeeBoum(b: Float): Float = (0.7f * (1f - b / 0.85f)).coerceIn(0f, 0.7f)

@@ -49,4 +49,23 @@ class CoupuresTest {
         c.vu("b", false, 100_000)
         assertEquals("coupures 5 min : tablette vert 1× (3 min 20 s, encore coupée)", c.ligne(300_000))
     }
+
+    @Test
+    fun `telephone de la regie, la coupure dit si la page etait cachee ou si c'est le reseau`() {
+        // Soirée du 31/10 : 43 s sans régie, cedric ne se souvenait pas d'avoir quitté l'appli.
+        val c = Coupures()
+        c.vu("regie:x", true, 0, cachee = false)
+        c.vu("regie:x", true, 5_000, cachee = true)
+        c.vu("regie:x", false, 6_000)
+        c.vu("regie:x", true, 49_000, cachee = false)
+        assertEquals("coupures 5 min : téléphone 1× (43 s, ${Coupures.CAUSE_PAGE_CACHEE})", c.ligne(300_000))
+        c.vu("regie:x", false, 310_000)
+        c.vu("regie:x", true, 320_000, cachee = false)
+        assertEquals("coupures 5 min : téléphone 1× (10 s, ${Coupures.CAUSE_RESEAU})", c.ligne(600_000))
+        // Une tablette ne signale rien : pas de cause inventée.
+        c.vu("a", true, 600_000)
+        c.vu("a", false, 610_000)
+        c.vu("a", true, 613_000)
+        assertEquals("coupures 5 min : tablette rose 1× (3 s)", c.ligne(900_000))
+    }
 }
