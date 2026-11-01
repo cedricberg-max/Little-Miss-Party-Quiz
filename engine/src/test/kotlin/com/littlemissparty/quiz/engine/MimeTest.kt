@@ -43,8 +43,10 @@ class MimeTest {
         assertEquals(0L, g.remainingMs(t0 + 10_000))
         assertNotNull(g.mimeStart("bleu", t0 + 10_000))
         assertEquals("Chat", g.mimeCard?.word)
-        assertEquals(t0 + 70_000, g.deadline())
-        assertEquals(30_000L, g.remainingMs(t0 + 40_000))
+        // Le chrono part avec la première carte, après le bandeau et « TOP DÉPART ! » (cedric, 1/11 au soir).
+        assertEquals(t0 + 70_000 + MIME_DEPART_MS, g.deadline())
+        assertEquals(60_000L, g.remainingMs(t0 + 11_000), "Chrono pas encore parti pendant le bandeau")
+        assertEquals(30_000L + MIME_DEPART_MS, g.remainingMs(t0 + 40_000))
     }
 
     @Test
@@ -73,7 +75,7 @@ class MimeTest {
         assertNotNull(g.mimeFound(t0 + 15_000))
         assertEquals(t0 + 15_000, g.state.mime?.relais)
         assertNull(g.mimeCard, "Image cachée pendant que deux autres joueurs prennent le relais")
-        assertEquals(t0 + 70_000, g.deadline(), "Le chrono continue pendant le changement de joueur")
+        assertEquals(t0 + 70_000 + MIME_DEPART_MS, g.deadline(), "Le chrono continue pendant le changement de joueur")
         assertNull(g.mimeFound(t0 + 15_200), "Double appui sur Trouvé : pas d'image, pas de second mime")
         assertEquals(1, g.state.mimes["m1"]?.get("bleu"))
         @Suppress("UNCHECKED_CAST")
@@ -164,7 +166,7 @@ class MimeTest {
         assertEquals("rose", g.nextMimeTeam(listOf("bleu", "rose")), "La télécommande propose l'équipe qui n'a pas joué")
         g.mimeStart("rose", t0 + 80_000)
         assertEquals("Pirate", g.mimeCard?.word, "Le paquet continue là où il s'était arrêté, sans changement de joueur à attendre")
-        assertEquals(t0 + 140_000, g.deadline(), "Chaque tour a son propre chrono")
+        assertEquals(t0 + 140_000 + MIME_DEPART_MS, g.deadline(), "Chaque tour a son propre chrono")
     }
 
     @Test
@@ -175,8 +177,8 @@ class MimeTest {
         assertNull(g.deadline())
         assertEquals(CommandStatus.REFUSED, g.cmd(Command.MimeFound("c", g.state.lastSeq), t0 + 40_000).status)
         g.resume(t0 + 100_000)
-        // 20 s jouées avant la pause, le chrono repart après le décompte : il reste 40 s.
-        assertEquals(t0 + 100_000 + RESUME_COUNTDOWN_MS + 40_000, g.deadline())
+        // 20 s avant la pause, dont le bandeau et « TOP DÉPART ! » : le chrono repart après le décompte avec le reste.
+        assertEquals(t0 + 100_000 + RESUME_COUNTDOWN_MS + 40_000 + MIME_DEPART_MS, g.deadline())
         assertEquals("Chat", g.mimeCard?.word)
     }
 

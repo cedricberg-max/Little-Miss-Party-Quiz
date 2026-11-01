@@ -31,6 +31,19 @@ class MasqueMimesTest {
     }
 
     @Test
+    fun `le chrono du tour part avec la premiere carte, plein pendant le bandeau et TOP DEPART`() {
+        val t = com.littlemissparty.quiz.tv.habillage.Tempo
+        // Le moteur et l'écran sont d'accord : la carte surgit pile quand le chrono part.
+        assertEquals(com.littlemissparty.quiz.engine.MIME_DEPART_MS, t.MIMES_CARTE)
+        val lancement = 1_000_000L
+        val fin = lancement + com.littlemissparty.quiz.engine.MIME_DEPART_MS + 60_000
+        assertEquals(60_000L, restantMimes(fin, lancement, 0, 60_000))
+        assertEquals(60_000L, restantMimes(fin, lancement + 2_000, 0, 60_000))
+        assertEquals(50_000L, restantMimes(fin, lancement + com.littlemissparty.quiz.engine.MIME_DEPART_MS + 10_000, 0, 60_000))
+        assertEquals(0L, restantMimes(fin, fin + 5_000, 0, 60_000))
+    }
+
+    @Test
     fun `apres un tour, Prochaine equipe attend que le tampon TEMPS ECOULE soit parti (plus de textes melanges)`() {
         val t = com.littlemissparty.quiz.tv.habillage.Tempo
         // Le tampon dure 1,2 s (Tampon, dureeMs par défaut) : la consigne arrive après lui, et après le bravo.

@@ -48,7 +48,7 @@ class MimesEnFileTest {
         assertFalse(g.state.intro)
         assertEquals("jaune", g.state.mime?.team)
         assertEquals("Pompier", g.mimeCard?.word)
-        assertEquals(t0 + 70_000, g.deadline())
+        assertEquals(t0 + 70_000 + MIME_DEPART_MS, g.deadline())
     }
 
     @Test
@@ -61,7 +61,7 @@ class MimesEnFileTest {
         assertEquals(1, g.state.mime?.passed)
         assertEquals(0, g.state.mimes["m1"]?.get("jaune") ?: 0)
         assertNull(g.mimeSkip(t0 + 15_300), "Pendant que les joueurs tournent, Passer ne fait rien")
-        assertEquals(t0 + 70_000, g.deadline(), "Le chrono continue")
+        assertEquals(t0 + 70_000 + MIME_DEPART_MS, g.deadline(), "Le chrono continue")
         // Le nouveau mimeur est face à l'écran : Sarah montre l'image suivante.
         assertNotNull(g.mimePass(t0 + 19_000))
         assertEquals("Pirate", g.mimeCard?.word)
@@ -117,7 +117,7 @@ class MimesEnFileTest {
         assertFalse(g.state.intro, "Même jeu : pas de nouvelle présentation")
         assertEquals("vert", g.state.mime?.team)
         assertEquals("Danseuse", g.mimeCard?.word)
-        assertEquals(t0 + 150_000, g.deadline())
+        assertEquals(t0 + 150_000 + MIME_DEPART_MS, g.deadline())
         // Dernière couleur : au bilan, plus de manche de mimes à ouvrir, « suivant » mène au jeu suivant.
         g.timeUp(t0 + 150_000)
         g.timeUp(t0 + 160_000)

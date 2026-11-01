@@ -14,6 +14,12 @@ enum class Phase(val code: String) {
 /** Période pendant laquelle le chrono tourne ([end] nul tant qu'il tourne encore). */
 data class Segment(val start: Long, val end: Long? = null)
 
+/**
+ * Mimes : temps entre le lancement d'un tour et la première carte à la TV (le bandeau « À vous de mimer ! » 2 s, puis
+ * « TOP DÉPART ! » 1,2 s). Le chrono du tour part à ce moment-là, pas avant.
+ */
+const val MIME_DEPART_MS = 3_200L
+
 /** Écart toléré entre l'horloge de la box et celle du serveur pour dater une réponse. */
 const val ANSWER_CLOCK_MARGIN_MS = 2_000L
 
@@ -993,7 +999,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         // Pictionary : le dessin commence seulement après que l'équipe a choisi son mot.
         return if (s.intro || m == null || m.team != null || s.paused || cards.isEmpty() || e.team.isBlank() || (picto && (m.secret != e.team || m.pick == null))) null
         else s.copy(
-            segments = listOf(Segment(e.at)), resumeAt = null,
+            // Mimes : le chrono part quand la première carte apparaît, après le bandeau et « TOP DÉPART ! »
+            // ([MIME_DEPART_MS]) ; l'équipe ne perd plus ces secondes-là (cedric, 1/11 au soir).
+            segments = listOf(Segment(e.at + if (picto) 0L else MIME_DEPART_MS)), resumeAt = null,
             // Paquet épuisé par les équipes précédentes : il est rebattu pour que chaque équipe ait son tour.
             mime = m.copy(
                 // Pictionary : le mot choisi passe en tête du paquet ; les deux autres mots déjà montrés repartent tout

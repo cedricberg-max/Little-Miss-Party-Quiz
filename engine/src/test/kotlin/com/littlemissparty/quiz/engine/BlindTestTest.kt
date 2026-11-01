@@ -297,7 +297,7 @@ class BlindTestTest {
         assertEquals("m1", g.state.qid)
         g.mimeStart("rose", t0 + 7_000)
         assertEquals(false, g.state.buzzHeld)
-        assertEquals(t0 + 7_000 + 60_000, g.deadline())
+        assertEquals(t0 + 7_000 + MIME_DEPART_MS + 60_000, g.deadline())
         assertNotNull(g.events.last())
     }
 

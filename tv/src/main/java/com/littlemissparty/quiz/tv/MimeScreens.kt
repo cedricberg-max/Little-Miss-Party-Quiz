@@ -645,6 +645,10 @@ private fun MimeButtons(state: UiState.Playing, m: MimeUi, actions: TvActions) {
     }
 }
 
+/** Temps restant au chrono d'un tour : jamais plus que [total] (avant la première carte, il est plein). */
+internal fun restantMimes(deadline: Long, maintenant: Long, depart: Long, total: Long): Long =
+    (deadline - maxOf(maintenant, depart)).coerceIn(0, total)
+
 /** Chrono du tour, calé sur l'heure du serveur comme celui des questions. */
 @Composable
 internal fun MimeCountdown(state: UiState.Playing) {
@@ -658,7 +662,9 @@ internal fun MimeCountdown(state: UiState.Playing) {
         }
         val start = state.resumeAt ?: 0L
         while (true) {
-            remaining = (deadline - maxOf(System.currentTimeMillis() + state.serverOffset, start)).coerceAtLeast(0)
+            // Le chrono du tour part avec la première carte (MIME_DEPART_MS) : pendant le bandeau et « TOP DÉPART ! »,
+            // il reste plein, jamais au-dessus de la durée.
+            remaining = restantMimes(deadline, System.currentTimeMillis() + state.serverOffset, start, total)
             if (remaining == 0L) break
             delay(100)
         }

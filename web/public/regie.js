@@ -4717,6 +4717,8 @@ function runTimer(st) {
     // Sans chrono en cours (blind test qui attend la relance, mimes entre deux tours) : rien, plutôt qu'un 0 inquiétant.
     else if (st.deadline == null) ms = st.remainingMs ?? null;
     else ms = Math.max(0, st.deadline - Math.max(Date.now() + serverOffset, st.resumeAt ?? 0));
+    // Mimes : le chrono part avec la première carte, après le bandeau et « TOP DÉPART ! » : jamais plus que la durée.
+    if (ms != null && st.durationMs != null) ms = Math.min(ms, st.durationMs);
     // Secondes restantes au chrono de la question (ou de l'extrait au blind test).
     el.textContent = ms == null ? "" : `⏱ ${Math.ceil(ms / 1000)} s`;
     el.title = "Temps restant au chrono";
