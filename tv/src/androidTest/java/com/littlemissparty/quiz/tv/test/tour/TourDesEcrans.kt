@@ -204,17 +204,28 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
         jeu("coffres") {
             aller("t-coffres") { it.child("chests/ready").value == true }
             verifier("coffres-choix", 1_500)
-            val c = etat().child("chests")
-            val tour = (c.child("turn").value as Number).toInt()
-            attendreQue("coffre jouable") { (System.currentTimeMillis() > (c.child("readyAt").value as Number).toLong() + 500).takeIf { it } }
-            val joueuse = equipes.firstOrNull { it.uid == c.child("team").value } ?: equipes.last()
-            attendreQue("coffre ouvert", 20_000) {
-                if ((etat().child("chests/turn").value as Number).toInt() > tour) true
-                else { joueuse.ouvrirCoffre(code, 0); Thread.sleep(800); null }
+            // Ouvre un coffre du tour en cours (le premier encore fermé) et attend que le tour passe.
+            var essai = 0
+            fun ouvrir() {
+                val tour = (etat().child("chests/turn").value as Number).toInt()
+                attendreQue("coffre jouable", 30_000) {
+                    val c = etat().child("chests")
+                    val pret = (c.child("readyAt").value as? Number)?.toLong()
+                    ((c.child("turn").value as Number).toInt() == tour && pret != null && System.currentTimeMillis() > pret + 500).takeIf { it }
+                }
+                val c = etat().child("chests")
+                val joueuse = equipes.firstOrNull { it.uid == c.child("team").value } ?: equipes.last()
+                attendreQue("coffre ouvert", 20_000) {
+                    if ((etat().child("chests/turn").value as Number).toInt() > tour) true
+                    else { joueuse.ouvrirCoffre(code, essai++ % 20); Thread.sleep(800); null }
+                }
             }
-            // 600 ms seulement : l'analyse de la capture prend jusqu'à 5 s, et le classement qui suit ne reste que 4 s
-            // (de 4,5 à 8,5 s après l'ouverture) ; à 1,2 s, le tour à 7 équipes l'a manqué (1/11, chest -50).
+            // Ouverture et classement sur deux coffres différents : l'analyse des deux versions de l'ouverture dure plus
+            // longtemps que le classement qui la suit (4 s) ; au premier coffre on regarde l'ouverture, au second le
+            // classement, attrapé dès qu'il paraît (1/11, 5-6 équipes : classement manqué).
+            ouvrir()
             verifier("coffres-ouverture", 600)
+            ouvrir()
             // Le classement entre deux coffres (cedric, 30/10 : les ronds des rangs serrés dans leur carte).
             // Game Show : « LE CLASSEMENT » en capitales ; il ne reste que quelques secondes, capturé dès qu'il paraît.
             attendreQue("classement des coffres", 15_000) { (ecran.affiche("LE CLASSEMENT") || ecran.affiche("Le classement")).takeIf { it } }
