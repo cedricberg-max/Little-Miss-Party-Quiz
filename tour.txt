@@ -1,0 +1,64 @@
+TOUR|1|BILAN|coupés=0|bloqués=0
+TOUR|1|rebus-1-morceau|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|1|rebus-2-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|1|rebus-3-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|1|rebus-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|1|rebus-revelation-mot|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Licornes Roses ! »|
+TOUR|1|rebus-revelation|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Licornes Roses ! »|
+TOUR|1|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|2|BILAN|coupés=0|bloqués=0
+TOUR|2|rebus-1-morceau|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|2|rebus-2-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|2|rebus-3-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|2|rebus-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|2|rebus-revelation-mot|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Dragons Dorés ! »|
+TOUR|2|rebus-revelation|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Dragons Dorés ! »|
+TOUR|2|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|3|BILAN|coupés=0|bloqués=0
+TOUR|3|rebus-1-morceau|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|3|rebus-2-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|3|rebus-3-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|3|rebus-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|3|rebus-revelation-mot|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Comètes Filantes ! »|
+TOUR|3|rebus-revelation|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Comètes Filantes ! »|
+TOUR|3|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|4|BILAN|coupés=0|bloqués=0
+TOUR|4|rebus-1-morceau|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|4|rebus-2-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|4|rebus-3-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|4|rebus-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|rebus-revelation-mot|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|rebus-revelation|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|4|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|5|BILAN|coupés=0|bloqués=0
+TOUR|5|rebus-1-morceau|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|5|rebus-2-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|5|rebus-3-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|5|rebus-buzz|coupés=0|chevauchements=0|plus petit=21 px « Les Comètes Filantes »|
+TOUR|5|rebus-revelation-mot|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Panthères Noires ! »|
+TOUR|5|rebus-revelation|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Panthères Noires ! »|
+TOUR|5|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|6|BILAN|coupés=0|bloqués=0
+TOUR|6|rebus-1-morceau|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|6|rebus-2-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|6|rebus-3-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|6|rebus-buzz|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|6|rebus-revelation-mot|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Fusées Rouges ! »|
+TOUR|6|rebus-revelation|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Fusées Rouges ! »|
+TOUR|6|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|7|BILAN|coupés=0|bloqués=0
+TOUR|7|rebus-1-morceau|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|7|rebus-2-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|7|rebus-3-morceaux|coupés=0|chevauchements=0|plus petit=21 px « dès que vous avez trouvé le mot »|
+TOUR|7|rebus-buzz|coupés=0|chevauchements=0|plus petit=23 px « Les Licornes Roses »|
+TOUR|7|rebus-revelation-mot|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Sirènes Bleues ! »|
+TOUR|7|rebus-revelation|coupés=0|chevauchements=0|plus petit=21 px « Bravo Les Sirènes Bleues ! »|
+TOUR|7|salon|coupés=0|chevauchements=0|plus petit=-|
+TOUR|8|BILAN|coupés=0|bloqués=0
+TOUR|8|rebus-1-morceau|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|8|rebus-2-morceaux|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|8|rebus-3-morceaux|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|8|rebus-buzz|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|8|rebus-revelation-mot|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|8|rebus-revelation|coupés=0|chevauchements=0|plus petit=17 px « Les Comètes Filantes »|
+TOUR|8|salon|coupés=0|chevauchements=0|plus petit=-|
