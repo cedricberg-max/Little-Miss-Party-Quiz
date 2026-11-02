@@ -391,7 +391,7 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
         return listOf(
             quiz + mapOf("id" to "t-quiz", "round" to "Quiz"),
             mapOf("id" to "t-juste", "text" to "Combien d'os dans le corps humain ?", "kind" to "number", "correct" to 206, "duration" to 30, "double" to false, "round" to "Le Juste Chiffre"),
-            mapOf("id" to "t-vf", "text" to "Le Soleil est une étoile.", "choices" to listOf("Vrai", "Faux"), "correct" to 0, "duration" to 8, "kind" to "express", "double" to false, "round" to "Vrai ou Faux express"),
+            mapOf("id" to "t-vf", "text" to "Le Soleil est une étoile.", "choices" to listOf("Vrai", "Faux"), "correct" to 0, "duration" to 20, "kind" to "express", "double" to false, "round" to "Vrai ou Faux express"),
             mapOf("id" to "t-zoom", "text" to "Quel animal se cache sur la photo ?", "choices" to listOf("Chat", "Lion"), "correct" to 1, "duration" to 20, "kind" to "zoom", "double" to false, "round" to "Zoom mystère", "imageId" to photo),
             mapOf("id" to "t-illustre", "text" to "Quel animal est le roi de la savane ?", "choices" to listOf("Lion", "Chat", "Vache"), "correct" to 0, "duration" to 20, "kind" to "classic", "double" to false, "round" to "Quiz illustré", "choiceImages" to listOf(lion, "", "")),
             mapOf("id" to "t-flou", "text" to "Qu'est-ce qui se cache sous le flou ?", "choices" to listOf("Un téléphérique", "Un bateau"), "correct" to 0, "duration" to 40, "kind" to "flou", "double" to false, "round" to "Image floue", "imageId" to photo),
