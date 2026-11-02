@@ -101,6 +101,12 @@ jobs:
       - name: Pousser la planche sur sa branche
         if: contains(inputs.noms, '*')
         run: |
+          # Films de test (portes entre deux jeux…) : poussés tels quels, à regarder image par image.
+          if [ -n "$(find archive -name '*-film-*.mp4' | head -1)" ]; then
+            mkdir -p "$RUNNER_TEMP/planche"
+            find archive -name '*-film-*.mp4' -exec cp {} "$RUNNER_TEMP/planche/" \;
+            find archive -name 'logcat.txt' -exec grep -h 'PORTES|' {} + | sed 's/^.*PORTES|/PORTES|/' > "$RUNNER_TEMP/planche/portes.txt" || true
+          fi
           [ -d "$RUNNER_TEMP/planche" ] || { echo "Pas de planche"; exit 0; }
           cd "$RUNNER_TEMP/planche"
           git init -q -b "captures-$PASSAGE"

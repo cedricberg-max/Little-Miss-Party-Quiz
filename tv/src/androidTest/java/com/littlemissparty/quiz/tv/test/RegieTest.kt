@@ -1307,7 +1307,8 @@ class RegieTest : TestTv() {
         assertEquals("2 équipes × 2 joueurs : 2 duels", 2L, (e.child("duel/total").value as Number).toLong())
         assertEquals(listOf(1L, 1L), e.child("duel/players").children.map { (it.value as Number).toLong() })
         ecran.voit(if (Look.gs) "LA MAIN AU-DESSUS DU BUZZER !" else "Les deux joueurs, la main au-dessus du buzzer !")
-        ecran.voit(if (Look.gs) "LE DUEL DES ROBOTS 1 / 2" else "Duel 1 sur 2")
+        // Game Show : plus de pastille du numéro en haut à gauche (cedric, 1/11 au soir) ; le Classique garde son compteur.
+        if (Look.gs) ecran.neVoitPas("LE DUEL DES ROBOTS") else ecran.voit("Duel 1 sur 2")
         ecran.capture("duel-pret")
         assertEquals("pas de buzz avant le face-à-face", false, dragons.buzzerDuel(code, 0))
 

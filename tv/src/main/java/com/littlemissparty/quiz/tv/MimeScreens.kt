@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv
 import com.littlemissparty.quiz.tv.habillage.HALO_DECOR
 import androidx.compose.material3.LocalTextStyle
 import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.logoNeonJeu
 import androidx.compose.ui.res.painterResource
 import androidx.compose.animation.core.LinearEasing
@@ -36,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,13 +97,18 @@ import com.littlemissparty.quiz.tv.habillage.PoliceLmp
 fun MimeScreen(state: UiState.Playing, actions: TvActions) {
     val m = state.mime ?: return
     val team = state.teams.find { it.uid == m.team }
+    // Début d'un tour, un élément à la fois (cedric, 1/11 au soir : « bouillie d'informations ») : le bandeau de
+    // l'équipe seul, puis « TOP DÉPART ! » seul, puis la première carte (Tempo.MIMES_ANNONCE / MIMES_CARTE).
+    val etape = etapeDebutTour(if (team != null) "${m.team} ${m.turns.size}" else null)
     Box(Modifier.fillMaxSize()) {
         // Halo de la couleur de l'équipe qui joue, qui respire doucement derrière la carte.
         if (team != null) TeamGlow(team.color.toColor())
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             if (team != null) EnTeteTour(state, team) else Row(verticalAlignment = Alignment.CenterVertically) {
-                BadgeMimes()
-                Spacer(Modifier.width(14.dp))
+                if (badgeMimesVisible(Look.gs)) {
+                    BadgeMimes()
+                    Spacer(Modifier.width(14.dp))
+                }
                 Text(
                     sousTitreMimes(state.question?.text).orEmpty(), color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
@@ -110,7 +117,7 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
             Spacer(Modifier.height(8.dp))
             // Le bandeau des équipes est mesuré d'abord : ses boutons gardent toujours leur hauteur (cedric, 24/10 :
             // « Image suivante » rogné sous une carte avec photo et mot sur deux lignes) ; la carte prend le reste.
-            if (team != null) Turn(state, m, team, Modifier.weight(1f)) else BetweenTurns(state, m, Modifier.weight(1f))
+            if (team != null) Turn(state, m, team, carteVisible = etape >= DebutTourMimes.CARTE, modifier = Modifier.weight(1f)) else BetweenTurns(state, m, Modifier.weight(1f))
             Spacer(Modifier.height(12.dp))
             // De 1 à 8 équipes : les pastilles passent au-dessus des boutons quand elles ne tiennent plus à côté.
             BandeauEquipes(
@@ -124,10 +131,17 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
             }
         }
         // « TOP DÉPART ! » claque au début de chaque tour, « TEMPS ÉCOULÉ ! » à la fin, calés sur les sifflets.
-        Tampon("TOP DÉPART !", cle = "top ${m.team} ${m.turns.size}", actif = team != null)
-        Tampon("TEMPS ÉCOULÉ !", cle = "fin ${m.turns.size}", couleur = Neon.Halo, actif = team == null && m.last != null)
+        Tampon("TOP DÉPART !", cle = "top ${m.team} ${m.turns.size}", actif = team != null && etape >= DebutTourMimes.TOP)
+        // « TEMPS ÉCOULÉ ! » dans la couleur de l'équipe qui vient de jouer (cedric, 1/11 : il restait rose pour tous).
+        Tampon("TEMPS ÉCOULÉ !", cle = "fin ${m.turns.size}", couleur = couleurTempsEcoule(state.teams, m.last?.team), actif = team == null && m.last != null)
     }
 }
+
+/**
+ * La pastille « MIMES » en haut à gauche : plus dans le Game Show (cedric, 1/11 au soir : « il sert à rien », le titre
+ * néon et les noms disent déjà le jeu) ; le Classique la garde.
+ */
+internal fun badgeMimesVisible(gs: Boolean): Boolean = !gs
 
 @Composable
 private fun BadgeMimes() = Text(
@@ -149,8 +163,10 @@ private fun EnTeteTour(state: UiState.Playing, team: Team) {
         val cote = (maxWidth - centre) / 2
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.width(cote), verticalAlignment = Alignment.CenterVertically) {
-                BadgeMimes()
-                Spacer(Modifier.width(14.dp))
+                if (badgeMimesVisible(Look.gs)) {
+                    BadgeMimes()
+                    Spacer(Modifier.width(14.dp))
+                }
                 // Thème du paquet : sur deux lignes et plus petit s'il est long, jamais « … ».
                 TexteAjuste(
                     sousTitreMimes(state.question?.text).orEmpty(), color = Palette.InkSoft, max = 22.sp, min = 14.sp,
@@ -174,13 +190,35 @@ private fun EnTeteTour(state: UiState.Playing, team: Team) {
 internal const val PART_NOM_EN_TETE = 0.44f
 
 /** Tour en cours : la carte en très grand et le compteur de mimes trouvés (« Au tour de… » est dans l'en-tête). */
+/** Les étapes du début d'un tour de mimes : bandeau seul, puis « TOP DÉPART ! » seul, puis la carte. */
+internal enum class DebutTourMimes { BANDEAU, TOP, CARTE }
+
+/** L'étape du début du tour [tour] (null entre deux tours) : elle avance seule, au rythme de Tempo. */
 @Composable
-private fun Turn(state: UiState.Playing, m: MimeUi, team: Team, modifier: Modifier = Modifier) {
+private fun etapeDebutTour(tour: String?): DebutTourMimes {
+    var etape by remember(tour) { mutableStateOf(DebutTourMimes.BANDEAU) }
+    LaunchedEffect(tour) {
+        if (tour == null) return@LaunchedEffect
+        delay(Tempo.MIMES_ANNONCE)
+        etape = DebutTourMimes.TOP
+        delay(Tempo.MIMES_TOP_TAMPON)
+        etape = DebutTourMimes.CARTE
+    }
+    return etape
+}
+
+/** Couleur du « TEMPS ÉCOULÉ ! » : celle de l'équipe [uid] qui vient de jouer (rose de secours si elle a disparu). */
+internal fun couleurTempsEcoule(equipes: List<Team>, uid: String?): Color =
+    equipes.find { it.uid == uid }?.color?.toColor() ?: Neon.Halo
+
+@Composable
+private fun Turn(state: UiState.Playing, m: MimeUi, team: Team, carteVisible: Boolean, modifier: Modifier = Modifier) {
     val color = team.color.toColor()
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.reduitSiTropHaut(), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                MimeCardView(m, color, state.images)
+                // Cachée (sa place gardée) jusqu'à la fin du « TOP DÉPART ! », puis elle surgit avec son animation.
+                key(carteVisible) { Box(Modifier.alpha(if (carteVisible) 1f else 0f)) { MimeCardView(m, color, state.images) } }
                 FoundCounter(m.found)
             }
         }
@@ -439,8 +477,14 @@ internal fun sousTitreMimes(texte: String?): String? {
  */
 internal const val MARGE_REGLE_MIMES = 70f
 
+/** Bilan d'un tour (« 5 mimes trouvés · +250 points ») en Game Show : le jaune des boutons importants. */
+internal val COULEUR_BILAN_MIMES = GS.Jaune
+
 /** Place des textes sous le masque : bravo sur 2 lignes (nom long), points, consigne sur 3 lignes et espaces (dp). */
 private const val TEXTES_ENTRE_TOURS = 250f
+
+/** Après un tour, la consigne (« Prochaine équipe… ») arrive après le bravo et les points, jamais sous le tampon. */
+internal fun delaiConsigneMimes(bilan: Long): Long = bilan + 2 * Tempo.TEMPS
 
 /** Entre deux tours : bilan du tour qui vient de finir, puis qui va mimer. */
 @Composable
@@ -474,7 +518,9 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                 )
                 TexteJauge(
                     "${last.found} mime${if (last.found > 1) "s" else ""} trouvé${if (last.found > 1) "s" else ""} · +${last.found * Scoring.MIME} points",
-                    color = Neon.Or, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black,
+                    // Cedric, 1/11 au soir : en cyan sur son contour cyan, sur le fond bleu, il ne se lisait pas ; en jaune
+                    // Game Show, il tranche (le contour sombre le détache du décor).
+                    color = if (Look.gs) COULEUR_BILAN_MIMES else Neon.Or, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.apparition(bilan + Tempo.TEMPS, m.turns.size),
                 )
             } else if (Look.gs) {
@@ -505,7 +551,10 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                 color = Palette.Ink, fontSize = 24.sp, textAlign = TextAlign.Center, lineHeight = 32.sp,
                 maxLines = 3, overflow = TextOverflow.Ellipsis,
                 // Cedric, 1/11 (point 34) : la règle collait aux bords gauche et droit de l'écran, elle doit respirer.
-                modifier = Modifier.padding(horizontal = MARGE_REGLE_MIMES.dp),
+                // Après un tour, « Prochaine équipe… » attend que le tampon « TEMPS ÉCOULÉ ! » soit parti et arrive après
+                // le bravo et les points (tour des écrans du 1/11 : il s'affichait dessous, les deux se mélangeaient).
+                modifier = Modifier.padding(horizontal = MARGE_REGLE_MIMES.dp)
+                    .then(if (last != null) Modifier.apparition(delaiConsigneMimes(bilan), m.turns.size) else Modifier),
             )
             }
         }
@@ -522,8 +571,11 @@ private fun MimeTeamChip(team: Team, count: Int, playing: Boolean, passed: Boole
     // nombre de mimes en pastille sur le coin.
     val forme = RoundedCornerShape(16.dp)
     Box(modifier) {
+        // La bulle prend toute la place de l'équipe : sa pastille reste collée à son coin (cedric, 1/11 au soir : la
+        // pastille « 0 mime » flottait loin à droite, contre l'équipe d'à côté).
         Box(
             Modifier
+                .fillMaxWidth()
                 .then(if (Look.gs) Modifier.shadow(10.dp, forme, ambientColor = color, spotColor = color) else Modifier)
                 .clip(forme)
                 .background(
@@ -593,11 +645,18 @@ private fun MimeButtons(state: UiState.Playing, m: MimeUi, actions: TvActions) {
     }
 }
 
+/** Temps restant au chrono d'un tour : jamais plus que [total] (avant la première carte, il est plein). */
+internal fun restantMimes(deadline: Long, maintenant: Long, depart: Long, total: Long): Long =
+    (deadline - maxOf(maintenant, depart)).coerceIn(0, total)
+
 /** Chrono du tour, calé sur l'heure du serveur comme celui des questions. */
 @Composable
 internal fun MimeCountdown(state: UiState.Playing) {
     val total = state.question?.durationMs ?: 1
-    var remaining by remember { mutableLongStateOf(state.remainingMs) }
+    // Valeur de départ calculée tout de suite sur l'échéance (film du 1/11 : une image à « 0 » au début du tour).
+    var remaining by remember {
+        mutableLongStateOf(state.deadline?.let { restantMimes(it, System.currentTimeMillis() + state.serverOffset, state.resumeAt ?: 0L, total) } ?: state.remainingMs)
+    }
     LaunchedEffect(state.deadline, state.paused) {
         val deadline = state.deadline
         if (deadline == null) {
@@ -606,7 +665,9 @@ internal fun MimeCountdown(state: UiState.Playing) {
         }
         val start = state.resumeAt ?: 0L
         while (true) {
-            remaining = (deadline - maxOf(System.currentTimeMillis() + state.serverOffset, start)).coerceAtLeast(0)
+            // Le chrono du tour part avec la première carte (MIME_DEPART_MS) : pendant le bandeau et « TOP DÉPART ! »,
+            // il reste plein, jamais au-dessus de la durée.
+            remaining = restantMimes(deadline, System.currentTimeMillis() + state.serverOffset, start, total)
             if (remaining == 0L) break
             delay(100)
         }

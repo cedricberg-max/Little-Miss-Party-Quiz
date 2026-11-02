@@ -409,7 +409,9 @@ class DirecteurSonoreTest {
         assertEquals(Ambiance.MIMES_ENTRE, ouverture.musique())
         val top = d.observer(tour)
         assertEquals(listOf(Son.MIME_TOP), top.sons())
-        assertEquals(Ordre.Musique(Ambiance.MIMES, Tempo.MIME_TOP_IMPACT), top.filterIsInstance<Ordre.Musique>().last())
+        // Après le bandeau « À vous de mimer ! », avec le tampon « TOP DÉPART ! » (cedric, 1/11 : plus rien l'un sur l'autre).
+        assertEquals(Ordre.Jouer(Son.MIME_TOP, Tempo.MIMES_ANNONCE), top.filterIsInstance<Ordre.Jouer>().single())
+        assertEquals(Ordre.Musique(Ambiance.MIMES, Tempo.MIMES_ANNONCE + Tempo.MIME_TOP_IMPACT), top.filterIsInstance<Ordre.Musique>().last())
         // Trouvé, puis le souffle du « Changement de joueur ! » (roulement des mimes, cedric 24/10).
         val trouve = d.observer(tour.copy(trouves = 1))
         assertEquals(listOf(Son.MIME_TROUVE, Son.WHOOSH), trouve.sons())

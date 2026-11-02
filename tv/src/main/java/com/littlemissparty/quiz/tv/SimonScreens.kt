@@ -4,7 +4,16 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.geometry.Size
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -46,9 +55,10 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -80,6 +90,7 @@ import com.littlemissparty.quiz.tv.habillage.Son
 import com.littlemissparty.quiz.tv.habillage.Sons
 import com.littlemissparty.quiz.tv.habillage.TexteNeon
 import com.littlemissparty.quiz.tv.habillage.apparition
+import com.littlemissparty.quiz.tv.habillage.imageAppli
 import kotlinx.coroutines.delay
 
 /*
@@ -274,9 +285,65 @@ fun SimonScreen(state: UiState.Playing, actions: TvActions) {
 private fun sonSimon(s: Son) = Sons.executer(listOf(Ordre.Jouer(s)))
 
 /** Les poses du robot prof (design du 27/10) : même cadre pour toutes, on passe de l'une à l'autre en fondu. */
-internal enum class PoseSimon(val image: Int) {
-    ATTEND(R.drawable.gs_simon_prof_attend), MONTRE(R.drawable.gs_simon_prof_montre), CHIFFRES(R.drawable.gs_simon_prof_chiffres),
-    BAH_ALORS(R.drawable.gs_simon_prof_bahalors), FELICITE(R.drawable.gs_simon_prof_felicite),
+internal enum class PoseSimon(val nom: String, val yeux: YeuxProf) {
+    ATTEND(
+        "attend",
+        YeuxProf(Pupille(310, 383, 341, 411), Pupille(389, 384, 422, 412), 358, 232),
+    ),
+    MONTRE(
+        "montre",
+        YeuxProf(Pupille(310, 383, 341, 411), Pupille(388, 384, 422, 412), 358, 232),
+    ),
+    CHIFFRES(
+        "chiffres",
+        YeuxProf(Pupille(309, 340, 341, 374), Pupille(389, 351, 420, 373), 358, 194),
+    ),
+    BAH_ALORS(
+        "bahalors",
+        YeuxProf(Pupille(309, 376, 341, 411), Pupille(389, 393, 420, 416), 371, 236),
+    ),
+    FELICITE(
+        "felicite",
+        YeuxProf(Pupille(309, 394, 341, 422), Pupille(389, 395, 420, 423), 365, 232),
+    ),
+}
+
+/**
+ * Où se posent « verres » (le visage sans pupilles) et « pupilles » (les pupilles seules) dans l'image du prof : les
+ * deux sont découpés par outils/simon_prof_yeux.py dans ce même rectangle.
+ */
+internal const val YEUX_X = 296
+internal const val YEUX_Y = 326
+
+/** Une pupille (les petits pixels cyan de l'écran-visage) dans l'image du prof (954 × 1000 px). */
+internal data class Pupille(val g: Int, val h: Int, val d: Int, val b: Int)
+
+/** Les deux pupilles et la boule de l'antenne, mesurées sur chaque pose. */
+internal data class YeuxProf(val gauche: Pupille, val droite: Pupille, val antenneX: Int, val antenneY: Int)
+
+/**
+ * Le prof n'est plus une photo posée (cedric, 1/11 au soir : « des petits mouvements fluides, naturels », sans danser) :
+ * il respire, se balance à peine sur son socle, cligne des yeux, jette des coups d'œil au tableau, et la boule de son
+ * antenne pulse doucement. Tous les rythmes sont lents et décalés pour ne jamais faire « boucle ».
+ */
+internal object VieDuProf {
+    const val SOUFFLE_MS = 3_900
+    const val BALANCE_MS = 6_700
+    const val ANTENNE_MS = 2_300
+    const val SOUFFLE_AMPLEUR = 0.011f
+    const val BALANCE_DEGRES = 0.7f
+    const val CLIGNE_MS = 170L
+    /** Coup d'œil vers le tableau (à droite du prof), en pixels de l'image. */
+    const val REGARD_PX = 5f
+
+    /** Attente avant le prochain clignement : entre 2,4 et 5,8 s, comme quelqu'un qui écoute. */
+    fun avantCligne(hasard: kotlin.random.Random): Long = 2_400L + hasard.nextLong(3_400L)
+
+    /** Un clignement sur cinq est double. */
+    fun doubleCligne(hasard: kotlin.random.Random): Boolean = hasard.nextInt(5) == 0
+
+    /** Fermeture de la paupière pendant un clignement (0 → 1 → 0), [t] de 0 à 1. */
+    fun paupiere(t: Float): Float = if (t < 0.45f) t / 0.45f else if (t < 0.6f) 1f else (1f - (t - 0.6f) / 0.4f).coerceAtLeast(0f)
 }
 
 /** Le robot montre la suite avec sa règle, lève les bras pour les chiffres, félicite (sérieusement) la gagnante du tour. */
@@ -293,8 +360,91 @@ internal fun poseSimon(etape: EtapeSimon, v: com.littlemissparty.quiz.engine.Sim
 
 @Composable
 private fun RobotProf(pose: PoseSimon, hauteur: Float, modifier: Modifier) {
-    Crossfade(pose, modifier.height(hauteur.dp).width((hauteur * 954f / 1000f).dp), animationSpec = tween(250), label = "robot-prof") { p ->
-        Image(painterResource(p.image), contentDescription = null, modifier = Modifier.fillMaxSize())
+    val vie = rememberInfiniteTransition(label = "vie-du-prof")
+    val souffle by vie.animateFloat(0f, 1f, infiniteRepeatable(tween(VieDuProf.SOUFFLE_MS, easing = LinearEasing)), label = "souffle")
+    val balance by vie.animateFloat(0f, 1f, infiniteRepeatable(tween(VieDuProf.BALANCE_MS, easing = LinearEasing)), label = "balance")
+    val antenne by vie.animateFloat(0f, 1f, infiniteRepeatable(tween(VieDuProf.ANTENNE_MS, easing = LinearEasing)), label = "antenne")
+    val cligne = remember { Animatable(0f) }
+    val regard = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        val hasard = kotlin.random.Random(System.nanoTime())
+        while (true) {
+            delay(VieDuProf.avantCligne(hasard))
+            repeat(if (VieDuProf.doubleCligne(hasard)) 2 else 1) {
+                cligne.snapTo(0f)
+                cligne.animateTo(1f, tween(VieDuProf.CLIGNE_MS.toInt(), easing = LinearEasing))
+                cligne.snapTo(0f)
+                delay(90)
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        val hasard = kotlin.random.Random(System.nanoTime() + 7)
+        while (true) {
+            delay(3_500L + hasard.nextLong(4_000L))
+            // Un coup d'œil au tableau (à droite), parfois un petit vers la salle (à gauche), puis retour.
+            regard.animateTo(if (hasard.nextInt(3) == 0) -0.6f else 1f, tween(260, easing = FastOutSlowInEasing))
+            delay(1_200L + hasard.nextLong(1_600L))
+            regard.animateTo(0f, tween(320, easing = FastOutSlowInEasing))
+        }
+    }
+    val tau = (2 * Math.PI).toFloat()
+    Box(
+        modifier.height(hauteur.dp).width((hauteur * 954f / 1000f).dp).graphicsLayer {
+            // Pivot au pied du socle : le socle reste posé, le haut du corps vit.
+            transformOrigin = TransformOrigin(0.5f, 0.95f)
+            scaleY = 1f + VieDuProf.SOUFFLE_AMPLEUR * kotlin.math.sin(souffle * tau)
+            scaleX = 1f + VieDuProf.SOUFFLE_AMPLEUR * 0.35f * kotlin.math.sin(souffle * tau)
+            rotationZ = VieDuProf.BALANCE_DEGRES * kotlin.math.sin(balance * tau)
+        },
+    ) {
+        Crossfade(pose, Modifier.fillMaxSize(), animationSpec = tween(250), label = "robot-prof") { p ->
+            // Décodées une fois pour la soirée (ImagesAppli), jamais à chaque entrée dans l'écran.
+            val image = imageAppli("gs_simon_prof_${p.nom}") ?: return@Crossfade
+            val verres = imageAppli("gs_simon_prof_${p.nom}_verres")
+            val pupilles = imageAppli("gs_simon_prof_${p.nom}_pupilles")
+            Canvas(Modifier.fillMaxSize()) {
+                // Tout se dessine en pixels de l'image (954 × 1000) : les morceaux tombent pile au même endroit.
+                scale(size.width / image.width, size.height / image.height, pivot = Offset.Zero) {
+                    drawImage(image, filterQuality = FilterQuality.Medium)
+                    val y = p.yeux
+                    val dx = regard.value * VieDuProf.REGARD_PX
+                    val ferme = VieDuProf.paupiere(cligne.value)
+                    if ((dx != 0f || ferme != 0f) && verres != null && pupilles != null) {
+                        // Les verres sans pupilles par-dessus, puis chaque pupille décalée et/ou fermée.
+                        drawImage(verres, Offset(YEUX_X.toFloat(), YEUX_Y.toFloat()))
+                        for (pu in listOf(y.gauche, y.droite)) pupille(pupilles, pu, dx, ferme)
+                    }
+                    // La boule de l'antenne s'allume et s'éteint doucement.
+                    val lueur = 0.18f + 0.32f * (0.5f + 0.5f * kotlin.math.sin(antenne * tau))
+                    val c = Offset(y.antenneX.toFloat(), y.antenneY.toFloat())
+                    drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF4B0).copy(alpha = lueur), Color.Transparent), c, 34f), 34f, c)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Pose une pupille (en pixels de l'image) décalée de [dx] (coup d'œil) et écrasée vers sa ligne du bas selon [ferme]
+ * (clignement).
+ */
+private fun DrawScope.pupille(pupilles: ImageBitmap, pu: Pupille, dx: Float, ferme: Float) {
+    val marge = 4
+    val src = IntOffset(pu.g - marge - YEUX_X, pu.h - marge - YEUX_Y)
+    val taille = IntSize(pu.d - pu.g + 2 * marge, pu.b - pu.h + 2 * marge)
+    // L'œil se ferme vers une ligne aux deux tiers de la pupille, comme un écran à pixels.
+    val haut = (pu.h - marge).toFloat()
+    val ligne = haut + taille.height * 0.65f
+    translate(pu.g - marge + dx, 0f) {
+        if (ferme < 0.9f) {
+            scale(1f, 1f - ferme, pivot = Offset(0f, ligne)) {
+                drawImage(pupilles, srcOffset = src, srcSize = taille, dstOffset = IntOffset(0, haut.toInt()), dstSize = taille, filterQuality = FilterQuality.Medium)
+            }
+        } else {
+            // Œil fermé : une fine ligne de pixels cyan, comme les sourcils de son écran.
+            drawRect(Color(0xFF3FE8E0), Offset(marge + 2f, ligne - 1.5f), Size(taille.width - 2f * marge - 4f, 3f))
+        }
     }
 }
 

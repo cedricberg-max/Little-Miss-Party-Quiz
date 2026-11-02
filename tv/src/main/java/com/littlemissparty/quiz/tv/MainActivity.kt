@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
             val updateOpen by updates.open.collectAsState()
             val updateAvailable by updates.available.collectAsState()
             val updateOffer by updates.offer.collectAsState()
+            val reglagesManquants by updates.reglages.collectAsState()
             val coup by viewModel.coup.collectAsState()
             val vidage by viewModel.vidage.collectAsState()
             val busy = gameInProgress(state)
@@ -106,13 +107,16 @@ class MainActivity : ComponentActivity() {
                     },
                 ),
                 update = UpdateScreen(
-                    ui = updateUi, open = updateOpen, available = updateAvailable, offer = updateOffer,
+                    ui = updateUi, open = updateOpen, available = updateAvailable, offer = updateOffer, reglages = reglagesManquants,
                     actions = UpdateActions(
                         search = updates::search,
                         download = updates::download,
                         cancelDownload = updates::cancelDownload,
                         install = updates::install,
-                        openPermission = updates::openInstallPermission,
+                        // Ouvert depuis l'écran de l'appli : Retour revient ici, plus sur le gestionnaire de fichiers.
+                        openPermission = { ReglagesMiseAJour.ouvrir(this@MainActivity, Reglage.INSTALLER) },
+                        ouvrirReglage = { r -> ReglagesMiseAJour.ouvrir(this@MainActivity, r) },
+                        reglagesPlusTard = updates::reglagesPlusTard,
                         close = updates::hide,
                         acceptOffer = updates::acceptOffer,
                         declineOffer = updates::declineOffer,

@@ -166,4 +166,34 @@ class SimonEcranTest {
         val plaques = src.substringAfter("private fun Plaques(").substringBefore("internal fun plaquesParRangee")
         assertTrue("UneLigneQuiTient(echelleMin = 0.6f) {\n                            Text(p.etat" in plaques)
     }
+
+    @Test
+    fun `le prof vit - il respire, se balance a peine, cligne des yeux au hasard, jamais une photo posee`() {
+        // Des mouvements petits (cedric, 1/11 : « pas danser »), des rythmes lents et décalés.
+        assertTrue(VieDuProf.SOUFFLE_AMPLEUR in 0.005f..0.02f)
+        assertTrue(VieDuProf.BALANCE_DEGRES in 0.3f..1.2f)
+        assertTrue(VieDuProf.SOUFFLE_MS != VieDuProf.BALANCE_MS && VieDuProf.BALANCE_MS % VieDuProf.SOUFFLE_MS != 0)
+        val hasard = kotlin.random.Random(42)
+        repeat(200) { assertTrue(VieDuProf.avantCligne(hasard) in 2_400L..5_800L) }
+        assertEquals(0f, VieDuProf.paupiere(0f), 0.001f)
+        assertEquals(1f, VieDuProf.paupiere(0.5f), 0.001f)
+        assertEquals(0f, VieDuProf.paupiere(1f), 0.001f)
+        // Chaque pose a ses deux pupilles mesurées dans l'image (954 × 1000), à leur place sur l'écran-visage.
+        for (p in PoseSimon.entries) {
+            for (pu in listOf(p.yeux.gauche, p.yeux.droite)) {
+                assertTrue("${p.name} largeur", pu.d - pu.g in 25..40)
+                assertTrue("${p.name} hauteur", pu.b - pu.h in 18..40)
+                assertTrue("${p.name} dans l'image", pu.g > 0 && pu.d < 954 && pu.h > 0 && pu.b < 1000)
+            }
+            assertTrue("${p.name} gauche avant droite", p.yeux.gauche.d < p.yeux.droite.g)
+            // Les pupilles (et leur marge de 4 px) tombent dans les morceaux découpés par outils/simon_prof_yeux.py.
+            for (pu in listOf(p.yeux.gauche, p.yeux.droite)) {
+                assertTrue("${p.name} dans les verres", pu.g - 4 >= YEUX_X && pu.h - 4 >= YEUX_Y && pu.d + 4 <= YEUX_X + 140 && pu.b + 4 <= YEUX_Y + 112)
+            }
+            for (morceau in listOf("verres", "pupilles")) {
+                assertTrue("${p.nom} $morceau", java.io.File("src/main/res/drawable-nodpi/gs_simon_prof_${p.nom}_$morceau.webp").exists())
+            }
+            assertTrue("${p.name} antenne au-dessus des yeux", p.yeux.antenneY < p.yeux.gauche.h - 100)
+        }
+    }
 }

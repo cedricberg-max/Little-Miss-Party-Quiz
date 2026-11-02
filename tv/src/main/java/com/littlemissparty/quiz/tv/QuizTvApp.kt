@@ -139,6 +139,8 @@ class UpdateScreen(
     val actions: UpdateActions,
     /** Version à proposer d'elle-même, affichée seulement hors partie. */
     val offer: Release? = null,
+    /** Réglages Android encore à faire pour les mises à jour, proposés dès le lancement, à l'accueil. */
+    val reglages: List<Reglage> = emptyList(),
 )
 
 @Composable
@@ -249,9 +251,13 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, 
     if (state is UiState.Playing && state.showTablette) {
         TabletteDialog(state, onClose = actions.hideTablette, onConfier = actions.confierTablette)
     }
+    val accueilLibre = !gameInProgress(state) && !confirmQuit && !pointsOpen && !cacheOpen && !(state is UiState.Playing && (state.showRegie || state.showTablette))
     if (update != null && update.open) {
         UpdateDialog(update.ui, busy = manualUpdateBlocked(state), actions = update.actions)
-    } else if (update?.offer != null && !gameInProgress(state) && !confirmQuit && !pointsOpen && !cacheOpen && !(state is UiState.Playing && (state.showRegie || state.showTablette))) {
+    } else if (update != null && update.reglages.isNotEmpty() && accueilLibre) {
+        // Réglages des mises à jour d'abord (cedric, 1/11 : la permission demandée au tout dernier moment).
+        ReglagesDialog(update.reglages, update.actions)
+    } else if (update?.offer != null && accueilLibre) {
         // La proposition attend le retour à l'accueil : jamais par-dessus une partie ou une autre fenêtre.
         UpdateOfferDialog(update.offer, update.actions)
     }

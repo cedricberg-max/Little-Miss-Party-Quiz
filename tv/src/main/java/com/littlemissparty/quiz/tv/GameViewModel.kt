@@ -1393,7 +1393,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 buzzBlocked = s.buzz?.blocked.orEmpty(),
                 blind = q?.takeIf { it.isBlind && s.phase != Phase.LOBBY }?.let { blindUi(g) },
                 coffres = g.chestRound.takeIf { s.phase != Phase.LOBBY },
-                lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
+                // Tableau des scores à la fin d'un jeu (ou d'un jeu quitté en cours de route) : les jauges montent de TOUT
+                // ce que le jeu a rapporté (toutes ses questions, mimes, coffres, bonus et malus de la régie), pas
+                // seulement de la dernière question (cedric, 1/11 au soir : 100 points gagnés au premier mot de Chante le
+                // mot, jeu quitté au troisième, qui ne montaient pas dans la jauge). Entre deux questions d'un même jeu :
+                // les points de la question qui vient de se jouer.
+                lastGain = when {
+                    s.phase == Phase.SCORES && (g.nextGameTitle() != null || g.isLastQuestion) -> g.gameGains()
+                    q?.isTurns == true -> mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) }
+                    else -> revealedAwards.mapValues { it.value.points }
+                },
                 isLast = g.isLastQuestion && g.leaveTarget == null,
                 nextGame = g.nextGameTitle(),
                 etape = g.gameStep()?.label,

@@ -52,6 +52,9 @@ class UpdateActions(
     /** Fenêtre de proposition : « Installer maintenant » et « Plus tard ». */
     val acceptOffer: () -> Unit = {},
     val declineOffer: () -> Unit = {},
+    /** Fenêtre des réglages du lancement : ouvre un réglage Android (faux si la box ne l'a pas), « Plus tard ». */
+    val ouvrirReglage: (Reglage) -> Boolean = { false },
+    val reglagesPlusTard: () -> Unit = {},
 )
 
 /** Partie en cours (équipes déjà là ou question jouée) : aucune mise à jour pendant une prestation. */
@@ -160,6 +163,55 @@ fun UpdateOfferDialog(release: Release, actions: UpdateActions) {
 
 private val OfferHalo = Color(0xFFF888B3)
 
+internal const val AIDE_INSTALLER = "Si le bouton n'ouvre rien : Paramètres › Applis (ou Préférences de l'appareil › Sécurité) › " +
+    "Accès spécifiques › Sources inconnues (ou « Installer des applis inconnues ») › Little Miss Party Quiz."
+internal const val AIDE_RELANCER = "Si le bouton n'ouvre rien : Paramètres › Applis › Accès spécifiques › " +
+    "Afficher par-dessus d'autres applis › Little Miss Party Quiz. Si la box ne l'a pas, l'appli se rouvre avec son icône."
+
+/** Ce que chaque réglage permet, en mots simples. */
+internal fun texteReglage(r: Reglage): String = when (r) {
+    Reglage.INSTALLER -> "Installer ses mises à jour"
+    Reglage.RELANCER -> "Se rouvrir toute seule juste après une mise à jour"
+}
+
+/**
+ * Réglages des mises à jour, proposés dès le lancement à l'accueil (jamais pendant une partie). Un seul bouton à la
+ * fois : le premier réglage qui manque ; au retour d'Android, la fenêtre se met à jour ou disparaît. Retour vaut
+ * « Plus tard » (redemandé au prochain lancement).
+ */
+@Composable
+fun ReglagesDialog(manquants: List<Reglage>, actions: UpdateActions) {
+    val focus = remember { FocusRequester() }
+    val premier = manquants.first()
+    Dialog(onDismissRequest = actions.reglagesPlusTard, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier
+                .padding(horizontal = 40.dp, vertical = 16.dp)
+                .widthIn(max = 820.dp)
+                .clip(RoundedCornerShape(32.dp))
+                .background(Brush.verticalGradient(listOf(Neon.FondHaut, Neon.Fond)))
+                .border(2.dp, Brush.horizontalGradient(listOf(OfferHalo, Palette.Gold, OfferHalo)), RoundedCornerShape(32.dp))
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 40.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Réglage à faire une seule fois", color = Palette.Gold, fontSize = 32.sp, fontWeight = FontWeight.Black)
+            Body("Pour que les mises à jour s'installent sans souci, même chez un client, Android doit autoriser l'appli à :")
+            manquants.forEach { r -> Text("•  ${texteReglage(r)}", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+            Text(
+                "Activez « ${texteReglage(premier)} », puis faites Retour : vous revenez ici.",
+                color = Palette.InkSoft, fontSize = 18.sp,
+            )
+            Text(if (premier == Reglage.INSTALLER) AIDE_INSTALLER else AIDE_RELANCER, color = Palette.InkSoft, fontSize = 16.sp)
+            Buttons {
+                Primary("Ouvrir le réglage", { actions.ouvrirReglage(premier) }, focus)
+                Secondary("Plus tard", actions.reglagesPlusTard)
+            }
+        }
+        LaunchedEffect(premier) { runCatching { focus.requestFocus() } }
+    }
+}
+
 private fun releaseOf(ui: UpdateUi): Release? = when (ui) {
     is UpdateUi.Available -> ui.release
     is UpdateUi.Downloading -> ui.release
@@ -223,21 +275,21 @@ private fun Content(ui: UpdateUi, actions: UpdateActions, focus: FocusRequester)
         }
         is UpdateUi.NeedsPermission -> {
             Body(
-                "Android doit autoriser Little Miss Party Quiz à installer ses mises à jour. " +
-                    "C'est à faire une seule fois.",
+                "Android doit autoriser l'appli à installer ses mises à jour. C'est à faire une seule fois : " +
+                    "activez-la, puis faites Retour, l'installation reprend toute seule.",
             )
-            Text(
-                "Si le bouton n'ouvre rien : Paramètres › Préférences de l'appareil › Sécurité et restrictions › " +
-                    "Sources inconnues › Little Miss Party Quiz.",
-                color = Palette.InkSoft, fontSize = 18.sp,
-            )
+            Text(AIDE_INSTALLER, color = Palette.InkSoft, fontSize = 18.sp)
             Buttons {
                 Primary("Ouvrir le réglage Android", { actions.openPermission() }, focus)
                 Secondary("J'ai autorisé : installer", actions.install)
             }
         }
         is UpdateUi.Installing -> {
-            Waiting("Confirmez l'installation sur l'écran d'Android. L'appli redémarre ensuite toute seule.")
+            val seule = ReglagesMiseAJour.seRouvreSeule(androidx.compose.ui.platform.LocalContext.current)
+            Waiting(
+                "Confirmez l'installation sur l'écran d'Android. " +
+                    if (seule) "L'appli se rouvre ensuite toute seule." else "Ensuite, rouvrez l'appli avec son icône.",
+            )
             Buttons { Secondary("Fermer", actions.close, focus) }
         }
         is UpdateUi.Failed -> {

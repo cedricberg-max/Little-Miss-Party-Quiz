@@ -38,7 +38,14 @@ async function lireConfig() {
 
 /** Une connexion Firebase à part (son propre identifiant anonyme, gardé par le navigateur sous ce nom). */
 const connexions = new Map();
+/**
+ * Chaque reprise d'une connexion (fantôme relancé) change sa génération : une déconnexion encore en route de l'ancien
+ * fantôme (après le retrait de sa demande d'entrée) ne coupe jamais le nouveau. Soirée du 1/11 : « Arrêter » puis
+ * « Lancer » aussitôt, et Fantôme 1 restait bloqué sur « connexion… ».
+ */
+const generations = new Map();
 async function connexion(nom) {
+  generations.set(nom, (generations.get(nom) ?? 0) + 1);
   if (connexions.has(nom)) {
     const c = await connexions.get(nom);
     goOnline(c.db);
@@ -98,7 +105,7 @@ class Fantome {
 
   async demarrer(code) {
     if (this.arrete) return;
-    if (!this.db) Object.assign(this, await connexion(`fantome-${this.i + 1}`));
+    if (!this.db) Object.assign(this, await connexion(this.nomConnexion()));
     if (this.arrete) return;
     this.code = code;
     this.arreterEcoutes();
@@ -121,6 +128,10 @@ class Fantome {
         .then(() => this.attendreEntree())
         .catch(() => this.maj("demande refusée"));
     });
+  }
+
+  nomConnexion() {
+    return `fantome-${this.i + 1}`;
   }
 
   monEquipe(teams) {
@@ -466,7 +477,11 @@ class Fantome {
     const demande = this.demandeEnCours;
     this.demandeEnCours = null;
     if (this.db && demande && !this.teamId) {
-      remove(ref(this.db, `games/${demande}/joinRequests/${this.uid}`)).catch(() => {}).finally(() => goOffline(this.db));
+      const db = this.db;
+      const gen = generations.get(this.nomConnexion());
+      // Le fantôme relancé entre-temps partage cette connexion : on ne la coupe que si personne ne l'a reprise.
+      remove(ref(db, `games/${demande}/joinRequests/${this.uid}`)).catch(() => {})
+        .finally(() => { if (generations.get(this.nomConnexion()) === gen) goOffline(db); });
     } else if (this.db) goOffline(this.db);
     this.maj("arrêté");
   }

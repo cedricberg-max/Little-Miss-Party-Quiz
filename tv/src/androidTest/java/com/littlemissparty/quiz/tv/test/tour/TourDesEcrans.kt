@@ -1,8 +1,10 @@
 package com.littlemissparty.quiz.tv.test.tour
 
+import android.os.SystemClock
 import android.util.Log
 import com.google.firebase.database.DataSnapshot
 import com.littlemissparty.quiz.tv.TEAM_COLORS
+import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.test.EXTRAIT_MP3
 import com.littlemissparty.quiz.tv.test.PupitreSimule
 import com.littlemissparty.quiz.tv.test.RegieSimulee
@@ -82,6 +84,8 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
             verifier("juste-chiffre-question", 1_500)
             equipes.forEachIndexed { i, e -> e.repondre(code, "t-juste", 150 + 20 * i) }
             reveler("t-juste")
+            // Pendant la machine à sous (cedric, 1/11 au soir : une phrase coupée juste sous les chiffres qui tournent).
+            verifier("juste-chiffre-roulette", 900)
             verifier("juste-chiffre-revelation", ATTENTE_REVELATION)
         }
         jeu("vrai-faux") {
@@ -94,6 +98,23 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
         jeu("zoom") {
             aller("t-zoom")
             verifier("zoom-question", 1_500)
+            // Une tablette qui perd le Wi-Fi (cedric, 1/11 au soir : « Fantôme 7 » plus petit, puis coupé « Fantô / me 7 ») :
+            // le nom garde sa taille, « hors ligne » est à part. La tablette revient avant de répondre.
+            val absente = equipes.last()
+            val coupeA = System.currentTimeMillis()
+            absente.couperReseau()
+            attendreQue("équipe hors ligne", 30_000) { equipes.first().lire("games/$code/presence/${absente.uid}/online").takeIf { it == false } }
+            verifier("zoom-hors-ligne", 1_200)
+            absente.retablirReseau(code)
+            // Comme en vrai : la coupure d'un pupitre en pleine question met la partie en pause automatique ; Sarah reprend.
+            // (4 s de grâce côté TV : on attend de l'avoir passée pour ne pas reprendre avant la pause).
+            attendreQue("partie reprise", 30_000) {
+                when {
+                    etat().child("paused").value == true -> { regie.commande(code, "resume"); Thread.sleep(500); null }
+                    System.currentTimeMillis() - coupeA < 6_000 -> { Thread.sleep(300); null }
+                    else -> true
+                }
+            }
             equipes.forEachIndexed { i, e -> e.repondre(code, "t-zoom", i % 2) }
             reveler("t-zoom")
             verifier("zoom-revelation", ATTENTE_REVELATION)
@@ -142,11 +163,22 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
             aller("t-mime")
             verifier("mimes-presentation", 1_500)
             assertEquals("applied", regie.commande(code, "mime_start", mapOf("team" to equipes.last().uid)))
-            verifier("mimes-tour", 1_500)
+            // Début de tour image par image (cedric, 1/11 au soir) : le bandeau seul, puis « TOP DÉPART ! » seul, puis la carte.
+            val debut = SystemClock.uptimeMillis()
+            fun aT(ms: Long, nom: String) {
+                SystemClock.sleep((debut + ms - SystemClock.uptimeMillis()).coerceAtLeast(0))
+                ecran.capture("tour-$nom-${nombre}eq")
+            }
+            aT(700, "mimes-debut-1-bandeau")
+            aT(Tempo.MIMES_ANNONCE + 500, "mimes-debut-2-top-depart")
+            aT(Tempo.MIMES_CARTE + 700, "mimes-debut-3-carte")
+            verifier("mimes-tour", 300)
             assertEquals("applied", regie.commande(code, "mime_found"))
             verifier("mimes-changement", 1_200)
             assertEquals("applied", regie.commande(code, "mime_stop"))
-            verifier("mimes-bravo", 1_500)
+            // « TEMPS ÉCOULÉ ! » dans la couleur de l'équipe qui vient de jouer (7 équipes : rouge, 8 : turquoise).
+            ecran.capture("tour-mimes-temps-ecoule-${nombre}eq", 500)
+            verifier("mimes-bravo", 1_000)
         }
         jeu("pictionary") {
             aller("t-picto")
@@ -184,7 +216,9 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
                 if ((etat().child("chests/turn").value as Number).toInt() > tour) true
                 else { joueuse.ouvrirCoffre(code, 0); Thread.sleep(800); null }
             }
-            verifier("coffres-ouverture", 1_200)
+            // 600 ms seulement : l'analyse de la capture prend jusqu'à 5 s, et le classement qui suit ne reste que 4 s
+            // (de 4,5 à 8,5 s après l'ouverture) ; à 1,2 s, le tour à 7 équipes l'a manqué (1/11, chest -50).
+            verifier("coffres-ouverture", 600)
             // Le classement entre deux coffres (cedric, 30/10 : les ronds des rangs serrés dans leur carte).
             // Game Show : « LE CLASSEMENT » en capitales ; il ne reste que quelques secondes, capturé dès qu'il paraît.
             attendreQue("classement des coffres", 15_000) { (ecran.affiche("LE CLASSEMENT") || ecran.affiche("Le classement")).takeIf { it } }

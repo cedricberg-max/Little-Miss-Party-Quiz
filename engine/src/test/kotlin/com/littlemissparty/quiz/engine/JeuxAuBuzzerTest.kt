@@ -87,4 +87,24 @@ class JeuxAuBuzzerTest {
         g.judgeBuzz(true, t0 + 12_000)
         assertEquals(Phase.REVEAL, g.state.phase)
     }
+
+    @Test
+    fun `chante le mot gagne au premier mot, compte entier au bilan du jeu (jauges du tableau des scores)`() {
+        // Cedric, 1/11 au soir : 100 points gagnés à Chante le mot, vus pendant le jeu, mais qui ne montaient pas dans la
+        // jauge du bilan de fin de jeu (elle ne montait que des points de la dernière question).
+        val mots = listOf("soleil", "maman", "école").mapIndexed { i, m -> Question("c$i", m, listOf(m), 0, durationSec = 30, kind = QuestionKind.CHANTE, roundTitle = "Chante le mot !") }
+        val apres = Question("q1", "Couleur du ciel ?", listOf("Bleu", "Vert"), 0, durationSec = 20, roundTitle = "Quiz")
+        val g = Game(Quiz("p", "P", mots + apres)).apply { next(t0) }
+        g.buzz("rose", t0 + 2_000)
+        g.judgeBuzz(true, t0 + 4_000)
+        var t = t0 + 10_000
+        while (g.state.phase != Phase.SCORES) {
+            assertTrue(t < t0 + 1_000_000, "le bilan du jeu arrive")
+            g.next(t)
+            t += 40_000
+
+        }
+        assertEquals(mapOf("rose" to Scoring.BUZZ), g.gameGains())
+        assertEquals(g.state.scores(), g.gameGains())
+    }
 }

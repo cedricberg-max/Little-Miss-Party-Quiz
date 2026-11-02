@@ -1354,6 +1354,8 @@ function runTimer(st, el = $("q-timer")) {
     if (st.phase !== "question") ms = 0;
     else if (st.paused) ms = st.remainingMs ?? 0;
     else ms = Math.max(0, (st.deadline ?? 0) - Math.max(Date.now() + serverOffset, st.resumeAt ?? 0));
+    // Mimes : le chrono part avec la première carte, après le bandeau et « TOP DÉPART ! » : jamais plus que la durée.
+    if (st.durationMs != null) ms = Math.min(ms, st.durationMs);
     const s = Math.ceil(ms / 1000);
     el.textContent = `${s}`;
     el.classList.toggle("urgent", s <= 5);
