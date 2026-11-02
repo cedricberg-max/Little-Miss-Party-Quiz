@@ -40,7 +40,8 @@ jobs:
     name: Émulateur Android TV
     runs-on: ubuntu-24.04
     # Les tests eux-mêmes prennent de 26 à 50 min (20/10) : 60 min coupait trop près.
-    timeout-minutes: 75
+    # Le tour des écrans capture chaque moment deux fois (avec et sans boutons de télécommande, 1/11) : plus de marge.
+    timeout-minutes: 110
     env:
       API_LEVEL: 28
       # Version debug branchée sur l'émulateur Firebase du runner (la version release reste sur la vraie adresse).
