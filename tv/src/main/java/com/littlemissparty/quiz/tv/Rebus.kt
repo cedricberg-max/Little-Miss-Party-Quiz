@@ -402,7 +402,7 @@ private fun MorceauQuiSort(carte: MimeCard, photo: ImageBitmap?, cote: Dp, ms: F
     ) {
         Box(Modifier.fillMaxSize().graphicsLayer { scaleX = zoom; scaleY = zoom }, contentAlignment = Alignment.Center) {
             when {
-                photo != null -> Image(photo, contentDescription = carte.word, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                photo != null -> Image(photo, contentDescription = carte.word, contentScale = ContentScale.Crop, alignment = CadrageHaut, modifier = Modifier.fillMaxSize())
                 !carte.image.isNullOrBlank() -> Text(carte.image!!, fontSize = with(densite) { (cote * 0.56f).toSp() })
                 lettre -> Text(
                     carte.word.uppercase(), color = Color.White, fontFamily = PoliceGsTitre, maxLines = 1,
