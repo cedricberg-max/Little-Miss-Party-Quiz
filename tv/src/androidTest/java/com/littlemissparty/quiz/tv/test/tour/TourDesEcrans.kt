@@ -326,7 +326,10 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
     private fun verifier(moment: String, attente: Long = 900) {
         // Le rideau entre deux jeux (« C'EST PARTI ! », « NOUVELLE ÉPREUVE », « JEU SUIVANT ») couvre tout l'écran : on
         // vérifie l'écran du jeu, pas le rideau (1/11 : la 1re question du quiz, sans boutons, était capturée sous le rideau).
-        listOf("C'EST PARTI", "NOUVELLE ÉPREUVE", "JEU SUIVANT").forEach { runCatching { ecran.neVoitPas(it, 12_000) } }
+        // Un seul coup d'œil quand il n'y a pas de rideau (le classement des coffres ne dure que quelques secondes).
+        val rideaux = listOf("C'EST PARTI", "NOUVELLE ÉPREUVE", "JEU SUIVANT")
+        val elems = ecran.elements().filter { it.visible }
+        rideaux.filter { r -> elems.any { r in it.texte } }.forEach { runCatching { ecran.neVoitPas(it, 12_000) } }
         RobotEcran.oublier()
         mode(false)
         verifierMode(moment, "sans", attente)
@@ -341,8 +344,21 @@ abstract class TourDesEcrans(private val nombre: Int) : TestTv() {
 
     private fun verifierMode(moment: String, mode: String, attente: Long) {
         ecran.capture("tour-$moment-${nombre}eq-$mode", attente)
-        val coupe = ecran.defautsTextes()
-        val chevauche = ecran.recouvrements()
+        // Un défaut n'est retenu que s'il est encore là 0,7 s plus tard : un texte qui passe un instant sur un autre
+        // pendant une animation voulue (paroles qui montent, carte qui saute par-dessus les autres) n'est pas une
+        // collision à l'écran ; une vraie collision, elle, reste.
+        fun cle(d: String) = d.substringBefore(" [")
+        var coupe = ecran.defautsTextes()
+        var chevauche = ecran.recouvrements()
+        if (coupe.isNotEmpty() || chevauche.isNotEmpty()) {
+            Thread.sleep(700)
+            val coupe2 = ecran.defautsTextes().map(::cle).toSet()
+            val chevauche2 = ecran.recouvrements().map(::cle).toSet()
+            val passagers = coupe.filter { cle(it) !in coupe2 } + chevauche.filter { cle(it) !in chevauche2 }
+            if (passagers.isNotEmpty()) Log.i(TAG, "TOUR|$nombre|$moment|$mode|passagers|${passagers.joinToString(" ; ").take(1_500)}")
+            coupe = coupe.filter { cle(it) in coupe2 }
+            chevauche = chevauche.filter { cle(it) in chevauche2 }
+        }
         val petit = ecran.plusPetitTexte()
         val taille = petit?.let { "%.0f px « %s »".format(it.first, it.second.replace('\n', ' ').take(40)) } ?: "-"
         val details = (coupe + chevauche).joinToString(" ; ").replace('\n', ' ').take(2_500)
