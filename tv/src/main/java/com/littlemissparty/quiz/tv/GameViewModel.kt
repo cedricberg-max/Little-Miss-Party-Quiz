@@ -1481,7 +1481,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Mimes et Qui a disparu ? en photos : la carte montrée et les deux suivantes ; toute la grille de la
         // question en cours et de la suivante.
         val cartesMime = s.mime?.deck.orEmpty().take(3).mapNotNull { q?.cards?.getOrNull(it) }
-        val grilles = listOfNotNull(q, suivante).filter { it.isDisparu }.flatMap { it.cards }
+        // Le Rébus (1/11) : les photos des morceaux de la question en cours et de la suivante, comme une grille.
+        val grilles = listOfNotNull(q, suivante).filter { it.isDisparu || it.isRebus }.flatMap { it.cards }
         cartesMime.mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages", PHOTO_CARTE_MIMES) }
         grilles.mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages", PHOTO_CARTE_DISPARU) }
         // Photos : toutes celles du programme gardées sur la box, pour une fête qui continue sans Internet.
